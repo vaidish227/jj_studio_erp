@@ -12,8 +12,10 @@ const AppLayout = ({ children }) => {
   const pathParts = location.pathname.split('/').filter(Boolean);
   const activeItem = pathParts.length > 0 ? pathParts[pathParts.length - 1] : 'dashboard';
 
-  const handleNavSelect = (id) => {
-    if (id === 'dashboard') {
+  const handleNavSelect = (id, path) => {
+    if (path) {
+      navigate(path);
+    } else if (id === 'dashboard') {
       navigate('/dashboard');
     } else {
       if (['new-leads', 'contacted', 'meetings', 'follow-ups', 'qualified', 'proposal', 'converted', 'lost-leads'].includes(id)) {
@@ -26,7 +28,7 @@ const AppLayout = ({ children }) => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg)]">
+    <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
       {/* Sidebar — handles both desktop (static) and mobile (drawer) */}
       <Sidebar
         activeItem={activeItem}
@@ -40,7 +42,7 @@ const AppLayout = ({ children }) => {
         <Navbar
           onMenuToggle={() => setIsMobileOpen((p) => !p)}
         />
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar">
           {children || <Outlet />}
         </main>
 

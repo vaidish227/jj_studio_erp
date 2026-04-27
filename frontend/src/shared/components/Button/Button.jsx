@@ -8,10 +8,11 @@ const Button = ({
   className = '',
   isLoading = false,
   disabled = false,
+  fullWidth = false,
   ...props
 }) => {
   const base =
-    'w-full flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed';
+    'flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed';
 
   const sizes = {
     sm: 'py-2 px-4 text-sm',
@@ -34,7 +35,7 @@ const Button = ({
     <button
       type={type}
       disabled={disabled || isLoading}
-      className={`${base} ${sizes[size] ?? sizes.md} ${variants[variant] ?? variants.primary} ${className}`}
+      className={`${base} ${fullWidth ? 'w-full' : 'w-fit'} ${sizes[size] ?? sizes.md} ${variants[variant] ?? variants.primary} ${className}`}
       {...props}
     >
       {isLoading ? (

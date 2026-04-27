@@ -34,9 +34,9 @@ const FollowUpItem = ({ name, project, time, status }) => {
 
 // ─── Follow-ups Panel ─────────────────────────────────────────────────────────
 const followUps = [
-  { name: 'Raj Patel',    project: 'Living Room Renovation', time: '2 days ago',        status: 'OVERDUE'  },
-  { name: 'Amit Kumar',   project: 'Office Interior',        time: 'Today, 04:00 PM',   status: 'TODAY'    },
-  { name: 'Sneha Sharma', project: 'Kitchen Interior',       time: 'Tomorrow, 11:00 AM',status: 'TOMORROW' },
+  { name: 'Raj Patel',    project: 'WhatsApp Thank You',     time: 'Within 2 hours',    status: 'TODAY'    },
+  { name: 'Amit Kumar',   project: 'KIT: Office Interior',   time: 'Today, 04:00 PM',   status: 'TODAY'    },
+  { name: 'Sneha Sharma', project: 'Follow-up: Kitchen',     time: 'Tomorrow, 11:00 AM',status: 'TOMORROW' },
 ];
 
 const FollowUpsPanel = () => {

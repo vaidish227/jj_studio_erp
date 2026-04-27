@@ -144,10 +144,10 @@ const AddLeadModal = ({ isOpen, onClose, onSubmit }) => {
 
             {/* Actions */}
             <div className="flex gap-3 pt-2">
-              <Button type="button" variant="ghost" onClick={onClose} className="flex-1">
+              <Button type="button" variant="ghost" onClick={onClose} className="flex-1" fullWidth>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} className="flex-1">
+              <Button type="submit" variant="primary" isLoading={isLoading} className="flex-1" fullWidth>
                 Add Lead
               </Button>
             </div>

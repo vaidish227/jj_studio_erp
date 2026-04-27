@@ -113,6 +113,7 @@ const LoginPage = () => {
             type="submit"
             variant="primary"
             isLoading={isLoading}
+            fullWidth
           >
             Login Now
           </Button>
