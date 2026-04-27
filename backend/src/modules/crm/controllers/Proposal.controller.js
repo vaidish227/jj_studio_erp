@@ -1,13 +1,41 @@
 const Proposal = require("../models/Proposal.model");
+const nodemailer = require("nodemailer");
+const Client = require("../models/Client.model")
+const Lead = require("../models/Lead.model")
+require("dotenv").config();
 
 //  CREATE PROPOSAL
 const createProposal = async (req, res) => {
   try {
-    const { items } = req.body;
+    const { leadId, items } = req.body;
 
+    // LeadId check
+    if (!leadId) {
+      return res.status(400).json({
+        message: "Lead ID is required",
+      });
+    }
+
+    // Items check
     if (!items || items.length === 0) {
       return res.status(400).json({
         message: "Items are required",
+      });
+    }
+
+    //  Lead fetch
+    const lead = await Lead.findById(leadId);
+
+    if (!lead) {
+      return res.status(404).json({
+        message: "Lead not found",
+      });
+    }
+
+    //  Ensure converted
+    if (!lead.clientId) {
+      return res.status(400).json({
+        message: "Lead is not converted to client",
       });
     }
 
@@ -27,13 +55,18 @@ const createProposal = async (req, res) => {
     const gst = totalAmount * 0.18;
     const finalAmount = totalAmount + gst;
 
+    //  create proposal with BOTH IDs
     const proposal = await Proposal.create({
       ...req.body,
+      leadId: lead._id,           
+      clientId: lead.clientId,    
       items: updatedItems,
       totalAmount,
       gst,
       finalAmount,
     });
+
+    console.log("Proposal created:", proposal._id);
 
     res.status(201).json({
       message: "Proposal created successfully",
@@ -41,7 +74,7 @@ const createProposal = async (req, res) => {
     });
 
   } catch (err) {
-    console.log("🔥 Error:", err.message);
+    console.log(" Error:", err.message);
     res.status(500).json({ message: err.message });
   }
 };
@@ -198,4 +231,99 @@ const updateProposal = async (req, res) => {
   }
 };
 
-module.exports = {createProposal, getProposals, updateProposalStatus, deleteProposal, getProposalById, updateProposal }
+
+//  SEND PROPOSAL EMAIL
+const sendProposalEmail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const proposal = await Proposal.findById(id)
+      .populate("clientId", "name email");
+
+    if (!proposal) {
+      return res.status(404).json({
+        message: "Proposal not found",
+      });
+    }
+
+    if (!proposal.clientId || !proposal.clientId.email) {
+      return res.status(400).json({
+        message: "Client email not found",
+      });
+    }
+
+    //  transporter
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    //  dynamic items HTML
+    const itemsHtml = proposal.items.map((item) => `
+      <tr>
+        <td>${item.name}</td>
+        <td>${item.qty}</td>
+        <td>₹${item.rate}</td>
+        <td>₹${item.amount}</td>
+      </tr>
+    `).join("");
+
+    //  mail content (fully dynamic)
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: proposal.clientId.email,
+      subject: "Your Proposal from JJ Studio",
+      html: `
+        <h2>Hello ${proposal.clientId.name},</h2>
+
+        <p>Please find your proposal details below:</p>
+
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Rate</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <br/>
+
+        <p><b>Total Amount:</b> ₹${proposal.totalAmount}</p>
+        <p><b>GST (18%):</b> ₹${proposal.gst}</p>
+        <p><b>Final Amount:</b> ₹${proposal.finalAmount}</p>
+
+        <br/>
+
+        <p>We look forward to working with you.</p>
+
+        <p>Regards,<br/>JJ Studio Team</p>
+      `,
+    };
+
+    //  send mail
+    await transporter.sendMail(mailOptions);
+
+    // update status
+    proposal.status = "sent";
+    await proposal.save();
+
+    res.status(200).json({
+      message: "Proposal email sent successfully",
+    });
+
+  } catch (err) {
+    console.log(" Error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { createProposal, getProposals, updateProposalStatus, deleteProposal, getProposalById, updateProposal, sendProposalEmail }

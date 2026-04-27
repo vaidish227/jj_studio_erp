@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { createMeeting, getMeetingsByLead, updateMeeting , getAllMeetings, deleteMeeting} = require("../controllers/Metting.controller");
+const { createMeeting, getMeetingsByLead, updateMeeting, getAllMeetings, deleteMeeting } = require("../controllers/Metting.controller");
 
 router.post("/create", createMeeting);
 router.get("/get/:leadId", getMeetingsByLead);

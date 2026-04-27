@@ -1,20 +1,52 @@
 const Lead = require("../models/Lead.model");
 const Client = require("../models/Client.model");
+const nodemailer = require("nodemailer");
+require("dotenv").config();
+const sendEmail = require("../utils/sendEmail");
+const getLeadTemplate = require("../utils/Template/leadTemplate");
+const getReferrerTemplate = require("../utils/Template/referrerTemplate");
 
 const createLead = async (req, res) => {
     try {
+        const { name, phone, email, referrerName, referrerEmail } = req.body;
 
-        const { name, phone } = req.body;
-        if (!name || !phone) {
-            console.log(" Missing required fields");
+        if (!name || !phone || !email) {
             return res.status(400).json({
-                message: "Name and phone are required",
+                message: "Name, phone and email are required",
+            });
+        }
+
+        const existingLead = await Lead.findOne({
+            $or: [{ phone }, { email }],
+        });
+
+        if (existingLead) {
+            return res.status(400).json({
+                message: "Lead already exists with same phone or email",
             });
         }
 
         const lead = await Lead.create(req.body);
 
-        console.log(" Lead created:", lead._id);
+        console.log("Lead created:", lead._id);
+
+        // Lead email
+        if (email) {
+            await sendEmail({
+                to: email,
+                subject: "Thank You for Contacting JJ Studio",
+                html: getLeadTemplate(name),
+            });
+        }
+
+        // Referrer email
+        if (referrerName && referrerEmail) {
+            await sendEmail({
+                to: referrerEmail,
+                subject: "Thank You for Your Referral",
+                html: getReferrerTemplate(referrerName, name),
+            });
+        }
 
         res.status(201).json({
             message: "Lead created successfully",
@@ -22,7 +54,7 @@ const createLead = async (req, res) => {
         });
 
     } catch (error) {
-        console.log(" Error:", error.message);
+        console.log("Error:", error.message);
 
         res.status(500).json({
             message: error.message,
@@ -230,45 +262,46 @@ const deleteLead = async (req, res) => {
 };
 
 const convertLeadToClient = async (req, res) => {
-  try {
-    const { id } = req.params;
+    try {
+        const { id } = req.params;
 
-    const lead = await Lead.findById(id);
+        const lead = await Lead.findById(id);
 
-    if (!lead) {
-      return res.status(404).json({ message: "Lead not found" });
+        if (!lead) {
+            return res.status(404).json({ message: "Lead not found" });
+        }
+
+        if (lead.status === "converted") {
+            return res.status(400).json({
+                message: "Lead already converted",
+            });
+        }
+
+        //  create client
+        const client = await Client.create({
+            leadId: lead._id,
+            name: lead.name,
+            phone: lead.phone,
+            email: lead.email,
+        });
+
+        // update lead
+        lead.status = "converted";
+        lead.clientId = client._id;
+        lead.convertedAt = new Date();
+
+        await lead.save();
+
+        res.json({
+            message: "Lead converted successfully",
+            client,
+        });
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
-
-    if (lead.status === "converted") {
-      return res.status(400).json({
-        message: "Lead already converted",
-      });
-    }
-
-    //  create client
-    const client = await Client.create({
-      leadId: lead._id,
-      name: lead.name,
-      phone: lead.phone,
-      email: lead.email,
-    });
-
-    // update lead
-    lead.status = "converted";
-    lead.clientId = client._id;
-    lead.convertedAt = new Date();
-
-    await lead.save();
-
-    res.json({
-      message: "Lead converted successfully",
-      client,
-    });
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
 };
 
 
-module.exports = { createLead, getLeads, getLeadById, updateLead, updateLeadStatus, deleteLead , convertLeadToClient};
+
+module.exports = { createLead, getLeads, getLeadById, updateLead, updateLeadStatus, deleteLead, convertLeadToClient };
