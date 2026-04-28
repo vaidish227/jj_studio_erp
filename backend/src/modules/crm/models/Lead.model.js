@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+
 const leadSchema = new mongoose.Schema(
   {
     name: String,
@@ -50,9 +51,9 @@ const leadSchema = new mongoose.Schema(
       ref: "User",
     },
     clientId: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "Client"
-},
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Client"
+    },
   },
   { timestamps: true }
 );

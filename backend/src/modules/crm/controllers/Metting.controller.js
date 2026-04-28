@@ -149,4 +149,45 @@ const deleteMeeting = async (req, res) => {
   }
 };
 
-module.exports= {createMeeting, getMeetingsByLead, updateMeeting, getAllMeetings, deleteMeeting}
+const getTodayMeetings = async (req, res) => {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const todayMeetings = await Meeting.countDocuments({
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    });
+
+    res.status(200).json({
+      todayMeetings,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+const getTotalMeetings = async (req, res) => {
+  try {
+    const totalMeetings = await Meeting.countDocuments();
+
+    res.status(200).json({
+      totalMeetings,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+module.exports= {createMeeting, getMeetingsByLead, updateMeeting, getAllMeetings, deleteMeeting, getTodayMeetings,getTotalMeetings}

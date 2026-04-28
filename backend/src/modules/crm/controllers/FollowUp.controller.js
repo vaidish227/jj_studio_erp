@@ -154,40 +154,57 @@ const updateStatus = async (req, res) => {
 
 //----------delete-------------
 const deleteFollowup = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            console.log(" Followup ID missing");
+            return res.status(400).json({
+                message: "Followup ID is required",
+            });
+        }
+
+        const followup = await Followup.findById(id);
+
+        if (!followup) {
+            console.log(" Followup not found");
+            return res.status(404).json({
+                message: "Followup not found",
+            });
+        }
+
+        await Followup.findByIdAndDelete(id);
+
+        console.log("Follow-up deleted:", id);
+
+        res.status(200).json({
+            message: "Follow-up deleted successfully",
+        });
+
+    } catch (error) {
+        console.log(" Error deleting follow-up:", error.message);
+
+        res.status(500).json({
+            message: error.message,
+        });
+    }
+};
+
+const getPendingFollowups = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    if (!id) {
-      console.log(" Followup ID missing");
-      return res.status(400).json({
-        message: "Followup ID is required",
-      });
-    }
-
-    const followup = await Followup.findById(id);
-
-    if (!followup) {
-      console.log(" Followup not found");
-      return res.status(404).json({
-        message: "Followup not found",
-      });
-    }
-
-    await Followup.findByIdAndDelete(id);
-
-    console.log("Follow-up deleted:", id);
+    const pendingFollowups = await Followup.countDocuments({
+      status: "pending",
+    });
 
     res.status(200).json({
-      message: "Follow-up deleted successfully",
+      pendingFollowups,
     });
 
   } catch (error) {
-    console.log(" Error deleting follow-up:", error.message);
-
     res.status(500).json({
       message: error.message,
     });
   }
 };
 
-module.exports = { createFollowup, getAllFollowups, getFollowupsByLead, updateFollowup, updateStatus, deleteFollowup };
+module.exports = { createFollowup, getAllFollowups, getFollowupsByLead, updateFollowup, updateStatus, deleteFollowup,getPendingFollowups };
