@@ -302,6 +302,39 @@ const convertLeadToClient = async (req, res) => {
     }
 };
 
+//total lead----
+const getTotalLeads = async (req, res) => {
+  try {
+    const totalLeads = await Lead.countDocuments();
+
+    res.status(200).json({
+      totalLeads,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+const getConvertedLeads = async (req, res) => {
+  try {
+    const convertedLeads = await Lead.countDocuments({
+      status: "converted",
+    });
+
+    res.status(200).json({
+      convertedLeads,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
 
 
-module.exports = { createLead, getLeads, getLeadById, updateLead, updateLeadStatus, deleteLead, convertLeadToClient };
+
+module.exports = { createLead, getLeads, getLeadById, updateLead, updateLeadStatus, deleteLead, convertLeadToClient , getTotalLeads, getConvertedLeads};

@@ -216,4 +216,19 @@ const deleteClient = async (req, res) => {
         });
     }
 };
-module.exports = { createClient, getClients, getClientById, updateClient, deleteClient };
+
+const getTotalClients = async (req, res) => {
+  try {
+    const totalClients = await Client.countDocuments();
+
+    res.status(200).json({
+      totalClients,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+module.exports = { createClient, getClients, getClientById, updateClient, deleteClient, getTotalClients};

@@ -58,8 +58,8 @@ const createProposal = async (req, res) => {
     //  create proposal with BOTH IDs
     const proposal = await Proposal.create({
       ...req.body,
-      leadId: lead._id,           
-      clientId: lead.clientId,    
+      leadId: lead._id,
+      clientId: lead.clientId,
       items: updatedItems,
       totalAmount,
       gst,
@@ -230,8 +230,6 @@ const updateProposal = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
-
 //  SEND PROPOSAL EMAIL
 const sendProposalEmail = async (req, res) => {
   try {
@@ -271,7 +269,7 @@ const sendProposalEmail = async (req, res) => {
       </tr>
     `).join("");
 
-    //  mail content (fully dynamic)
+    //  mail content 
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: proposal.clientId.email,
