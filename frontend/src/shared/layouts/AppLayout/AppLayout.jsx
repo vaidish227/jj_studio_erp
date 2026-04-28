@@ -7,6 +7,18 @@ const AppLayout = ({ children }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const [user, setUser] = useState({ name: 'Sarah Smith', role: 'Admin' });
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Failed to parse user from localStorage');
+      }
+    }
+  }, []);
 
   // Determine active item from path
   const pathParts = location.pathname.split('/').filter(Boolean);
@@ -35,12 +47,14 @@ const AppLayout = ({ children }) => {
         onSelect={handleNavSelect}
         isMobileOpen={isMobileOpen}
         onMobileClose={() => setIsMobileOpen(false)}
+        user={user}
       />
 
       {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0">
         <Navbar
           onMenuToggle={() => setIsMobileOpen((p) => !p)}
+          user={user}
         />
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar">
           {children || <Outlet />}

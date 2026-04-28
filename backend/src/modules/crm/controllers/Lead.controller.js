@@ -35,15 +35,18 @@ const getLeads = async (req, res) => {
 
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
+        const status = req.query.status;
 
         const skip = (page - 1) * limit;
 
-        const leads = await Lead.find()
+        const query = status ? { status } : {};
+
+        const leads = await Lead.find(query)
             .sort({ createdAt: -1 }) // latest first
             .skip(skip)
             .limit(limit);
 
-        const total = await Lead.countDocuments();
+        const total = await Lead.countDocuments(query);
 
         res.status(200).json({
             message: "Leads fetched successfully",

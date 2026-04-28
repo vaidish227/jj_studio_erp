@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { authService } from '../../../shared/services/authService';
 
 const initialState = {
   email: '',
@@ -26,6 +28,7 @@ const validateForm = ({ email, password }) => {
 };
 
 const useLogin = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState(initialState);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -51,12 +54,23 @@ const useLogin = () => {
 
     setIsLoading(true);
     try {
-      // TODO: Replace with actual API call
-      // e.g. const response = await authService.login(formData);
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // simulate API
-      console.log('Login payload:', formData);
+      const response = await authService.login({
+        email: formData.email,
+        password: formData.password
+      });
+
+      // Handle successful login
+      if (response.token) {
+        localStorage.setItem('auth_token', response.token);
+        if (response.user) {
+          localStorage.setItem('user', JSON.stringify(response.user));
+        }
+        
+        // Redirect to dashboard
+        navigate('/dashboard');
+      }
     } catch (err) {
-      setApiError(err?.message || 'Login failed. Please try again.');
+      setApiError(err || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

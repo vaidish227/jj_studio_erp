@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bell, ChevronDown, Search, Menu } from 'lucide-react';
 import Avatar from '../../components/Avatar/Avatar';
+import ProfileDropdown from '../../components/ProfileDropdown/ProfileDropdown';
 
 const Navbar = ({
   user = { name: 'Sarah Smith', role: 'Admin' },
@@ -58,14 +59,7 @@ const Navbar = ({
       </button>
 
       {/* User Profile */}
-      <button className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-[var(--bg)] transition-colors">
-        <Avatar name={user.name} size="sm" className="bg-[var(--primary)] text-black" />
-        <div className="text-left hidden sm:block">
-          <p className="text-sm font-semibold text-[var(--text-primary)] leading-tight">{user.name}</p>
-          <p className="text-xs text-[var(--text-muted)]">{user.role}</p>
-        </div>
-        <ChevronDown size={14} className="text-[var(--text-muted)] hidden sm:block" />
-      </button>
+      <ProfileDropdown user={user} />
     </header>
   );
 };

@@ -92,7 +92,7 @@ const getAllMeetings = async (req, res) => {
   try {
 
     const meetings = await Meeting.find()
-      .populate("leadId", "name phone")
+      .populate("leadId", "name phone city projectType siteAddress email")
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 

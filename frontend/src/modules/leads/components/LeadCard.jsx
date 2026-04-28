@@ -1,5 +1,5 @@
-import React from 'react';
-import { Phone, MapPin, CalendarDays, MoreVertical, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Phone, MapPin, CalendarDays, Building2 } from 'lucide-react';
 import Avatar from '../../../shared/components/Avatar/Avatar';
 import Badge from '../../../shared/components/Badge/Badge';
 
@@ -10,15 +10,24 @@ const priorityConfig = {
 };
 
 const LeadCard = ({ lead, onMenuClick }) => {
-  const { name, phone, city, project, date, status = 'NEW', priority = 'medium' } = lead;
+  const navigate = useNavigate();
+  const { _id, id, name, phone, city, project, date, status = 'NEW', priority = 'medium' } = lead;
   const prio = priorityConfig[priority] ?? priorityConfig.medium;
 
+  const handleCardClick = () => {
+    navigate(`/crm/leads/${_id || id}`);
+  };
+
   return (
-    <div className="
-      bg-[var(--surface)] border border-[var(--border)] rounded-2xl
-      px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4
-      hover:shadow-md hover:shadow-black/5 transition-shadow duration-200
-    ">
+    <div 
+      onClick={handleCardClick}
+      className="
+        bg-[var(--surface)] border border-[var(--border)] rounded-2xl
+        px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4
+        hover:shadow-md hover:shadow-black/5 transition-all duration-200
+        cursor-pointer group
+      "
+    >
       {/* Avatar */}
       <Avatar
         name={name}
@@ -62,12 +71,6 @@ const LeadCard = ({ lead, onMenuClick }) => {
           <span>{prio.label}</span>
           <span className={`w-2 h-2 rounded-full ${prio.dot}`} />
         </div>
-        <button
-          onClick={() => onMenuClick?.(lead)}
-          className="p-1.5 rounded-lg hover:bg-[var(--bg)] text-[var(--text-muted)] transition-colors"
-        >
-          <MoreVertical size={18} />
-        </button>
       </div>
     </div>
   );

@@ -1,9 +1,22 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import LoginPage from './modules/auth/pages/LoginPage';
 import DashboardPage from './modules/dashboard/pages/DashboardPage';
-import { NewLeadsPage, EnquiryFormPage, ClientInfoFormPage } from './modules/crm';
+import { EnquiryFormPage, ClientInfoFormPage } from './modules/crm';
+import {
+  NewLeadsPage,
+  LeadDetailsPage,
+  MeetingsPage,
+  FollowUpsPage,
+  ProposalsPage,
+  KITPage,
+  ConvertedPage,
+  LostLeadsPage,
+} from './modules/leads';
+import { CRMProvider } from './modules/crm/context/CRMContext';
 import AppLayout from './shared/layouts/AppLayout/AppLayout';
 import PublicLayout from './shared/layouts/PublicLayout/PublicLayout';
+import ProfilePage from './modules/profile/pages/ProfilePage';
+import SettingsPage from './modules/settings/pages/SettingsPage';
 
 export default function App() {
   return (
@@ -14,22 +27,46 @@ export default function App() {
 
         {/* Public Routes (Standalone Forms) */}
         <Route path="/public">
-          <Route 
-            path="client-info" 
+          <Route
+            path="client-info"
             element={
               <PublicLayout>
                 <ClientInfoFormPage isPublic={true} />
               </PublicLayout>
-            } 
+            }
           />
         </Route>
 
-        {/* App shell — renders once, child changes inside Outlet */}
+        {/* App shell — renders once, children change inside Outlet */}
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/crm/new-leads" element={<NewLeadsPage />} />
-          <Route path="/crm/forms/enquiry" element={<EnquiryFormPage />} />
-          <Route path="/crm/forms/client-info" element={<ClientInfoFormPage />} />
+
+          {/* CRM Module wrapped in flow-state provider */}
+          <Route element={<CRMProvider><Outlet /></CRMProvider>}>
+
+            {/* --- Forms --- */}
+            <Route path="/crm/forms/enquiry"    element={<EnquiryFormPage />} />
+            <Route path="/crm/forms/client-info" element={<ClientInfoFormPage />} />
+
+            {/* --- Lead Detail (shared by all pipeline views) --- */}
+            <Route path="/crm/leads/:id" element={<LeadDetailsPage />} />
+
+            {/* --- Leads Pipeline --- */}
+            <Route path="/crm/new-leads"   element={<NewLeadsPage />} />
+            <Route path="/crm/meetings"    element={<MeetingsPage />} />
+            <Route path="/crm/follow-ups"  element={<FollowUpsPage />} />
+            <Route path="/crm/qualified"   element={<KITPage />} />
+            <Route path="/crm/proposal"    element={<ProposalsPage />} />
+
+            {/* --- Lead Status --- */}
+            <Route path="/crm/converted"   element={<ConvertedPage />} />
+            <Route path="/crm/lost-leads"  element={<LostLeadsPage />} />
+
+          </Route>
+
+          {/* Other modules */}
+          <Route path="/profile"  element={<ProfilePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
         {/* Global default redirect */}

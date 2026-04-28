@@ -1,77 +1,23 @@
-import React, { useState } from 'react';
-import { User, Phone, Mail, Home, Briefcase, Calendar, MapPin, Baby, Heart } from 'lucide-react';
+import React from 'react';
+import { User, Phone, Mail, Home, Briefcase, Calendar, MapPin, Baby, Heart, AlertCircle } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import FormField from '../../../shared/components/FormField/FormField';
 import Input from '../../../shared/components/Input/Input';
 import Button from '../../../shared/components/Button/Button';
+import useClient from '../hooks/useClient';
 
 const ClientInfoFormPage = ({ isPublic = false }) => {
-  const [submitted, setSubmitted] = useState(false);
-  const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    // Primary Client
-    name: '',
-    contactNumber: '',
-    email: '',
-    residentialAddress: '',
-    companyName: '',
-    officeAddress: '',
-    dob: '',
-    // Spouse
-    spouseName: '',
-    spouseContact: '',
-    spouseEmail: '',
-    spouseDob: '',
-    anniversaryDate: '',
-    // Site
-    projectBuildingName: '',
-    towerBlock: '',
-    flatUnit: '',
-    floorNumber: '',
-    completeSiteAddress: '',
-    // Children
-    numChildren: '',
-    ageChildren: ''
-  });
+  const {
+    formData,
+    errors,
+    isLoading,
+    apiError,
+    isSuccess,
+    handleChange,
+    handleSubmit
+  } = useClient();
 
-  const [errors, setErrors] = useState({});
-
-  const validate = () => {
-    const newErrors = {};
-    if (!formData.name.trim()) newErrors.name = 'Client name is required';
-    if (!formData.contactNumber.trim()) {
-      newErrors.contactNumber = 'Contact number is required';
-    } else if (!/^\d{10}$/.test(formData.contactNumber.replace(/\D/g, ''))) {
-      newErrors.contactNumber = 'Enter a valid 10-digit number';
-    }
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Enter a valid email address';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }));
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (validate()) {
-      console.log('Client Info Form Submitted:', formData);
-      setSubmitted(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  if (submitted) {
+  if (isSuccess) {
     return (
       <div className="max-w-3xl mx-auto py-20 px-4">
         <Card className="text-center py-16 space-y-6 shadow-2xl border-t-4 border-t-[var(--success)]">
@@ -84,6 +30,11 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
           <p className="text-[var(--text-secondary)] text-lg max-w-md mx-auto">
             Your information has been successfully submitted. The JJ Studio team will review the details and get in touch with you shortly.
           </p>
+          {!isPublic && (
+            <Button variant="primary" onClick={() => window.location.reload()}>
+              Add Another Client
+            </Button>
+          )}
         </Card>
       </div>
     );
@@ -91,6 +42,24 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
 
   return (
     <div className={`mx-auto space-y-8 py-4 px-4 ${isPublic ? 'max-w-5xl' : 'max-w-6xl'}`}>
+      {/* Lead Context Banner */}
+      {activeLead && !isPublic && (
+        <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-2xl p-4 flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-[var(--primary)] rounded-xl flex items-center justify-center text-black font-bold">
+              {activeLead.name?.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-[var(--primary)] uppercase tracking-widest">Active Onboarding</p>
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Onboarding: {activeLead.name}</h3>
+              <p className="text-xs text-[var(--text-secondary)]">{activeLead.phone} • {activeLead.email}</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => window.location.reload()} className="text-[var(--text-muted)] hover:text-[var(--error)]">
+            Cancel Context
+          </Button>
+        </div>
+      )}
       {!isPublic && (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border)] pb-6">
           <div className="flex flex-col gap-1">
@@ -349,6 +318,14 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
           </Card>
         </section>
 
+        {/* API Error */}
+        {apiError && (
+          <div className="flex items-center gap-2 bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-xl px-4 py-3 text-sm text-[var(--error)] font-medium">
+            <AlertCircle size={18} />
+            <span>{apiError}</span>
+          </div>
+        )}
+
         {/* Form Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 pb-20 border-t border-[var(--border)]">
           {!isPublic && (
@@ -363,7 +340,7 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                 Print Form
               </Button>
             )}
-            <Button type="submit" variant="primary" className="sm:px-12 shadow-lg shadow-[var(--primary)]/20">
+            <Button type="submit" variant="primary" isLoading={isLoading} className="sm:px-12 shadow-lg shadow-[var(--primary)]/20">
               Submit Form Information
             </Button>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ChevronDown } from 'lucide-react';
 import Avatar from '../../components/Avatar/Avatar';
+import ProfileDropdown from '../../components/ProfileDropdown/ProfileDropdown';
 import SidebarGroup from '../../components/Sidebar/SidebarGroup';
 import SidebarItem from '../../components/Sidebar/SidebarItem';
 import { NAV_ITEMS } from '../../constants/navigation';
@@ -68,14 +69,7 @@ const Sidebar = ({
 
       {/* User Profile */}
       <div className="px-3 py-4 border-t border-[var(--sidebar-hover)]">
-        <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--sidebar-hover)] transition-colors">
-          <Avatar name={user.name} size="sm" className="bg-[var(--primary)] text-black" />
-          <div className="flex-1 text-left">
-            <p className="text-[var(--sidebar-text)] text-sm font-semibold leading-tight">{user.name}</p>
-            <p className="text-[var(--sidebar-text-muted)] text-xs">{user.role}</p>
-          </div>
-          <ChevronDown size={14} className="text-[var(--sidebar-text-muted)]" />
-        </button>
+        <ProfileDropdown user={user} position="center" side="top" variant="sidebar" />
       </div>
     </aside>
   );

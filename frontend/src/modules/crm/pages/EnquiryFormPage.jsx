@@ -1,68 +1,62 @@
 import React, { useState } from 'react';
-import { User, Phone, Mail, MapPin, Calendar, IndianRupee, FileText, Share2 } from 'lucide-react';
+import { User, Phone, Mail, MapPin, Calendar, IndianRupee, FileText, Share2, AlertCircle, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import FormField from '../../../shared/components/FormField/FormField';
 import Input from '../../../shared/components/Input/Input';
 import Select from '../../../shared/components/Select/Select';
 import Button from '../../../shared/components/Button/Button';
+import Modal from '../../../shared/components/Modal/Modal';
+import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
+import useLead from '../hooks/useLead';
+import { useCRM } from '../context/CRMContext';
+import { crmService } from '../../../shared/services/crmService';
 
 const EnquiryFormPage = () => {
-  const [formData, setFormData] = useState({
-    clientName: '',
-    contactMobile: '',
-    email: '',
-    spouseName: '',
-    spouseMobile: '',
-    referredBy: '',
-    referredMobile: '',
-    enquiryType: 'Residential',
-    enquiryDate: new Date().toISOString().split('T')[0],
-    siteDetails: '',
-    city: '',
-    quotedAmount: '',
-    finalFees: '',
-    approxArea: '',
-    notes: ''
-  });
+  const navigate = useNavigate();
+  const { activeLead } = useCRM();
+  const {
+    formData,
+    errors,
+    isLoading: isLeadLoading,
+    apiError,
+    isSuccess,
+    handleChange,
+    handleSelectChange,
+    handleSubmit
+  } = useLead();
 
-  const [errors, setErrors] = useState({});
+  // Meeting State
+  const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [meetingTime, setMeetingTime] = useState('10:00');
+  const [isMeetingLoading, setIsMeetingLoading] = useState(false);
+  const [meetingError, setMeetingError] = useState('');
 
-  const validate = () => {
-    const newErrors = {};
-    if (!formData.clientName.trim()) newErrors.clientName = 'Client name is required';
-    if (!formData.contactMobile.trim()) {
-      newErrors.contactMobile = 'Mobile number is required';
-    } else if (!/^\d{10}$/.test(formData.contactMobile.replace(/\D/g, ''))) {
-      newErrors.contactMobile = 'Enter a valid 10-digit mobile number';
-    }
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Enter a valid email address';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: null }));
-    }
-  };
-
-  const handleSelectChange = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e) => {
+  const handleScheduleMeeting = async (e) => {
     e.preventDefault();
-    if (validate()) {
-      console.log('Form Submitted:', formData);
-      alert('Enquiry saved successfully!');
+    if (!activeLead) return;
+
+    setIsMeetingLoading(true);
+    setMeetingError('');
+
+    try {
+      await crmService.createMeeting({
+        leadId: activeLead.id,
+        date: meetingDate,
+        time: meetingTime,
+        type: 'Office Meeting',
+        status: 'Scheduled'
+      });
+      
+      // Update lead status to meeting_done or similar (optional but good for flow)
+      await crmService.updateLeadStatus(activeLead.id, 'contacted');
+      
+      // Success! Redirect to leads list
+      navigate('/crm/new-leads');
+    } catch (err) {
+      setMeetingError('Failed to schedule meeting. You can do this later from the Leads section.');
+    } finally {
+      setIsMeetingLoading(false);
     }
   };
 
@@ -257,6 +251,14 @@ const EnquiryFormPage = () => {
           />
         </Card>
 
+        {/* API Error */}
+        {apiError && (
+          <div className="flex items-center gap-2 bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-xl px-4 py-3 text-sm text-[var(--error)] font-medium">
+            <AlertCircle size={18} />
+            <span>{apiError}</span>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 pb-10 border-t border-[var(--border)]">
           <Button variant="ghost" type="button" onClick={() => window.history.back()} className="text-[var(--text-muted)] hover:text-[var(--error)]">
@@ -266,12 +268,63 @@ const EnquiryFormPage = () => {
             <Button variant="outline" type="button" className="sm:px-8">
               Save as Draft
             </Button>
-            <Button type="submit" variant="primary" className="sm:px-12 shadow-lg shadow-[var(--primary)]/20">
+            <Button type="submit" variant="primary" isLoading={isLeadLoading} className="sm:px-12 shadow-lg shadow-[var(--primary)]/20">
               Submit Enquiry
             </Button>
           </div>
         </div>
       </form>
+
+      {/* Scheduling Modal */}
+      <Modal 
+        isOpen={isSuccess} 
+        onClose={() => navigate('/crm/new-leads')} 
+        title="Schedule First Office Meeting"
+        className="sm:max-w-md"
+      >
+        <form onSubmit={handleScheduleMeeting} className="space-y-6">
+          <div className="p-4 bg-[var(--primary)]/10 rounded-xl border border-[var(--primary)]/20 mb-2">
+            <p className="text-sm text-[var(--text-primary)] font-medium">
+              Lead created successfully for <span className="font-bold">{activeLead?.name}</span>. 
+              Arrange a meeting to discuss the project further.
+            </p>
+          </div>
+
+          <DateTimePicker 
+            label="Meeting Date & Time"
+            dateValue={meetingDate}
+            timeValue={meetingTime}
+            onDateChange={setMeetingDate}
+            onTimeChange={setMeetingTime}
+            required
+          />
+
+          {meetingError && (
+            <div className="p-3 bg-[var(--error)]/10 rounded-lg text-xs text-[var(--error)] font-medium border border-[var(--error)]/20">
+              {meetingError}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 pt-2">
+            <Button 
+              type="submit" 
+              variant="primary" 
+              isLoading={isMeetingLoading}
+              className="w-full shadow-lg shadow-[var(--primary)]/20"
+            >
+              Confirm & Schedule
+            </Button>
+            <Button 
+              variant="ghost" 
+              type="button" 
+              onClick={() => navigate('/crm/new-leads')}
+              className="w-full text-[var(--text-muted)]"
+            >
+              Schedule Later
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

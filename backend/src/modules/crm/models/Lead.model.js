@@ -38,6 +38,11 @@ const leadSchema = new mongoose.Schema(
     },
 
     meetingDate: Date,
+    priority: {
+      type: String,
+      enum: ["high", "medium", "low"],
+      default: "medium",
+    },
     notes: String,
 
     assignedTo: {

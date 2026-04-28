@@ -4,7 +4,7 @@ require("dotenv").config();
 const connectDb = async () => {
     try {
         const maskedUri = process.env.MONGO_URI ? process.env.MONGO_URI.replace(/:([^:@]+)@/, ':****@') : "UNDEFINED";
-        console.log("Connecting to:", maskedUri);
+        console.log("Connected to:", maskedUri);
         await mongoose.connect(process.env.MONGO_URI, {
             serverSelectionTimeoutMS: 5000, 
             family: 4 
