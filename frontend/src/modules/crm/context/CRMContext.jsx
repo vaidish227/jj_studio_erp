@@ -1,15 +1,38 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useLeadFlow } from '../../../shared/hooks/useLeadFlow';
 
 const CRMContext = createContext();
+const ACTIVE_LEAD_KEY = 'crm_active_lead';
 
 export const CRMProvider = ({ children }) => {
-  const [activeLead, setActiveLead] = useState(null); // Stores { id, name, email, phone }
+  const [activeLead, setActiveLeadState] = useState(() => {
+    try {
+      const raw = localStorage.getItem(ACTIVE_LEAD_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [crmState, setCrmState] = useState({
     lastStep: 'none',
     drafts: {}
   });
 
-  const clearActiveLead = () => setActiveLead(null);
+  useLeadFlow(activeLead?.id || activeLead?._id);
+
+  useEffect(() => {
+    if (activeLead) {
+      localStorage.setItem(ACTIVE_LEAD_KEY, JSON.stringify(activeLead));
+    } else {
+      localStorage.removeItem(ACTIVE_LEAD_KEY);
+    }
+  }, [activeLead]);
+
+  const setActiveLead = useCallback((lead) => {
+    setActiveLeadState(lead);
+  }, []);
+
+  const clearActiveLead = useCallback(() => setActiveLeadState(null), []);
 
   return (
     <CRMContext.Provider value={{ 

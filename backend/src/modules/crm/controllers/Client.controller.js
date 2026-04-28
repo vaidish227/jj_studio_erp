@@ -24,8 +24,9 @@ const createClient = async (req, res) => {
             });
         }
 
+        let lead = null;
         if (leadId) {
-            const lead = await Lead.findById(leadId);
+            lead = await Lead.findById(leadId);
 
             if (!lead) {
                 console.log(" Lead not found");
@@ -34,12 +35,6 @@ const createClient = async (req, res) => {
                 });
             }
 
-            if (lead.status !== "converted") {
-                console.log(" Lead not converted");
-                return res.status(400).json({
-                    message: "Lead must be converted to create client",
-                });
-            }
         }
 
         const client = await Client.create({
@@ -55,6 +50,35 @@ const createClient = async (req, res) => {
             siteAddress,
             leadId,
         });
+
+        if (lead) {
+            lead.clientId = client._id;
+            lead.lifecycleStage = "kit";
+            lead.clientInfoCompletedAt = new Date();
+            
+            // Sync contact details back to lead in case they were changed in the form
+            lead.name = name;
+            lead.phone = phone;
+            lead.email = email;
+            
+            if (siteAddress?.fullAddress) {
+                lead.siteAddress = siteAddress.fullAddress;
+            }
+            if (siteAddress?.city) {
+                lead.city = siteAddress.city;
+            }
+
+            lead.interactionHistory = Array.isArray(lead.interactionHistory)
+                ? lead.interactionHistory
+                : [];
+            lead.interactionHistory.push({
+                type: "client_info",
+                title: "Client information submitted",
+                description: "Detailed client information was linked to the lead.",
+                createdAt: new Date(),
+            });
+            await lead.save();
+        }
 
         console.log(" Client created:", client._id);
 
@@ -163,6 +187,32 @@ const updateClient = async (req, res) => {
         Object.assign(client, req.body);
 
         await client.save();
+
+        // ── Sync contact fields back to the linked Lead ──────────────
+        if (client.leadId) {
+            const leadUpdates = {};
+
+            if (req.body.hasOwnProperty('name'))  leadUpdates.name  = req.body.name;
+            if (req.body.hasOwnProperty('phone')) leadUpdates.phone  = req.body.phone;
+            if (req.body.hasOwnProperty('email')) leadUpdates.email  = req.body.email;
+
+            if (req.body.siteAddress) {
+                if (req.body.siteAddress.fullAddress) {
+                    leadUpdates.siteAddress = req.body.siteAddress.fullAddress;
+                }
+                if (req.body.siteAddress.city) {
+                    leadUpdates.city = req.body.siteAddress.city;
+                }
+            }
+
+            if (Object.keys(leadUpdates).length > 0) {
+                // Handle both populated and non-populated leadId
+                const targetLeadId = client.leadId._id || client.leadId;
+                await Lead.updateOne({ _id: targetLeadId }, { $set: leadUpdates });
+                console.log(" Lead synced with updated client fields:", leadUpdates);
+            }
+        }
+        // ─────────────────────────────────────────────────────────────
 
         console.log("Client updated:", client._id);
 

@@ -6,3 +6,7 @@ export { default as WaveBackground } from './WaveBackground/WaveBackground';
 export { default as Card } from './Card/Card';
 export { default as Avatar } from './Avatar/Avatar';
 export { default as Badge } from './Badge/Badge';
+export { default as Modal } from './Modal/Modal';
+export { default as Select } from './Select/Select';
+export { default as DateTimePicker } from './DateTimePicker/DateTimePicker';
+export { default as StatusBadge } from './StatusBadge/StatusBadge';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { useLocation, useNavigate, Outlet, useSearchParams } from 'react-router-dom';
 import Sidebar from '../Sidebar/Sidebar';
 import Navbar from '../Navbar/Navbar';
 
@@ -7,6 +7,7 @@ const AppLayout = ({ children }) => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState({ name: 'Sarah Smith', role: 'Admin' });
 
   useEffect(() => {
@@ -39,6 +40,16 @@ const AppLayout = ({ children }) => {
     setIsMobileOpen(false);
   };
 
+  const handleGlobalSearch = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value?.trim()) {
+      next.set('q', value);
+    } else {
+      next.delete('q');
+    }
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
       {/* Sidebar — handles both desktop (static) and mobile (drawer) */}
@@ -55,6 +66,8 @@ const AppLayout = ({ children }) => {
         <Navbar
           onMenuToggle={() => setIsMobileOpen((p) => !p)}
           user={user}
+          onSearch={handleGlobalSearch}
+          searchValue={searchParams.get('q') || ''}
         />
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar">
           {children || <Outlet />}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CalendarDays } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Badge from '../../../shared/components/Badge/Badge';
@@ -33,28 +34,28 @@ const FollowUpItem = ({ name, project, time, status }) => {
 };
 
 // ─── Follow-ups Panel ─────────────────────────────────────────────────────────
-const followUps = [
-  { name: 'Raj Patel',    project: 'WhatsApp Thank You',     time: 'Within 2 hours',    status: 'TODAY'    },
-  { name: 'Amit Kumar',   project: 'KIT: Office Interior',   time: 'Today, 04:00 PM',   status: 'TODAY'    },
-  { name: 'Sneha Sharma', project: 'Follow-up: Kitchen',     time: 'Tomorrow, 11:00 AM',status: 'TOMORROW' },
-];
+const FollowUpsPanel = ({ followUps = [] }) => {
+  const navigate = useNavigate();
 
-const FollowUpsPanel = () => {
   return (
     <Card padding="p-6" className="flex flex-col gap-4 h-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold text-[var(--text-primary)]">Follow-ups</h2>
-        <button className="text-sm font-semibold text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors">
+        <button className="text-sm font-semibold text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors" onClick={() => navigate('/crm/follow-ups')}>
           View All
         </button>
       </div>
 
       {/* Items */}
       <div className="flex flex-col gap-3">
-        {followUps.map((item, i) => (
+        {followUps.length ? followUps.map((item, i) => (
           <FollowUpItem key={i} {...item} />
-        ))}
+        )) : (
+          <div className="rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+            No pending follow-ups.
+          </div>
+        )}
       </div>
     </Card>
   );

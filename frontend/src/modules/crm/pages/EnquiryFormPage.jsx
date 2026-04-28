@@ -8,23 +8,37 @@ import Select from '../../../shared/components/Select/Select';
 import Button from '../../../shared/components/Button/Button';
 import Modal from '../../../shared/components/Modal/Modal';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
-import useLead from '../hooks/useLead';
 import { useCRM } from '../context/CRMContext';
+import useEnquiry from '../../../shared/hooks/useEnquiry';
+import useLeadFlow from '../../../shared/hooks/useLeadFlow';
 import { crmService } from '../../../shared/services/crmService';
 
 const EnquiryFormPage = () => {
   const navigate = useNavigate();
-  const { activeLead } = useCRM();
+  const { activeLead, setActiveLead, setCrmState } = useCRM();
+  const { scheduleAutomations } = useLeadFlow(activeLead?.id || activeLead?._id);
   const {
     formData,
     errors,
     isLoading: isLeadLoading,
     apiError,
-    isSuccess,
     handleChange,
     handleSelectChange,
-    handleSubmit
-  } = useLead();
+    submitEnquiry
+  } = useEnquiry({
+    onSuccess: (lead, submittedData) => {
+      setActiveLead(lead);
+      setCrmState((prev) => ({
+        ...prev,
+        lastStep: 'enquiry_submitted',
+        drafts: {
+          ...prev.drafts,
+          enquiry: submittedData,
+        },
+      }));
+    },
+  });
+  const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
 
   // Meeting State
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
@@ -40,23 +54,34 @@ const EnquiryFormPage = () => {
     setMeetingError('');
 
     try {
+      const leadId = activeLead._id || activeLead.id;
+      const isoDate = `${meetingDate}T${meetingTime}`;
       await crmService.createMeeting({
-        leadId: activeLead.id,
-        date: meetingDate,
-        time: meetingTime,
-        type: 'Office Meeting',
-        status: 'Scheduled'
+        leadId,
+        date: isoDate,
+        type: 'office',
+        notes: 'Initial office meeting scheduled immediately after enquiry submission.',
       });
-      
-      // Update lead status to meeting_done or similar (optional but good for flow)
-      await crmService.updateLeadStatus(activeLead.id, 'contacted');
-      
-      // Success! Redirect to leads list
-      navigate('/crm/new-leads');
+
+      scheduleAutomations(leadId, isoDate);
+      setCrmState((prev) => ({
+        ...prev,
+        lastStep: 'meeting_scheduled',
+      }));
+      setIsMeetingModalOpen(false);
+      navigate(`/crm/leads/${leadId}`);
     } catch (err) {
       setMeetingError('Failed to schedule meeting. You can do this later from the Leads section.');
     } finally {
       setIsMeetingLoading(false);
+    }
+  };
+
+  const handleEnquirySubmit = async (e) => {
+    e.preventDefault();
+    const lead = await submitEnquiry();
+    if (lead) {
+      setIsMeetingModalOpen(true);
     }
   };
 
@@ -67,7 +92,7 @@ const EnquiryFormPage = () => {
         <p className="text-[var(--text-secondary)] text-lg font-medium">Capture comprehensive details for potential leads.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleEnquirySubmit} className="space-y-8">
         {/* Section 1: Client & Personal Details */}
         <Card className="overflow-hidden border-t-4 border-t-[var(--primary)] shadow-md">
           <div className="flex items-center gap-2 mb-6 text-[var(--primary)] font-bold text-lg uppercase tracking-wider">
@@ -277,7 +302,7 @@ const EnquiryFormPage = () => {
 
       {/* Scheduling Modal */}
       <Modal 
-        isOpen={isSuccess} 
+        isOpen={isMeetingModalOpen} 
         onClose={() => navigate('/crm/new-leads')} 
         title="Schedule First Office Meeting"
         className="sm:max-w-md"

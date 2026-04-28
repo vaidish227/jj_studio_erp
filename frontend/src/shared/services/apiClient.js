@@ -1,42 +1,33 @@
+import axios from 'axios';
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-/**
- * Custom API client using fetch
- */
-const apiClient = async (endpoint, { body, ...customConfig } = {}) => {
-  const headers = { 'Content-Type': 'application/json' };
-  
-  // Add token if exists in localStorage
+const apiClient = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    config.headers.Authorization = `Bearer ${token}`;
   }
 
-  const config = {
-    method: body ? 'POST' : 'GET',
-    ...customConfig,
-    headers: {
-      ...headers,
-      ...customConfig.headers,
-    },
-  };
+  return config;
+});
 
-  if (body) {
-    config.body = JSON.stringify(body);
+apiClient.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    const message =
+      error?.response?.data?.message ||
+      error?.message ||
+      'Something went wrong';
+
+    return Promise.reject(message);
   }
-
-  try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, config);
-    const data = await response.json();
-
-    if (response.ok) {
-      return data;
-    }
-
-    throw new Error(data.message || 'Something went wrong');
-  } catch (error) {
-    return Promise.reject(error.message || error);
-  }
-};
+);
 
 export default apiClient;

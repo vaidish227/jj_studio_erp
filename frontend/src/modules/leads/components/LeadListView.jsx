@@ -14,6 +14,7 @@ const LeadListView = ({
   leads,
   isLoading,
   error,
+  statusSummary,
   searchTerm,
   setSearchTerm,
   showAddButton = false,
@@ -59,6 +60,23 @@ const LeadListView = ({
           className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all duration-200"
         />
       </div>
+
+      {statusSummary && (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {[
+            { label: 'New', value: statusSummary.new },
+            { label: 'In Progress', value: statusSummary.inProgress },
+            { label: 'Interested', value: statusSummary.interested },
+            { label: 'Converted', value: statusSummary.converted },
+            { label: 'Lost', value: statusSummary.lost },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">{item.label}</p>
+              <p className="mt-2 text-2xl font-bold text-[var(--text-primary)]">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* List */}
       <div className="space-y-3">

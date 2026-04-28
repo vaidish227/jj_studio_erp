@@ -1,9 +1,10 @@
 const Meeting = require("../models/Metting.model");
+const Lead = require("../models/Lead.model");
 
 
 const createMeeting = async (req, res) => {
   try {
-    const { leadId, date, type } = req.body;
+    const { leadId, date, type, status = "scheduled" } = req.body;
 
     if (!leadId || !date || !type) {
       console.log("Required fields missing");
@@ -12,10 +13,44 @@ const createMeeting = async (req, res) => {
       });
     }
 
-    const meeting = await Meeting.create(req.body);
+    const lead = await Lead.findById(leadId);
+    if (!lead) {
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    const normalizedType =
+      type === "Office Meeting" ? "office" : String(type).toLowerCase();
+
+    const meeting = await Meeting.create({
+      ...req.body,
+      type: normalizedType,
+      date: new Date(date),
+      status,
+    });
+
+    lead.meetingDate = new Date(date);
+    lead.status = status === "completed" ? "meeting_done" : "contacted";
+    lead.lifecycleStage = "meeting_scheduled";
+    lead.automation = {
+      ...lead.automation,
+      thankYouScheduledFor: new Date(new Date(date).getTime() + 2 * 60 * 60 * 1000),
+      followupReminderFor: new Date(new Date(date).getTime() + 2 * 24 * 60 * 60 * 1000),
+    };
+    lead.interactionHistory = Array.isArray(lead.interactionHistory)
+      ? lead.interactionHistory
+      : [];
+    lead.interactionHistory.push({
+      type: "meeting",
+      title: "Meeting scheduled",
+      description: `A ${normalizedType} meeting was ${status} for ${new Date(date).toLocaleString("en-IN")}.`,
+      createdAt: new Date(),
+    });
+    await lead.save();
+
     res.status(201).json({
       message: "Meeting created successfully",
       meeting,
+      lead,
     });
 
   } catch (err) {
@@ -73,6 +108,31 @@ const updateMeeting = async (req, res) => {
     Object.assign(meeting, req.body);
 
     await meeting.save();
+
+    const lead = await Lead.findById(meeting.leadId);
+    if (lead && req.body.status) {
+      if (req.body.status === "completed") {
+        lead.status = "meeting_done";
+        lead.lifecycleStage = "followup_due";
+      } else if (req.body.status === "cancelled") {
+        lead.status = "contacted";
+        lead.lifecycleStage = "kit";
+      } else {
+        lead.status = "contacted";
+        lead.lifecycleStage = "meeting_scheduled";
+      }
+
+      lead.interactionHistory = Array.isArray(lead.interactionHistory)
+        ? lead.interactionHistory
+        : [];
+      lead.interactionHistory.push({
+        type: "meeting",
+        title: "Meeting updated",
+        description: `Meeting status changed to ${req.body.status}.`,
+        createdAt: new Date(),
+      });
+      await lead.save();
+    }
 
     console.log(" Meeting updated:", meeting._id);
 

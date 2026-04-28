@@ -21,6 +21,17 @@ const meetingSchema = new mongoose.Schema(
 
     notes: String,
 
+    status: {
+      type: String,
+      enum: ["scheduled", "completed", "cancelled"],
+      default: "scheduled",
+    },
+
+    durationMinutes: {
+      type: Number,
+      default: 60,
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"

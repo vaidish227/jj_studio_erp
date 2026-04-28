@@ -3,7 +3,7 @@ import LeadListView from '../components/LeadListView';
 import useLeadList from '../hooks/useLeadList';
 
 const NewLeadsPage = () => {
-  const { leads, isLoading, error, searchTerm, setSearchTerm } = useLeadList('new');
+  const { leads, isLoading, error, statusSummary, searchTerm, setSearchTerm } = useLeadList({ status: 'new' });
 
   return (
     <LeadListView
@@ -12,6 +12,7 @@ const NewLeadsPage = () => {
       leads={leads}
       isLoading={isLoading}
       error={error}
+      statusSummary={statusSummary}
       searchTerm={searchTerm}
       setSearchTerm={setSearchTerm}
       showAddButton={true}

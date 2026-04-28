@@ -1,98 +1,99 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Mail, Phone, MapPin, Building2,
-  Maximize2, IndianRupee, FileText, Calendar,
-  MessageSquare, UserPlus, Send, Loader2, AlertCircle,
-  Clock, User, Star, CheckCircle2, XCircle, StickyNote,
-  Activity, Bell
+  Activity,
+  AlertCircle,
+  ArrowLeft,
+  Building2,
+  Calendar,
+  Clock,
+  FileImage,
+  FileText,
+  IndianRupee,
+  Loader2,
+  Mail,
+  MapPin,
+  MessageSquare,
+  Phone,
+  Plus,
+  User,
+  UserPlus,
+  XCircle,
 } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
-import Select from '../../../shared/components/Select/Select';
-import Modal from '../../../shared/components/Modal/Modal';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
+import Modal from '../../../shared/components/Modal/Modal';
+import Select from '../../../shared/components/Select/Select';
+import FormField from '../../../shared/components/FormField/FormField';
+import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
+import { useCRM } from '../../crm/context/CRMContext';
 import useLeadDetails from '../hooks/useLeadDetails';
+import useLeadFlow, { lifecycleLabels } from '../../../shared/hooks/useLeadFlow';
 import { crmService } from '../../../shared/services/crmService';
 
-/* ─────────────────────────── helpers ─────────────────────────── */
-
 const STATUS_OPTIONS = [
-  { value: 'new',           label: 'New' },
-  { value: 'contacted',     label: 'Contacted' },
-  { value: 'meeting_done',  label: 'Meeting Done' },
-  { value: 'proposal_sent', label: 'Proposal Sent' },
-  { value: 'converted',     label: 'Converted' },
-  { value: 'lost',          label: 'Lost' },
+  { value: 'new', label: 'New' },
+  { value: 'contacted', label: 'In Progress' },
+  { value: 'proposal_sent', label: 'Interested' },
+  { value: 'lost', label: 'Lost' },
+  { value: 'converted', label: 'Converted' },
 ];
 
 const PRIORITY_OPTIONS = [
-  { value: 'high',   label: 'High' },
+  { value: 'high', label: 'High' },
   { value: 'medium', label: 'Medium' },
-  { value: 'low',    label: 'Low' },
+  { value: 'low', label: 'Low' },
 ];
 
-const priorityColors = {
-  high:   'text-[var(--error)]   bg-[var(--error)]/10   border-[var(--error)]/20',
-  medium: 'text-[var(--warning)] bg-[var(--warning)]/10 border-[var(--warning)]/20',
-  low:    'text-[var(--success)] bg-[var(--success)]/10 border-[var(--success)]/20',
-};
+const SHOWCASE_OPTIONS = [
+  { value: 'image', label: 'Image' },
+  { value: 'video', label: 'Video' },
+  { value: 'template', label: 'Template' },
+  { value: 'link', label: 'Link' },
+];
 
-const statusColors = {
-  new:           'text-[var(--primary)]  bg-[var(--primary)]/10',
-  contacted:     'text-[var(--accent-blue)] bg-[var(--accent-blue)]/10',
-  meeting_done:  'text-[var(--accent-teal)] bg-[var(--accent-teal)]/10',
-  proposal_sent: 'text-[var(--warning)] bg-[var(--warning)]/10',
-  converted:     'text-[var(--success)] bg-[var(--success)]/10',
-  lost:          'text-[var(--error)]   bg-[var(--error)]/10',
-};
-
-/* ─────────────────────────── sub-components ─────────────────────────── */
-
-const DetailRow = ({ label, value, icon: Icon }) => (
-  <div className="space-y-1.5">
-    <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">{label}</p>
-    <div className="flex items-center gap-2 text-[var(--text-primary)] font-semibold">
-      {Icon && <Icon size={15} className="text-[var(--text-muted)] shrink-0" />}
-      <span className="text-sm">{value || '—'}</span>
-    </div>
-  </div>
-);
-
-const TabButton = ({ id, label, activeTab, onClick }) => (
-  <button
-    onClick={() => onClick(id)}
-    className={`
-      relative px-5 py-3 text-sm font-semibold transition-all whitespace-nowrap
-      ${activeTab === id
-        ? 'text-[var(--primary)]'
-        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}
-    `}
-  >
-    {label}
-    {activeTab === id && (
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--primary)] rounded-full" />
-    )}
-  </button>
-);
-
-/* ─────────────────────────── main page ─────────────────────────── */
+const initialProposalItem = { name: '', qty: 1, rate: 0 };
 
 const LeadDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { lead, isLoading, error, updateStatus, updateLead } = useLeadDetails(id);
+  const { setActiveLead } = useCRM();
+  const { lead, isLoading, error, updateStatus, updateLead, refresh } = useLeadDetails(id);
+  const { meetings, followups, proposals, timeline, refreshRelatedData, scheduleAutomations } =
+    useLeadFlow(id);
 
-  const [activeTab, setActiveTab] = useState('basic');
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
-  const [isLostModalOpen, setIsLostModalOpen] = useState(false);
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [meetingTime, setMeetingTime] = useState('10:00');
+  const [meetingType, setMeetingType] = useState('office');
+  const [meetingNotes, setMeetingNotes] = useState('');
   const [note, setNote] = useState('');
+  const [followupDate, setFollowupDate] = useState(new Date().toISOString().split('T')[0]);
+  const [followupNote, setFollowupNote] = useState('');
+  const [showcaseType, setShowcaseType] = useState('image');
+  const [showcaseTitle, setShowcaseTitle] = useState('');
+  const [showcaseUrl, setShowcaseUrl] = useState('');
+  const [showcaseNote, setShowcaseNote] = useState('');
+  const [siteVisitNote, setSiteVisitNote] = useState('');
+  const [proposalItems, setProposalItems] = useState([initialProposalItem]);
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advanceNote, setAdvanceNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
 
-  /* ── Loading / Error states ── */
+  const projectAssets = lead?.showProject?.assets || [];
+
+  const proposalSummary = useMemo(() => {
+    const total = proposalItems.reduce(
+      (sum, item) => sum + Number(item.qty || 0) * Number(item.rate || 0),
+      0
+    );
+    const gst = total * 0.18;
+    return { total, gst, final: total + gst };
+  }, [proposalItems]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-[var(--text-muted)]">
@@ -119,328 +120,529 @@ const LeadDetailsPage = () => {
     );
   }
 
-  /* ── Actions ── */
+  const runAction = async (work, successMessage) => {
+    setActionLoading(true);
+    setActionError('');
+    setActionSuccess('');
+
+    try {
+      await work();
+      await Promise.all([refresh(), refreshRelatedData()]);
+      if (successMessage) setActionSuccess(successMessage);
+    } catch (err) {
+      setActionError(err || 'Something went wrong. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleScheduleMeeting = async (e) => {
     e.preventDefault();
-    setActionLoading(true);
-    setActionError('');
-    try {
+    const isoDate = `${meetingDate}T${meetingTime}`;
+
+    await runAction(async () => {
       await crmService.createMeeting({
         leadId: id,
-        date: meetingDate,
-        time: meetingTime,
-        type: 'Office Meeting',
-        status: 'Scheduled',
+        date: isoDate,
+        type: meetingType,
+        notes: meetingNotes,
       });
-      await updateStatus('contacted');
+      scheduleAutomations(id, isoDate);
       setIsMeetingModalOpen(false);
-    } catch {
-      setActionError('Failed to schedule meeting. Please try again.');
-    } finally {
-      setActionLoading(false);
-    }
+    }, 'Meeting scheduled and automation timers started.');
   };
 
-  const handleMarkLost = async (e) => {
-    e.preventDefault();
-    setActionLoading(true);
-    setActionError('');
-    try {
-      await updateStatus('lost');
-      if (note.trim()) await updateLead({ notes: note });
-      setIsLostModalOpen(false);
-      navigate('/crm/new-leads');
-    } catch {
-      setActionError('Failed to update lead. Please try again.');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleSaveNote = async () => {
+    if (!note.trim()) return;
+
+    await runAction(async () => {
+      await updateLead({ notes: note });
+      setNote('');
+    }, 'Lead note saved.');
   };
 
-  const handleMarkConverted = async () => {
-    navigate('/crm/forms/client-info', { state: { leadId: id, ...lead } });
+  const handleCreateFollowup = async () => {
+    if (!followupNote.trim()) return;
+
+    await runAction(async () => {
+      await crmService.createFollowup({
+        leadId: id,
+        date: `${followupDate}T10:00`,
+        note: followupNote,
+        nextFollowupDate: `${followupDate}T10:00`,
+      });
+      setFollowupNote('');
+    }, 'Follow-up added to KIT history.');
   };
 
-  const handlePriorityChange = async (val) => {
-    await updateLead({ priority: val });
+  const handleShowProject = async () => {
+    if (!showcaseTitle.trim() || !showcaseUrl.trim()) return;
+
+    await runAction(async () => {
+      await crmService.updateShowProject(id, {
+        assets: [
+          ...projectAssets,
+          {
+            type: showcaseType,
+            title: showcaseTitle,
+            url: showcaseUrl,
+            note: showcaseNote,
+          },
+        ],
+        siteVisitPlanned: Boolean(siteVisitNote.trim()),
+        siteVisitNote,
+      });
+
+      setShowcaseTitle('');
+      setShowcaseUrl('');
+      setShowcaseNote('');
+    }, 'Project showcase updated.');
   };
 
-  const handleStatusChange = async (val) => {
-    await updateStatus(val);
+  const handleCreateProposal = async () => {
+    const filteredItems = proposalItems.filter((item) => item.name.trim());
+    if (!filteredItems.length) return;
+
+    await runAction(async () => {
+      if (!lead.clientId) {
+        await crmService.createClient({
+          name: lead.name,
+          phone: lead.phone,
+          email: lead.email,
+          leadId: id,
+        });
+      }
+
+      const proposalResponse = await crmService.createProposal({
+        leadId: id,
+        items: filteredItems,
+      });
+
+      if (proposalResponse?.proposal?._id) {
+        await crmService.sendProposal(proposalResponse.proposal._id);
+      }
+
+      await updateStatus('proposal_sent');
+    }, 'Proposal created and lead moved to interested stage.');
   };
 
-  /* ── Derived values ── */
-  const priorityClass = priorityColors[lead.priority] || priorityColors.medium;
-  const statusClass   = statusColors[lead.status] || '';
+  const handleAdvancePayment = async () => {
+    if (!advanceAmount) return;
+
+    await runAction(async () => {
+      await crmService.recordAdvancePayment(id, {
+        amount: Number(advanceAmount),
+        note: advanceNote,
+      });
+    }, 'Advance payment recorded and moved to project management stage.');
+  };
+
+  const handleOpenClientInfo = () => {
+    setActiveLead({
+      id,
+      _id: id,
+      name: lead.name,
+      phone: lead.phone,
+      email: lead.email,
+    });
+
+    navigate('/crm/forms/client-info', {
+      state: {
+        leadId: id,
+        clientId: lead.clientId || null,
+        name: lead.name,
+        phone: lead.phone,
+        email: lead.email,
+      },
+    });
+  };
+
+  const handleConvert = async () => {
+    await runAction(async () => {
+      await crmService.convertLeadToClient(id);
+      await updateStatus('converted');
+    }, 'Lead converted successfully.');
+  };
+
+  const handleStatusChange = async (value) => {
+    await runAction(async () => {
+      await updateStatus(value);
+    }, 'Lead status updated.');
+  };
+
+  const handlePriorityChange = async (value) => {
+    await runAction(async () => {
+      await updateLead({ priority: value });
+    }, 'Lead priority updated.');
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20 px-2 sm:px-0">
-
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
           <button
             onClick={() => navigate(-1)}
             className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--surface)] text-[var(--text-muted)] transition-colors shrink-0"
           >
             <ArrowLeft size={20} />
           </button>
-          <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold text-[var(--text-primary)]">{lead.name}</h1>
-              <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${statusClass}`}>
-                {lead.status?.replace('_', ' ')}
-              </span>
-              <span className={`text-xs font-bold px-3 py-1 rounded-full border ${priorityClass}`}>
-                {(lead.priority || 'medium').toUpperCase()}
-              </span>
+
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">{lead.name}</h1>
+              <StatusBadge value={lead.status} />
+              <StatusBadge value={lead.lifecycleStage} type="lifecycle" />
             </div>
-            <p className="text-xs text-[var(--text-muted)] mt-1">
-              Lead #{id?.slice(-6).toUpperCase()} •{' '}
-              {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+            <p className="text-sm text-[var(--text-muted)]">
+              Lead #{id.slice(-6).toUpperCase()} • {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN') : '—'}
             </p>
+            <div className="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-2"><Phone size={14} /> {lead.phone || '—'}</span>
+              <span className="inline-flex items-center gap-2"><Mail size={14} /> {lead.email || '—'}</span>
+              <span className="inline-flex items-center gap-2"><MapPin size={14} /> {lead.city || '—'}</span>
+            </div>
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Button variant="primary" onClick={() => setIsMeetingModalOpen(true)}>
+            <Calendar size={16} />
+            Schedule Meeting
+          </Button>
+          <Button variant="outline" onClick={handleOpenClientInfo}>
+            <UserPlus size={16} />
+            Client Info
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => window.open(`https://wa.me/91${lead.phone?.replace(/\D/g, '')}`, '_blank')}
+          >
+            <MessageSquare size={16} />
+            WhatsApp
+          </Button>
         </div>
       </div>
 
-      {/* ── Body Grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {(actionError || actionSuccess) && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${actionError ? 'bg-[var(--error)]/10 border-[var(--error)]/20 text-[var(--error)]' : 'bg-[var(--success)]/10 border-[var(--success)]/20 text-[var(--success)]'}`}>
+          {actionError || actionSuccess}
+        </div>
+      )}
 
-        {/* ── Left: Tabs ── */}
-        <div className="lg:col-span-2 space-y-0">
-          {/* Tab Bar */}
-          <div className="flex items-center gap-0 border-b border-[var(--border)] overflow-x-auto">
-            {['basic', 'notes', 'timeline', 'followups', 'proposal'].map((tab) => (
-              <TabButton key={tab} id={tab} label={tab.charAt(0).toUpperCase() + tab.slice(1)} activeTab={activeTab} onClick={setActiveTab} />
-            ))}
-          </div>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 space-y-6">
+          <Card className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <InfoItem icon={User} label="Client" value={lead.name} />
+              <InfoItem icon={Mail} label="Email" value={lead.email} />
+              <InfoItem icon={Phone} label="Phone" value={lead.phone} />
+              <InfoItem icon={Building2} label="Project Type" value={lead.projectType} />
+              <InfoItem icon={IndianRupee} label="Budget" value={lead.budget ? `Rs. ${Number(lead.budget).toLocaleString('en-IN')}` : '—'} />
+              <InfoItem icon={MapPin} label="Site Address" value={lead.siteAddress || '—'} />
+            </div>
+          </Card>
 
-          {/* Tab Content */}
-          <Card className="rounded-t-none shadow-sm border-t-0" padding="p-8">
+          <Card className="space-y-5">
+            <SectionTitle title="KIT Notes & Interaction History" icon={Activity} />
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Add internal notes, client mood, requirement changes, or call outcomes..."
+              rows={4}
+              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+            />
+            <Button variant="primary" onClick={handleSaveNote} isLoading={actionLoading}>
+              Save Note
+            </Button>
 
-            {/* BASIC */}
-            {activeTab === 'basic' && (
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                  <DetailRow label="Name"         value={lead.name}                    icon={User} />
-                  <DetailRow label="Email"        value={lead.email}                   icon={Mail} />
-                  <DetailRow label="Phone"        value={lead.phone}                   icon={Phone} />
-                  <DetailRow label="Spouse Name"  value={lead.spouse?.name}            icon={User} />
-                  <DetailRow label="Spouse Phone" value={lead.spouse?.phone}           icon={Phone} />
-                  <DetailRow label="City"         value={lead.city}                    icon={MapPin} />
-                  <DetailRow label="Referred By"  value={lead.referredBy}              icon={Star} />
-                  <DetailRow label="Project Type" value={lead.projectType}             icon={Building2} />
-                  <DetailRow label="Area"         value={lead.area ? `${lead.area} sq ft` : null} icon={Maximize2} />
-                  <DetailRow label="Budget"       value={lead.budget ? `₹${Number(lead.budget).toLocaleString('en-IN')}` : null} icon={IndianRupee} />
+            <div className="space-y-3">
+              {(lead.interactionHistory || []).slice().reverse().map((entry, index) => (
+                <div key={`${entry.createdAt}-${index}`} className="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-[var(--text-primary)]">{entry.title}</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString('en-IN') : '—'}
+                    </p>
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1">{entry.description}</p>
                 </div>
-                {lead.siteAddress && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Site Address</p>
-                    <div className="p-4 bg-[var(--bg)] rounded-xl border border-[var(--border)] text-sm text-[var(--text-primary)]">
-                      {lead.siteAddress}
-                    </div>
-                  </div>
-                )}
-                {lead.notes && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Notes</p>
-                    <div className="p-4 bg-[var(--bg)] rounded-xl border border-[var(--border)] text-sm text-[var(--text-primary)]">
-                      {lead.notes}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+              ))}
+            </div>
+          </Card>
 
-            {/* NOTES */}
-            {activeTab === 'notes' && (
-              <div className="space-y-5">
-                <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Add a Note</p>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Write a note about this lead..."
-                  rows={5}
-                  className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
-                />
-                <Button
-                  variant="primary"
-                  onClick={async () => {
-                    if (!note.trim()) return;
-                    await updateLead({ notes: note });
-                    setNote('');
-                  }}
+          <Card className="space-y-5">
+            <SectionTitle title="Follow-ups" icon={Clock} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input
+                type="date"
+                value={followupDate}
+                onChange={(e) => setFollowupDate(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              />
+              <textarea
+                value={followupNote}
+                onChange={(e) => setFollowupNote(e.target.value)}
+                rows={2}
+                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+                placeholder="Add follow-up reminder or KIT interaction"
+              />
+            </div>
+            <Button variant="primary" onClick={handleCreateFollowup} isLoading={actionLoading}>
+              <Plus size={16} />
+              Add Follow-up
+            </Button>
+
+            <div className="space-y-3">
+              {followups.length ? followups.map((item) => (
+                <div key={item._id} className="rounded-xl border border-[var(--border)] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-[var(--text-primary)]">{item.note || 'Follow-up recorded'}</p>
+                    <StatusBadge value={item.status === 'done' ? 'converted' : 'contacted'} />
+                  </div>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">
+                    Due on {item.date ? new Date(item.date).toLocaleDateString('en-IN') : '—'}
+                  </p>
+                </div>
+              )) : (
+                <EmptyState text="No follow-ups recorded yet." />
+              )}
+            </div>
+          </Card>
+
+          <Card className="space-y-5">
+            <SectionTitle title="Show Project" icon={FileImage} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Select value={showcaseType} onChange={setShowcaseType} options={SHOWCASE_OPTIONS} label="Asset Type" />
+              <input
+                value={showcaseTitle}
+                onChange={(e) => setShowcaseTitle(e.target.value)}
+                placeholder="Asset title"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              />
+              <input
+                value={showcaseUrl}
+                onChange={(e) => setShowcaseUrl(e.target.value)}
+                placeholder="Image / video / template URL"
+                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              />
+              <textarea
+                value={showcaseNote}
+                onChange={(e) => setShowcaseNote(e.target.value)}
+                rows={2}
+                placeholder="Context or remarks shown to the client"
+                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+              />
+              <textarea
+                value={siteVisitNote}
+                onChange={(e) => setSiteVisitNote(e.target.value)}
+                rows={2}
+                placeholder="Site visit note (optional)"
+                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+              />
+            </div>
+            <Button variant="primary" onClick={handleShowProject} isLoading={actionLoading}>
+              Save Showcase Step
+            </Button>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {projectAssets.length ? projectAssets.map((asset, index) => (
+                <a
+                  key={`${asset.url}-${index}`}
+                  href={asset.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 hover:border-[var(--primary)] transition-colors"
                 >
-                  <StickyNote size={16} />
-                  Save Note
-                </Button>
-                {lead.notes && (
-                  <div className="mt-6 space-y-2">
-                    <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Existing Note</p>
-                    <div className="p-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm text-[var(--text-primary)]">
-                      {lead.notes}
-                    </div>
+                  <p className="font-semibold text-[var(--text-primary)]">{asset.title}</p>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1">{asset.note || lifecycleLabels.show_project}</p>
+                  <p className="text-xs text-[var(--primary)] mt-2 uppercase">{asset.type}</p>
+                </a>
+              )) : (
+                <EmptyState text="No project references shared yet." />
+              )}
+            </div>
+          </Card>
+
+          <Card className="space-y-5">
+            <SectionTitle title="Proposal Flow" icon={FileText} />
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Create proposal items</p>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                Add the work item, quantity, and rate. The system will calculate the amount automatically.
+              </p>
+            </div>
+            <div className="space-y-3">
+              {proposalItems.map((item, index) => (
+                <div key={index} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">Proposal Item {index + 1}</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Amount: Rs. {(Number(item.qty || 0) * Number(item.rate || 0)).toLocaleString('en-IN')}
+                    </p>
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* TIMELINE */}
-            {activeTab === 'timeline' && (
-              <div className="space-y-6">
-                <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-4">Activity Timeline</p>
-                <div className="relative space-y-6 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-px before:bg-[var(--border)]">
-                  {[
-                    { icon: Activity, color: 'var(--primary)', label: 'Lead Created', desc: `Enquiry submitted on ${lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN') : '—'}` },
-                    lead.status !== 'new' && { icon: Phone, color: 'var(--accent-blue)', label: 'Lead Contacted', desc: 'Status updated to Contacted' },
-                    (lead.status === 'meeting_done' || lead.status === 'proposal_sent' || lead.status === 'converted') && { icon: Calendar, color: 'var(--accent-teal)', label: 'Meeting Done', desc: 'Meeting completed with client' },
-                    (lead.status === 'proposal_sent' || lead.status === 'converted') && { icon: FileText, color: 'var(--warning)', label: 'Proposal Sent', desc: 'Proposal sent to client' },
-                    lead.status === 'converted' && { icon: CheckCircle2, color: 'var(--success)', label: 'Lead Converted', desc: 'Successfully converted to client' },
-                    lead.status === 'lost' && { icon: XCircle, color: 'var(--error)', label: 'Lead Lost', desc: 'Lead marked as lost' },
-                  ].filter(Boolean).map((event, i) => (
-                    <div key={i} className="flex items-start gap-4 pl-2">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10" style={{ background: `color-mix(in srgb, ${event.color} 15%, transparent)`, color: event.color }}>
-                        <event.icon size={16} />
-                      </div>
-                      <div className="pt-1">
-                        <p className="text-sm font-bold text-[var(--text-primary)]">{event.label}</p>
-                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{event.desc}</p>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <FormField label="Work / Scope Name" className="md:col-span-2">
+                      <input
+                        value={item.name}
+                        onChange={(e) => {
+                          const next = [...proposalItems];
+                          next[index].name = e.target.value;
+                          setProposalItems(next);
+                        }}
+                        placeholder="e.g. Modular kitchen, bedroom design, false ceiling"
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                      />
+                    </FormField>
+                    <FormField label="Quantity">
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.qty}
+                        onChange={(e) => {
+                          const next = [...proposalItems];
+                          next[index].qty = e.target.value;
+                          setProposalItems(next);
+                        }}
+                        placeholder="1"
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                      />
+                    </FormField>
+                    <FormField label="Rate (Rs.)">
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.rate}
+                        onChange={(e) => {
+                          const next = [...proposalItems];
+                          next[index].rate = e.target.value;
+                          setProposalItems(next);
+                        }}
+                        placeholder="Enter rate"
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                      />
+                    </FormField>
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
 
-            {/* FOLLOWUPS */}
-            {activeTab === 'followups' && (
-              <div className="space-y-5">
-                <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Follow-up Schedule</p>
-                <div className="flex flex-col items-center py-12 text-[var(--text-muted)]">
-                  <Bell size={40} className="mb-4 opacity-20" />
-                  <p className="text-sm">No follow-ups scheduled yet.</p>
-                  <Button variant="ghost" className="mt-4 text-[var(--primary)]" onClick={() => setIsMeetingModalOpen(true)}>
-                    Schedule a meeting
-                  </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setProposalItems((prev) => [...prev, { ...initialProposalItem }])}
+              >
+                <Plus size={16} />
+                Add Proposal Item
+              </Button>
+              <Button variant="primary" onClick={handleCreateProposal} isLoading={actionLoading}>
+                Create Proposal
+              </Button>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-[var(--text-secondary)]">
+              <p>Total: Rs. {proposalSummary.total.toLocaleString('en-IN')}</p>
+              <p>GST (18%): Rs. {proposalSummary.gst.toLocaleString('en-IN')}</p>
+              <p className="font-semibold text-[var(--text-primary)]">Final: Rs. {proposalSummary.final.toLocaleString('en-IN')}</p>
+            </div>
+
+            <div className="space-y-3">
+              {proposals.length ? proposals.map((proposal) => (
+                <div key={proposal._id} className="rounded-xl border border-[var(--border)] px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-[var(--text-primary)]">Proposal #{proposal._id.slice(-6).toUpperCase()}</p>
+                    <StatusBadge value={proposal.status === 'sent' ? 'proposal_sent' : 'contacted'} />
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1">
+                    Final amount: Rs. {Number(proposal.finalAmount || 0).toLocaleString('en-IN')}
+                  </p>
                 </div>
+              )) : (
+                <EmptyState text="No proposal has been generated yet." />
+              )}
+            </div>
+          </Card>
+
+          <Card className="space-y-5">
+            <SectionTitle title="Advance Payment & Conversion" icon={IndianRupee} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                type="number"
+                value={advanceAmount}
+                onChange={(e) => setAdvanceAmount(e.target.value)}
+                placeholder="Advance amount"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              />
+              <input
+                value={advanceNote}
+                onChange={(e) => setAdvanceNote(e.target.value)}
+                placeholder="Payment note / receipt remark"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="primary" onClick={handleAdvancePayment} isLoading={actionLoading}>
+                Record Advance Payment
+              </Button>
+              <Button variant="outline" onClick={handleConvert} isLoading={actionLoading}>
+                Convert Lead
+              </Button>
+              <Button variant="ghost" className="text-[var(--error)]" onClick={() => handleStatusChange('lost')} isLoading={actionLoading}>
+                <XCircle size={16} />
+                Mark Lost
+              </Button>
+            </div>
+            {lead.advancePayment?.received && (
+              <div className="rounded-xl border border-[var(--success)]/20 bg-[var(--success)]/10 p-4 text-sm text-[var(--success)]">
+                Advance of Rs. {Number(lead.advancePayment.amount || 0).toLocaleString('en-IN')} received and marked for project management handoff.
               </div>
             )}
-
-            {/* PROPOSAL */}
-            {activeTab === 'proposal' && (
-              <div className="space-y-5">
-                <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Proposal</p>
-                <div className="flex flex-col items-center py-12 text-[var(--text-muted)]">
-                  <FileText size={40} className="mb-4 opacity-20" />
-                  <p className="text-sm">No proposal created yet.</p>
-                  <Button
-                    variant="primary"
-                    className="mt-4"
-                    onClick={async () => {
-                      await updateStatus('proposal_sent');
-                    }}
-                  >
-                    Mark Proposal Sent
-                  </Button>
-                </div>
-              </div>
-            )}
-
           </Card>
         </div>
 
-        {/* ── Right: Sidebar ── */}
-        <div className="space-y-5">
-
-          {/* Quick Info */}
-          <Card padding="p-5" className="shadow-sm space-y-5">
-            <p className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest border-b border-[var(--border)] pb-3">Quick Info</p>
-
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Status</p>
-              <Select
-                value={lead.status || 'new'}
-                onChange={handleStatusChange}
-                options={STATUS_OPTIONS}
-              />
+        <div className="space-y-6">
+          <Card className="space-y-4">
+            <SectionTitle title="Lead Controls" icon={Clock} />
+            <Select label="Lead Status" value={lead.status || 'new'} onChange={handleStatusChange} options={STATUS_OPTIONS} />
+            <Select label="Priority" value={lead.priority || 'medium'} onChange={handlePriorityChange} options={PRIORITY_OPTIONS} />
+            <div className="rounded-xl bg-[var(--bg)] border border-[var(--border)] p-4 space-y-2 text-sm">
+              <p className="text-[var(--text-muted)]">Current lifecycle stage</p>
+              <p className="font-semibold text-[var(--text-primary)]">{lifecycleLabels[lead.lifecycleStage] || lead.lifecycleStage}</p>
             </div>
+          </Card>
 
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Priority</p>
-              <Select
-                value={lead.priority || 'medium'}
-                onChange={handlePriorityChange}
-                options={PRIORITY_OPTIONS}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Enquiry Date</p>
-              <div className="flex items-center gap-2 text-sm text-[var(--text-primary)] font-semibold">
-                <Clock size={14} className="text-[var(--text-muted)]" />
-                {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN') : '—'}
+          <Card className="space-y-4">
+            <SectionTitle title="Meetings" icon={Calendar} />
+            {meetings.length ? meetings.map((meeting) => (
+              <div key={meeting._id} className="rounded-xl border border-[var(--border)] px-4 py-3">
+                <p className="font-semibold text-[var(--text-primary)] capitalize">{meeting.type} meeting</p>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">
+                  {meeting.date ? new Date(meeting.date).toLocaleString('en-IN') : '—'}
+                </p>
               </div>
+            )) : (
+              <EmptyState text="No meetings scheduled yet." />
+            )}
+          </Card>
+
+          <Card className="space-y-4">
+            <SectionTitle title="Timeline" icon={Activity} />
+            <div className="space-y-3">
+              {timeline.length ? timeline.map((item) => (
+                <div key={`${item.type}-${item.id}`} className="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3">
+                  <p className="font-semibold text-[var(--text-primary)] capitalize">{item.title}</p>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1">{item.description}</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-2">{item.date ? new Date(item.date).toLocaleString('en-IN') : '—'}</p>
+                </div>
+              )) : (
+                <EmptyState text="Timeline entries will appear as the lead moves through the CRM flow." />
+              )}
             </div>
           </Card>
-
-          {/* Actions */}
-          <Card padding="p-5" className="shadow-sm space-y-3">
-            <p className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest border-b border-[var(--border)] pb-3">Actions</p>
-
-            <Button
-              variant="primary"
-              className="w-full justify-center"
-              onClick={() => setIsMeetingModalOpen(true)}
-            >
-              <Calendar size={17} />
-              Schedule Meeting
-            </Button>
-
-            <Button
-              variant="outline"
-              className="w-full justify-center"
-              onClick={() => window.open(`https://wa.me/91${lead.phone?.replace(/\D/g, '')}`, '_blank')}
-            >
-              <MessageSquare size={17} />
-              Send WhatsApp
-            </Button>
-
-            <Button
-              variant="outline"
-              className="w-full justify-center"
-              onClick={handleMarkConverted}
-              disabled={lead.status === 'converted'}
-            >
-              <UserPlus size={17} />
-              Convert to Client
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-center text-[var(--error)] hover:bg-[var(--error)]/5"
-              onClick={() => setIsLostModalOpen(true)}
-              disabled={lead.status === 'lost' || lead.status === 'converted'}
-            >
-              <XCircle size={17} />
-              Mark as Lost
-            </Button>
-          </Card>
-
         </div>
       </div>
 
-      {/* ── Schedule Meeting Modal ── */}
-      <Modal
-        isOpen={isMeetingModalOpen}
-        onClose={() => setIsMeetingModalOpen(false)}
-        title="Schedule Meeting"
-      >
-        <form onSubmit={handleScheduleMeeting} className="space-y-6">
-          <div className="p-4 bg-[var(--primary)]/10 rounded-xl border border-[var(--primary)]/20">
-            <p className="text-sm font-medium text-[var(--text-primary)]">
-              Scheduling a meeting for <span className="font-bold">{lead.name}</span>
-            </p>
-          </div>
+      <Modal isOpen={isMeetingModalOpen} onClose={() => setIsMeetingModalOpen(false)} title="Schedule Meeting">
+        <form onSubmit={handleScheduleMeeting} className="space-y-5">
           <DateTimePicker
             label="Meeting Date & Time"
             dateValue={meetingDate}
@@ -449,50 +651,60 @@ const LeadDetailsPage = () => {
             onTimeChange={setMeetingTime}
             required
           />
-          {actionError && (
-            <p className="text-xs text-[var(--error)] font-medium">{actionError}</p>
-          )}
+          <Select
+            label="Meeting Type"
+            value={meetingType}
+            onChange={setMeetingType}
+            options={[
+              { value: 'office', label: 'Office Meeting' },
+              { value: 'site', label: 'Site Visit' },
+              { value: 'call', label: 'Call' },
+            ]}
+          />
+          <textarea
+            value={meetingNotes}
+            onChange={(e) => setMeetingNotes(e.target.value)}
+            rows={3}
+            placeholder="Meeting agenda or expectations"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+          />
           <div className="flex gap-3">
-            <Button variant="ghost" type="button" onClick={() => setIsMeetingModalOpen(false)} fullWidth>Cancel</Button>
-            <Button variant="primary" type="submit" isLoading={actionLoading} fullWidth>Confirm Meeting</Button>
+            <Button variant="ghost" type="button" onClick={() => setIsMeetingModalOpen(false)} fullWidth>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" isLoading={actionLoading} fullWidth>
+              Save Meeting
+            </Button>
           </div>
         </form>
       </Modal>
-
-      {/* ── Mark Lost Modal ── */}
-      <Modal
-        isOpen={isLostModalOpen}
-        onClose={() => setIsLostModalOpen(false)}
-        title="Mark as Lost"
-      >
-        <form onSubmit={handleMarkLost} className="space-y-5">
-          <div className="p-4 bg-[var(--error)]/10 rounded-xl border border-[var(--error)]/20">
-            <p className="text-sm font-medium text-[var(--text-primary)]">
-              Are you sure you want to mark <span className="font-bold">{lead.name}</span> as lost?
-            </p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Reason (optional)</p>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Why was this lead lost?"
-              rows={3}
-              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--error)] resize-none"
-            />
-          </div>
-          {actionError && (
-            <p className="text-xs text-[var(--error)] font-medium">{actionError}</p>
-          )}
-          <div className="flex gap-3">
-            <Button variant="ghost" type="button" onClick={() => setIsLostModalOpen(false)} fullWidth>Cancel</Button>
-            <Button variant="danger" type="submit" isLoading={actionLoading} fullWidth>Confirm Lost</Button>
-          </div>
-        </form>
-      </Modal>
-
     </div>
   );
 };
+
+const SectionTitle = ({ title, icon: Icon }) => (
+  <div className="flex items-center gap-2">
+    <div className="w-9 h-9 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
+      <Icon size={18} />
+    </div>
+    <h2 className="text-lg font-bold text-[var(--text-primary)]">{title}</h2>
+  </div>
+);
+
+const InfoItem = ({ icon: Icon, label, value }) => (
+  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+    <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">{label}</p>
+    <div className="mt-2 flex items-start gap-2 text-sm text-[var(--text-primary)]">
+      <Icon size={16} className="shrink-0 mt-0.5 text-[var(--text-muted)]" />
+      <span>{value || '—'}</span>
+    </div>
+  </div>
+);
+
+const EmptyState = ({ text }) => (
+  <div className="rounded-xl border border-dashed border-[var(--border)] px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+    {text}
+  </div>
+);
 
 export default LeadDetailsPage;

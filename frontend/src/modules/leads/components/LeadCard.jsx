@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Phone, MapPin, CalendarDays, Building2 } from 'lucide-react';
 import Avatar from '../../../shared/components/Avatar/Avatar';
-import Badge from '../../../shared/components/Badge/Badge';
+import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 
 const priorityConfig = {
   high:   { label: 'High Priority',   dot: 'bg-[var(--error)]',   text: 'text-[var(--error)]' },
@@ -60,9 +60,7 @@ const LeadCard = ({ lead, onMenuClick }) => {
           <CalendarDays size={14} className="shrink-0" />
           <span>{date}</span>
         </div>
-        <span className="text-xs font-semibold border border-[var(--primary)]/50 text-[var(--primary)] rounded-full px-3 py-0.5">
-          {status}
-        </span>
+        <StatusBadge value={status} />
       </div>
 
       {/* Priority + Menu */}

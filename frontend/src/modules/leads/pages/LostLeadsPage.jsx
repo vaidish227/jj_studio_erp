@@ -3,7 +3,7 @@ import LeadListView from '../components/LeadListView';
 import useLeadList from '../hooks/useLeadList';
 
 const LostLeadsPage = () => {
-  const { leads, isLoading, error, searchTerm, setSearchTerm } = useLeadList('lost');
+  const { leads, isLoading, error, statusSummary, searchTerm, setSearchTerm } = useLeadList({ status: 'lost' });
 
   return (
     <LeadListView
@@ -12,6 +12,7 @@ const LostLeadsPage = () => {
       leads={leads}
       isLoading={isLoading}
       error={error}
+      statusSummary={statusSummary}
       searchTerm={searchTerm}
       setSearchTerm={setSearchTerm}
       emptyMessage="No lost leads. Keep up the great work!"

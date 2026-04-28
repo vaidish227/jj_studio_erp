@@ -3,7 +3,7 @@ import LeadListView from '../components/LeadListView';
 import useLeadList from '../hooks/useLeadList';
 
 const ProposalsPage = () => {
-  const { leads, isLoading, error, searchTerm, setSearchTerm } = useLeadList('proposal_sent');
+  const { leads, isLoading, error, statusSummary, searchTerm, setSearchTerm } = useLeadList({ lifecycleStage: 'proposal_sent' });
 
   return (
     <LeadListView
@@ -12,6 +12,7 @@ const ProposalsPage = () => {
       leads={leads}
       isLoading={isLoading}
       error={error}
+      statusSummary={statusSummary}
       searchTerm={searchTerm}
       setSearchTerm={setSearchTerm}
       emptyMessage="No proposals sent yet."

@@ -1,7 +1,6 @@
 const Proposal = require("../models/Proposal.model");
-const nodemailer = require("nodemailer");
-const Client = require("../models/Client.model")
 const Lead = require("../models/Lead.model")
+const sendEmail = require("../utils/sendEmail");
 require("dotenv").config();
 
 //  CREATE PROPOSAL
@@ -32,13 +31,6 @@ const createProposal = async (req, res) => {
       });
     }
 
-    //  Ensure converted
-    if (!lead.clientId) {
-      return res.status(400).json({
-        message: "Lead is not converted to client",
-      });
-    }
-
     //  calculate amounts
     let totalAmount = 0;
 
@@ -65,6 +57,19 @@ const createProposal = async (req, res) => {
       gst,
       finalAmount,
     });
+
+    lead.status = "proposal_sent";
+    lead.lifecycleStage = "proposal_sent";
+    lead.interactionHistory = Array.isArray(lead.interactionHistory)
+      ? lead.interactionHistory
+      : [];
+    lead.interactionHistory.push({
+      type: "proposal",
+      title: "Proposal created",
+      description: "A new proposal was generated for this lead.",
+      createdAt: new Date(),
+    });
+    await lead.save();
 
     console.log("Proposal created:", proposal._id);
 
@@ -250,15 +255,6 @@ const sendProposalEmail = async (req, res) => {
       });
     }
 
-    //  transporter
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
     //  dynamic items HTML
     const itemsHtml = proposal.items.map((item) => `
       <tr>
@@ -270,8 +266,7 @@ const sendProposalEmail = async (req, res) => {
     `).join("");
 
     //  mail content 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
+    await sendEmail({
       to: proposal.clientId.email,
       subject: "Your Proposal from JJ Studio",
       html: `
@@ -305,14 +300,24 @@ const sendProposalEmail = async (req, res) => {
 
         <p>Regards,<br/>JJ Studio Team</p>
       `,
-    };
-
-    //  send mail
-    await transporter.sendMail(mailOptions);
+    });
 
     // update status
     proposal.status = "sent";
     await proposal.save();
+
+    await Lead.findByIdAndUpdate(proposal.leadId, {
+      status: "proposal_sent",
+      lifecycleStage: "proposal_sent",
+      $push: {
+        interactionHistory: {
+          type: "proposal",
+          title: "Proposal sent",
+          description: "Proposal email was sent to the client.",
+          createdAt: new Date(),
+        },
+      },
+    });
 
     res.status(200).json({
       message: "Proposal email sent successfully",

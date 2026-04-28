@@ -29,6 +29,19 @@ const createFollowup = async (req, res) => {
             assignedTo,
         });
 
+        lead.status = "meeting_done";
+        lead.lifecycleStage = "followup_due";
+        lead.interactionHistory = Array.isArray(lead.interactionHistory)
+            ? lead.interactionHistory
+            : [];
+        lead.interactionHistory.push({
+            type: "followup",
+            title: "Follow-up logged",
+            description: note || "A follow-up was created for this lead.",
+            createdAt: new Date(),
+        });
+        await lead.save();
+
         res.status(201).json({
             message: "Follow-up created successfully",
             followup,
@@ -123,6 +136,23 @@ const updateFollowup = async (req, res) => {
         if (nextFollowupDate !== undefined) followup.nextFollowupDate = nextFollowupDate;
 
         await followup.save();
+
+        if (status === "done") {
+            const lead = await Lead.findById(followup.leadId);
+            if (lead) {
+                lead.lifecycleStage = "kit";
+                lead.interactionHistory = Array.isArray(lead.interactionHistory)
+                    ? lead.interactionHistory
+                    : [];
+                lead.interactionHistory.push({
+                    type: "followup",
+                    title: "Follow-up completed",
+                    description: note || "A follow-up was marked as done.",
+                    createdAt: new Date(),
+                });
+                await lead.save();
+            }
+        }
 
         res.status(200).json({
             message: "Follow-up updated successfully",

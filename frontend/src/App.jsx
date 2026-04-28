@@ -30,9 +30,11 @@ export default function App() {
           <Route
             path="client-info"
             element={
-              <PublicLayout>
-                <ClientInfoFormPage isPublic={true} />
-              </PublicLayout>
+              <CRMProvider>
+                <PublicLayout>
+                  <ClientInfoFormPage isPublic={true} />
+                </PublicLayout>
+              </CRMProvider>
             }
           />
         </Route>

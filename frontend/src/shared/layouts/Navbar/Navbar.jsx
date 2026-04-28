@@ -6,6 +6,7 @@ import ProfileDropdown from '../../components/ProfileDropdown/ProfileDropdown';
 const Navbar = ({
   user = { name: 'Sarah Smith', role: 'Admin' },
   searchPlaceholder = 'Search leads, clients, projects...',
+  searchValue = '',
   onSearch,
   onMenuToggle,
   notificationCount = 1,
@@ -35,6 +36,7 @@ const Navbar = ({
           <input
             type="text"
             placeholder={searchPlaceholder}
+            value={searchValue}
             onChange={(e) => onSearch?.(e.target.value)}
             className="
               w-full pl-10 pr-4 py-2.5 text-sm rounded-xl

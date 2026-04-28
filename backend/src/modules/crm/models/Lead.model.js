@@ -54,6 +54,91 @@ const leadSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client"
     },
+    lifecycleStage: {
+      type: String,
+      enum: [
+        "enquiry",
+        "meeting_scheduled",
+        "thank_you_sent",
+        "client_info_pending",
+        "kit",
+        "followup_due",
+        "show_project",
+        "interested",
+        "proposal_sent",
+        "advance_received",
+        "project_moved",
+        "converted",
+        "lost",
+      ],
+      default: "enquiry",
+    },
+    automation: {
+      thankYouScheduledFor: Date,
+      thankYouSentAt: Date,
+      followupReminderFor: Date,
+      followupReminderSentAt: Date,
+    },
+    clientInfoCompletedAt: Date,
+    showProject: {
+      assets: [
+        {
+          type: {
+            type: String,
+            enum: ["image", "video", "template", "link"],
+            default: "image",
+          },
+          title: String,
+          url: String,
+          note: String,
+        },
+      ],
+      siteVisitPlanned: {
+        type: Boolean,
+        default: false,
+      },
+      siteVisitNote: String,
+      showcasedAt: Date,
+    },
+    interactionHistory: [
+      {
+        type: {
+          type: String,
+          enum: [
+            "note",
+            "meeting",
+            "thank_you",
+            "followup",
+            "client_info",
+            "show_project",
+            "proposal",
+            "advance_payment",
+            "status_change",
+          ],
+          default: "note",
+        },
+        title: String,
+        description: String,
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+    advancePayment: {
+      received: {
+        type: Boolean,
+        default: false,
+      },
+      amount: Number,
+      receivedAt: Date,
+      note: String,
+      movedToProjectManagement: {
+        type: Boolean,
+        default: false,
+      },
+      movedAt: Date,
+    },
   },
   { timestamps: true }
 );
