@@ -22,6 +22,7 @@ import Input from '../../../shared/components/Input/Input';
 import Button from '../../../shared/components/Button/Button';
 import { useCRM } from '../context/CRMContext';
 import useClientInfo from '../../../shared/hooks/useClientInfo';
+import { useLeadStatusManager, LEAD_ACTIONS } from '../../../shared/hooks/useLeadStatusManager';
 
 /* ─── Skeleton loader shown while fetching existing client data ─── */
 const FieldSkeleton = () => (
@@ -44,14 +45,15 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { activeLead, setActiveLead, clearActiveLead, setCrmState } = useCRM();
+  const { transitionStatus } = useLeadStatusManager();
 
   // Pull both leadId AND clientId from navigation state
-  const stateLeadId   = location.state?.leadId  ?? null;
+  const stateLeadId = location.state?.leadId ?? null;
   const stateClientId = location.state?.clientId ?? null;
 
   // Extract stable primitives from location.state to use as effect deps.
   // Using location.state directly causes infinite loops (new object ref each render).
-  const stateName  = location.state?.name  ?? '';
+  const stateName = location.state?.name ?? '';
   const statePhone = location.state?.phone ?? '';
   const stateEmail = location.state?.email ?? '';
 
@@ -60,16 +62,16 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
   React.useEffect(() => {
     if (stateLeadId) {
       setActiveLead({
-        id:    stateLeadId,
-        _id:   stateLeadId,
-        name:  stateName,
+        id: stateLeadId,
+        _id: stateLeadId,
+        name: stateName,
         phone: statePhone,
         email: stateEmail,
       });
     }
-  // setActiveLead is stable after wrapping in useCallback in CRMContext.
-  // Primitives (string/null) are safe as deps — no infinite loops.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // setActiveLead is stable after wrapping in useCallback in CRMContext.
+    // Primitives (string/null) are safe as deps — no infinite loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateLeadId, stateName, statePhone, stateEmail]);
 
   const {
@@ -84,9 +86,13 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
     submitClientInfo,
   } = useClientInfo({
     activeLead: leadContext,
-    clientId:   stateClientId,
+    clientId: stateClientId,
     onSuccess: () => {
       setCrmState((prev) => ({ ...prev, lastStep: 'client_info_submitted' }));
+      const leadId = stateLeadId || activeLead?._id || activeLead?.id;
+      if (leadId) {
+        transitionStatus(leadId, LEAD_ACTIONS.SUBMIT_CLIENT_INFO);
+      }
     },
   });
 
@@ -105,7 +111,7 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
         setUpdateSuccess(true);
         setIsEditing(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        
+
         setTimeout(() => {
           navigate(`/crm/leads/${stateLeadId || activeLead?._id || activeLead?.id}`);
         }, 1500);
@@ -170,7 +176,7 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
               {leadContext.phone} • {leadContext.email}
             </p>
           </div>
-          
+
           <button
             type="button"
             onClick={() => {
@@ -492,7 +498,7 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                   className={inputCls(!isEditing)}
                 />
                 <div className="lg:col-span-1">
-                   <Input
+                  <Input
                     label="City"
                     name="city"
                     value={formData.city}
@@ -578,11 +584,11 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
               {isPublic && <div />}
 
               <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                {!isPublic && !isUpdate && (
+                {/* {!isPublic && !isUpdate && (
                   <Button variant="outline" type="button" className="sm:px-8">
                     Print Form
                   </Button>
-                )}
+                )} */}
                 <Button
                   type="submit"
                   variant="primary"

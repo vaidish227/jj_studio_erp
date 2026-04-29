@@ -11,12 +11,14 @@ import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePi
 import { useCRM } from '../context/CRMContext';
 import useEnquiry from '../../../shared/hooks/useEnquiry';
 import useLeadFlow from '../../../shared/hooks/useLeadFlow';
+import { useLeadStatusManager, LEAD_ACTIONS } from '../../../shared/hooks/useLeadStatusManager';
 import { crmService } from '../../../shared/services/crmService';
 
 const EnquiryFormPage = () => {
   const navigate = useNavigate();
   const { activeLead, setActiveLead, setCrmState } = useCRM();
   const { scheduleAutomations } = useLeadFlow(activeLead?.id || activeLead?._id);
+  const { transitionStatus } = useLeadStatusManager();
   const {
     formData,
     errors,
@@ -80,6 +82,7 @@ const EnquiryFormPage = () => {
         ...prev,
         lastStep: 'meeting_scheduled',
       }));
+      await transitionStatus(leadId, LEAD_ACTIONS.SCHEDULE_MEETING);
       setIsMeetingModalOpen(false);
       navigate(`/crm/leads/${leadId}`);
     } catch (err) {
@@ -93,6 +96,7 @@ const EnquiryFormPage = () => {
     e.preventDefault();
     const lead = await submitEnquiry();
     if (lead) {
+      await transitionStatus(lead._id || lead.id, LEAD_ACTIONS.SUBMIT_ENQUIRY);
       setIsMeetingModalOpen(true);
     }
   };

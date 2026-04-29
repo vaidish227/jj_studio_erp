@@ -34,11 +34,11 @@ const removeQueueItem = (leadId, type) => {
 
 export const lifecycleLabels = {
   enquiry: 'Enquiry',
-  meeting_scheduled: 'Meeting Scheduled',
+  meeting_scheduled: 'In Progress',
   thank_you_sent: 'Thank You Sent',
   client_info_pending: 'Client Info Pending',
-  kit: 'Keep In Touch',
-  followup_due: 'Follow-up Due',
+  kit: 'Qualified',
+  followup_due: 'Nurturing',
   show_project: 'Project Shown',
   interested: 'Interested',
   proposal_sent: 'Proposal Sent',

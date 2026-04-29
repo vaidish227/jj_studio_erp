@@ -31,6 +31,7 @@ import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import { useCRM } from '../../crm/context/CRMContext';
 import useLeadDetails from '../hooks/useLeadDetails';
 import useLeadFlow, { lifecycleLabels } from '../../../shared/hooks/useLeadFlow';
+import { useLeadStatusManager, LEAD_ACTIONS } from '../../../shared/hooks/useLeadStatusManager';
 import { crmService } from '../../../shared/services/crmService';
 import { formatDateShort, formatDateTime } from '../../../shared/utils/dateUtils';
 
@@ -46,7 +47,7 @@ const LIFECYCLE_STEPS = [
 const STATUS_OPTIONS = [
   { value: 'new', label: 'New' },
   { value: 'contacted', label: 'In Progress' },
-  { value: 'proposal_sent', label: 'Interested' },
+  { value: 'proposal_sent', label: 'Proposal Sent' },
   { value: 'lost', label: 'Lost' },
   { value: 'converted', label: 'Converted' },
 ];
@@ -73,6 +74,7 @@ const LeadDetailsPage = () => {
   const { lead, isLoading, error, updateStatus, updateLead, refresh } = useLeadDetails(id);
   const { meetings, followups, proposals, timeline, refreshRelatedData, scheduleAutomations } =
     useLeadFlow(id);
+  const { transitionStatus } = useLeadStatusManager();
 
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
@@ -171,6 +173,7 @@ const LeadDetailsPage = () => {
         notes: meetingNotes,
       });
       scheduleAutomations(id, isoDate);
+      await transitionStatus(id, LEAD_ACTIONS.SCHEDULE_MEETING);
       setIsMeetingModalOpen(false);
     }, 'Meeting scheduled and automation timers started.');
   };
@@ -205,6 +208,7 @@ const LeadDetailsPage = () => {
         note: followupNote,
         nextFollowupDate: `${followupDate}T10:00`,
       });
+      await transitionStatus(id, LEAD_ACTIONS.RECORD_FOLLOWUP);
       setFollowupNote('');
     }, 'Follow-up added to KIT history.');
   };
@@ -259,7 +263,7 @@ const LeadDetailsPage = () => {
         await crmService.sendProposal(proposalResponse.proposal._id);
       }
 
-      await updateStatus('proposal_sent');
+      await transitionStatus(id, LEAD_ACTIONS.SEND_PROPOSAL);
     }, 'Proposal created and lead moved to interested stage.');
   };
 
@@ -271,6 +275,7 @@ const LeadDetailsPage = () => {
         amount: Number(advanceAmount),
         note: advanceNote,
       });
+      await transitionStatus(id, LEAD_ACTIONS.RECORD_ADVANCE);
     }, 'Advance payment recorded and moved to project management stage.');
   };
 
@@ -633,6 +638,17 @@ const LeadDetailsPage = () => {
               <Button variant="primary" onClick={handleCreateProposal} isLoading={actionLoading}>
                 Create Proposal
               </Button>
+              {lead.status === 'proposal_sent' && lead.lifecycleStage !== 'interested' && (
+                <Button 
+                  variant="outline" 
+                  className="border-[var(--success)] text-[var(--success)] hover:bg-[var(--success)]/10" 
+                  onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_INTERESTED), 'Lead marked as interested.')}
+                  isLoading={actionLoading}
+                >
+                  <CheckCircle2 size={16} />
+                  Mark Interested
+                </Button>
+              )}
             </div>
 
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-[var(--text-secondary)]">
@@ -682,7 +698,7 @@ const LeadDetailsPage = () => {
               <Button variant="outline" onClick={handleConvert} isLoading={actionLoading}>
                 Convert Lead
               </Button>
-              <Button variant="ghost" className="text-[var(--error)]" onClick={() => handleStatusChange('lost')} isLoading={actionLoading}>
+              <Button variant="ghost" className="text-[var(--error)]" onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_LOST), 'Lead marked as lost.')} isLoading={actionLoading}>
                 <XCircle size={16} />
                 Mark Lost
               </Button>

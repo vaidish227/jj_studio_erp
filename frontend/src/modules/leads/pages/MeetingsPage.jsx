@@ -23,7 +23,7 @@ import Modal from '../../../shared/components/Modal/Modal';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Select from '../../../shared/components/Select/Select';
 import { crmService } from '../../../shared/services/crmService';
-import { DashboardCard } from '../../../shared/components';
+import { DashboardCard, SearchInput, ViewToggle } from '../../../shared/components';
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -246,67 +246,54 @@ const fetchData = useCallback(async (isInitialLoad = false) => {
 
   return (
     <div className="space-y-8 pb-10">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+      {(error || actionError) && (
+        <div className="space-y-3">
+          {error && (
+            <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)] animate-in fade-in duration-300">
+              {error}
+            </div>
+          )}
+          {actionError && (
+            <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)] animate-in fade-in duration-300">
+              {actionError}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex flex-col gap-6">
+        {/* Header Row: Title on Left, Search + Toggle on Right */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex flex-col gap-1">
             <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Meetings</h1>
-            <p className="text-[var(--text-secondary)] mt-1">Schedule and manage client meetings in realtime.</p>
+            <p className="text-[var(--text-secondary)] font-medium">Schedule and manage client meetings in realtime.</p>
           </div>
-          <Button variant="primary" onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto px-8">
-            <Plus size={18} />
-            Schedule Meeting
-          </Button>
+
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full lg:w-auto">
+            <SearchInput 
+              value={localSearch} 
+              onChange={setLocalSearch} 
+              placeholder="Search meetings..." 
+              className="w-full md:w-72"
+            />
+            <ViewToggle 
+              view={viewMode} 
+              onViewChange={setViewMode} 
+            />
+            <Button variant="primary" onClick={() => setIsModalOpen(true)} className="w-full md:w-auto px-6 whitespace-nowrap">
+              <Plus size={18} />
+              Schedule Meeting
+            </Button>
+          </div>
         </div>
 
-        <div className="relative group max-w-lg">
-          <Search
-            size={16}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)]"
-          />
-          <input
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            placeholder="Search meetings by lead, phone, notes, or city..."
-            className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
-          />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          <DashboardCard title="Total Meetings" value={stats.total} icon={CalendarIcon} iconBg="bg-[var(--primary)]/10" compact />
+          <DashboardCard title="Scheduled" value={stats.scheduled} icon={Clock} iconBg="bg-[var(--accent-blue)]/10" compact />
+          <DashboardCard title="Completed" value={stats.completed} icon={CheckCircle2} iconBg="bg-[var(--success)]/10" compact />
+          <DashboardCard title="Cancelled" value={stats.cancelled} icon={XCircle} iconBg="bg-[var(--error)]/10" compact />
+          <DashboardCard title="On-Site" value={stats.site} icon={MapPin} iconBg="bg-[var(--warning)]/10" compact />
         </div>
-      </div>
-
-      {error && (
-        <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
-          {error}
-        </div>
-      )}
-
-      {actionError && (
-        <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
-          {actionError}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <DashboardCard title="Total Meetings" value={stats.total} icon={CalendarIcon} iconBg="bg-[var(--primary)]/10" compact />
-        <DashboardCard title="Scheduled" value={stats.scheduled} icon={Clock} iconBg="bg-[var(--accent-blue)]/10" compact />
-        <DashboardCard title="Completed" value={stats.completed} icon={CheckCircle2} iconBg="bg-[var(--success)]/10" compact />
-        <DashboardCard title="Cancelled" value={stats.cancelled} icon={XCircle} iconBg="bg-[var(--error)]/10" compact />
-        <DashboardCard title="On-Site" value={stats.site} icon={MapPin} iconBg="bg-[var(--warning)]/10" compact />
-      </div>
-
-      <div className="flex items-center gap-2 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl w-fit">
-        <button
-          onClick={() => setViewMode('calendar')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'calendar' ? 'bg-[var(--primary)] text-black shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-        >
-          <LayoutGrid size={16} />
-          Calendar View
-        </button>
-        <button
-          onClick={() => setViewMode('list')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'list' ? 'bg-[var(--primary)] text-black shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-        >
-          <List size={16} />
-          List View
-        </button>
       </div>
 
       <div className="flex items-center gap-2 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl w-fit">
