@@ -1,19 +1,19 @@
 const bcrypt = require("bcrypt");
 const User = require("../models/user.model");
-const { loginSchema, changePasswordSchema } = require("../validator/auth.validator");
+const { loginSchema, signupSchema, changePasswordSchema } = require("../validator/auth.validator");
 const { loginUser, changePassword } = require("../service/auth.service");
-
 
 const signup = async (req, res) => {
     try {
-        const { name, email, password, phone } = req.body;
-
-        // 1. Basic validation
-        if (!name || !email || !password) {
+        // 1. Validation
+        const { error } = signupSchema.validate(req.body);
+        if (error) {
             return res.status(400).json({
-                message: "Name, email and password are required",
+                message: error.message,
             });
         }
+
+        const { name, email, password, phone, role } = req.body;
 
         // 2. Check existing user
         const existingUser = await User.findOne({ email });
@@ -32,12 +32,18 @@ const signup = async (req, res) => {
             email,
             password: hashedPassword,
             phone,
+            role: role || "sales",
         });
 
         // 5. Response
         res.status(201).json({
             message: "Signup successful",
-            user,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+            },
         });
 
     } catch (error) {

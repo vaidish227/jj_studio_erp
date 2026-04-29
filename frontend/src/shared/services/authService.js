@@ -2,11 +2,11 @@ import apiClient from './apiClient';
 
 export const authService = {
   login: (credentials) => {
-    return apiClient('/auth/login', { body: credentials });
+    return apiClient.post('/auth/login', credentials);
   },
   
   signup: (userData) => {
-    return apiClient('/auth/signup', { body: userData });
+    return apiClient.post('/auth/signup', userData);
   },
 
   logout: () => {

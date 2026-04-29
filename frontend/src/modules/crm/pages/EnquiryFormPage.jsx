@@ -43,12 +43,24 @@ const EnquiryFormPage = () => {
   // Meeting State
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [meetingTime, setMeetingTime] = useState('10:00');
+  const [meetingType, setMeetingType] = useState('office');
   const [isMeetingLoading, setIsMeetingLoading] = useState(false);
   const [meetingError, setMeetingError] = useState('');
 
   const handleScheduleMeeting = async (e) => {
     e.preventDefault();
     if (!activeLead) return;
+
+    // --- Validation: Present or future date only ---
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(meetingDate);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < now) {
+      setMeetingError('You cannot schedule a meeting in the past. Please select today or a future date.');
+      return;
+    }
 
     setIsMeetingLoading(true);
     setMeetingError('');
@@ -59,8 +71,8 @@ const EnquiryFormPage = () => {
       await crmService.createMeeting({
         leadId,
         date: isoDate,
-        type: 'office',
-        notes: 'Initial office meeting scheduled immediately after enquiry submission.',
+        type: meetingType,
+        notes: 'Initial meeting scheduled from enquiry form.',
       });
 
       scheduleAutomations(leadId, isoDate);
@@ -71,7 +83,7 @@ const EnquiryFormPage = () => {
       setIsMeetingModalOpen(false);
       navigate(`/crm/leads/${leadId}`);
     } catch (err) {
-      setMeetingError('Failed to schedule meeting. You can do this later from the Leads section.');
+      setMeetingError(err?.response?.data?.message || 'Failed to schedule meeting. A conflict might exist at this time.');
     } finally {
       setIsMeetingLoading(false);
     }
@@ -314,6 +326,17 @@ const EnquiryFormPage = () => {
               Arrange a meeting to discuss the project further.
             </p>
           </div>
+
+          <Select 
+            label="Meeting Type"
+            value={meetingType}
+            onChange={setMeetingType}
+            options={[
+              { value: 'office', label: 'Office Meeting' },
+              { value: 'site', label: 'Site Meeting' },
+              { value: 'call', label: 'Phone / Video Call' },
+            ]}
+          />
 
           <DateTimePicker 
             label="Meeting Date & Time"

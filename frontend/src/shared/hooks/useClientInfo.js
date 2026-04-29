@@ -128,12 +128,16 @@ export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
       // Existing client → fetch full data
       fetchExistingClient(clientId);
     } else if (_leadId) {
-      // No client yet → pre-fill basic info from the lead
+      // No client yet → pre-fill info from the lead enquiry
       setFormData((prev) => ({
         ...prev,
-        name:          _leadName  || '',
-        contactNumber: _leadPhone || '',
-        email:         _leadEmail || '',
+        name:                _leadName               || '',
+        contactNumber:       _leadPhone              || '',
+        email:               _leadEmail              || '',
+        spouseName:          activeLead?.spouse?.name || '',
+        spouseContact:       activeLead?.spouse?.phone || '',
+        city:                activeLead?.city        || '',
+        completeSiteAddress: activeLead?.siteAddress || '',
       }));
     } else {
       // Context cleared → reset to fresh form

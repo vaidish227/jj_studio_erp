@@ -118,22 +118,6 @@ const LoginPage = () => {
             Login Now
           </Button>
 
-          {/* OR Divider */}
-          <div className="flex items-center gap-3 my-1">
-            <div className="flex-1 h-px bg-[var(--divider)]" />
-            <span className="text-xs font-medium text-[var(--text-muted)]">OR</span>
-            <div className="flex-1 h-px bg-[var(--divider)]" />
-          </div>
-
-          {/* Sign Up Link */}
-          <button
-            type="button"
-            className="w-full py-3 px-4 rounded-xl border-2 border-[var(--primary)] text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--primary)]/5 transition-colors"
-          >
-            Don't have an account?{' '}
-            <span className="font-bold text-[var(--primary)]">Signup Now</span>
-          </button>
-
         </form>
       </div>
 

@@ -24,7 +24,10 @@ export const crmService = {
 
   // --- Meetings ---
   createMeeting: (meetingData) => apiClient.post('/metting/create', meetingData),
-  getMeetings: () => apiClient.get('/metting/get'),
+  getMeetings: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/metting/get${query ? `?${query}` : ''}`);
+  },
   getMeetingsByLead: (leadId) => apiClient.get(`/metting/get/${leadId}`),
   updateMeeting: (id, data) => apiClient.put(`/metting/update/${id}`, data),
 

@@ -10,3 +10,4 @@ export { default as Modal } from './Modal/Modal';
 export { default as Select } from './Select/Select';
 export { default as DateTimePicker } from './DateTimePicker/DateTimePicker';
 export { default as StatusBadge } from './StatusBadge/StatusBadge';
+export { default as DashboardCard } from './DashboardCard/DashboardCard';

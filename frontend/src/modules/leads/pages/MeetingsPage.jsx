@@ -23,6 +23,7 @@ import Modal from '../../../shared/components/Modal/Modal';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Select from '../../../shared/components/Select/Select';
 import { crmService } from '../../../shared/services/crmService';
+import { DashboardCard } from '../../../shared/components';
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -69,7 +70,7 @@ const fetchData = useCallback(async (isInitialLoad = false) => {
 
     setMeetings(
       (meetingsRes.meetings || []).sort(
-        (a, b) => new Date(a.date) - new Date(b.date)
+        (a, b) => new Date(b.date) - new Date(a.date)
       )
     );
     setLeads(leadsRes.leads || []);
@@ -284,11 +285,11 @@ const fetchData = useCallback(async (isInitialLoad = false) => {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <StatCard label="Total Meetings" value={stats.total} icon={CalendarIcon} color="text-[var(--primary)]" />
-        <StatCard label="Scheduled" value={stats.scheduled} icon={Clock} color="text-[var(--accent-blue)]" />
-        <StatCard label="Completed" value={stats.completed} icon={CheckCircle2} color="text-[var(--success)]" />
-        <StatCard label="Cancelled" value={stats.cancelled} icon={XCircle} color="text-[var(--error)]" />
-        <StatCard label="On-Site" value={stats.site} icon={MapPin} color="text-[var(--warning)]" />
+        <DashboardCard title="Total Meetings" value={stats.total} icon={CalendarIcon} iconBg="bg-[var(--primary)]/10" compact />
+        <DashboardCard title="Scheduled" value={stats.scheduled} icon={Clock} iconBg="bg-[var(--accent-blue)]/10" compact />
+        <DashboardCard title="Completed" value={stats.completed} icon={CheckCircle2} iconBg="bg-[var(--success)]/10" compact />
+        <DashboardCard title="Cancelled" value={stats.cancelled} icon={XCircle} iconBg="bg-[var(--error)]/10" compact />
+        <DashboardCard title="On-Site" value={stats.site} icon={MapPin} iconBg="bg-[var(--warning)]/10" compact />
       </div>
 
       <div className="flex items-center gap-2 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl w-fit">
@@ -509,65 +510,66 @@ const fetchData = useCallback(async (isInitialLoad = false) => {
   );
 };
 
-const StatCard = ({ label, value, icon: Icon, color }) => (
-  <Card className="flex items-center justify-between p-6 shadow-sm hover:shadow-md transition-shadow">
-    <div>
-      <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-3xl font-black text-[var(--text-primary)]">{value}</p>
-    </div>
-    <div className={`p-3 rounded-2xl bg-[var(--bg)] ${color}`}>
-      <Icon size={24} />
-    </div>
-  </Card>
-);
 
 const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule }) => {
   const lead = meeting.leadId || {};
   const date = new Date(meeting.date);
 
   return (
-    <div className="bg-[var(--surface)] border-2 border-[var(--primary)]/10 rounded-2xl p-6 hover:border-[var(--primary)] transition-all group shadow-sm">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 hover:border-[var(--primary)] hover:shadow-xl hover:shadow-[var(--primary)]/5 transition-all duration-300 group shadow-sm">
       <div className="flex flex-col md:flex-row gap-6">
-        <div className="w-12 h-12 bg-[var(--primary)] rounded-xl flex items-center justify-center text-black shrink-0">
-          <CalendarIcon size={24} />
+        <div className="w-14 h-14 bg-[var(--primary)]/10 rounded-2xl flex items-center justify-center text-[var(--primary)] shrink-0 group-hover:bg-[var(--primary)] group-hover:text-black transition-all duration-500 group-hover:rotate-6">
+          <CalendarIcon size={28} strokeWidth={2.5} />
         </div>
 
-        <div className="flex-1 space-y-4">
+        <div className="flex-1 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-xl font-bold text-[var(--text-primary)]">{lead.name || 'Unknown Lead'}</h3>
-              <p className="text-sm text-[var(--text-muted)] font-medium">{lead.projectType || 'Interior Project'} • {lead.city || 'Location'}</p>
+              <h3 className="text-xl font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors duration-300 tracking-tight">{lead.name || 'Unknown Lead'}</h3>
+              <p className="text-sm text-[var(--text-muted)] font-semibold mt-0.5">{lead.projectType || 'Interior Project'} • {lead.city || 'Location'}</p>
             </div>
-            <Badge variant={statusVariants[meeting.status] || 'default'} className="uppercase w-fit border-none font-bold tracking-widest px-4">
+            <Badge 
+              variant={statusVariants[meeting.status] || 'default'} 
+              className="uppercase text-[10px] font-black tracking-[0.1em] px-4 py-1.5 rounded-full border-none shadow-sm"
+            >
               {meeting.status || 'scheduled'}
             </Badge>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6">
-            <div className="flex items-center gap-2.5 text-sm text-[var(--text-secondary)] font-medium">
-              <CalendarIcon size={16} className="text-[var(--text-muted)]" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
+                <CalendarIcon size={16} />
+              </div>
               <span>{date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} at {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div className="flex items-center gap-2.5 text-sm text-[var(--text-secondary)] font-medium">
-              <Clock size={16} className="text-[var(--text-muted)]" />
+            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
+                <Clock size={16} />
+              </div>
               <span>{meeting.durationMinutes || 60} min duration</span>
             </div>
-            <div className="flex items-center gap-2.5 text-sm text-[var(--text-secondary)] font-medium">
-              <MapPin size={16} className="text-[var(--text-muted)]" />
+            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
+                <MapPin size={16} />
+              </div>
               <span>{meeting.type === 'site' ? lead.siteAddress || 'Site Address' : 'JJ Studio - Office'}</span>
             </div>
-            <div className="flex items-center gap-2.5 text-sm text-[var(--text-secondary)] font-medium">
-              <Phone size={16} className="text-[var(--text-muted)]" />
+            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
+                <Phone size={16} />
+              </div>
               <span>+91 {lead.phone || '0000000000'}</span>
             </div>
           </div>
 
-          <div className="p-4 bg-[var(--bg)] rounded-xl border border-[var(--border)] text-sm text-[var(--text-primary)]">
-            <span className="font-bold mr-2">Notes:</span>
-            <span className="text-[var(--text-secondary)]">{meeting.notes || 'Meeting to understand client requirements and site measurements.'}</span>
+          <div className="p-4 bg-[var(--bg)] rounded-xl border border-[var(--border)] text-sm text-[var(--text-primary)] relative overflow-hidden group-hover:border-[var(--primary)]/30 transition-colors">
+            <div className="absolute top-0 left-0 w-1 h-full bg-[var(--primary)] opacity-20"></div>
+            <span className="font-bold text-[var(--primary)] uppercase text-[10px] tracking-wider block mb-1">Meeting Notes</span>
+            <span className="text-[var(--text-secondary)] leading-relaxed">{meeting.notes || 'Meeting to understand client requirements and site measurements.'}</span>
           </div>
 
-          <div className="flex flex-col lg:flex-row gap-3">
+          <div className="flex flex-col lg:flex-row gap-3 pt-2">
             <Select
               value={meeting.status || 'scheduled'}
               onChange={(value) => onStatusChange(meeting._id, value)}
@@ -579,12 +581,12 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule }) =
               className="lg:w-64"
             />
             {meeting.status !== 'completed' && meeting.status !== 'cancelled' && (
-              <Button variant="secondary" className="w-full justify-center py-3.5 text-sm tracking-wide" onClick={() => onReschedule(meeting)}>
+              <Button variant="secondary" className="w-full justify-center py-3.5 text-sm font-bold tracking-tight bg-[var(--bg)] hover:bg-[var(--primary)]/5" onClick={() => onReschedule(meeting)}>
                 <RotateCcw size={16} className="mr-2" />
                 Reschedule
               </Button>
             )}
-            <Button variant="primary" className="w-full justify-center py-3.5 text-sm tracking-wide" onClick={onViewDetails}>
+            <Button variant="primary" className="w-full justify-center py-3.5 text-sm font-bold tracking-tight shadow-md hover:shadow-lg" onClick={onViewDetails}>
               View Lead Details
             </Button>
           </div>

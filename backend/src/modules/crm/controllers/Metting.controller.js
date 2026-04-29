@@ -1,5 +1,8 @@
 const Meeting = require("../models/Metting.model");
 const Lead = require("../models/Lead.model");
+const sendEmail = require("../utils/sendEmail");
+const getMeetingTemplate = require("../utils/Template/meetingTemplate");
+const getMeetingRescheduleTemplate = require("../utils/Template/meetingRescheduleTemplate");
 
 
 const createMeeting = async (req, res) => {
@@ -10,6 +13,27 @@ const createMeeting = async (req, res) => {
       console.log("Required fields missing");
       return res.status(400).json({
         message: "leadId, date and type are required",
+      });
+    }
+
+    const meetingDateObj = new Date(date);
+    const now = new Date();
+    now.setSeconds(0, 0); // Allow scheduling for the current minute
+
+    if (meetingDateObj < now) {
+      return res.status(400).json({
+        message: "Cannot schedule a meeting in the past",
+      });
+    }
+
+    const existingMeeting = await Meeting.findOne({
+      date: meetingDateObj,
+      status: "scheduled"
+    });
+
+    if (existingMeeting) {
+      return res.status(400).json({
+        message: "A meeting is already scheduled for this time slot. Please choose another time.",
       });
     }
 
@@ -46,6 +70,27 @@ const createMeeting = async (req, res) => {
       createdAt: new Date(),
     });
     await lead.save();
+
+    // ── SEND CONFIRMATION EMAIL ────────────────────────────────────
+    if (lead.email) {
+      try {
+        const d = new Date(date);
+        const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
+        const timeStr = d.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        await sendEmail({
+          to: lead.email,
+          subject: "Meeting Confirmation - JJ Studio",
+          html: getMeetingTemplate(lead.name, normalizedType, dateStr, timeStr, req.body.notes),
+        });
+      } catch (emailErr) {
+        console.error("Failed to send meeting confirmation email:", emailErr.message);
+        // Don't fail the whole request if only email fails
+      }
+    }
 
     res.status(201).json({
       message: "Meeting created successfully",
@@ -105,11 +150,45 @@ const updateMeeting = async (req, res) => {
       });
     }
 
+    const oldDate = meeting.date;
+    const isRescheduled = req.body.date && new Date(req.body.date).getTime() !== new Date(oldDate).getTime();
+
     Object.assign(meeting, req.body);
 
     await meeting.save();
 
     const lead = await Lead.findById(meeting.leadId);
+    
+    // ── SEND RESCHEDULE EMAIL ──────────────────────────────────────
+    if (lead && lead.email && isRescheduled) {
+      try {
+        const oldD = new Date(oldDate);
+        const oldDateStr = `${String(oldD.getDate()).padStart(2, '0')}/${String(oldD.getMonth() + 1).padStart(2, '0')}/${String(oldD.getFullYear()).slice(-2)} ${oldD.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+
+        const newD = new Date(req.body.date);
+        const newDateStr = `${String(newD.getDate()).padStart(2, '0')}/${String(newD.getMonth() + 1).padStart(2, '0')}/${String(newD.getFullYear()).slice(-2)}`;
+        const newTimeStr = newD.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        await sendEmail({
+          to: lead.email,
+          subject: "Meeting Rescheduled - JJ Studio",
+          html: getMeetingRescheduleTemplate(
+            lead.name, 
+            meeting.type, 
+            oldDateStr, 
+            newDateStr, 
+            newTimeStr, 
+            req.body.notes || meeting.notes
+          ),
+        });
+      } catch (emailErr) {
+        console.error("Failed to send meeting reschedule email:", emailErr.message);
+      }
+    }
+
     if (lead && req.body.status) {
       if (req.body.status === "completed") {
         lead.status = "meeting_done";

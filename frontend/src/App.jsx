@@ -7,11 +7,11 @@ import {
   LeadDetailsPage,
   MeetingsPage,
   FollowUpsPage,
-  ProposalsPage,
   KITPage,
   ConvertedPage,
   LostLeadsPage,
 } from './modules/leads';
+import { ProposalListPage } from './modules/proposal';
 import { CRMProvider } from './modules/crm/context/CRMContext';
 import AppLayout from './shared/layouts/AppLayout/AppLayout';
 import PublicLayout from './shared/layouts/PublicLayout/PublicLayout';
@@ -58,7 +58,7 @@ export default function App() {
             <Route path="/crm/meetings"    element={<MeetingsPage />} />
             <Route path="/crm/follow-ups"  element={<FollowUpsPage />} />
             <Route path="/crm/qualified"   element={<KITPage />} />
-            <Route path="/crm/proposal"    element={<ProposalsPage />} />
+            <Route path="/crm/proposal"    element={<ProposalListPage />} />
 
             {/* --- Lead Status --- */}
             <Route path="/crm/converted"   element={<ConvertedPage />} />

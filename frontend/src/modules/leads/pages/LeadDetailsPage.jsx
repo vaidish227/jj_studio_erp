@@ -19,6 +19,7 @@ import {
   User,
   UserPlus,
   XCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
@@ -31,6 +32,16 @@ import { useCRM } from '../../crm/context/CRMContext';
 import useLeadDetails from '../hooks/useLeadDetails';
 import useLeadFlow, { lifecycleLabels } from '../../../shared/hooks/useLeadFlow';
 import { crmService } from '../../../shared/services/crmService';
+import { formatDateShort, formatDateTime } from '../../../shared/utils/dateUtils';
+
+const LIFECYCLE_STEPS = [
+  'enquiry',
+  'meeting_scheduled',
+  'kit',
+  'show_project',
+  'proposal_sent',
+  'converted'
+];
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'New' },
@@ -138,6 +149,18 @@ const LeadDetailsPage = () => {
 
   const handleScheduleMeeting = async (e) => {
     e.preventDefault();
+    
+    // --- Validation: Present or future date only ---
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(meetingDate);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < now) {
+      setActionError('You cannot schedule a meeting in the past.');
+      return;
+    }
+
     const isoDate = `${meetingDate}T${meetingTime}`;
 
     await runAction(async () => {
@@ -164,6 +187,17 @@ const LeadDetailsPage = () => {
   const handleCreateFollowup = async () => {
     if (!followupNote.trim()) return;
 
+    // --- Validation: Present or future date only ---
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(followupDate);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < now) {
+      setActionError('Follow-up date cannot be in the past.');
+      return;
+    }
+
     await runAction(async () => {
       await crmService.createFollowup({
         leadId: id,
@@ -176,7 +210,10 @@ const LeadDetailsPage = () => {
   };
 
   const handleShowProject = async () => {
-    if (!showcaseTitle.trim() || !showcaseUrl.trim()) return;
+    if (!showcaseTitle.trim() || !showcaseUrl.trim()) {
+      setActionError('Asset title and URL are required.');
+      return;
+    }
 
     await runAction(async () => {
       await crmService.updateShowProject(id, {
@@ -294,7 +331,7 @@ const LeadDetailsPage = () => {
               <StatusBadge value={lead.lifecycleStage} type="lifecycle" />
             </div>
             <p className="text-sm text-[var(--text-muted)]">
-              Lead #{id.slice(-6).toUpperCase()} • {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN') : '—'}
+              Lead #{id.slice(-6).toUpperCase()} • {formatDateShort(lead.createdAt)}
             </p>
             <div className="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
               <span className="inline-flex items-center gap-2"><Phone size={14} /> {lead.phone || '—'}</span>
@@ -322,6 +359,43 @@ const LeadDetailsPage = () => {
           </Button>
         </div>
       </div>
+
+      {/* Lifecycle Stepper */}
+      <Card className="py-8 px-4 overflow-x-auto">
+        <div className="flex items-center justify-between min-w-[600px] px-8">
+          {LIFECYCLE_STEPS.map((step, index) => {
+            const isCompleted = LIFECYCLE_STEPS.indexOf(lead.lifecycleStage) >= index || lead.status === 'converted';
+            const isActive = lead.lifecycleStage === step;
+            
+            return (
+              <React.Fragment key={step}>
+                <div className="flex flex-col items-center gap-3 relative z-10">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
+                    isCompleted 
+                      ? 'bg-[var(--primary)] border-[var(--primary)] text-black' 
+                      : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-muted)]'
+                  } ${isActive ? 'ring-4 ring-[var(--primary)]/20 scale-110' : ''}`}>
+                    {isCompleted ? <CheckCircle2 size={20} /> : <span className="text-xs font-bold">{index + 1}</span>}
+                  </div>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
+                    isCompleted ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'
+                  }`}>
+                    {lifecycleLabels[step] || step}
+                  </span>
+                </div>
+                {index < LIFECYCLE_STEPS.length - 1 && (
+                  <div className="flex-1 h-[2px] bg-[var(--border)] mx-2 mb-6 relative">
+                    <div 
+                      className="absolute inset-0 bg-[var(--primary)] transition-all duration-1000 origin-left" 
+                      style={{ transform: `scaleX(${isCompleted ? 1 : 0})` }}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </Card>
 
       {(actionError || actionSuccess) && (
         <div className={`rounded-xl border px-4 py-3 text-sm ${actionError ? 'bg-[var(--error)]/10 border-[var(--error)]/20 text-[var(--error)]' : 'bg-[var(--success)]/10 border-[var(--success)]/20 text-[var(--success)]'}`}>
@@ -361,7 +435,7 @@ const LeadDetailsPage = () => {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-semibold text-[var(--text-primary)]">{entry.title}</p>
                     <p className="text-xs text-[var(--text-muted)]">
-                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString('en-IN') : '—'}
+                      {formatDateTime(entry.createdAt)}
                     </p>
                   </div>
                   <p className="text-sm text-[var(--text-secondary)] mt-1">{entry.description}</p>
@@ -400,7 +474,7 @@ const LeadDetailsPage = () => {
                     <StatusBadge value={item.status === 'done' ? 'converted' : 'contacted'} />
                   </div>
                   <p className="text-sm text-[var(--text-muted)] mt-1">
-                    Due on {item.date ? new Date(item.date).toLocaleDateString('en-IN') : '—'}
+                    Due on {formatDateShort(item.date)}
                   </p>
                 </div>
               )) : (
@@ -409,36 +483,58 @@ const LeadDetailsPage = () => {
             </div>
           </Card>
 
-          <Card className="space-y-5">
+          <Card className="space-y-6">
             <SectionTitle title="Show Project" icon={FileImage} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Select value={showcaseType} onChange={setShowcaseType} options={SHOWCASE_OPTIONS} label="Asset Type" />
-              <input
-                value={showcaseTitle}
-                onChange={(e) => setShowcaseTitle(e.target.value)}
-                placeholder="Asset title"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select 
+                value={showcaseType} 
+                onChange={setShowcaseType} 
+                options={SHOWCASE_OPTIONS} 
+                label="Asset Type" 
               />
-              <input
-                value={showcaseUrl}
-                onChange={(e) => setShowcaseUrl(e.target.value)}
-                placeholder="Image / video / template URL"
-                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-              />
-              <textarea
-                value={showcaseNote}
-                onChange={(e) => setShowcaseNote(e.target.value)}
-                rows={2}
-                placeholder="Context or remarks shown to the client"
-                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
-              />
-              <textarea
-                value={siteVisitNote}
-                onChange={(e) => setSiteVisitNote(e.target.value)}
-                rows={2}
-                placeholder="Site visit note (optional)"
-                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
-              />
+              <FormField label="Asset Title">
+                <input
+                  value={showcaseTitle}
+                  onChange={(e) => setShowcaseTitle(e.target.value)}
+                  placeholder="e.g. Living Room Concept"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                />
+              </FormField>
+              
+              <div className="md:col-span-2">
+                <FormField label="Asset URL (Image/Video/Template)">
+                  <input
+                    value={showcaseUrl}
+                    onChange={(e) => setShowcaseUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                  />
+                </FormField>
+              </div>
+
+              <div className="md:col-span-2">
+                <FormField label="Context or Remarks">
+                  <textarea
+                    value={showcaseNote}
+                    onChange={(e) => setShowcaseNote(e.target.value)}
+                    rows={2}
+                    placeholder="What should the client focus on?"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+                  />
+                </FormField>
+              </div>
+
+              <div className="md:col-span-2">
+                <FormField label="Site Visit Notes (Optional)">
+                  <textarea
+                    value={siteVisitNote}
+                    onChange={(e) => setSiteVisitNote(e.target.value)}
+                    rows={2}
+                    placeholder="Details about planned site visit"
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+                  />
+                </FormField>
+              </div>
             </div>
             <Button variant="primary" onClick={handleShowProject} isLoading={actionLoading}>
               Save Showcase Step
@@ -616,7 +712,7 @@ const LeadDetailsPage = () => {
               <div key={meeting._id} className="rounded-xl border border-[var(--border)] px-4 py-3">
                 <p className="font-semibold text-[var(--text-primary)] capitalize">{meeting.type} meeting</p>
                 <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  {meeting.date ? new Date(meeting.date).toLocaleString('en-IN') : '—'}
+                  {formatDateTime(meeting.date)}
                 </p>
               </div>
             )) : (
@@ -631,7 +727,7 @@ const LeadDetailsPage = () => {
                 <div key={`${item.type}-${item.id}`} className="rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3">
                   <p className="font-semibold text-[var(--text-primary)] capitalize">{item.title}</p>
                   <p className="text-sm text-[var(--text-secondary)] mt-1">{item.description}</p>
-                  <p className="text-xs text-[var(--text-muted)] mt-2">{item.date ? new Date(item.date).toLocaleString('en-IN') : '—'}</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-2">{formatDateTime(item.date)}</p>
                 </div>
               )) : (
                 <EmptyState text="Timeline entries will appear as the lead moves through the CRM flow." />
@@ -643,31 +739,37 @@ const LeadDetailsPage = () => {
 
       <Modal isOpen={isMeetingModalOpen} onClose={() => setIsMeetingModalOpen(false)} title="Schedule Meeting">
         <form onSubmit={handleScheduleMeeting} className="space-y-5">
-          <DateTimePicker
-            label="Meeting Date & Time"
+          <Select 
+            label="Meeting Type"
+            value={meetingType}
+            onChange={setMeetingType}
+            options={[
+              { value: 'office', label: 'Office Meeting' },
+              { value: 'site', label: 'Site Meeting' },
+              { value: 'call', label: 'Phone / Video Call' },
+            ]}
+          />
+
+          <DateTimePicker 
+            label="Date & Time"
             dateValue={meetingDate}
             timeValue={meetingTime}
             onDateChange={setMeetingDate}
             onTimeChange={setMeetingTime}
             required
           />
-          <Select
-            label="Meeting Type"
-            value={meetingType}
-            onChange={setMeetingType}
-            options={[
-              { value: 'office', label: 'Office Meeting' },
-              { value: 'site', label: 'Site Visit' },
-              { value: 'call', label: 'Call' },
-            ]}
-          />
-          <textarea
-            value={meetingNotes}
-            onChange={(e) => setMeetingNotes(e.target.value)}
-            rows={3}
-            placeholder="Meeting agenda or expectations"
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
-          />
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-[var(--text-primary)]">Meeting Notes</label>
+            <textarea
+              value={meetingNotes}
+              onChange={(e) => setMeetingNotes(e.target.value)}
+              placeholder="e.g. Discussing living room concept..."
+              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+              rows={3}
+            />
+          </div>
+
           <div className="flex gap-3">
             <Button variant="ghost" type="button" onClick={() => setIsMeetingModalOpen(false)} fullWidth>
               Cancel

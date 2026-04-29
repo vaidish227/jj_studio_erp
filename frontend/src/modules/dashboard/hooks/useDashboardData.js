@@ -59,7 +59,7 @@ const useDashboardData = () => {
       const allFollowups = followupsRes.followups || [];
       const scheduledMeetings = allMeetings
         .filter((meeting) => meeting.status !== 'cancelled')
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
 
       setState({
         stats: {
@@ -77,7 +77,7 @@ const useDashboardData = () => {
         },
         followups: allFollowups
           .filter((item) => item.status !== 'done')
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
           .slice(0, 5)
           .map((item) => ({
             id: item._id,

@@ -26,7 +26,6 @@ export const NAV_ITEMS = [
         label: 'Forms',
         children: [
           { id: 'enquiry-form', label: 'Enquiry Form', path: '/crm/forms/enquiry' },
-          { id: 'client-info', label: 'Client Information', path: '/crm/forms/client-info' },
         ]
       },
       {
@@ -44,7 +43,7 @@ export const NAV_ITEMS = [
         id: 'crm-status',
         label: 'Lead Status',
         children: [
-          { id: 'converted', label: 'Converted / Won', path: '/crm/converted' },
+          { id: 'converted', label: 'Converted', path: '/crm/converted' },
           { id: 'lost-leads', label: 'Lost Leads', path: '/crm/lost-leads' },
         ]
       },

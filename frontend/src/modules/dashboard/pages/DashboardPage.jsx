@@ -1,6 +1,6 @@
 import React from 'react';
 import { Users, TrendingUp, FileText, TrendingDown, Activity } from 'lucide-react';
-import StatCard from '../components/StatCard';
+import { DashboardCard } from '../../../shared/components';
 import SalesPipeline from '../components/SalesPipeline';
 import FollowUpsPanel from '../components/FollowUpsPanel';
 import useDashboardData from '../hooks/useDashboardData';
@@ -11,36 +11,40 @@ const DashboardPage = () => {
 
   const statCards = [
     {
-      label: 'Total Leads',
+      title: 'Total Leads',
       value: stats?.totalLeads ?? 0,
       trend: 'Realtime total leads',
       trendUp: true,
-      icon: <Users size={20} className="text-[var(--primary)]" />,
+      icon: Users,
       iconBg: 'bg-[var(--primary)]/10',
+      redirectPath: '/crm/new-leads',
     },
     {
-      label: 'Converted',
+      title: 'Converted',
       value: stats?.converted ?? 0,
       trend: 'Live converted count',
       trendUp: true,
-      icon: <TrendingUp size={20} className="text-[var(--success)]" />,
+      icon: TrendingUp,
       iconBg: 'bg-[var(--success)]/10',
+      redirectPath: '/crm/converted',
     },
     {
-      label: 'Follow-ups',
+      title: 'Follow-ups',
       value: stats?.followups ?? 0,
       trend: 'Pending reminders',
       trendUp: true,
-      icon: <FileText size={20} className="text-[var(--warning)]" />,
+      icon: FileText,
       iconBg: 'bg-[var(--warning)]/10',
+      redirectPath: '/crm/follow-ups',
     },
     {
-      label: 'Lost Leads',
+      title: 'Lost Leads',
       value: stats?.lostLeads ?? 0,
       trend: 'Current lost count',
       trendUp: false,
-      icon: <TrendingDown size={20} className="text-[var(--error)]" />,
+      icon: TrendingDown,
       iconBg: 'bg-[var(--error)]/10',
+      redirectPath: '/crm/lost-leads',
     },
   ];
 
@@ -62,35 +66,37 @@ const DashboardPage = () => {
       {/* Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {statCards.map((stat) => (
-          <StatCard key={stat.label} {...stat} />
+          <DashboardCard key={stat.title} {...stat} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          label="In Progress"
+        <DashboardCard
+          title="In Progress"
           value={stats?.inProgress ?? 0}
           trend="Meeting and KIT stage"
           trendUp={true}
-          icon={<Activity size={20} className="text-[var(--accent-blue)]" />}
+          icon={Activity}
           iconBg="bg-[var(--accent-blue)]/10"
+          redirectPath="/crm/meetings"
           compact
         />
-        <StatCard
-          label="Interested"
+        <DashboardCard
+          title="Interested"
           value={stats?.interested ?? 0}
           trend="Proposal stage"
           trendUp={true}
-          icon={<FileText size={20} className="text-[var(--accent-teal)]" />}
+          icon={FileText}
           iconBg="bg-[var(--accent-teal)]/10"
+          redirectPath="/crm/proposal"
           compact
         />
-        <StatCard
-          label="Dashboard Sync"
+        <DashboardCard
+          title="Dashboard Sync"
           value={isLoading ? '...' : 'Live'}
           trend="Auto refresh every 30s"
           trendUp={true}
-          icon={<TrendingUp size={20} className="text-[var(--primary)]" />}
+          icon={TrendingUp}
           iconBg="bg-[var(--primary)]/10"
           compact
         />
