@@ -1,1 +1,8 @@
 export { default as ProposalListPage } from './pages/ProposalListPage';
+export { default as ProposalDashboard } from './dashboard/ProposalDashboard';
+export { default as ProposalTemplatesPage } from './pages/ProposalTemplatesPage';
+export { default as ProposalClientsPage } from './pages/ProposalClientsPage';
+export { default as ProposalApprovalPage } from './pages/ProposalApprovalPage';
+export { default as SentProposalsPage } from './pages/SentProposalsPage';
+export { default as ESignReceivedPage } from './pages/ESignReceivedPage';
+export { default as ApprovedProposalsPage } from './pages/ApprovedProposalsPage';

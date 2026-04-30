@@ -65,7 +65,6 @@ const SHOWCASE_OPTIONS = [
   { value: 'link', label: 'Link' },
 ];
 
-const initialProposalItem = { name: '', qty: 1, rate: 0 };
 
 const LeadDetailsPage = () => {
   const { id } = useParams();
@@ -89,23 +88,12 @@ const LeadDetailsPage = () => {
   const [showcaseUrl, setShowcaseUrl] = useState('');
   const [showcaseNote, setShowcaseNote] = useState('');
   const [siteVisitNote, setSiteVisitNote] = useState('');
-  const [proposalItems, setProposalItems] = useState([initialProposalItem]);
-  const [advanceAmount, setAdvanceAmount] = useState('');
-  const [advanceNote, setAdvanceNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
 
   const projectAssets = lead?.showProject?.assets || [];
 
-  const proposalSummary = useMemo(() => {
-    const total = proposalItems.reduce(
-      (sum, item) => sum + Number(item.qty || 0) * Number(item.rate || 0),
-      0
-    );
-    const gst = total * 0.18;
-    return { total, gst, final: total + gst };
-  }, [proposalItems]);
 
   if (isLoading) {
     return (
@@ -240,44 +228,6 @@ const LeadDetailsPage = () => {
     }, 'Project showcase updated.');
   };
 
-  const handleCreateProposal = async () => {
-    const filteredItems = proposalItems.filter((item) => item.name.trim());
-    if (!filteredItems.length) return;
-
-    await runAction(async () => {
-      if (!lead.clientId) {
-        await crmService.createClient({
-          name: lead.name,
-          phone: lead.phone,
-          email: lead.email,
-          leadId: id,
-        });
-      }
-
-      const proposalResponse = await crmService.createProposal({
-        leadId: id,
-        items: filteredItems,
-      });
-
-      if (proposalResponse?.proposal?._id) {
-        await crmService.sendProposal(proposalResponse.proposal._id);
-      }
-
-      await transitionStatus(id, LEAD_ACTIONS.SEND_PROPOSAL);
-    }, 'Proposal created and lead moved to interested stage.');
-  };
-
-  const handleAdvancePayment = async () => {
-    if (!advanceAmount) return;
-
-    await runAction(async () => {
-      await crmService.recordAdvancePayment(id, {
-        amount: Number(advanceAmount),
-        note: advanceNote,
-      });
-      await transitionStatus(id, LEAD_ACTIONS.RECORD_ADVANCE);
-    }, 'Advance payment recorded and moved to project management stage.');
-  };
 
   const handleOpenClientInfo = () => {
     setActiveLead({
@@ -564,148 +514,78 @@ const LeadDetailsPage = () => {
             </div>
           </Card>
 
-          <Card className="space-y-5">
-            <SectionTitle title="Proposal Flow" icon={FileText} />
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
-              <p className="text-sm font-semibold text-[var(--text-primary)]">Create proposal items</p>
-              <p className="mt-1 text-sm text-[var(--text-muted)]">
-                Add the work item, quantity, and rate. The system will calculate the amount automatically.
-              </p>
-            </div>
-            <div className="space-y-3">
-              {proposalItems.map((item, index) => (
-                <div key={index} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">Proposal Item {index + 1}</p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      Amount: Rs. {(Number(item.qty || 0) * Number(item.rate || 0)).toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <FormField label="Work / Scope Name" className="md:col-span-2">
-                      <input
-                        value={item.name}
-                        onChange={(e) => {
-                          const next = [...proposalItems];
-                          next[index].name = e.target.value;
-                          setProposalItems(next);
-                        }}
-                        placeholder="e.g. Modular kitchen, bedroom design, false ceiling"
-                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                      />
-                    </FormField>
-                    <FormField label="Quantity">
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.qty}
-                        onChange={(e) => {
-                          const next = [...proposalItems];
-                          next[index].qty = e.target.value;
-                          setProposalItems(next);
-                        }}
-                        placeholder="1"
-                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                      />
-                    </FormField>
-                    <FormField label="Rate (Rs.)">
-                      <input
-                        type="number"
-                        min="0"
-                        value={item.rate}
-                        onChange={(e) => {
-                          const next = [...proposalItems];
-                          next[index].rate = e.target.value;
-                          setProposalItems(next);
-                        }}
-                        placeholder="Enter rate"
-                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                      />
-                    </FormField>
-                  </div>
-                </div>
-              ))}
+
+          <Card className="space-y-6 overflow-hidden border-none shadow-xl shadow-black/5 bg-[var(--surface)]">
+            <div className="flex items-center justify-between">
+              <SectionTitle title="Lead Qualification" icon={CheckCircle2} />
+              {lead.lifecycleStage === 'interested' && (
+                <span className="px-2 py-1 rounded-md bg-[var(--success)]/10 text-[var(--success)] text-[10px] font-black uppercase tracking-widest animate-pulse">
+                  Ready for Proposal
+                </span>
+              )}
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setProposalItems((prev) => [...prev, { ...initialProposalItem }])}
+            <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+              Based on the project showcase and KIT interactions, determine if the client is interested in moving forward with a formal proposal.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                disabled={actionLoading || lead.lifecycleStage === 'interested'}
+                onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_INTERESTED), 'Lead marked as Interested. You can now draft a proposal.')}
+                className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${
+                  lead.lifecycleStage === 'interested'
+                    ? 'border-[var(--success)] bg-[var(--success)]/5 cursor-default'
+                    : 'border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 cursor-pointer'
+                }`}
               >
-                <Plus size={16} />
-                Add Proposal Item
-              </Button>
-              <Button variant="primary" onClick={handleCreateProposal} isLoading={actionLoading}>
-                Create Proposal
-              </Button>
-              {lead.status === 'proposal_sent' && lead.lifecycleStage !== 'interested' && (
-                <Button 
-                  variant="outline" 
-                  className="border-[var(--success)] text-[var(--success)] hover:bg-[var(--success)]/10" 
-                  onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_INTERESTED), 'Lead marked as interested.')}
-                  isLoading={actionLoading}
-                >
-                  <CheckCircle2 size={16} />
-                  Mark Interested
-                </Button>
-              )}
-            </div>
-
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 text-sm text-[var(--text-secondary)]">
-              <p>Total: Rs. {proposalSummary.total.toLocaleString('en-IN')}</p>
-              <p>GST (18%): Rs. {proposalSummary.gst.toLocaleString('en-IN')}</p>
-              <p className="font-semibold text-[var(--text-primary)]">Final: Rs. {proposalSummary.final.toLocaleString('en-IN')}</p>
-            </div>
-
-            <div className="space-y-3">
-              {proposals.length ? proposals.map((proposal) => (
-                <div key={proposal._id} className="rounded-xl border border-[var(--border)] px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold text-[var(--text-primary)]">Proposal #{proposal._id.slice(-6).toUpperCase()}</p>
-                    <StatusBadge value={proposal.status === 'sent' ? 'proposal_sent' : 'contacted'} />
-                  </div>
-                  <p className="text-sm text-[var(--text-secondary)] mt-1">
-                    Final amount: Rs. {Number(proposal.finalAmount || 0).toLocaleString('en-IN')}
-                  </p>
+                <div className={`p-3 rounded-xl transition-colors ${
+                  lead.lifecycleStage === 'interested' ? 'bg-[var(--success)] text-black' : 'bg-[var(--bg)] text-[var(--text-muted)] group-hover:text-[var(--primary)]'
+                }`}>
+                  <CheckCircle2 size={24} />
                 </div>
-              )) : (
-                <EmptyState text="No proposal has been generated yet." />
-              )}
-            </div>
-          </Card>
+                <div className="text-center">
+                  <p className={`font-black uppercase tracking-widest text-xs ${
+                    lead.lifecycleStage === 'interested' ? 'text-[var(--success)]' : 'text-[var(--text-primary)]'
+                  }`}>Interested</p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1 font-medium">Handoff to Proposal System</p>
+                </div>
+              </button>
 
-          <Card className="space-y-5">
-            <SectionTitle title="Advance Payment & Conversion" icon={IndianRupee} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input
-                type="number"
-                value={advanceAmount}
-                onChange={(e) => setAdvanceAmount(e.target.value)}
-                placeholder="Advance amount"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-              />
-              <input
-                value={advanceNote}
-                onChange={(e) => setAdvanceNote(e.target.value)}
-                placeholder="Payment note / receipt remark"
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-              />
+              <button
+                disabled={actionLoading || lead.status === 'lost'}
+                onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_LOST), 'Lead marked as Not Interested (Lost).')}
+                className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${
+                  lead.status === 'lost'
+                    ? 'border-[var(--error)] bg-[var(--error)]/5 cursor-default'
+                    : 'border-[var(--border)] hover:border-[var(--error)]/30 hover:bg-[var(--error)]/5 cursor-pointer'
+                }`}
+              >
+                <div className={`p-3 rounded-xl transition-colors ${
+                  lead.status === 'lost' ? 'bg-[var(--error)] text-white' : 'bg-[var(--bg)] text-[var(--text-muted)] group-hover:text-[var(--error)]'
+                }`}>
+                  <XCircle size={24} />
+                </div>
+                <div className="text-center">
+                  <p className={`font-black uppercase tracking-widest text-xs ${
+                    lead.status === 'lost' ? 'text-[var(--error)]' : 'text-[var(--text-primary)]'
+                  }`}>Not Interested</p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1 font-medium">Mark as Lost / No further action</p>
+                </div>
+              </button>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button variant="primary" onClick={handleAdvancePayment} isLoading={actionLoading}>
-                Record Advance Payment
-              </Button>
-              <Button variant="outline" onClick={handleConvert} isLoading={actionLoading}>
-                Convert Lead
-              </Button>
-              <Button variant="ghost" className="text-[var(--error)]" onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_LOST), 'Lead marked as lost.')} isLoading={actionLoading}>
-                <XCircle size={16} />
-                Mark Lost
-              </Button>
-            </div>
-            {lead.advancePayment?.received && (
-              <div className="rounded-xl border border-[var(--success)]/20 bg-[var(--success)]/10 p-4 text-sm text-[var(--success)]">
-                Advance of Rs. {Number(lead.advancePayment.amount || 0).toLocaleString('en-IN')} received and marked for project management handoff.
+
+            {lead.lifecycleStage === 'interested' && (
+              <div className="pt-2 animate-in slide-in-from-top duration-500">
+                <Button 
+                  variant="primary" 
+                  fullWidth 
+                  className="py-4 shadow-lg shadow-[var(--primary)]/20"
+                  onClick={() => navigate(`/proposal/list?leadId=${id}`)}
+                >
+                  Proceed to Proposal Module
+                  <ArrowLeft size={16} className="rotate-180" />
+                </Button>
               </div>
             )}
           </Card>

@@ -1,0 +1,1572 @@
+[
+  {
+    "name": "Sanjay Bansal",
+    "phone": "9658454833",
+    "email": "sanjay.bansal996@gmail.com",
+    "projectType": "Commercial",
+    "area": 1018,
+    "budget": 2208925,
+    "city": "Mumbai",
+    "siteAddress": "Sector 14, Mumbai",
+    "status": "meeting_done",
+    "lifecycleStage": "interested",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-01-28T08:35:21.363Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-01-28T08:35:21.363Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-28T08:35:21.363Z"
+    }
+  },
+  {
+    "name": "Krishna Nair",
+    "phone": "9687237274",
+    "email": "krishna.nair92@gmail.com",
+    "spouse": {
+      "name": "Kabir Nair",
+      "phone": "9962346226"
+    },
+    "projectType": "Commercial",
+    "area": 1239,
+    "budget": 5408011,
+    "city": "Surat",
+    "siteAddress": "Sector 19, Surat",
+    "status": "proposal_sent",
+    "lifecycleStage": "proposal_sent",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-01-02T02:11:32.621Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-01-02T02:11:32.621Z"
+    },
+    "updatedAt": {
+      "$date": "2023-01-02T02:11:32.621Z"
+    }
+  },
+  {
+    "name": "Priya Bansal",
+    "phone": "9641602144",
+    "email": "priya.bansal945@gmail.com",
+    "projectType": "Residential",
+    "area": 1126,
+    "budget": 4550420,
+    "city": "Jaipur",
+    "siteAddress": "Sector 47, Jaipur",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-08-06T09:23:43.482Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-08-06T09:23:43.482Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-06T09:23:43.482Z"
+    }
+  },
+  {
+    "name": "Krishna Joshi",
+    "phone": "9332541807",
+    "email": "krishna.joshi827@gmail.com",
+    "projectType": "Residential",
+    "area": 1547,
+    "budget": 1292828,
+    "city": "Surat",
+    "siteAddress": "Sector 5, Surat",
+    "status": "converted",
+    "lifecycleStage": "converted",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-06-09T11:30:12.865Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-06-09T11:30:12.865Z"
+    },
+    "updatedAt": {
+      "$date": "2023-06-09T11:30:12.865Z"
+    }
+  },
+  {
+    "name": "Ananya Bose",
+    "phone": "9493860584",
+    "email": "ananya.bose560@gmail.com",
+    "projectType": "Commercial",
+    "area": 1156,
+    "budget": 3652522,
+    "city": "Jaipur",
+    "siteAddress": "Sector 19, Jaipur",
+    "status": "contacted",
+    "lifecycleStage": "meeting_scheduled",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-11-10T20:14:05.106Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-11-10T20:14:05.106Z"
+    },
+    "updatedAt": {
+      "$date": "2024-11-10T20:14:05.106Z"
+    }
+  },
+  {
+    "name": "Ishaan Jain",
+    "phone": "9771850426",
+    "email": "ishaan.jain354@gmail.com",
+    "spouse": {
+      "name": "Diya Jain",
+      "phone": "9536852759"
+    },
+    "projectType": "Residential",
+    "area": 1512,
+    "budget": 4563570,
+    "city": "Kolkata",
+    "siteAddress": "Sector 47, Kolkata",
+    "status": "meeting_done",
+    "lifecycleStage": "interested",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2026-02-20T00:52:41.680Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-02-20T00:52:41.680Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-20T00:52:41.680Z"
+    }
+  },
+  {
+    "name": "Krishna Gupta",
+    "phone": "9603956492",
+    "email": "krishna.gupta961@gmail.com",
+    "spouse": {
+      "name": "Aryan Gupta",
+      "phone": "9320313779"
+    },
+    "projectType": "Commercial",
+    "area": 1128,
+    "budget": 3421380,
+    "city": "Jaipur",
+    "siteAddress": "Sector 8, Jaipur",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-02-09T03:02:29.823Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-02-09T03:02:29.823Z"
+    },
+    "updatedAt": {
+      "$date": "2023-02-09T03:02:29.823Z"
+    }
+  },
+  {
+    "name": "Aryan Nair",
+    "phone": "9797069510",
+    "email": "aryan.nair812@gmail.com",
+    "projectType": "Residential",
+    "area": 2148,
+    "budget": 1331072,
+    "city": "Surat",
+    "siteAddress": "Sector 7, Surat",
+    "status": "contacted",
+    "lifecycleStage": "meeting_scheduled",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-12-24T11:18:55.427Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-12-24T11:18:55.427Z"
+    },
+    "updatedAt": {
+      "$date": "2023-12-24T11:18:55.427Z"
+    }
+  },
+  {
+    "name": "Diya Menon",
+    "phone": "9589953348",
+    "email": "diya.menon777@gmail.com",
+    "spouse": {
+      "name": "Karan Menon",
+      "phone": "9900578095"
+    },
+    "projectType": "Residential",
+    "area": 1263,
+    "budget": 3791838,
+    "city": "Surat",
+    "siteAddress": "Sector 48, Surat",
+    "status": "lost",
+    "lifecycleStage": "lost",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-01-06T10:45:18.452Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-01-06T10:45:18.452Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-06T10:45:18.452Z"
+    }
+  },
+  {
+    "name": "Sneha Mehta",
+    "phone": "9563373332",
+    "email": "sneha.mehta503@gmail.com",
+    "spouse": {
+      "name": "Aarav Mehta",
+      "phone": "9664529955"
+    },
+    "projectType": "Commercial",
+    "area": 2379,
+    "budget": 2279390,
+    "city": "Hyderabad",
+    "siteAddress": "Sector 45, Hyderabad",
+    "status": "converted",
+    "lifecycleStage": "converted",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-06-07T18:57:50.032Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-06-07T18:57:50.032Z"
+    },
+    "updatedAt": {
+      "$date": "2023-06-07T18:57:50.032Z"
+    }
+  },
+  {
+    "name": "Neha Jain",
+    "phone": "9962871043",
+    "email": "neha.jain568@gmail.com",
+    "spouse": {
+      "name": "Dhruv Jain",
+      "phone": "9268216784"
+    },
+    "projectType": "Commercial",
+    "area": 2901,
+    "budget": 3957213,
+    "city": "Hyderabad",
+    "siteAddress": "Sector 19, Hyderabad",
+    "status": "contacted",
+    "lifecycleStage": "kit",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-06-25T11:31:26.433Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-06-25T11:31:26.433Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-25T11:31:26.433Z"
+    }
+  },
+  {
+    "name": "Kabir Verma",
+    "phone": "9239173178",
+    "email": "kabir.verma955@gmail.com",
+    "projectType": "Residential",
+    "area": 1209,
+    "budget": 3492107,
+    "city": "Pune",
+    "siteAddress": "Sector 48, Pune",
+    "status": "lost",
+    "lifecycleStage": "lost",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-10-18T20:03:24.984Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-10-18T20:03:24.984Z"
+    },
+    "updatedAt": {
+      "$date": "2025-10-18T20:03:24.984Z"
+    }
+  },
+  {
+    "name": "Kriti Mehta",
+    "phone": "9668166209",
+    "email": "kriti.mehta668@gmail.com",
+    "spouse": {
+      "name": "Aditi Mehta",
+      "phone": "9472022400"
+    },
+    "projectType": "Residential",
+    "area": 1842,
+    "budget": 5237975,
+    "city": "Surat",
+    "siteAddress": "Sector 43, Surat",
+    "status": "new",
+    "lifecycleStage": "enquiry",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-03-12T21:15:09.456Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-03-12T21:15:09.456Z"
+    },
+    "updatedAt": {
+      "$date": "2024-03-12T21:15:09.456Z"
+    }
+  },
+  {
+    "name": "Sanya Singh",
+    "phone": "9444946577",
+    "email": "sanya.singh734@gmail.com",
+    "projectType": "Residential",
+    "area": 1662,
+    "budget": 1997375,
+    "city": "Bangalore",
+    "siteAddress": "Sector 41, Bangalore",
+    "status": "new",
+    "lifecycleStage": "enquiry",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-02-20T16:41:06.848Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-02-20T16:41:06.848Z"
+    },
+    "updatedAt": {
+      "$date": "2024-02-20T16:41:06.848Z"
+    }
+  },
+  {
+    "name": "Karan Mehta",
+    "phone": "9203558786",
+    "email": "karan.mehta882@gmail.com",
+    "spouse": {
+      "name": "Sanya Mehta",
+      "phone": "9757417007"
+    },
+    "projectType": "Commercial",
+    "area": 596,
+    "budget": 5405441,
+    "city": "Jaipur",
+    "siteAddress": "Sector 22, Jaipur",
+    "status": "contacted",
+    "lifecycleStage": "kit",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-11-03T03:59:03.938Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-11-03T03:59:03.938Z"
+    },
+    "updatedAt": {
+      "$date": "2024-11-03T03:59:03.938Z"
+    }
+  },
+  {
+    "name": "Sanya Desai",
+    "phone": "9227692991",
+    "email": "sanya.desai61@gmail.com",
+    "projectType": "Residential",
+    "area": 1731,
+    "budget": 1969552,
+    "city": "Surat",
+    "siteAddress": "Sector 36, Surat",
+    "status": "contacted",
+    "lifecycleStage": "meeting_scheduled",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2026-02-25T02:14:57.106Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-02-25T02:14:57.106Z"
+    },
+    "updatedAt": {
+      "$date": "2026-02-25T02:14:57.106Z"
+    }
+  },
+  {
+    "name": "Vihaan Menon",
+    "phone": "9297009772",
+    "email": "vihaan.menon163@gmail.com",
+    "projectType": "Residential",
+    "area": 2508,
+    "budget": 1579744,
+    "city": "Chennai",
+    "siteAddress": "Sector 4, Chennai",
+    "status": "contacted",
+    "lifecycleStage": "meeting_scheduled",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-08-26T14:41:01.740Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-08-26T14:41:01.740Z"
+    },
+    "updatedAt": {
+      "$date": "2023-08-26T14:41:01.740Z"
+    }
+  },
+  {
+    "name": "Sneha Nair",
+    "phone": "9502180454",
+    "email": "sneha.nair712@gmail.com",
+    "spouse": {
+      "name": "Arjun Nair",
+      "phone": "9946165582"
+    },
+    "projectType": "Residential",
+    "area": 3071,
+    "budget": 4967794,
+    "city": "Kolkata",
+    "siteAddress": "Sector 11, Kolkata",
+    "status": "proposal_sent",
+    "lifecycleStage": "proposal_sent",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-03-08T22:41:22.178Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-03-08T22:41:22.178Z"
+    },
+    "updatedAt": {
+      "$date": "2024-03-08T22:41:22.178Z"
+    }
+  },
+  {
+    "name": "Aryan Agarwal",
+    "phone": "9625593823",
+    "email": "aryan.agarwal468@gmail.com",
+    "spouse": {
+      "name": "Priya Agarwal",
+      "phone": "9770966928"
+    },
+    "projectType": "Residential",
+    "area": 2892,
+    "budget": 4785873,
+    "city": "Hyderabad",
+    "siteAddress": "Sector 45, Hyderabad",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-04-17T22:29:24.251Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-04-17T22:29:24.251Z"
+    },
+    "updatedAt": {
+      "$date": "2024-04-17T22:29:24.251Z"
+    }
+  },
+  {
+    "name": "Aisha Chatterjee",
+    "phone": "9811424525",
+    "email": "aisha.chatterjee718@gmail.com",
+    "projectType": "Residential",
+    "area": 915,
+    "budget": 521566,
+    "city": "Delhi",
+    "siteAddress": "Sector 42, Delhi",
+    "status": "proposal_sent",
+    "lifecycleStage": "proposal_sent",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-06-13T05:01:54.058Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-06-13T05:01:54.058Z"
+    },
+    "updatedAt": {
+      "$date": "2023-06-13T05:01:54.058Z"
+    }
+  },
+  {
+    "name": "Aisha Chatterjee",
+    "phone": "9585070387",
+    "email": "aisha.chatterjee249@gmail.com",
+    "spouse": {
+      "name": "Aryan Chatterjee",
+      "phone": "9333645075"
+    },
+    "projectType": "Residential",
+    "area": 1579,
+    "budget": 4473698,
+    "city": "Surat",
+    "siteAddress": "Sector 7, Surat",
+    "status": "new",
+    "lifecycleStage": "enquiry",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-09-18T05:22:00.232Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-09-18T05:22:00.232Z"
+    },
+    "updatedAt": {
+      "$date": "2023-09-18T05:22:00.232Z"
+    }
+  },
+  {
+    "name": "Diya Pillai",
+    "phone": "9501365613",
+    "email": "diya.pillai711@gmail.com",
+    "projectType": "Commercial",
+    "area": 3329,
+    "budget": 4566764,
+    "city": "Chennai",
+    "siteAddress": "Sector 30, Chennai",
+    "status": "meeting_done",
+    "lifecycleStage": "interested",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-01-06T06:19:59.505Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-01-06T06:19:59.505Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-06T06:19:59.505Z"
+    }
+  },
+  {
+    "name": "Aditi Kumar",
+    "phone": "9144647741",
+    "email": "aditi.kumar698@gmail.com",
+    "spouse": {
+      "name": "Aisha Kumar",
+      "phone": "9801957335"
+    },
+    "projectType": "Residential",
+    "area": 1641,
+    "budget": 927849,
+    "city": "Ahmedabad",
+    "siteAddress": "Sector 5, Ahmedabad",
+    "status": "contacted",
+    "lifecycleStage": "meeting_scheduled",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-09-28T18:30:13.101Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-09-28T18:30:13.101Z"
+    },
+    "updatedAt": {
+      "$date": "2023-09-28T18:30:13.101Z"
+    }
+  },
+  {
+    "name": "Kabir Bansal",
+    "phone": "9532912439",
+    "email": "kabir.bansal703@gmail.com",
+    "projectType": "Residential",
+    "area": 3420,
+    "budget": 3161020,
+    "city": "Pune",
+    "siteAddress": "Sector 49, Pune",
+    "status": "contacted",
+    "lifecycleStage": "kit",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-02-18T02:40:52.823Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-02-18T02:40:52.823Z"
+    },
+    "updatedAt": {
+      "$date": "2024-02-18T02:40:52.823Z"
+    }
+  },
+  {
+    "name": "Aryan Desai",
+    "phone": "9842246789",
+    "email": "aryan.desai532@gmail.com",
+    "spouse": {
+      "name": "Aditya Desai",
+      "phone": "9799716844"
+    },
+    "projectType": "Commercial",
+    "area": 1410,
+    "budget": 1484130,
+    "city": "Mumbai",
+    "siteAddress": "Sector 13, Mumbai",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-10-07T11:22:12.464Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-10-07T11:22:12.464Z"
+    },
+    "updatedAt": {
+      "$date": "2025-10-07T11:22:12.464Z"
+    }
+  },
+  {
+    "name": "Amit Bansal",
+    "phone": "9839905297",
+    "email": "amit.bansal339@gmail.com",
+    "projectType": "Commercial",
+    "area": 2324,
+    "budget": 2718410,
+    "city": "Pune",
+    "siteAddress": "Sector 22, Pune",
+    "status": "contacted",
+    "lifecycleStage": "kit",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-03-31T15:11:50.697Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-03-31T15:11:50.697Z"
+    },
+    "updatedAt": {
+      "$date": "2025-03-31T15:11:50.697Z"
+    }
+  },
+  {
+    "name": "Sneha Pillai",
+    "phone": "9201796572",
+    "email": "sneha.pillai922@gmail.com",
+    "spouse": {
+      "name": "Aditi Pillai",
+      "phone": "9931746021"
+    },
+    "projectType": "Residential",
+    "area": 2300,
+    "budget": 608337,
+    "city": "Surat",
+    "siteAddress": "Sector 45, Surat",
+    "status": "converted",
+    "lifecycleStage": "converted",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2026-04-12T14:10:06.918Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-04-12T14:10:06.918Z"
+    },
+    "updatedAt": {
+      "$date": "2026-04-12T14:10:06.918Z"
+    }
+  },
+  {
+    "name": "Dhruv Bose",
+    "phone": "9237761750",
+    "email": "dhruv.bose270@gmail.com",
+    "spouse": {
+      "name": "Neha Bose",
+      "phone": "9157854580"
+    },
+    "projectType": "Commercial",
+    "area": 976,
+    "budget": 1806913,
+    "city": "Ahmedabad",
+    "siteAddress": "Sector 5, Ahmedabad",
+    "status": "new",
+    "lifecycleStage": "enquiry",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-05-30T11:44:03.867Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-05-30T11:44:03.867Z"
+    },
+    "updatedAt": {
+      "$date": "2025-05-30T11:44:03.867Z"
+    }
+  },
+  {
+    "name": "Dhruv Gupta",
+    "phone": "9503695004",
+    "email": "dhruv.gupta661@gmail.com",
+    "projectType": "Residential",
+    "area": 2519,
+    "budget": 863546,
+    "city": "Ahmedabad",
+    "siteAddress": "Sector 2, Ahmedabad",
+    "status": "converted",
+    "lifecycleStage": "converted",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-10-04T04:35:00.815Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-10-04T04:35:00.815Z"
+    },
+    "updatedAt": {
+      "$date": "2024-10-04T04:35:00.815Z"
+    }
+  },
+  {
+    "name": "Arjun Menon",
+    "phone": "9652380918",
+    "email": "arjun.menon46@gmail.com",
+    "spouse": {
+      "name": "Aditya Menon",
+      "phone": "9637256562"
+    },
+    "projectType": "Residential",
+    "area": 922,
+    "budget": 2906929,
+    "city": "Surat",
+    "siteAddress": "Sector 16, Surat",
+    "status": "contacted",
+    "lifecycleStage": "kit",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2026-03-23T04:39:21.654Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-03-23T04:39:21.654Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-23T04:39:21.654Z"
+    }
+  },
+  {
+    "name": "Sanjay Desai",
+    "phone": "9444800543",
+    "email": "sanjay.desai555@gmail.com",
+    "projectType": "Residential",
+    "area": 1043,
+    "budget": 3840291,
+    "city": "Hyderabad",
+    "siteAddress": "Sector 25, Hyderabad",
+    "status": "contacted",
+    "lifecycleStage": "followup_due",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2026-03-02T22:03:51.958Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2026-03-02T22:03:51.958Z"
+    },
+    "updatedAt": {
+      "$date": "2026-03-02T22:03:51.958Z"
+    }
+  },
+  {
+    "name": "Priya Patel",
+    "phone": "9520787261",
+    "email": "priya.patel603@gmail.com",
+    "spouse": {
+      "name": "Rohan Patel",
+      "phone": "9511751425"
+    },
+    "projectType": "Residential",
+    "area": 701,
+    "budget": 1899101,
+    "city": "Kolkata",
+    "siteAddress": "Sector 25, Kolkata",
+    "status": "contacted",
+    "lifecycleStage": "kit",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-07-09T23:45:18.492Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-07-09T23:45:18.492Z"
+    },
+    "updatedAt": {
+      "$date": "2025-07-09T23:45:18.492Z"
+    }
+  },
+  {
+    "name": "Dhruv Kumar",
+    "phone": "9100124262",
+    "email": "dhruv.kumar169@gmail.com",
+    "spouse": {
+      "name": "Amit Kumar",
+      "phone": "9614906480"
+    },
+    "projectType": "Residential",
+    "area": 2312,
+    "budget": 4622888,
+    "city": "Hyderabad",
+    "siteAddress": "Sector 33, Hyderabad",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-06-23T14:04:50.355Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-06-23T14:04:50.355Z"
+    },
+    "updatedAt": {
+      "$date": "2025-06-23T14:04:50.355Z"
+    }
+  },
+  {
+    "name": "Krishna Rao",
+    "phone": "9908356963",
+    "email": "krishna.rao902@gmail.com",
+    "spouse": {
+      "name": "Sanya Rao",
+      "phone": "9388617945"
+    },
+    "projectType": "Residential",
+    "area": 920,
+    "budget": 812139,
+    "city": "Chennai",
+    "siteAddress": "Sector 29, Chennai",
+    "status": "contacted",
+    "lifecycleStage": "followup_due",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-07-09T22:28:04.450Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-07-09T22:28:04.450Z"
+    },
+    "updatedAt": {
+      "$date": "2024-07-09T22:28:04.450Z"
+    }
+  },
+  {
+    "name": "Rohan Sharma",
+    "phone": "9595120607",
+    "email": "rohan.sharma282@gmail.com",
+    "spouse": {
+      "name": "Raj Sharma",
+      "phone": "9753490335"
+    },
+    "projectType": "Commercial",
+    "area": 2649,
+    "budget": 4259400,
+    "city": "Delhi",
+    "siteAddress": "Sector 35, Delhi",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-07-01T08:57:21.788Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-07-01T08:57:21.788Z"
+    },
+    "updatedAt": {
+      "$date": "2024-07-01T08:57:21.788Z"
+    }
+  },
+  {
+    "name": "Aryan Chatterjee",
+    "phone": "9784499553",
+    "email": "aryan.chatterjee425@gmail.com",
+    "spouse": {
+      "name": "Kavya Chatterjee",
+      "phone": "9197450854"
+    },
+    "projectType": "Residential",
+    "area": 2882,
+    "budget": 2271887,
+    "city": "Mumbai",
+    "siteAddress": "Sector 2, Mumbai",
+    "status": "contacted",
+    "lifecycleStage": "followup_due",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-12-01T02:33:58.396Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-12-01T02:33:58.396Z"
+    },
+    "updatedAt": {
+      "$date": "2025-12-01T02:33:58.396Z"
+    }
+  },
+  {
+    "name": "Krishna Rao",
+    "phone": "9564081571",
+    "email": "krishna.rao664@gmail.com",
+    "spouse": {
+      "name": "Raj Rao",
+      "phone": "9333127886"
+    },
+    "projectType": "Residential",
+    "area": 2294,
+    "budget": 3392872,
+    "city": "Delhi",
+    "siteAddress": "Sector 50, Delhi",
+    "status": "new",
+    "lifecycleStage": "enquiry",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-11-26T10:39:26.367Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-11-26T10:39:26.367Z"
+    },
+    "updatedAt": {
+      "$date": "2023-11-26T10:39:26.367Z"
+    }
+  },
+  {
+    "name": "Aditya Yadav",
+    "phone": "9769431846",
+    "email": "aditya.yadav265@gmail.com",
+    "spouse": {
+      "name": "Priya Yadav",
+      "phone": "9161766608"
+    },
+    "projectType": "Residential",
+    "area": 3036,
+    "budget": 5442510,
+    "city": "Jaipur",
+    "siteAddress": "Sector 8, Jaipur",
+    "status": "converted",
+    "lifecycleStage": "converted",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-06-04T09:44:10.585Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-06-04T09:44:10.585Z"
+    },
+    "updatedAt": {
+      "$date": "2024-06-04T09:44:10.585Z"
+    }
+  },
+  {
+    "name": "Ananya Bansal",
+    "phone": "9916900948",
+    "email": "ananya.bansal796@gmail.com",
+    "spouse": {
+      "name": "Kavya Bansal",
+      "phone": "9555934068"
+    },
+    "projectType": "Commercial",
+    "area": 2410,
+    "budget": 2602560,
+    "city": "Jaipur",
+    "siteAddress": "Sector 1, Jaipur",
+    "status": "converted",
+    "lifecycleStage": "converted",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-11-09T07:30:17.603Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-11-09T07:30:17.603Z"
+    },
+    "updatedAt": {
+      "$date": "2024-11-09T07:30:17.603Z"
+    }
+  },
+  {
+    "name": "Amit Chatterjee",
+    "phone": "9428621375",
+    "email": "amit.chatterjee606@gmail.com",
+    "projectType": "Commercial",
+    "area": 2078,
+    "budget": 5190985,
+    "city": "Jaipur",
+    "siteAddress": "Sector 12, Jaipur",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-04-07T17:17:22.722Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-04-07T17:17:22.722Z"
+    },
+    "updatedAt": {
+      "$date": "2024-04-07T17:17:22.722Z"
+    }
+  },
+  {
+    "name": "Sanjay Verma",
+    "phone": "9567862697",
+    "email": "sanjay.verma101@gmail.com",
+    "spouse": {
+      "name": "Dhruv Verma",
+      "phone": "9711908555"
+    },
+    "projectType": "Residential",
+    "area": 906,
+    "budget": 3581224,
+    "city": "Mumbai",
+    "siteAddress": "Sector 7, Mumbai",
+    "status": "meeting_done",
+    "lifecycleStage": "interested",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-11-25T06:40:13.694Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-11-25T06:40:13.694Z"
+    },
+    "updatedAt": {
+      "$date": "2023-11-25T06:40:13.694Z"
+    }
+  },
+  {
+    "name": "Dhruv Jain",
+    "phone": "9284988141",
+    "email": "dhruv.jain395@gmail.com",
+    "spouse": {
+      "name": "Sanjay Jain",
+      "phone": "9408133740"
+    },
+    "projectType": "Commercial",
+    "area": 2630,
+    "budget": 1979136,
+    "city": "Jaipur",
+    "siteAddress": "Sector 44, Jaipur",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-08-21T18:49:13.907Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-08-21T18:49:13.907Z"
+    },
+    "updatedAt": {
+      "$date": "2025-08-21T18:49:13.907Z"
+    }
+  },
+  {
+    "name": "Ishaan Yadav",
+    "phone": "9406511313",
+    "email": "ishaan.yadav396@gmail.com",
+    "spouse": {
+      "name": "Sanjay Yadav",
+      "phone": "9783116616"
+    },
+    "projectType": "Residential",
+    "area": 3345,
+    "budget": 5090723,
+    "city": "Delhi",
+    "siteAddress": "Sector 3, Delhi",
+    "status": "lost",
+    "lifecycleStage": "lost",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-06-14T17:25:17.966Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-06-14T17:25:17.966Z"
+    },
+    "updatedAt": {
+      "$date": "2023-06-14T17:25:17.966Z"
+    }
+  },
+  {
+    "name": "Raj Thakur",
+    "phone": "9854971797",
+    "email": "raj.thakur365@gmail.com",
+    "projectType": "Residential",
+    "area": 3119,
+    "budget": 2477638,
+    "city": "Hyderabad",
+    "siteAddress": "Sector 30, Hyderabad",
+    "status": "proposal_sent",
+    "lifecycleStage": "proposal_sent",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-12-21T06:41:37.004Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-12-21T06:41:37.004Z"
+    },
+    "updatedAt": {
+      "$date": "2023-12-21T06:41:37.004Z"
+    }
+  },
+  {
+    "name": "Kriti Pillai",
+    "phone": "9760186227",
+    "email": "kriti.pillai405@gmail.com",
+    "spouse": {
+      "name": "Krishna Pillai",
+      "phone": "9192494891"
+    },
+    "projectType": "Residential",
+    "area": 660,
+    "budget": 3729973,
+    "city": "Ahmedabad",
+    "siteAddress": "Sector 39, Ahmedabad",
+    "status": "new",
+    "lifecycleStage": "enquiry",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-05-31T19:33:17.621Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-05-31T19:33:17.621Z"
+    },
+    "updatedAt": {
+      "$date": "2023-05-31T19:33:17.621Z"
+    }
+  },
+  {
+    "name": "Aryan Jain",
+    "phone": "9533144326",
+    "email": "aryan.jain677@gmail.com",
+    "spouse": {
+      "name": "Ananya Jain",
+      "phone": "9789425735"
+    },
+    "projectType": "Commercial",
+    "area": 520,
+    "budget": 966570,
+    "city": "Kolkata",
+    "siteAddress": "Sector 38, Kolkata",
+    "status": "new",
+    "lifecycleStage": "enquiry",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-11-15T09:55:27.531Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-11-15T09:55:27.531Z"
+    },
+    "updatedAt": {
+      "$date": "2025-11-15T09:55:27.531Z"
+    }
+  },
+  {
+    "name": "Kavya Jain",
+    "phone": "9460055455",
+    "email": "kavya.jain169@gmail.com",
+    "projectType": "Commercial",
+    "area": 2566,
+    "budget": 3977303,
+    "city": "Hyderabad",
+    "siteAddress": "Sector 40, Hyderabad",
+    "status": "meeting_done",
+    "lifecycleStage": "show_project",
+    "priority": "high",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2023-01-06T14:40:35.550Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2023-01-06T14:40:35.550Z"
+    },
+    "updatedAt": {
+      "$date": "2023-01-06T14:40:35.550Z"
+    }
+  },
+  {
+    "name": "Sneha Nair",
+    "phone": "9600604157",
+    "email": "sneha.nair450@gmail.com",
+    "projectType": "Residential",
+    "area": 2588,
+    "budget": 2920748,
+    "city": "Delhi",
+    "siteAddress": "Sector 16, Delhi",
+    "status": "contacted",
+    "lifecycleStage": "kit",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-03-25T00:18:18.254Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-03-25T00:18:18.254Z"
+    },
+    "updatedAt": {
+      "$date": "2024-03-25T00:18:18.254Z"
+    }
+  },
+  {
+    "name": "Sanya Verma",
+    "phone": "9497777776",
+    "email": "sanya.verma598@gmail.com",
+    "projectType": "Residential",
+    "area": 2434,
+    "budget": 1977614,
+    "city": "Mumbai",
+    "siteAddress": "Sector 45, Mumbai",
+    "status": "proposal_sent",
+    "lifecycleStage": "proposal_sent",
+    "priority": "medium",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2024-01-21T22:02:51.586Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2024-01-21T22:02:51.586Z"
+    },
+    "updatedAt": {
+      "$date": "2024-01-21T22:02:51.586Z"
+    }
+  },
+  {
+    "name": "Neha Chauhan",
+    "phone": "9804151119",
+    "email": "neha.chauhan54@gmail.com",
+    "spouse": {
+      "name": "Ishaan Chauhan",
+      "phone": "9938342486"
+    },
+    "projectType": "Residential",
+    "area": 898,
+    "budget": 2397832,
+    "city": "Pune",
+    "siteAddress": "Sector 8, Pune",
+    "status": "contacted",
+    "lifecycleStage": "kit",
+    "priority": "low",
+    "interactionHistory": [
+      {
+        "type": "note",
+        "title": "Lead Created",
+        "description": "System generated lead for testing.",
+        "createdAt": {
+          "$date": "2025-01-26T13:38:37.001Z"
+        }
+      }
+    ],
+    "createdAt": {
+      "$date": "2025-01-26T13:38:37.001Z"
+    },
+    "updatedAt": {
+      "$date": "2025-01-26T13:38:37.001Z"
+    }
+  }
+]

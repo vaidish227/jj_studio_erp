@@ -112,11 +112,39 @@ const getProposals = async (req, res) => {
 // UPDATE STATUS
 const updateProposalStatus = async (req, res) => {
   try {
+    const { status } = req.body;
     const proposal = await Proposal.findByIdAndUpdate(
       req.params.id,
-      { status: req.body.status },
+      { status },
       { new: true }
     );
+
+    if (!proposal) {
+      return res.status(404).json({ message: "Proposal not found" });
+    }
+
+    // Sync with Lead status
+    const leadUpdate = {};
+    if (status === "approved") {
+      leadUpdate.lifecycleStage = "interested"; // Mark as fully interested/approved
+    } else if (status === "signed") {
+      leadUpdate.lifecycleStage = "converted"; // Signed = Converted
+      leadUpdate.status = "converted";
+    }
+
+    if (Object.keys(leadUpdate).length > 0) {
+      await Lead.findByIdAndUpdate(proposal.leadId, {
+        ...leadUpdate,
+        $push: {
+          interactionHistory: {
+            type: "proposal",
+            title: `Proposal ${status}`,
+            description: `Proposal status was updated to ${status}.`,
+            createdAt: new Date(),
+          },
+        },
+      });
+    }
 
     res.json(proposal);
 

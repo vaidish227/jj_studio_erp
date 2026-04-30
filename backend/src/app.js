@@ -15,7 +15,7 @@ const clientRoutes = require("../src/modules/crm/routes/Client.route");
 app.use("/api/clients", clientRoutes);
 
 const followupRoutes = require("../src/modules/crm/routes/FollowUp.route");
-app.use("/api/followups", followupRoutes);
+app.use("/api/followup", followupRoutes);
 
 const mettingRoutes = require("../src/modules/crm/routes/Metting.routes");
 app.use("/api/metting", mettingRoutes);

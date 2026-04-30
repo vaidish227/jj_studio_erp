@@ -11,7 +11,16 @@ import {
   ConvertedPage,
   LostLeadsPage,
 } from './modules/leads';
-import { ProposalListPage } from './modules/proposal';
+import {
+  ProposalListPage,
+  ProposalDashboard,
+  ProposalTemplatesPage,
+  ProposalClientsPage,
+  ProposalApprovalPage,
+  SentProposalsPage,
+  ESignReceivedPage,
+  ApprovedProposalsPage,
+} from './modules/proposal';
 import { CRMProvider } from './modules/crm/context/CRMContext';
 import AppLayout from './shared/layouts/AppLayout/AppLayout';
 import PublicLayout from './shared/layouts/PublicLayout/PublicLayout';
@@ -58,12 +67,25 @@ export default function App() {
             <Route path="/crm/meetings"    element={<MeetingsPage />} />
             <Route path="/crm/follow-ups"  element={<FollowUpsPage />} />
             <Route path="/crm/qualified"   element={<KITPage />} />
-            <Route path="/crm/proposal"    element={<ProposalListPage />} />
 
             {/* --- Lead Status --- */}
             <Route path="/crm/converted"   element={<ConvertedPage />} />
             <Route path="/crm/lost-leads"  element={<LostLeadsPage />} />
 
+          </Route>
+
+          {/* --- Proposal & Quotation System --- */}
+          <Route element={<CRMProvider><Outlet /></CRMProvider>}>
+            <Route path="/proposal">
+              <Route index element={<ProposalDashboard />} />
+              <Route path="list" element={<ProposalListPage />} />
+              <Route path="templates" element={<ProposalTemplatesPage />} />
+              <Route path="clients" element={<ProposalClientsPage />} />
+              <Route path="approval" element={<ProposalApprovalPage />} />
+              <Route path="sent" element={<SentProposalsPage />} />
+              <Route path="esign" element={<ESignReceivedPage />} />
+              <Route path="approved" element={<ApprovedProposalsPage />} />
+            </Route>
           </Route>
 
           {/* Other modules */}

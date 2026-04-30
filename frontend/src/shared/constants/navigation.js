@@ -36,7 +36,6 @@ export const NAV_ITEMS = [
           { id: 'meetings', label: 'Meetings', path: '/crm/meetings' },
           { id: 'follow-ups', label: 'Follow-ups', path: '/crm/follow-ups' },
           { id: 'kit', label: 'Keep In Touch (KIT)', path: '/crm/qualified' },
-          { id: 'proposal', label: 'Proposals', path: '/crm/proposal' },
         ]
       },
       {
@@ -48,6 +47,20 @@ export const NAV_ITEMS = [
         ]
       },
     ],
+  },
+  {
+    id: 'proposal-system',
+    label: 'Proposal & Quotation System',
+    icon: FileText,
+    children: [
+      { id: 'proposal-list', label: 'Proposal', path: '/proposal' },
+      { id: 'proposal-templates', label: 'Quotation Template', path: '/proposal/templates' },
+      { id: 'proposal-clients', label: 'Client List', path: '/proposal/clients' },
+      { id: 'proposal-approval', label: 'Manager Approval', path: '/proposal/approval' },
+      { id: 'proposal-sent', label: 'Sent Proposal', path: '/proposal/sent' },
+      { id: 'proposal-esign', label: 'eSign Received', path: '/proposal/esign' },
+      { id: 'proposal-approved', label: 'Approved', path: '/proposal/approved' },
+    ]
   },
   {
     id: 'clients',

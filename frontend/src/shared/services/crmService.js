@@ -32,12 +32,12 @@ export const crmService = {
   updateMeeting: (id, data) => apiClient.put(`/metting/update/${id}`, data),
 
   // --- Follow-ups / KIT ---
-  createFollowup: (followupData) => apiClient.post('/followups/create', followupData),
-  getFollowups: () => apiClient.get('/followups/get'),
-  getFollowupsByLead: (leadId) => apiClient.get(`/followups/get/${leadId}`),
-  updateFollowup: (id, data) => apiClient.put(`/followups/update/${id}`, data),
+  createFollowup: (followupData) => apiClient.post('/followup/create', followupData),
+  getFollowups: () => apiClient.get('/followup/get'),
+  getFollowupsByLead: (leadId) => apiClient.get(`/followup/get/${leadId}`),
+  updateFollowup: (id, data) => apiClient.put(`/followup/update/${id}`, data),
   updateFollowupStatus: (id, status) =>
-    apiClient.patch(`/followups/updatestatus/${id}`, { status }),
+    apiClient.patch(`/followup/updatestatus/${id}`, { status }),
 
   // --- Proposals ---
   createProposal: (proposalData) => apiClient.post('/proposal/create', proposalData),

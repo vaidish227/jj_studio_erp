@@ -23,7 +23,16 @@ const AppLayout = ({ children }) => {
 
   // Determine active item from path
   const pathParts = location.pathname.split('/').filter(Boolean);
-  const activeItem = pathParts.length > 0 ? pathParts[pathParts.length - 1] : 'dashboard';
+  let activeItem = 'dashboard';
+
+  if (pathParts.length > 0) {
+    if (pathParts[0] === 'proposal') {
+      // Map /proposal -> proposal-list, /proposal/templates -> proposal-templates, etc.
+      activeItem = pathParts.length === 1 ? 'proposal-list' : `proposal-${pathParts[1]}`;
+    } else {
+      activeItem = pathParts[pathParts.length - 1];
+    }
+  }
 
   const handleNavSelect = (id, path) => {
     if (path) {
