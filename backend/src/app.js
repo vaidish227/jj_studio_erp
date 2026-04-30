@@ -23,4 +23,7 @@ app.use("/api/metting", mettingRoutes);
 const proposalRoutes = require("../src/modules/crm/routes/Proposal.route");
 app.use("/api/proposal", proposalRoutes);
 
+const proposalV2Routes = require("../src/modules/proposal/routes/proposal.route");
+app.use("/api/proposals", proposalV2Routes);
+
 module.exports = app;
