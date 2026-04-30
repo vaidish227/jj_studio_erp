@@ -1,24 +1,32 @@
 const mongoose = require("mongoose");
-
 const approvalSchema = new mongoose.Schema(
   {
     proposalId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "ProposalV2",
+      ref: "Proposal",
       required: true,
-      index: true,
     },
-    level: { type: String, enum: ["manager"], default: "manager" },
+
+    type: {
+      type: String,
+      enum: ["internal", "manager"],
+      required: true,
+    },
+
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
-    actedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-    actedAt: { type: Date, default: null },
-    note: { type: String, default: "" },
+
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    note: String,
   },
-  { timestamps: true, collection: "approvals" }
+  { timestamps: true }
 );
 
-module.exports = mongoose.model("ProposalApproval", approvalSchema);
+module.exports = mongoose.model("Approval", approvalSchema);

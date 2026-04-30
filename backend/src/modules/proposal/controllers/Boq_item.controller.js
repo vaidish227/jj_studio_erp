@@ -1,5 +1,5 @@
-const BOQItem = require("../../crm/models/Boq_item.model");
-const BOQ = require("../../crm/models/Boq.model");
+const BOQItem = require("../models/Boq_item.model");
+const BOQ = require("../models/Boq.model");
 const mongoose = require("mongoose");
 
 const addBOQItem = async (req, res) => {

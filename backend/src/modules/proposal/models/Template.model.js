@@ -1,11 +1,16 @@
+const mongoose = require("mongoose");
 
 const templateSchema = new mongoose.Schema(
   {
-    name: String,
+    name: {
+      type: String,
+      required: true,
+    },
 
     type: {
       type: String,
       enum: ["residential", "commercial"],
+      required: true,
     },
 
     description: String,

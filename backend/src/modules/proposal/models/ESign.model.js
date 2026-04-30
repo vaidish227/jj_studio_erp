@@ -1,27 +1,30 @@
 const mongoose = require("mongoose");
 
+
 const eSignSchema = new mongoose.Schema(
   {
     proposalId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "ProposalV2",
+      ref: "Proposal",
       required: true,
-      index: true,
     },
-    leadId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Lead",
+
+    signedBy: {
+      type: String, // client name
       required: true,
-      index: true,
     },
-    status: { type: String, enum: ["pending", "received", "rejected"], default: "received" },
-    signedByName: { type: String, default: "" },
-    signedAt: { type: Date, default: Date.now },
-    documentUrl: { type: String, default: "" },
-    ipAddress: { type: String, default: "" },
-    note: { type: String, default: "" },
+
+    signatureUrl: {
+      type: String, // image or file URL
+    },
+
+    status: {
+      type: String,
+      enum: ["pending", "signed"],
+      default: "pending",
+    },
   },
-  { timestamps: true, collection: "esign" }
+  { timestamps: true }
 );
 
-module.exports = mongoose.model("ProposalESign", eSignSchema);
+module.exports = mongoose.model("ESign", eSignSchema);
