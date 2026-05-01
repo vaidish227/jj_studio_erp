@@ -47,8 +47,8 @@ export const crmService = {
   },
   getProposalById: (id) => apiClient.get(`/proposal/get/${id}`),
   updateProposal: (id, data) => apiClient.put(`/proposal/update/${id}`, data),
-  updateProposalStatus: (id, status) =>
-    apiClient.patch(`/proposal/updatestatus/${id}`, { status }),
+  updateProposalStatus: (id, data) =>
+    apiClient.patch(`/proposal/updatestatus/${id}`, data),
   sendProposal: (id) => apiClient.post(`/proposal/send/${id}`),
 
   // --- Templates ---

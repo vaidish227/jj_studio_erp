@@ -71,15 +71,25 @@ const createProposal = async (req, res) => {
 //  GET PROPOSALS
 const getProposals = async (req, res) => {
   try {
-    const { leadId, clientId } = req.query;
+    const { leadId, clientId, status, esignStatus } = req.query;
 
     const filter = {};
     if (leadId) filter.leadId = leadId;
     if (clientId) filter.clientId = clientId;
+    
+    if (status) {
+      if (status.includes(',')) {
+        filter.status = { $in: status.split(',') };
+      } else {
+        filter.status = status;
+      }
+    }
+
+    if (esignStatus) filter.esignStatus = esignStatus;
 
     const proposals = await Proposal.find(filter)
-      .populate("leadId", "name")
-      .populate("clientId", "name")
+      .populate("leadId", "name email phone")
+      .populate("clientId", "name email phone")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -96,10 +106,33 @@ const getProposals = async (req, res) => {
 // UPDATE STATUS
 const updateProposalStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, remarks, advancePayment } = req.body;
+    
+    // Build update object
+    const updateObj = { 
+      $set: { status },
+      $push: { 
+        approvalHistory: {
+          action: status,
+          performedBy: req.user ? req.user.id : null,
+          remarks: remarks || "",
+          timestamp: new Date()
+        }
+      }
+    };
+
+    if (advancePayment) {
+      updateObj.$set.advancePayment = advancePayment;
+    }
+
+    if (status === 'signed') {
+      updateObj.$set.esignStatus = 'completed';
+      updateObj.$set.esignSignedAt = new Date();
+    }
+
     const proposal = await Proposal.findByIdAndUpdate(
       req.params.id,
-      { status },
+      updateObj,
       { new: true }
     );
 
@@ -109,10 +142,13 @@ const updateProposalStatus = async (req, res) => {
 
     // Sync with Lead status
     const leadUpdate = {};
-    if (status === "approved") {
-      leadUpdate.lifecycleStage = "interested"; // Mark as fully interested/approved
-    } else if (status === "signed") {
-      leadUpdate.lifecycleStage = "converted"; // Signed = Converted
+    if (status === "manager_approved") {
+      leadUpdate.lifecycleStage = "interested"; 
+    } else if (status === "sent") {
+      leadUpdate.lifecycleStage = "proposal_sent";
+      leadUpdate.status = "proposal_sent";
+    } else if (status === "client_approved" || status === "signed") {
+      leadUpdate.lifecycleStage = "converted"; 
       leadUpdate.status = "converted";
     }
 
@@ -123,7 +159,7 @@ const updateProposalStatus = async (req, res) => {
           interactionHistory: {
             type: "proposal",
             title: `Proposal ${status}`,
-            description: `Proposal status was updated to ${status}.`,
+            description: remarks || `Proposal status was updated to ${status}.`,
             createdAt: new Date(),
           },
         },

@@ -85,8 +85,8 @@ const AppLayout = ({ children }) => {
         {/* Footer */}
         <footer className="px-6 py-4 text-center text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
           © 2025{' '}
-          <span className="text-[var(--primary)] font-semibold">InteriorDash</span>{' '}
-          CRM System. All rights reserved.
+          <span className="text-[var(--primary)] font-semibold">JJ-Studio</span>{' '}
+          ERP System. All rights reserved.
         </footer>
       </div>
     </div>

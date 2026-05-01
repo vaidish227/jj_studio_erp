@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Loader2, Search, ExternalLink, Mail, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { FileText, Loader2, Search, ExternalLink, Mail, CheckCircle2, XCircle, Clock, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
@@ -132,6 +132,17 @@ const ProposalListPage = () => {
                         Send Email
                       </Button>
                     )}
+                    {(proposal.status === 'approved' || proposal.status === 'manager_approved') && (
+                      <Button 
+                        variant="primary" 
+                        size="sm"
+                        onClick={() => handleSendEmail(proposal._id)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Send size={14} className="mr-2" />
+                        Sent to Client
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -153,6 +164,8 @@ const ProposalListPage = () => {
 const ProposalStatusBadge = ({ status }) => {
   const configs = {
     draft: { icon: Clock, color: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg)]', label: 'Draft' },
+    pending_approval: { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', label: 'Pending Approval' },
+    manager_approved: { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', label: 'Approved' },
     sent: { icon: Mail, color: 'text-[var(--primary)]', bg: 'bg-[var(--primary)]/10', label: 'Sent' },
     approved: { icon: CheckCircle2, color: 'text-[var(--success)]', bg: 'bg-[var(--success)]/10', label: 'Approved' },
     rejected: { icon: XCircle, color: 'text-[var(--error)]', bg: 'bg-[var(--error)]/10', label: 'Rejected' },

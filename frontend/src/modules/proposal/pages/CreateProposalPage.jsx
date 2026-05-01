@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Send, Save, Eye, FileText, CheckCircle, Plus, Trash2, LayoutTemplate } from 'lucide-react';
+import { ArrowLeft, Send, Save, Eye, FileText, CheckCircle, Plus, Trash2, LayoutTemplate, AlertCircle } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
 import Select from '../../../shared/components/Select/Select';
 import DynamicTableBuilder from '../../../shared/components/DynamicTableBuilder/DynamicTableBuilder';
 import { crmService } from '../../../shared/services/crmService';
-import ProposalPreviewModal from '../components/ProposalPreviewModal';
 
 const GST_RATE = 0.18; // 18% GST
 
@@ -17,6 +16,7 @@ const CreateProposalPage = () => {
   const [searchParams] = useSearchParams();
   const leadIdParam = searchParams.get('leadId');
 
+  const proposalId = searchParams.get('id');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -29,16 +29,10 @@ const CreateProposalPage = () => {
   // Selections & form state
   const [selectedLeadId, setSelectedLeadId] = useState(leadIdParam || '');
   const [proposalTitle, setProposalTitle] = useState('');
+  const [proposalStatus, setProposalStatus] = useState('draft');
   
   // Array of sections instead of a single structure
   const [sections, setSections] = useState([]);
-  
-  const [previewOpen, setPreviewOpen] = useState(false);
-
-  // Deriving the selected client object for the preview modal
-  const selectedClient = useMemo(() => {
-    return leads.find(l => l._id === selectedLeadId) || {};
-  }, [leads, selectedLeadId]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -51,15 +45,26 @@ const CreateProposalPage = () => {
         
         setLeads(leadsRes?.leads || []);
         setTemplates(templatesRes?.data || []);
+
+        if (proposalId) {
+          const res = await crmService.getProposalById(proposalId);
+          if (res?.proposal) {
+            const p = res.proposal;
+            setSelectedLeadId(p.leadId?._id || p.leadId);
+            setProposalTitle(p.title);
+            setProposalStatus(p.status);
+            setSections(p.content?.sections || []);
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch initial data:', err);
-        setError('Failed to load clients and templates.');
+        setError('Failed to load data.');
       } finally {
         setLoading(false);
       }
     };
     fetchInitialData();
-  }, []);
+  }, [proposalId]);
 
   const addTemplateSection = (templateId) => {
     if (!templateId) return;
@@ -190,9 +195,20 @@ const CreateProposalPage = () => {
         status
       };
 
-      await crmService.createProposal(payload);
-      setSuccess(status === 'pending_approval' ? 'Proposal sent for approval!' : 'Proposal saved as draft!');
-      setTimeout(() => navigate('/proposal/dashboard'), 1500);
+      if (proposalId) {
+        await crmService.updateProposal(proposalId, payload);
+        setSuccess('Proposal updated successfully!');
+        setTimeout(() => navigate(`/proposal/review/${proposalId}`), 1000);
+      } else {
+        const res = await crmService.createProposal(payload);
+        const newId = res?.proposal?._id;
+        setSuccess('Proposal generated successfully!');
+        if (newId) {
+          setTimeout(() => navigate(`/proposal/review/${newId}`), 1000);
+        } else {
+          setTimeout(() => navigate('/proposal/dashboard'), 1000);
+        }
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save proposal.');
       console.error(err);
@@ -221,14 +237,8 @@ const CreateProposalPage = () => {
         </div>
         
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => setPreviewOpen(true)} className="border-[var(--border)]" disabled={sections.length === 0}>
-            <Eye size={18} /> Preview
-          </Button>
           <Button variant="outline" onClick={() => handleSave('draft')} isLoading={saving === 'draft'} className="border-[var(--border)]">
-            <Save size={18} /> Save Draft
-          </Button>
-          <Button variant="primary" onClick={() => handleSave('pending_approval')} isLoading={saving === 'pending_approval'} className="shadow-lg shadow-[var(--primary)]/20">
-            <Send size={18} /> Send for Approval
+            <Save size={18} className="mr-2" /> Save Draft
           </Button>
         </div>
       </div>
@@ -360,7 +370,6 @@ const CreateProposalPage = () => {
               variant="primary" 
               className="w-full mt-8 py-4 text-sm font-bold shadow-lg shadow-[var(--primary)]/20"
               onClick={() => handleSave('draft')}
-              isLoading={saving === 'draft'}
               disabled={sections.length === 0 || !selectedLeadId}
             >
               Generate Proposal
@@ -369,18 +378,6 @@ const CreateProposalPage = () => {
         </div>
       </div>
 
-      <ProposalPreviewModal 
-        isOpen={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        proposal={{ 
-          title: proposalTitle, 
-          content: { sections },
-          subtotal,
-          gst,
-          finalAmount
-        }}
-        client={selectedClient}
-      />
     </div>
   );
 };

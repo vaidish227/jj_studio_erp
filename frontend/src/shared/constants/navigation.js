@@ -58,8 +58,7 @@ export const NAV_ITEMS = [
       { id: 'proposal-clients', label: 'Client List', path: '/proposal/clients' },
       { id: 'proposal-templates', label: 'Quotation Template', path: '/proposal/templates' },
       { id: 'proposal-approval', label: 'Manager Approval', path: '/proposal/approval' },
-      { id: 'proposal-sent', label: 'Sent Proposal', path: '/proposal/sent' },
-      { id: 'proposal-esign', label: 'eSign Received', path: '/proposal/esign' },
+      { id: 'proposal-sent', label: 'Sent & eSign Track', path: '/proposal/sent' },
       { id: 'proposal-approved', label: 'Approved', path: '/proposal/approved' },
     ]
   },

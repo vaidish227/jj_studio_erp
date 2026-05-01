@@ -55,6 +55,14 @@ export const statusLabelMap = {
   proposal_sent: 'Interested',
   converted: 'Converted',
   lost: 'Lost',
+  // Proposal labels
+  draft: 'Draft',
+  pending_approval: 'Pending Approval',
+  manager_approved: 'Approved',
+  rejected: 'Rejected',
+  sent: 'Sent to Client',
+  esign_pending: 'eSign Pending',
+  signed: 'eSign Received',
 };
 
 const getAutomationTasks = (leadId, meetingDate) => {

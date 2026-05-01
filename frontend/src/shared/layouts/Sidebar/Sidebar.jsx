@@ -5,6 +5,7 @@ import ProfileDropdown from '../../components/ProfileDropdown/ProfileDropdown';
 import SidebarGroup from '../../components/Sidebar/SidebarGroup';
 import SidebarItem from '../../components/Sidebar/SidebarItem';
 import { NAV_ITEMS } from '../../constants/navigation';
+import LogoImg from '../../../assets/JJ-FINAL-LOGO-PNG.png';
 
 const Sidebar = ({
   activeItem,
@@ -28,12 +29,12 @@ const Sidebar = ({
       {/* Logo + Mobile Close */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-[var(--sidebar-hover)]">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[var(--primary)] flex items-center justify-center text-black font-black text-sm shrink-0">
-            ID
+          <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
+            <img src={LogoImg} alt="JJ-Studio Logo" className="w-full h-full object-contain" />
           </div>
           <div>
-            <p className="text-[var(--sidebar-text)] font-bold text-sm leading-tight">InteriorDash</p>
-            <p className="text-[var(--sidebar-text-muted)] text-xs">CRM System</p>
+            <p className="text-[var(--sidebar-text)] font-bold text-sm leading-tight">JJ-Studio</p>
+            <p className="text-[var(--sidebar-text-muted)] text-xs">ERP System</p>
           </div>
         </div>
         <button

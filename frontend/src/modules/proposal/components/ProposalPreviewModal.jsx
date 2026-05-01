@@ -1,7 +1,7 @@
 import React from 'react';
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
-import { Printer } from 'lucide-react';
+import { Printer, Send } from 'lucide-react';
 
 const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
   if (!proposal) return null;
@@ -15,6 +15,16 @@ const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
   const handlePrint = () => {
     window.print();
   };
+
+  const { 
+    onSendApproval, 
+    onSendToClient, 
+    onApprove,
+    onReject,
+    onModify,
+    isManager = false, 
+    status = 'draft' 
+  } = proposal;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Proposal Preview" size="4xl">
@@ -180,10 +190,38 @@ const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
 
       <div className="flex justify-end pt-4 border-t border-[var(--border)] mt-6 gap-3">
         <Button variant="outline" onClick={onClose}>Close</Button>
-        <Button variant="primary" onClick={handlePrint}>
+        <Button variant="outline" onClick={handlePrint} className="border-[var(--border)]">
           <Printer size={18} />
           Print / PDF
         </Button>
+        
+        {onSendApproval && status === 'draft' && (
+          <Button variant="primary" onClick={onSendApproval}>
+            <Send size={18} />
+            Send for Approval
+          </Button>
+        )}
+
+        {isManager && status === 'pending_approval' && (
+          <>
+            <Button variant="outline" onClick={onModify} className="text-blue-500 border-blue-500 hover:bg-blue-50">
+              Modify
+            </Button>
+            <Button variant="outline" onClick={onReject} className="text-red-500 border-red-500 hover:bg-red-50">
+              Reject
+            </Button>
+            <Button variant="primary" onClick={onApprove} className="bg-green-600 hover:bg-green-700">
+              Approve
+            </Button>
+          </>
+        )}
+
+        {onSendToClient && status === 'manager_approved' && (
+          <Button variant="primary" onClick={onSendToClient}>
+            <Send size={18} />
+            Send to Client
+          </Button>
+        )}
       </div>
     </Modal>
   );

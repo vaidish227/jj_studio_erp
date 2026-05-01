@@ -13,3 +13,6 @@ export { default as StatusBadge } from './StatusBadge/StatusBadge';
 export { default as DashboardCard } from './DashboardCard/DashboardCard';
 export { default as SearchInput } from './SearchInput/SearchInput';
 export { default as ViewToggle } from './ViewToggle/ViewToggle';
+export { default as ProposalViewer } from './ProposalViewer/ProposalViewer';
+export { default as ActionBar } from './ActionBar/ActionBar.jsx';
+export { default as SectionCard } from './SectionCard/SectionCard';

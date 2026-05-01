@@ -39,14 +39,31 @@ const proposalSchema = new mongoose.Schema(
       type: String,
       enum: [
         "draft",
-        "pending_approval", // Added per requirements
+        "pending_approval", 
         "internal_approved",
         "manager_approved",
         "sent",
+        "esign_pending",
+        "signed",
         "client_approved",
         "rejected",
       ],
       default: "draft",
+    },
+
+    esignStatus: {
+      type: String,
+      enum: ["pending", "completed", "n/a"],
+      default: "pending",
+    },
+    esignSignedAt: Date,
+
+    advancePayment: {
+      amount: { type: Number, default: 0 },
+      paidBy: String,
+      paymentDate: Date,
+      paymentMethod: String, // cash, bank_transfer, cheque, etc.
+      remarks: String
     },
 
     subtotal: {
@@ -83,6 +100,20 @@ const proposalSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    approvalHistory: [
+      {
+        action: String, // approved, rejected, modified, sent
+        performedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User"
+        },
+        remarks: String,
+        timestamp: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
   },
   { timestamps: true }
 );

@@ -25,6 +25,17 @@ const statusVariants = {
   proposal_sent: 'success',
   converted: 'success',
   lost: 'error',
+  // Proposal statuses
+  draft: 'default',
+  pending_approval: 'warning',
+  manager_approved: 'success',
+  rejected: 'error',
+  sent: 'primary',
+  esign_pending: 'warning',
+  signed: 'success',
+  // eSign specific statuses
+  pending: 'warning',
+  completed: 'success',
 };
 
 const StatusBadge = ({ value, type = 'status', className = '' }) => {

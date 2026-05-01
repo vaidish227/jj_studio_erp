@@ -22,6 +22,7 @@ import {
   ApprovedProposalsPage,
   CreateProposalPage,
   TemplateEditorPage,
+  ReviewPage,
 } from './modules/proposal';
 import { CRMProvider } from './modules/crm/context/CRMContext';
 import AppLayout from './shared/layouts/AppLayout/AppLayout';
@@ -90,8 +91,8 @@ export default function App() {
               <Route path="clients" element={<ProposalClientsPage />} />
               <Route path="approval" element={<ProposalApprovalPage />} />
               <Route path="sent" element={<SentProposalsPage />} />
-              <Route path="esign" element={<ESignReceivedPage />} />
               <Route path="approved" element={<ApprovedProposalsPage />} />
+              <Route path="review/:id" element={<ReviewPage />} />
             </Route>
           </Route>
 
