@@ -3,7 +3,16 @@ import LeadListView from '../components/LeadListView';
 import useLeadList from '../hooks/useLeadList';
 
 const FollowUpsPage = () => {
-  const { leads, isLoading, error, statusSummary, searchTerm, setSearchTerm } = useLeadList({ lifecycleStage: 'followup_due' });
+  const { 
+    leads, 
+    isLoading, 
+    error, 
+    statusSummary, 
+    searchTerm, 
+    setSearchTerm,
+    projectFilter,
+    setProjectFilter 
+  } = useLeadList({ lifecycleStage: 'followup_due' });
 
   return (
     <LeadListView
@@ -15,6 +24,8 @@ const FollowUpsPage = () => {
       statusSummary={statusSummary}
       searchTerm={searchTerm}
       setSearchTerm={setSearchTerm}
+      projectFilter={projectFilter}
+      setProjectFilter={setProjectFilter}
       emptyMessage="No follow-ups pending."
       accentColor="var(--warning)"
     />

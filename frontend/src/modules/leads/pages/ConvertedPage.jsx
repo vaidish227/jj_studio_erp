@@ -3,7 +3,16 @@ import LeadListView from '../components/LeadListView';
 import useLeadList from '../hooks/useLeadList';
 
 const ConvertedPage = () => {
-  const { leads, isLoading, error, statusSummary, searchTerm, setSearchTerm } = useLeadList({ status: 'converted' });
+  const { 
+    leads, 
+    isLoading, 
+    error, 
+    statusSummary, 
+    searchTerm, 
+    setSearchTerm,
+    projectFilter,
+    setProjectFilter 
+  } = useLeadList({ status: 'converted' });
 
   return (
     <LeadListView
@@ -15,6 +24,8 @@ const ConvertedPage = () => {
       statusSummary={statusSummary}
       searchTerm={searchTerm}
       setSearchTerm={setSearchTerm}
+      projectFilter={projectFilter}
+      setProjectFilter={setProjectFilter}
       emptyMessage="No converted leads yet."
       accentColor="var(--success)"
     />

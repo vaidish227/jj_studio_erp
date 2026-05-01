@@ -89,12 +89,14 @@ const getLeads = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const status = req.query.status;
         const lifecycleStage = req.query.lifecycleStage;
+        const projectType = req.query.projectType;
 
         const skip = (page - 1) * limit;
 
         const query = {};
         if (status) query.status = status;
         if (lifecycleStage) query.lifecycleStage = lifecycleStage;
+        if (projectType) query.projectType = projectType;
 
         const leads = await Lead.find(query)
             .sort({ createdAt: -1 }) // latest first
