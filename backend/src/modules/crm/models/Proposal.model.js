@@ -20,9 +20,8 @@ const proposalSchema = new mongoose.Schema(
     boqId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "BOQ",
-      required: true,
+      required: false, // Making optional as we are moving to JSON content
     },
-
 
     title: {
       type: String,
@@ -31,10 +30,16 @@ const proposalSchema = new mongoose.Schema(
 
     description: String,
 
+    content: {
+      type: mongoose.Schema.Types.Mixed, // To store dynamic populated JSON structure
+      default: {},
+    },
+
     status: {
       type: String,
       enum: [
         "draft",
+        "pending_approval", // Added per requirements
         "internal_approved",
         "manager_approved",
         "sent",
@@ -44,8 +49,7 @@ const proposalSchema = new mongoose.Schema(
       default: "draft",
     },
 
-
-    totalAmount: {
+    subtotal: {
       type: Number,
       default: 0,
     },
@@ -55,21 +59,23 @@ const proposalSchema = new mongoose.Schema(
       default: 0,
     },
 
+    totalAmount: {
+      type: Number,
+      default: 0,
+    },
+
     finalAmount: {
       type: Number,
       default: 0,
     },
 
-
     sentAt: Date,
     approvedAt: Date,
-
 
     version: {
       type: Number,
       default: 1,
     },
-
 
     notes: String,
 

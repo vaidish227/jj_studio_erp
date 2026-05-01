@@ -101,7 +101,7 @@ const ProposalClientsPage = () => {
                   variant="primary" 
                   fullWidth 
                   className="py-3 text-[10px] font-black uppercase tracking-widest"
-                  onClick={() => navigate(`/crm/leads/${lead._id}`)}
+                  onClick={() => navigate(`/proposal/create?leadId=${lead._id}`)}
                 >
                   <FilePlus size={14} />
                   Draft Proposal
@@ -109,7 +109,7 @@ const ProposalClientsPage = () => {
                 <Button 
                   variant="outline" 
                   className="aspect-square p-0 w-12 flex items-center justify-center hover:bg-[var(--primary)] hover:text-black border-[var(--border)]"
-                  onClick={() => navigate(`/crm/leads/${lead._id}`)}
+                  onClick={() => navigate(`/proposal/create?leadId=${lead._id}`)}
                 >
                   <ArrowRight size={18} />
                 </Button>

@@ -20,6 +20,8 @@ import {
   SentProposalsPage,
   ESignReceivedPage,
   ApprovedProposalsPage,
+  CreateProposalPage,
+  TemplateEditorPage,
 } from './modules/proposal';
 import { CRMProvider } from './modules/crm/context/CRMContext';
 import AppLayout from './shared/layouts/AppLayout/AppLayout';
@@ -79,7 +81,12 @@ export default function App() {
             <Route path="/proposal">
               <Route index element={<ProposalDashboard />} />
               <Route path="list" element={<ProposalListPage />} />
-              <Route path="templates" element={<ProposalTemplatesPage />} />
+              <Route path="create" element={<CreateProposalPage />} />
+              <Route path="templates">
+                <Route index element={<ProposalTemplatesPage />} />
+                <Route path="create" element={<TemplateEditorPage />} />
+                <Route path="edit/:id" element={<TemplateEditorPage />} />
+              </Route>
               <Route path="clients" element={<ProposalClientsPage />} />
               <Route path="approval" element={<ProposalApprovalPage />} />
               <Route path="sent" element={<SentProposalsPage />} />

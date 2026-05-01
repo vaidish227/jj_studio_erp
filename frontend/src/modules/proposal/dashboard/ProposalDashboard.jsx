@@ -60,13 +60,13 @@ const ProposalDashboard = () => {
     const advance = proposals.filter(p => p.paymentReceived).length;
 
     return [
-      { title: 'Total Proposals', value: total, icon: FileText, color: 'bg-blue-500', path: '/proposal', percentage: 12 },
-      { title: 'Pending Approval', value: pending, icon: Clock, color: 'bg-orange-500', path: '/proposal/approval', percentage: -5 },
-      { title: 'Approved', value: approved, icon: CheckCircle2, color: 'bg-green-500', path: '/proposal/approved', percentage: 8 },
-      { title: 'Rejected', value: rejected, icon: XCircle, color: 'bg-red-500', path: '/proposal', percentage: -2 },
-      { title: 'Sent to Client', value: sent, icon: Send, color: 'bg-purple-500', path: '/proposal/sent', percentage: 15 },
-      { title: 'eSign Received', value: esign, icon: PenTool, color: 'bg-indigo-500', path: '/proposal/esign', percentage: 4 },
-      { title: 'Advance Received', value: advance, icon: CreditCard, color: 'bg-teal-500', path: '/proposal', percentage: 10 },
+      { title: 'Total Proposals', value: total, icon: FileText, color: 'blue', path: '/proposal', percentage: 12 },
+      { title: 'Pending Approval', value: pending, icon: Clock, color: 'orange', path: '/proposal/approval', percentage: -5 },
+      { title: 'Approved', value: approved, icon: CheckCircle2, color: 'green', path: '/proposal/approved', percentage: 8 },
+      { title: 'Rejected', value: rejected, icon: XCircle, color: 'red', path: '/proposal', percentage: -2 },
+      { title: 'Sent to Client', value: sent, icon: Send, color: 'purple', path: '/proposal/sent', percentage: 15 },
+      { title: 'eSign Received', value: esign, icon: PenTool, color: 'indigo', path: '/proposal/esign', percentage: 4 },
+      { title: 'Advance Received', value: advance, icon: CreditCard, color: 'teal', path: '/proposal', percentage: 10 },
     ];
   }, [proposals]);
 
@@ -119,7 +119,7 @@ const ProposalDashboard = () => {
       </div>
 
       {/* Middle Section: Status Tracker + Activities + Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-8 space-y-8">
           {/* Visual Status Flow */}
           <div className="space-y-4">
@@ -153,8 +153,11 @@ const ProposalDashboard = () => {
                 >
                   <option value="all">All Status</option>
                   <option value="draft">Draft</option>
-                  <option value="sent">Sent</option>
-                  <option value="approved">Approved</option>
+                  <option value="pending_approval">Pending Approval</option>
+                  <option value="manager_approved">Manager Approved</option>
+                  <option value="sent">Sent to Client</option>
+                  <option value="client_approved">Client Approved</option>
+                  <option value="rejected">Rejected</option>
                 </select>
               </div>
             </div>
@@ -322,8 +325,11 @@ const ReadyForProposalLeads = () => {
 const ProposalStatusBadge = ({ status }) => {
   const configs = {
     draft: { color: 'text-orange-500', bg: 'bg-orange-500/10', label: 'Draft' },
+    pending_approval: { color: 'text-yellow-600', bg: 'bg-yellow-500/10', label: 'Pending Approval' },
+    internal_approved: { color: 'text-teal-500', bg: 'bg-teal-500/10', label: 'Internal Approved' },
+    manager_approved: { color: 'text-green-500', bg: 'bg-green-500/10', label: 'Manager Approved' },
     sent: { color: 'text-blue-500', bg: 'bg-blue-500/10', label: 'Sent' },
-    approved: { color: 'text-green-500', bg: 'bg-green-500/10', label: 'Approved' },
+    client_approved: { color: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Client Approved' },
     rejected: { color: 'text-red-500', bg: 'bg-red-500/10', label: 'Rejected' },
     signed: { color: 'text-indigo-500', bg: 'bg-indigo-500/10', label: 'Signed' },
   };

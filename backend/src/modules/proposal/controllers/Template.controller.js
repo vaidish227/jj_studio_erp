@@ -2,7 +2,7 @@
 const Template = require("../models/Template.model")
 const createTemplate = async (req, res) => {
   try {
-    const { name, type, description } = req.body;
+    const { name, type, description, structure } = req.body;
 
     // validation
     if (!name || !type) {
@@ -23,6 +23,7 @@ const createTemplate = async (req, res) => {
       name,
       type,
       description,
+      structure: structure || { columns: [], rows: [] },
     });
 
     res.status(201).json({
@@ -90,7 +91,7 @@ const updateTemplate = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const allowedFields = ["name", "type", "description"];
+    const allowedFields = ["name", "type", "description", "structure"];
     const updateData = {};
 
     allowedFields.forEach((field) => {

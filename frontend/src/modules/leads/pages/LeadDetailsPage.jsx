@@ -581,7 +581,7 @@ const LeadDetailsPage = () => {
                   variant="primary" 
                   fullWidth 
                   className="py-4 shadow-lg shadow-[var(--primary)]/20"
-                  onClick={() => navigate(`/proposal/list?leadId=${id}`)}
+                  onClick={() => navigate(`/proposal/create?leadId=${id}`)}
                 >
                   Proceed to Proposal Module
                   <ArrowLeft size={16} className="rotate-180" />

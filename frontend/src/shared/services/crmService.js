@@ -50,4 +50,14 @@ export const crmService = {
   updateProposalStatus: (id, status) =>
     apiClient.patch(`/proposal/updatestatus/${id}`, { status }),
   sendProposal: (id) => apiClient.post(`/proposal/send/${id}`),
+
+  // --- Templates ---
+  createTemplate: (data) => apiClient.post('/Template/create', data),
+  getTemplates: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient.get(`/Template/get${query ? `?${query}` : ''}`);
+  },
+  getTemplateById: (id) => apiClient.get(`/Template/getbyid/${id}`),
+  updateTemplate: (id, data) => apiClient.put(`/Template/update/${id}`, data),
+  deleteTemplate: (id) => apiClient.delete(`/Template/delete/${id}`),
 };

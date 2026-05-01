@@ -6,19 +6,12 @@ require("dotenv").config();
 //  CREATE PROPOSAL
 const createProposal = async (req, res) => {
   try {
-    const { leadId, items } = req.body;
+    const { leadId, templateId, title, description, content, subtotal, gst, finalAmount, status } = req.body;
 
     // LeadId check
     if (!leadId) {
       return res.status(400).json({
         message: "Lead ID is required",
-      });
-    }
-
-    // Items check
-    if (!items || items.length === 0) {
-      return res.status(400).json({
-        message: "Items are required",
       });
     }
 
@@ -31,45 +24,36 @@ const createProposal = async (req, res) => {
       });
     }
 
-    //  calculate amounts
-    let totalAmount = 0;
-
-    const updatedItems = items.map((item) => {
-      const amount = item.qty * item.rate;
-      totalAmount += amount;
-
-      return {
-        ...item,
-        amount,
-      };
-    });
-
-    const gst = totalAmount * 0.18;
-    const finalAmount = totalAmount + gst;
-
     //  create proposal with BOTH IDs
     const proposal = await Proposal.create({
-      ...req.body,
       leadId: lead._id,
       clientId: lead.clientId,
-      items: updatedItems,
-      totalAmount,
-      gst,
-      finalAmount,
+      templateId,
+      title: title || "New Proposal",
+      description,
+      content,
+      subtotal: subtotal || 0,
+      totalAmount: subtotal || 0, // Using totalAmount to store subtotal per schema or finalAmount based on old code
+      gst: gst || 0,
+      finalAmount: finalAmount || 0,
+      status: status || "draft",
+      createdBy: req.user ? req.user.id : null,
     });
 
-    lead.status = "proposal_sent";
-    lead.lifecycleStage = "proposal_sent";
-    lead.interactionHistory = Array.isArray(lead.interactionHistory)
-      ? lead.interactionHistory
-      : [];
-    lead.interactionHistory.push({
-      type: "proposal",
-      title: "Proposal created",
-      description: "A new proposal was generated for this lead.",
-      createdAt: new Date(),
-    });
-    await lead.save();
+    if (status && status !== "draft") {
+      lead.status = "proposal_sent";
+      lead.lifecycleStage = "proposal_sent";
+      lead.interactionHistory = Array.isArray(lead.interactionHistory)
+        ? lead.interactionHistory
+        : [];
+      lead.interactionHistory.push({
+        type: "proposal",
+        title: "Proposal created",
+        description: `A new proposal was generated with status: ${status}`,
+        createdAt: new Date(),
+      });
+      await lead.save();
+    }
 
     console.log("Proposal created:", proposal._id);
 
@@ -219,36 +203,17 @@ const updateProposal = async (req, res) => {
       });
     }
 
-    const { items } = req.body;
-
-    let totalAmount = 0;
-
-    let updatedItems = proposal.items;
-
-    //  recalculate if items updated
-    if (items && items.length > 0) {
-      updatedItems = items.map((item) => {
-        const amount = item.qty * item.rate;
-        totalAmount += amount;
-
-        return {
-          ...item,
-          amount,
-        };
-      });
-    } else {
-      totalAmount = proposal.totalAmount;
-    }
-
-    const gst = totalAmount * 0.18;
-    const finalAmount = totalAmount + gst;
+    const { title, description, content, subtotal, gst, finalAmount, status } = req.body;
 
     Object.assign(proposal, {
-      ...req.body,
-      items: updatedItems,
-      totalAmount,
-      gst,
-      finalAmount,
+      title: title || proposal.title,
+      description: description !== undefined ? description : proposal.description,
+      content: content || proposal.content,
+      subtotal: subtotal !== undefined ? subtotal : proposal.subtotal,
+      totalAmount: subtotal !== undefined ? subtotal : proposal.totalAmount, // Using totalAmount per schema mapping
+      gst: gst !== undefined ? gst : proposal.gst,
+      finalAmount: finalAmount !== undefined ? finalAmount : proposal.finalAmount,
+      status: status || proposal.status,
     });
 
     await proposal.save();

@@ -53,9 +53,10 @@ export const NAV_ITEMS = [
     label: 'Proposal & Quotation System',
     icon: FileText,
     children: [
-      { id: 'proposal-list', label: 'Proposal', path: '/proposal' },
-      { id: 'proposal-templates', label: 'Quotation Template', path: '/proposal/templates' },
+      { id: 'proposal-list', label: 'Proposal Dashboard', path: '/proposal' },
+      { id: 'proposal-create', label: 'Create Proposal', path: '/proposal/create' },
       { id: 'proposal-clients', label: 'Client List', path: '/proposal/clients' },
+      { id: 'proposal-templates', label: 'Quotation Template', path: '/proposal/templates' },
       { id: 'proposal-approval', label: 'Manager Approval', path: '/proposal/approval' },
       { id: 'proposal-sent', label: 'Sent Proposal', path: '/proposal/sent' },
       { id: 'proposal-esign', label: 'eSign Received', path: '/proposal/esign' },

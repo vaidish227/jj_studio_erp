@@ -6,3 +6,5 @@ export { default as ProposalApprovalPage } from './pages/ProposalApprovalPage';
 export { default as SentProposalsPage } from './pages/SentProposalsPage';
 export { default as ESignReceivedPage } from './pages/ESignReceivedPage';
 export { default as ApprovedProposalsPage } from './pages/ApprovedProposalsPage';
+export { default as CreateProposalPage } from './pages/CreateProposalPage';
+export { default as TemplateEditorPage } from './pages/TemplateEditorPage';
