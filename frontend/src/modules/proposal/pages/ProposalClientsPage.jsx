@@ -34,13 +34,13 @@ const ProposalClientsPage = () => {
   }, []);
 
   const filteredLeads = leads.filter(lead => {
-    const matchesSearch = 
+    const matchesSearch =
       lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.phone?.includes(searchTerm);
-    
+
     const matchesFilter = projectFilter === 'All' || lead.projectType === projectFilter;
-    
+
     return matchesSearch && matchesFilter;
   });
 
@@ -77,11 +77,10 @@ const ProposalClientsPage = () => {
             <button
               key={type}
               onClick={() => setProjectFilter(type)}
-              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                projectFilter === type
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${projectFilter === type
                   ? 'bg-[var(--primary)] text-black shadow-lg shadow-[var(--primary)]/20'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
-              }`}
+                }`}
             >
               {type}
             </button>
@@ -97,8 +96,8 @@ const ProposalClientsPage = () => {
       ) : filteredLeads.length > 0 ? (
         <div className="space-y-4">
           {filteredLeads.map((lead) => (
-            <div 
-              key={lead._id} 
+            <div
+              key={lead._id}
               className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md hover:shadow-black/5 transition-all duration-200 group cursor-pointer"
               onClick={() => navigate(`/proposal/create?leadId=${lead._id}`)}
             >
@@ -139,8 +138,8 @@ const ProposalClientsPage = () => {
 
               {/* Action Buttons - User wants these smaller */}
               <div className="flex items-center gap-2 shrink-0">
-                <Button 
-                  variant="primary" 
+                <Button
+                  variant="primary"
                   className="h-8 px-3 text-[9px] font-black uppercase tracking-widest"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -150,8 +149,8 @@ const ProposalClientsPage = () => {
                   <FilePlus size={12} />
                   Draft Proposal
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   className="aspect-square !p-0 w-8 h-8 flex items-center justify-center hover:bg-[var(--primary)] hover:text-black border-[var(--border)]"
                   onClick={(e) => {
@@ -174,8 +173,8 @@ const ProposalClientsPage = () => {
           <p className="text-[var(--text-muted)] max-w-sm mx-auto mt-2 font-medium">
             Leads marked as "Interested" in the CRM will automatically appear here for proposal generation.
           </p>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="mt-8"
             onClick={() => navigate('/crm/leads')}
           >
