@@ -21,6 +21,7 @@ const useLeadList = (filters = {}) => {
 
   const serializedFilters = JSON.stringify(filters);
   const searchTerm = searchParams.get('q') || '';
+  const projectFilter = searchParams.get('type') || 'All';
 
   const setSearchTerm = useCallback((value) => {
     const next = new URLSearchParams(searchParams);
@@ -28,6 +29,16 @@ const useLeadList = (filters = {}) => {
       next.set('q', value);
     } else {
       next.delete('q');
+    }
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const setProjectFilter = useCallback((value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value && value !== 'All') {
+      next.set('type', value);
+    } else {
+      next.delete('type');
     }
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
@@ -67,12 +78,18 @@ const useLeadList = (filters = {}) => {
   }, [fetchLeads]);
 
   const filteredLeads = useMemo(() => leads.filter(
-    (lead) =>
-      lead.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.phone?.includes(searchTerm) ||
-      lead.projectType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.city?.toLowerCase().includes(searchTerm.toLowerCase())
-  ), [leads, searchTerm]);
+    (lead) => {
+      const matchesSearch = 
+        lead.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.phone?.includes(searchTerm) ||
+        lead.projectType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.city?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesFilter = projectFilter === 'All' || lead.projectType === projectFilter;
+      
+      return matchesSearch && matchesFilter;
+    }
+  ), [leads, searchTerm, projectFilter]);
 
   return {
     leads: filteredLeads,
@@ -82,6 +99,8 @@ const useLeadList = (filters = {}) => {
     statusSummary,
     searchTerm,
     setSearchTerm,
+    projectFilter,
+    setProjectFilter,
     refresh: fetchLeads,
   };
 };

@@ -9,13 +9,17 @@ const priorityConfig = {
   low:    { label: 'Low Priority',    dot: 'bg-[var(--success)]', text: 'text-[var(--success)]' },
 };
 
-const LeadCard = ({ lead, onMenuClick }) => {
+const LeadCard = ({ lead, onMenuClick, onClick }) => {
   const navigate = useNavigate();
   const { _id, id, name, phone, city, project, date, status = 'NEW', priority = 'medium' } = lead;
   const prio = priorityConfig[priority] ?? priorityConfig.medium;
 
   const handleCardClick = () => {
-    navigate(`/crm/leads/${_id || id}`);
+    if (onClick) {
+      onClick();
+    } else {
+      navigate(`/crm/leads/${_id || id}`);
+    }
   };
 
   return (

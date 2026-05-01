@@ -17,6 +17,9 @@ const LeadListView = ({
   statusSummary,
   searchTerm,
   setSearchTerm,
+  projectFilter = 'All',
+  setProjectFilter,
+  onCardClick,
   showAddButton = false,
   emptyMessage = 'No leads found.',
   accentColor = 'var(--primary)',
@@ -46,19 +49,39 @@ const LeadListView = ({
         )}
       </div>
 
-      {/* Search Bar */}
-      <div className="relative group">
-        <Search
-          size={18}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
-        />
-        <input
-          type="text"
-          placeholder="Search by name, phone, city, or project type..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all duration-200"
-        />
+      {/* Search & Filters */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative group flex-1">
+          <Search
+            size={18}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
+          />
+          <input
+            type="text"
+            placeholder="Search by name, phone, city, or project type..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all duration-200"
+          />
+        </div>
+
+        {setProjectFilter && (
+          <div className="flex items-center gap-1 bg-[var(--surface)] p-1 rounded-xl border border-[var(--border)] self-start">
+            {['All', 'Residential', 'Commercial'].map((type) => (
+              <button
+                key={type}
+                onClick={() => setProjectFilter(type)}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                  projectFilter === type
+                    ? 'bg-[var(--primary)] text-black shadow-sm'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {statusSummary && (
@@ -91,6 +114,7 @@ const LeadListView = ({
           leads.map((lead) => (
             <LeadCard
               key={lead._id || lead.id}
+              onClick={onCardClick ? () => onCardClick(lead) : undefined}
               lead={{
                 ...lead,
                 project: lead.projectType,

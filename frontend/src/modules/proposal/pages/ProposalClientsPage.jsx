@@ -1,25 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Search, Loader2, FilePlus, Phone, Mail, ArrowRight } from 'lucide-react';
+import { Users, Search, Loader2, FilePlus, Phone, Mail, ArrowRight, MapPin, CalendarDays, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { crmService } from '../../../shared/services/crmService';
-import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
 import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
+import Avatar from '../../../shared/components/Avatar/Avatar';
 
 const ProposalClientsPage = () => {
   const navigate = useNavigate();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [projectFilter, setProjectFilter] = useState('All');
 
   const fetchInterestedLeads = async () => {
     setLoading(true);
+    setError('');
     try {
       // Pull leads who are marked as Interested or have a proposal sent
-      const response = await crmService.getLeads({ lifecycleStage: 'interested' });
+      const response = await crmService.getLeads({ lifecycleStage: 'interested', limit: 100 });
       setLeads(response.leads || []);
     } catch (err) {
       console.error('Failed to fetch proposal clients', err);
+      setError('Failed to fetch clients from CRM.');
     } finally {
       setLoading(false);
     }
@@ -29,11 +33,16 @@ const ProposalClientsPage = () => {
     fetchInterestedLeads();
   }, []);
 
-  const filteredLeads = leads.filter(lead => 
-    lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.phone?.includes(searchTerm)
-  );
+  const filteredLeads = leads.filter(lead => {
+    const matchesSearch = 
+      lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.phone?.includes(searchTerm);
+    
+    const matchesFilter = projectFilter === 'All' || lead.projectType === projectFilter;
+    
+    return matchesSearch && matchesFilter;
+  });
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
@@ -48,18 +57,36 @@ const ProposalClientsPage = () => {
         <Button variant="outline" onClick={fetchInterestedLeads}>Refresh Data</Button>
       </div>
 
-      <div className="relative group max-w-2xl">
-        <Search
-          size={18}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
-        />
-        <input
-          type="text"
-          placeholder="Search by name, email or phone..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-11 pr-4 py-4 text-sm rounded-2xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all shadow-sm"
-        />
+      <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
+        <div className="relative group w-full max-w-2xl">
+          <Search
+            size={18}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
+          />
+          <input
+            type="text"
+            placeholder="Search by name, email or phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-11 pr-4 py-4 text-sm rounded-2xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all shadow-sm"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 bg-[var(--surface)] p-1.5 rounded-2xl border border-[var(--border)]">
+          {['All', 'Residential', 'Commercial'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setProjectFilter(type)}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                projectFilter === type
+                  ? 'bg-[var(--primary)] text-black shadow-lg shadow-[var(--primary)]/20'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
+              }`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -68,53 +95,74 @@ const ProposalClientsPage = () => {
           <p className="text-sm font-bold uppercase tracking-widest">Syncing with CRM...</p>
         </div>
       ) : filteredLeads.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="space-y-4">
           {filteredLeads.map((lead) => (
-            <Card key={lead._id} className="p-0 overflow-hidden border-none shadow-xl shadow-black/5 hover:shadow-2xl hover:shadow-[var(--primary)]/5 transition-all group">
-              <div className="p-6 space-y-4">
-                <div className="flex justify-between items-start">
-                  <div className="w-12 h-12 rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-black text-xl">
-                    {lead.name.charAt(0)}
-                  </div>
-                  <StatusBadge value={lead.lifecycleStage} type="lifecycle" />
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-black text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors">{lead.name}</h3>
-                  <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-wider mt-0.5">{lead.projectType || 'Standard Project'}</p>
-                </div>
+            <div 
+              key={lead._id} 
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md hover:shadow-black/5 transition-all duration-200 group cursor-pointer"
+              onClick={() => navigate(`/proposal/create?leadId=${lead._id}`)}
+            >
+              {/* Avatar - matches LeadCard */}
+              <Avatar
+                name={lead.name}
+                size="lg"
+                className="bg-[var(--primary)]/20 text-[var(--primary)] font-bold shrink-0"
+              />
 
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
-                    <Phone size={14} className="text-[var(--text-muted)]" />
-                    <span className="font-medium">{lead.phone || 'No phone'}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
-                    <Mail size={14} className="text-[var(--text-muted)]" />
-                    <span className="font-medium truncate">{lead.email || 'No email'}</span>
-                  </div>
+              {/* Name / Phone / City - matches LeadCard */}
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-base font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors">{lead.name}</p>
+                <div className="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
+                  <Phone size={13} className="shrink-0" />
+                  <span>{lead.phone}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
+                  <MapPin size={13} className="shrink-0" />
+                  <span>{lead.city || 'No location'}</span>
                 </div>
               </div>
 
-              <div className="p-4 bg-[var(--bg)]/50 border-t border-[var(--border)] flex gap-2">
+              {/* Project box - matches LeadCard */}
+              <div className="flex items-center gap-2.5 bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2.5 sm:w-56 shrink-0">
+                <Building2 size={18} className="text-[var(--text-muted)] shrink-0" />
+                <span className="text-sm text-[var(--text-secondary)] leading-snug line-clamp-2">{lead.projectType}</span>
+              </div>
+
+              {/* Date + Status - matches LeadCard */}
+              <div className="flex flex-col items-start sm:items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
+                  <CalendarDays size={14} className="shrink-0" />
+                  <span>{new Date(lead.createdAt).toLocaleDateString()}</span>
+                </div>
+                <StatusBadge value={lead.lifecycleStage} type="lifecycle" />
+              </div>
+
+              {/* Action Buttons - User wants these smaller */}
+              <div className="flex items-center gap-2 shrink-0">
                 <Button 
                   variant="primary" 
-                  fullWidth 
-                  className="py-3 text-[10px] font-black uppercase tracking-widest"
-                  onClick={() => navigate(`/proposal/create?leadId=${lead._id}`)}
+                  className="h-8 px-3 text-[9px] font-black uppercase tracking-widest"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/proposal/create?leadId=${lead._id}`);
+                  }}
                 >
-                  <FilePlus size={14} />
+                  <FilePlus size={12} />
                   Draft Proposal
                 </Button>
                 <Button 
                   variant="outline" 
-                  className="aspect-square p-0 w-12 flex items-center justify-center hover:bg-[var(--primary)] hover:text-black border-[var(--border)]"
-                  onClick={() => navigate(`/proposal/create?leadId=${lead._id}`)}
+                  size="sm"
+                  className="aspect-square !p-0 w-8 h-8 flex items-center justify-center hover:bg-[var(--primary)] hover:text-black border-[var(--border)]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/proposal/create?leadId=${lead._id}`);
+                  }}
                 >
-                  <ArrowRight size={18} />
+                  <ArrowRight size={14} className="text-[var(--text-primary)] group-hover:text-black transition-colors" />
                 </Button>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       ) : (
