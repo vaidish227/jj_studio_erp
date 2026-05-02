@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Send, Save, Eye, FileText, CheckCircle, Plus, Trash2, LayoutTemplate, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Send, Save, Eye, FileText, CheckCircle, Plus, Trash2, LayoutTemplate } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
 import Select from '../../../shared/components/Select/Select';
 import DynamicTableBuilder from '../../../shared/components/DynamicTableBuilder/DynamicTableBuilder';
 import { crmService } from '../../../shared/services/crmService';
+// import ProposalPreviewModal from '../components/ProposalPreviewModal';
+import { useToast } from '../../../shared/notifications/ToastProvider';
+import { Loader } from '../../../shared/components';
 
 const GST_RATE = 0.18; // 18% GST
 
@@ -13,14 +16,12 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 
 const CreateProposalPage = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
   const leadIdParam = searchParams.get('leadId');
 
-  const proposalId = searchParams.get('id');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   // Data sources
   const [leads, setLeads] = useState([]);
@@ -29,10 +30,16 @@ const CreateProposalPage = () => {
   // Selections & form state
   const [selectedLeadId, setSelectedLeadId] = useState(leadIdParam || '');
   const [proposalTitle, setProposalTitle] = useState('');
-  const [proposalStatus, setProposalStatus] = useState('draft');
-  
+
   // Array of sections instead of a single structure
   const [sections, setSections] = useState([]);
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  // Deriving the selected client object for the preview modal
+  const selectedClient = useMemo(() => {
+    return leads.find(l => l._id === selectedLeadId) || {};
+  }, [leads, selectedLeadId]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -42,36 +49,34 @@ const CreateProposalPage = () => {
           crmService.getLeads({ lifecycleStage: 'interested' }),
           crmService.getTemplates()
         ]);
-        
+
         setLeads(leadsRes?.leads || []);
         setTemplates(templatesRes?.data || []);
 
+        // If editing existing proposal
+        const proposalId = searchParams.get('id');
         if (proposalId) {
           const res = await crmService.getProposalById(proposalId);
-          if (res?.proposal) {
-            const p = res.proposal;
-            setSelectedLeadId(p.leadId?._id || p.leadId);
-            setProposalTitle(p.title);
-            setProposalStatus(p.status);
-            setSections(p.content?.sections || []);
-          }
+          const p = res.proposal;
+          setSelectedLeadId(p.leadId?._id || p.leadId || '');
+          setProposalTitle(p.title || '');
+          setSections(p.content?.sections || []);
         }
       } catch (err) {
-        console.error('Failed to fetch initial data:', err);
-        setError('Failed to load data.');
+        toast.error('Failed to load proposal data.');
       } finally {
         setLoading(false);
       }
     };
     fetchInitialData();
-  }, [proposalId]);
+  }, [searchParams]);
 
   const addTemplateSection = (templateId) => {
     if (!templateId) return;
     const template = templates.find(t => t._id === templateId);
     if (template && template.structure) {
       setSections(prev => [
-        ...prev, 
+        ...prev,
         {
           id: generateId(),
           title: template.name,
@@ -99,13 +104,13 @@ const CreateProposalPage = () => {
   };
 
   const updateSectionStructure = (id, newStructure) => {
-    setSections(prev => prev.map(s => 
+    setSections(prev => prev.map(s =>
       s.id === id ? { ...s, structure: newStructure } : s
     ));
   };
 
   const updateSectionTitle = (id, newTitle) => {
-    setSections(prev => prev.map(s => 
+    setSections(prev => prev.map(s =>
       s.id === id ? { ...s, title: newTitle } : s
     ));
   };
@@ -113,11 +118,11 @@ const CreateProposalPage = () => {
   // Auto-calculate totals across ALL sections
   const { subtotal, gst, finalAmount } = useMemo(() => {
     let calculatedSubtotal = 0;
-    
+
     sections.forEach(section => {
       section.structure.rows.forEach(row => {
         if (row.isGroupHeader) return;
-        
+
         let amount = 0;
         let qty = 1;
         let rate = 0;
@@ -140,7 +145,7 @@ const CreateProposalPage = () => {
         if (!amountFound) {
           amount = qty * rate;
         }
-        
+
         calculatedSubtotal += amount;
       });
     });
@@ -157,24 +162,23 @@ const CreateProposalPage = () => {
 
   const handleSave = async (status = 'draft') => {
     if (!selectedLeadId) {
-      setError('Please select a client (lead).');
+      toast.error('Please select a client (lead).');
       return;
     }
     if (sections.length === 0) {
-      setError('Please add at least one template or custom table.');
+      toast.error('Please add at least one template or custom table.');
       return;
     }
     if (!proposalTitle.trim()) {
-      setError('Please enter a proposal title.');
+      toast.error('Please enter a proposal title.');
       return;
     }
 
     setSaving(status);
-    setError('');
-    
+
     try {
       const selectedLead = leads.find(l => l._id === selectedLeadId);
-      
+
       if (selectedLead && !selectedLead.clientId) {
         await crmService.createClient({
           name: selectedLead.name,
@@ -195,23 +199,26 @@ const CreateProposalPage = () => {
         status
       };
 
+      let response;
+      const proposalId = searchParams.get('id');
+      
       if (proposalId) {
-        await crmService.updateProposal(proposalId, payload);
-        setSuccess('Proposal updated successfully!');
-        setTimeout(() => navigate(`/proposal/review/${proposalId}`), 1000);
+        response = await crmService.updateProposal(proposalId, payload);
       } else {
-        const res = await crmService.createProposal(payload);
-        const newId = res?.proposal?._id;
-        setSuccess('Proposal generated successfully!');
-        if (newId) {
-          setTimeout(() => navigate(`/proposal/review/${newId}`), 1000);
-        } else {
-          setTimeout(() => navigate('/proposal/dashboard'), 1000);
-        }
+        response = await crmService.createProposal(payload);
+      }
+
+      const finalId = proposalId || response?.proposal?._id || response?._id;
+      
+      toast.success(status === 'pending_approval' ? 'Proposal sent for approval!' : 'Proposal saved successfully!');
+      
+      if (finalId) {
+        navigate(`/proposal/review/${finalId}`);
+      } else {
+        navigate('/proposal/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save proposal.');
-      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to save proposal.');
     } finally {
       setSaving(false);
     }
@@ -235,20 +242,30 @@ const CreateProposalPage = () => {
             <p className="text-[var(--text-muted)] font-medium mt-1">Draft a new formal proposal for interested clients.</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => handleSave('draft')} isLoading={saving === 'draft'} className="border-[var(--border)]">
+          <Button 
+            variant="outline" 
+            onClick={() => handleSave('draft')} 
+            isLoading={saving === 'draft'} 
+            className="border-[var(--border)] font-bold"
+            disabled={sections.length === 0}
+          >
             <Save size={18} className="mr-2" /> Save Draft
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={() => handleSave('pending_approval')} 
+            isLoading={saving === 'pending_approval'} 
+            className="shadow-lg shadow-[var(--primary)]/20 font-bold"
+            disabled={sections.length === 0}
+          >
+            <Send size={18} className="mr-2" /> Send for Approval
           </Button>
         </div>
       </div>
 
-      {(error || success) && (
-        <div className={`p-4 rounded-xl border text-sm font-medium animate-in slide-in-from-top-2 flex items-center gap-2 ${error ? 'bg-[var(--error)]/10 border-[var(--error)] text-[var(--error)]' : 'bg-[var(--success)]/10 border-[var(--success)] text-[var(--success)]'}`}>
-          {success && <CheckCircle size={18} />}
-          {error || success}
-        </div>
-      )}
+      {loading && <Loader fullPage label="Syncing leads & templates..." />}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Left Side: Builder */}
@@ -260,7 +277,7 @@ const CreateProposalPage = () => {
               </div>
               <h2 className="text-lg font-black text-[var(--text-primary)] uppercase tracking-wide">Proposal Content</h2>
             </div>
-            
+
             <div className="mb-6">
               <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Proposal Title</label>
               <input
@@ -290,7 +307,7 @@ const CreateProposalPage = () => {
                           placeholder="Section Title"
                         />
                       </div>
-                      <button 
+                      <button
                         onClick={() => removeSection(section.id)}
                         className="p-2 text-[var(--text-muted)] hover:bg-[var(--error)]/10 hover:text-[var(--error)] rounded-xl transition-colors"
                         title="Remove Section"
@@ -298,10 +315,10 @@ const CreateProposalPage = () => {
                         <Trash2 size={18} />
                       </button>
                     </div>
-                    
-                    <DynamicTableBuilder 
-                      structure={section.structure} 
-                      onChange={(newStruct) => updateSectionStructure(section.id, newStruct)} 
+
+                    <DynamicTableBuilder
+                      structure={section.structure}
+                      onChange={(newStruct) => updateSectionStructure(section.id, newStruct)}
                     />
                   </div>
                 ))
@@ -314,7 +331,7 @@ const CreateProposalPage = () => {
         <div className="w-full lg:w-[380px] shrink-0 space-y-6 sticky top-6">
           <Card className="shadow-xl shadow-black/5 border-none p-6 bg-[var(--surface)]">
             <h3 className="text-lg font-black text-[var(--text-primary)] mb-6 uppercase tracking-wide border-b border-[var(--border)] pb-4">Settings</h3>
-            
+
             <div className="space-y-6">
               <Select
                 label="Select Client (Lead)"
@@ -325,7 +342,7 @@ const CreateProposalPage = () => {
 
               <div className="space-y-3 pt-4 border-t border-[var(--border)]">
                 <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Add Content</label>
-                
+
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <select
@@ -366,10 +383,11 @@ const CreateProposalPage = () => {
               </div>
             </div>
 
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               className="w-full mt-8 py-4 text-sm font-bold shadow-lg shadow-[var(--primary)]/20"
               onClick={() => handleSave('draft')}
+              isLoading={saving === 'draft'}
               disabled={sections.length === 0 || !selectedLeadId}
             >
               Generate Proposal
@@ -378,6 +396,7 @@ const CreateProposalPage = () => {
         </div>
       </div>
 
+      {/* Modal removed as per requirements - using full-page review instead */}
     </div>
   );
 };

@@ -1,11 +1,25 @@
-export { default as ProposalListPage } from './pages/ProposalListPage';
-export { default as ProposalDashboard } from './dashboard/ProposalDashboard';
-export { default as ProposalTemplatesPage } from './pages/ProposalTemplatesPage';
-export { default as ProposalClientsPage } from './pages/ProposalClientsPage';
-export { default as ProposalApprovalPage } from './pages/ProposalApprovalPage';
-export { default as SentProposalsPage } from './sent/SentProposalDashboard';
-export { default as ESignReceivedPage } from './pages/ESignReceivedPage';
-export { default as ApprovedProposalsPage } from './pages/ApprovedProposalsPage';
-export { default as CreateProposalPage } from './pages/CreateProposalPage';
-export { default as TemplateEditorPage } from './pages/TemplateEditorPage';
-export { default as ReviewPage } from './review/ReviewPage';
+import ProposalDashboard from './dashboard/ProposalDashboard';
+import CreateProposalPage from './pages/CreateProposalPage';
+import ProposalListPage from './pages/ProposalListPage';
+import TemplateEditorPage from './pages/TemplateEditorPage';
+import ProposalTemplatesPage from './pages/ProposalTemplatesPage';
+import ProposalClientsPage from './pages/ProposalClientsPage';
+import ApprovalDashboard from './approval/ApprovalDashboard';
+import ReviewPage from './review/ReviewPage';
+import SentProposalDashboard from './sent/SentProposalDashboard';
+import SentProposalReviewPage from './sent/SentProposalReviewPage';
+import ApprovedDashboard from './approved/ApprovedDashboard';
+
+export {
+  ProposalDashboard,
+  CreateProposalPage,
+  ProposalListPage,
+  TemplateEditorPage,
+  ProposalTemplatesPage,
+  ProposalClientsPage,
+  ApprovalDashboard as ProposalApprovalPage,
+  ReviewPage as ProposalReviewPage,
+  SentProposalDashboard,
+  SentProposalReviewPage,
+  ApprovedDashboard
+};

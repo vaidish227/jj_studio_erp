@@ -39,14 +39,14 @@ const proposalSchema = new mongoose.Schema(
       type: String,
       enum: [
         "draft",
-        "pending_approval", 
-        "internal_approved",
+        "pending_approval",
         "manager_approved",
         "sent",
-        "esign_pending",
-        "signed",
-        "client_approved",
+        "esign_received",
+        "payment_received",
+        "project_ready",
         "rejected",
+        "project_started",
       ],
       default: "draft",
     },
@@ -58,12 +58,27 @@ const proposalSchema = new mongoose.Schema(
     },
     esignSignedAt: Date,
 
+    // New eSign tracking fields per requirements
+    esign: {
+      status: { type: String, enum: ["pending", "received"], default: "pending" },
+      signed_at: Date
+    },
+
     advancePayment: {
       amount: { type: Number, default: 0 },
       paidBy: String,
       paymentDate: Date,
       paymentMethod: String, // cash, bank_transfer, cheque, etc.
       remarks: String
+    },
+
+    // New payment tracking fields per requirements
+    payments: {
+      status: { type: String, enum: ["pending", "received"], default: "pending" },
+      amount: { type: Number, default: 0 },
+      received_at: Date,
+      method: { type: String, default: "cash" },
+      transactionRef: { type: String, default: "N/A" }
     },
 
     subtotal: {
@@ -88,6 +103,18 @@ const proposalSchema = new mongoose.Schema(
 
     sentAt: Date,
     approvedAt: Date,
+
+    // New approval tracking fields per requirements
+    approved_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    approved_at: Date,
+    rejected_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    rejection_reason: String,
 
     version: {
       type: Number,

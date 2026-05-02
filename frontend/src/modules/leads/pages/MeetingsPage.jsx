@@ -23,7 +23,8 @@ import Modal from '../../../shared/components/Modal/Modal';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Select from '../../../shared/components/Select/Select';
 import { crmService } from '../../../shared/services/crmService';
-import { DashboardCard, SearchInput, ViewToggle } from '../../../shared/components';
+import { DashboardCard, SearchInput, ViewToggle, Loader } from '../../../shared/components';
+import { useToast } from '../../../shared/notifications/ToastProvider';
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -35,6 +36,7 @@ const statusVariants = {
 
 const MeetingsPage = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
   const navbarQuery = searchParams.get('q') || '';
   const [localSearch, setLocalSearch] = useState('');
@@ -43,7 +45,6 @@ const MeetingsPage = () => {
   const [meetings, setMeetings] = useState([]);
   const [leads, setLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState(null);
@@ -54,42 +55,40 @@ const MeetingsPage = () => {
   const [meetingNotes, setMeetingNotes] = useState('');
   const [meetingStatus, setMeetingStatus] = useState('scheduled');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [actionError, setActionError] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-const fetchData = useCallback(async (isInitialLoad = false) => {
-  if (isInitialLoad) setIsLoading(true); // only first time
-  setError('');
+  const fetchData = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) setIsLoading(true); // only first time
+    
+    try {
+      const [meetingsRes, leadsRes] = await Promise.all([
+        crmService.getMeetings(),
+        crmService.getLeads({ limit: 100 }),
+      ]);
 
-  try {
-    const [meetingsRes, leadsRes] = await Promise.all([
-      crmService.getMeetings(),
-      crmService.getLeads({ limit: 100 }),
-    ]);
-
-    setMeetings(
-      (meetingsRes.meetings || []).sort(
-        (a, b) => new Date(b.date) - new Date(a.date)
-      )
-    );
-    setLeads(leadsRes.leads || []);
-  } catch {
-    setError('Failed to load meetings dashboard.');
-  } finally {
-    if (isInitialLoad) setIsLoading(false);
-  }
-}, []);
+      setMeetings(
+        (meetingsRes.meetings || []).sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
+        )
+      );
+      setLeads(leadsRes.leads || []);
+    } catch {
+      toast.error('Failed to load meetings dashboard.');
+    } finally {
+      if (isInitialLoad) setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-  fetchData(true); // initial load with loader
+    fetchData(true); // initial load with loader
 
-  const intervalId = setInterval(() => {
-    fetchData(false); // silent refresh
-  }, POLL_INTERVAL_MS);
+    const intervalId = setInterval(() => {
+      fetchData(false); // silent refresh
+    }, POLL_INTERVAL_MS);
 
-  return () => clearInterval(intervalId);
-}, [fetchData]);
+    return () => clearInterval(intervalId);
+  }, [fetchData]);
 
   const searchTerm = `${navbarQuery} ${localSearch}`.trim().toLowerCase();
 
@@ -163,25 +162,22 @@ const fetchData = useCallback(async (isInitialLoad = false) => {
     if (!selectedLead) return;
 
     setIsSubmitting(true);
-    setActionError('');
 
     try {
       await crmService.createMeeting({
         leadId: selectedLead,
-        date: `${meetingDate}T${meetingTime}`,
+        date: `${meetingDate}T${meetingTime}:00`,
         type: meetingType,
         notes: meetingNotes,
-        status: meetingStatus,
       });
-
-      setSelectedLead('');
-      setMeetingType('office');
-      setMeetingNotes('');
-      setMeetingStatus('scheduled');
-      setIsModalOpen(false);
+      toast.success('Meeting scheduled successfully!');
       fetchData();
+      setIsModalOpen(false);
+      // Reset form
+      setSelectedLead('');
+      setMeetingNotes('');
     } catch (err) {
-      setActionError(err || 'Failed to schedule meeting.');
+      toast.error(err?.message || 'Failed to schedule meeting.');
     } finally {
       setIsSubmitting(false);
     }
@@ -190,9 +186,10 @@ const fetchData = useCallback(async (isInitialLoad = false) => {
   const handleStatusUpdate = async (meetingId, status) => {
     try {
       await crmService.updateMeeting(meetingId, { status });
+      toast.success('Status updated successfully');
       fetchData();
     } catch {
-      setActionError('Failed to update meeting status.');
+      toast.error('Failed to update meeting status.');
     }
   };
 
@@ -211,7 +208,6 @@ const fetchData = useCallback(async (isInitialLoad = false) => {
     if (!selectedMeeting) return;
 
     setIsSubmitting(true);
-    setActionError('');
 
     try {
       await crmService.updateMeeting(selectedMeeting._id, {
@@ -227,73 +223,52 @@ const fetchData = useCallback(async (isInitialLoad = false) => {
       setMeetingType('office');
       setMeetingNotes('');
       setIsRescheduleModalOpen(false);
+      toast.success('Meeting rescheduled successfully!');
       fetchData();
     } catch (err) {
-      setActionError(err?.message || 'Failed to reschedule meeting.');
+      toast.error(err?.message || 'Failed to reschedule meeting.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-[var(--text-muted)]">
-        <Loader2 size={40} className="animate-spin mb-4 opacity-20" />
-        <p>Loading meetings dashboard...</p>
-      </div>
-    );
+    return <Loader label="Syncing your schedule..." />;
   }
 
   return (
     <div className="space-y-8 pb-10">
-      {(error || actionError) && (
-        <div className="space-y-3">
-          {error && (
-            <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)] animate-in fade-in duration-300">
-              {error}
-            </div>
-          )}
-          {actionError && (
-            <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)] animate-in fade-in duration-300">
-              {actionError}
-            </div>
-          )}
-        </div>
-      )}
-      <div className="flex flex-col gap-6">
-        {/* Header Row: Title on Left, Search + Toggle on Right */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Meetings</h1>
-            <p className="text-[var(--text-secondary)] font-medium">Schedule and manage client meetings in realtime.</p>
-          </div>
-
-          <div className="flex flex-col md:flex-row items-center gap-4 w-full lg:w-auto">
-            <SearchInput 
-              value={localSearch} 
-              onChange={setLocalSearch} 
-              placeholder="Search meetings..." 
-              className="w-full md:w-72"
-            />
-            <ViewToggle 
-              view={viewMode} 
-              onViewChange={setViewMode} 
-            />
-            <Button variant="primary" onClick={() => setIsModalOpen(true)} className="w-full md:w-auto px-6 whitespace-nowrap">
-              <Plus size={18} />
-              Schedule Meeting
-            </Button>
-          </div>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Meetings</h1>
+          <p className="text-[var(--text-secondary)] font-medium">Schedule and manage client meetings in realtime.</p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-          <DashboardCard title="Total Meetings" value={stats.total} icon={CalendarIcon} iconBg="bg-[var(--primary)]/10" compact />
-          <DashboardCard title="Scheduled" value={stats.scheduled} icon={Clock} iconBg="bg-[var(--accent-blue)]/10" compact />
-          <DashboardCard title="Completed" value={stats.completed} icon={CheckCircle2} iconBg="bg-[var(--success)]/10" compact />
-          <DashboardCard title="Cancelled" value={stats.cancelled} icon={XCircle} iconBg="bg-[var(--error)]/10" compact />
-          <DashboardCard title="On-Site" value={stats.site} icon={MapPin} iconBg="bg-[var(--warning)]/10" compact />
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full lg:w-auto">
+          <SearchInput
+            value={localSearch}
+            onChange={setLocalSearch}
+            placeholder="Search meetings..."
+            className="w-full md:w-72"
+          />
+          <ViewToggle
+            view={viewMode}
+            onViewChange={setViewMode}
+          />
+          <Button variant="primary" onClick={() => setIsModalOpen(true)} className="w-full md:w-auto px-6 whitespace-nowrap">
+            <Plus size={18} />
+            Schedule Meeting
+          </Button>
         </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <DashboardCard title="Total Meetings" value={stats.total} icon={CalendarIcon} iconBg="bg-[var(--primary)]/10" compact />
+        <DashboardCard title="Scheduled" value={stats.scheduled} icon={Clock} iconBg="bg-[var(--accent-blue)]/10" compact />
+        <DashboardCard title="Completed" value={stats.completed} icon={CheckCircle2} iconBg="bg-[var(--success)]/10" compact />
+        <DashboardCard title="Cancelled" value={stats.cancelled} icon={XCircle} iconBg="bg-[var(--error)]/10" compact />
+        <DashboardCard title="On-Site" value={stats.site} icon={MapPin} iconBg="bg-[var(--warning)]/10" compact />
       </div>
 
       <div className="flex items-center gap-2 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl w-fit">
@@ -515,8 +490,8 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule }) =
               <h3 className="text-xl font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors duration-300 tracking-tight">{lead.name || 'Unknown Lead'}</h3>
               <p className="text-sm text-[var(--text-muted)] font-semibold mt-0.5">{lead.projectType || 'Interior Project'} • {lead.city || 'Location'}</p>
             </div>
-            <Badge 
-              variant={statusVariants[meeting.status] || 'default'} 
+            <Badge
+              variant={statusVariants[meeting.status] || 'default'}
               className="uppercase text-[10px] font-black tracking-[0.1em] px-4 py-1.5 rounded-full border-none shadow-sm"
             >
               {meeting.status || 'scheduled'}

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Eye, 
-  Search, 
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Eye,
+  Search,
   Filter,
   FileText,
   Edit3,
@@ -22,9 +22,12 @@ import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
 import { crmService } from '../../../shared/services/crmService';
 import ApprovalFormModal from '../components/ApprovalFormModal';
+import { useToast } from '../../../shared/notifications/ToastProvider';
+import { Loader } from '../../../shared/components';
 
 const ProposalApprovalPage = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -65,10 +68,10 @@ const ProposalApprovalPage = () => {
     try {
       setLoading(true);
       await crmService.updateProposalStatus(targetProposal._id, { status, remarks });
+      toast.success('Proposal updated successfully');
       fetchProposals();
     } catch (err) {
-      console.error(`Failed to update proposal:`, err);
-      alert(`Failed to update proposal. Please try again.`);
+      toast.error('Failed to update proposal. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -76,21 +79,21 @@ const ProposalApprovalPage = () => {
 
   const filteredProposals = proposals
     .filter(p => {
-      const matchesSearch = 
+      const matchesSearch =
         p.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.clientId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.leadId?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-      
+
       const projectType = p.leadId?.projectType || p.clientId?.projectType || 'Residential';
       const matchesCategory = categoryFilter === 'all' || projectType.toLowerCase() === categoryFilter.toLowerCase();
-      
+
       return matchesSearch && matchesStatus && matchesCategory;
     })
     .sort((a, b) => {
       let valA, valB;
-      
+
       if (sortBy === 'name') {
         valA = (a.clientId?.name || a.leadId?.name || '').toLowerCase();
         valB = (b.clientId?.name || b.leadId?.name || '').toLowerCase();
@@ -106,7 +109,7 @@ const ProposalApprovalPage = () => {
 
   const handleBulkAction = async (action) => {
     if (!window.confirm(`Are you sure you want to ${action} ${selectedIds.length} proposals?`)) return;
-    
+
     let status = action;
     if (action === 'approve') status = 'manager_approved';
     if (action === 'reject') status = 'rejected';
@@ -134,7 +137,7 @@ const ProposalApprovalPage = () => {
   };
 
   const toggleSelect = (id) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
@@ -196,7 +199,7 @@ const ProposalApprovalPage = () => {
             <div>
               <p className="text-xs font-bold text-green-600 uppercase tracking-widest mb-1">Approved</p>
               <h3 className="text-3xl font-black text-[var(--text-primary)]">
-                 {proposals.filter(p => p.status === 'manager_approved').length}
+                {proposals.filter(p => p.status === 'manager_approved').length}
               </h3>
             </div>
             <div className="p-3 bg-green-500/20 rounded-xl text-green-600">
@@ -223,8 +226,8 @@ const ProposalApprovalPage = () => {
       <Card className="p-4 flex flex-col md:flex-row items-center gap-4 border-none shadow-sm">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Search by client or proposal title..."
             className="w-full pl-12 pr-4 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--primary)] transition-all font-medium"
             value={searchTerm}
@@ -235,7 +238,7 @@ const ProposalApprovalPage = () => {
           {/* Category Filter */}
           <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-xl">
             <span className="text-[10px] font-black text-[var(--text-muted)] uppercase">Type:</span>
-            <select 
+            <select
               className="bg-transparent text-sm font-bold outline-none"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -249,7 +252,7 @@ const ProposalApprovalPage = () => {
           {/* Status Filter */}
           <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-xl">
             <Filter size={16} className="text-[var(--text-muted)]" />
-            <select 
+            <select
               className="bg-transparent text-sm font-bold outline-none"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -265,7 +268,7 @@ const ProposalApprovalPage = () => {
           {/* Sorting */}
           <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-xl">
             <ArrowUpDown size={16} className="text-[var(--text-muted)]" />
-            <select 
+            <select
               className="bg-transparent text-sm font-bold outline-none"
               value={`${sortBy}-${sortOrder}`}
               onChange={(e) => {
@@ -282,7 +285,7 @@ const ProposalApprovalPage = () => {
           </div>
 
           {isFiltered && (
-            <button 
+            <button
               onClick={resetFilters}
               className="flex items-center gap-2 px-4 py-2 text-xs font-black text-red-500 hover:bg-red-50 rounded-xl transition-colors uppercase tracking-widest"
             >
@@ -404,39 +407,39 @@ const ProposalApprovalPage = () => {
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-2 transition-all duration-300">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           className="h-9 w-9 p-0 rounded-xl border-[var(--border)] hover:border-[var(--primary)] hover:text-[var(--primary)] shadow-sm bg-white transition-all hover:scale-110 active:scale-95"
                           onClick={() => navigate(`/proposal/review/${p._id}`)}
                           title="Quick View"
                         >
                           <Eye size={16} />
                         </Button>
-                        
+
                         {p.status === 'pending_approval' && (
                           <>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="h-9 w-9 p-0 rounded-xl border-[var(--border)] hover:border-blue-500 hover:text-blue-500 shadow-sm bg-white transition-all hover:scale-110 active:scale-95"
                               onClick={() => navigate(`/proposal/create?id=${p._id}`)}
                               title="Edit Proposal"
                             >
                               <Edit3 size={16} />
                             </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="h-9 w-9 p-0 rounded-xl border-[var(--border)] hover:border-red-500 hover:text-red-500 shadow-sm bg-white text-red-400 transition-all hover:scale-110 active:scale-95"
                               onClick={() => openActionModal(p, 'rejected')}
                               title="Reject with Reason"
                             >
                               <ThumbsDown size={16} />
                             </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="h-9 w-9 p-0 rounded-xl border-[var(--border)] hover:border-green-500 hover:text-green-500 shadow-sm bg-white text-green-500 transition-all hover:scale-110 active:scale-95"
                               onClick={() => openActionModal(p, 'manager_approved')}
                               title="Approve Proposal"
@@ -447,9 +450,9 @@ const ProposalApprovalPage = () => {
                         )}
 
                         {p.status === 'manager_approved' && (
-                          <Button 
-                            variant="primary" 
-                            size="sm" 
+                          <Button
+                            variant="primary"
+                            size="sm"
                             className="h-9 px-4 rounded-xl shadow-lg shadow-[var(--primary)]/20 text-xs font-black uppercase tracking-wider"
                             onClick={() => openActionModal(p, 'sent')}
                             title="Send to Client"
@@ -468,7 +471,7 @@ const ProposalApprovalPage = () => {
         </div>
       </Card>
 
-      <ApprovalFormModal 
+      <ApprovalFormModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         proposal={targetProposal}

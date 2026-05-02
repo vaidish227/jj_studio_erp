@@ -14,5 +14,7 @@ export { default as DashboardCard } from './DashboardCard/DashboardCard';
 export { default as SearchInput } from './SearchInput/SearchInput';
 export { default as ViewToggle } from './ViewToggle/ViewToggle';
 export { default as ProposalViewer } from './ProposalViewer/ProposalViewer';
-export { default as ActionBar } from './ActionBar/ActionBar.jsx';
+export { default as Loader } from './Loader/Loader';
+export { default as ConfirmationModal } from './ConfirmationModal/ConfirmationModal';
 export { default as SectionCard } from './SectionCard/SectionCard';
+export { default as ActionBar } from './ActionBar/ActionBar';

@@ -1,16 +1,17 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { 
-  FileText, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
-  Send, 
-  PenTool, 
+import {
+  FileText,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Send,
+  PenTool,
   CreditCard,
   Search,
   Filter,
   Loader2,
-  ChevronRight
+  ChevronRight,
+  Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
@@ -50,23 +51,21 @@ const ProposalDashboard = () => {
 
   const stats = useMemo(() => {
     const total = proposals.length;
-    const pending = proposals.filter(p => p.status === 'draft').length; // Assuming draft is pending approval
-    const approved = proposals.filter(p => p.status === 'approved').length;
+    const pending = proposals.filter(p => p.status === 'pending_approval').length;
+    const approved = proposals.filter(p => p.status === 'manager_approved').length;
     const rejected = proposals.filter(p => p.status === 'rejected').length;
     const sent = proposals.filter(p => p.status === 'sent').length;
-    
-    // Mocking these for now as they might not be in the basic status
-    const esign = proposals.filter(p => p.status === 'signed').length; 
-    const advance = proposals.filter(p => p.paymentReceived).length;
+    const esign = proposals.filter(p => p.status === 'esign_received').length;
+    const advance = proposals.filter(p => p.status === 'payment_received').length;
 
     return [
-      { title: 'Total Proposals', value: total, icon: FileText, color: 'blue', path: '/proposal', percentage: 12 },
-      { title: 'Pending Approval', value: pending, icon: Clock, color: 'orange', path: '/proposal/approval', percentage: -5 },
-      { title: 'Approved', value: approved, icon: CheckCircle2, color: 'green', path: '/proposal/approved', percentage: 8 },
-      { title: 'Rejected', value: rejected, icon: XCircle, color: 'red', path: '/proposal', percentage: -2 },
-      { title: 'Sent to Client', value: sent, icon: Send, color: 'purple', path: '/proposal/sent', percentage: 15 },
-      { title: 'eSign Received', value: esign, icon: PenTool, color: 'indigo', path: '/proposal/esign', percentage: 4 },
-      { title: 'Advance Received', value: advance, icon: CreditCard, color: 'teal', path: '/proposal', percentage: 10 },
+      { title: 'Total Proposals', value: total, icon: FileText, color: 'primary', path: '/proposal/list' },
+      { title: 'Pending Approval', value: pending, icon: Clock, color: 'warning', path: '/proposal/approval' },
+      { title: 'Approved', value: approved, icon: CheckCircle2, color: 'success', path: '/proposal/approved' },
+      { title: 'Rejected', value: rejected, icon: XCircle, color: 'error', path: '/proposal/list' },
+      { title: 'Sent to Client', value: sent, icon: Send, color: 'blue', path: '/proposal/sent' },
+      { title: 'eSign Received', value: esign, icon: PenTool, color: 'teal', path: '/proposal/sent' },
+      { title: 'Advance Paid', value: advance, icon: CreditCard, color: 'success', path: '/proposal/approved' },
     ];
   }, [proposals]);
 
@@ -79,13 +78,13 @@ const ProposalDashboard = () => {
 
   const filteredProposals = proposals
     .filter(p => {
-      const matchesSearch = 
+      const matchesSearch =
         p.clientId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.leadId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p._id.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-      
+
       return matchesSearch && matchesStatus;
     })
     .slice(0, 5); // Only show top 5 for preview
@@ -93,21 +92,14 @@ const ProposalDashboard = () => {
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">Proposal Dashboard</h1>
-          <p className="text-[var(--text-muted)] font-medium flex items-center gap-2">
-            Centralized tracking for all quotations and agreements
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] animate-pulse" />
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="border-l-4 border-[var(--primary)] pl-4">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Proposal Dashboard</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Centralized tracking for all quotations and agreements.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="hidden sm:flex" onClick={fetchDashboardData}>
-            Refresh Data
-          </Button>
-          <Button variant="primary" onClick={() => navigate('/proposal')}>
-            New Proposal
-          </Button>
+          <Button variant="outline" onClick={fetchDashboardData}>Refresh</Button>
+          <Button variant="primary" onClick={() => navigate('/proposal/create')}>+ New Proposal</Button>
         </div>
       </div>
 
@@ -122,31 +114,31 @@ const ProposalDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-8 space-y-8">
           {/* Visual Status Flow */}
-          <div className="space-y-4">
+          {/* <div className="space-y-4">
             <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
               Pipeline Health
               <span className="px-2 py-0.5 rounded-md bg-[var(--primary)]/10 text-[var(--primary)] text-[10px] font-black uppercase tracking-widest">Live</span>
             </h3>
             <StatusTracker currentStatus="sent" />
-          </div>
+          </div> */}
 
           {/* Proposal List Preview */}
           <Card padding="p-0" className="overflow-hidden border-none shadow-xl shadow-black/5 bg-[var(--surface)]">
             <div className="p-6 border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-[var(--surface)] to-[var(--bg)]/30">
               <h3 className="text-lg font-bold text-[var(--text-primary)]">Recent Proposals</h3>
-              
+
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Search..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9 pr-4 py-2 text-xs rounded-lg bg-[var(--bg)] border border-[var(--border)] focus:outline-none focus:border-[var(--primary)] w-40 sm:w-64 transition-all"
                   />
                 </div>
-                <select 
+                <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="px-3 py-2 text-xs rounded-lg bg-[var(--bg)] border border-[var(--border)] focus:outline-none focus:border-[var(--primary)]"
@@ -182,7 +174,11 @@ const ProposalDashboard = () => {
                     </tr>
                   ) : filteredProposals.length > 0 ? (
                     filteredProposals.map((p) => (
-                      <tr key={p._id} className="hover:bg-[var(--bg)]/30 transition-colors cursor-pointer group">
+                      <tr 
+                        key={p._id} 
+                        className="hover:bg-[var(--bg)]/30 transition-colors cursor-pointer group"
+                        onClick={() => navigate(`/proposal/review/${p._id}`)}
+                      >
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <span className="font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors">
@@ -193,7 +189,7 @@ const ProposalDashboard = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex justify-center">
-                             <ProposalStatusBadge status={p.status} />
+                            <StatusBadge status={p.status} />
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-[var(--text-primary)]">
@@ -203,11 +199,15 @@ const ProposalDashboard = () => {
                           {formatDateShort(p.createdAt)}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button 
-                            onClick={() => navigate(`/crm/leads/${p.leadId?._id || p.leadId}`)}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/proposal/review/${p._id}`);
+                            }}
                             className="p-2 rounded-lg hover:bg-[var(--primary)]/10 text-[var(--text-muted)] hover:text-[var(--primary)] transition-all"
+                            title="Review Proposal"
                           >
-                            <ChevronRight size={18} />
+                            <Eye size={18} />
                           </button>
                         </td>
                       </tr>
@@ -223,7 +223,7 @@ const ProposalDashboard = () => {
               </table>
             </div>
             <div className="p-4 border-t border-[var(--border)] bg-[var(--bg)]/20 text-center">
-              <button 
+              <button
                 onClick={() => navigate('/proposal/list')}
                 className="text-xs font-black text-[var(--primary)] uppercase tracking-[0.2em] hover:opacity-70 transition-opacity"
               >
@@ -238,7 +238,7 @@ const ProposalDashboard = () => {
           {/* Integration Section: Leads needing Proposals */}
           <ReadyForProposalLeads />
           <QuickActions />
-          <ActivityList activities={activities} />
+          {/* <ActivityList activities={activities} /> */}
         </div>
       </div>
     </div>
@@ -258,7 +258,7 @@ const ReadyForProposalLeads = () => {
           crmService.getLeads({ lifecycleStage: 'show_project', limit: 2 }),
           crmService.getLeads({ lifecycleStage: 'interested', limit: 2 })
         ]);
-        
+
         const combined = [
           ...(showProjectRes.leads || []),
           ...(interestedRes.leads || [])
@@ -298,9 +298,9 @@ const ReadyForProposalLeads = () => {
                   <span className="text-[10px] font-black text-[var(--primary)] uppercase">Show Project Done</span>
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="h-8 px-3 text-[10px] font-black uppercase border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary)] hover:text-black transition-all"
                 onClick={() => navigate(`/crm/leads/${lead._id}`)}
               >
@@ -311,7 +311,7 @@ const ReadyForProposalLeads = () => {
         ))}
       </div>
       <div className="p-3 bg-[var(--bg)]/20 text-center">
-        <button 
+        <button
           onClick={() => navigate('/crm/new-leads')}
           className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors uppercase tracking-widest"
         >
@@ -319,27 +319,6 @@ const ReadyForProposalLeads = () => {
         </button>
       </div>
     </Card>
-  );
-};
-
-const ProposalStatusBadge = ({ status }) => {
-  const configs = {
-    draft: { color: 'text-orange-500', bg: 'bg-orange-500/10', label: 'Draft' },
-    pending_approval: { color: 'text-yellow-600', bg: 'bg-yellow-500/10', label: 'Pending Approval' },
-    internal_approved: { color: 'text-teal-500', bg: 'bg-teal-500/10', label: 'Internal Approved' },
-    manager_approved: { color: 'text-green-500', bg: 'bg-green-500/10', label: 'Manager Approved' },
-    sent: { color: 'text-blue-500', bg: 'bg-blue-500/10', label: 'Sent' },
-    client_approved: { color: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Client Approved' },
-    rejected: { color: 'text-red-500', bg: 'bg-red-500/10', label: 'Rejected' },
-    signed: { color: 'text-indigo-500', bg: 'bg-indigo-500/10', label: 'Signed' },
-  };
-
-  const config = configs[status] || configs.draft;
-
-  return (
-    <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${config.color} ${config.bg} border border-current/10`}>
-      {config.label}
-    </div>
   );
 };
 

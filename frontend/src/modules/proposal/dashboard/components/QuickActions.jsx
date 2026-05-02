@@ -7,15 +7,15 @@ const QuickActions = () => {
   const navigate = useNavigate();
 
   const actions = [
-    { label: 'Create Proposal', icon: PlusCircle, path: '/proposal', color: 'text-[var(--primary)]', bg: 'bg-[var(--primary)]/10' },
-    { label: 'View Templates', icon: FileText, path: '/proposal/templates', color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: 'Client List', icon: Users, path: '/proposal/clients', color: 'text-purple-500', bg: 'bg-purple-500/10' },
-    { label: 'Pending Approvals', icon: ShieldCheck, path: '/proposal/approval', color: 'text-orange-500', bg: 'bg-orange-500/10' },
+    { label: 'Create Proposal', icon: PlusCircle, path: '/proposal/create', color: 'text-[var(--primary)]', bg: 'bg-[var(--primary)]/10' },
+    { label: 'View Templates', icon: FileText, path: '/proposal/templates', color: 'text-[var(--accent-blue)]', bg: 'bg-[var(--accent-blue)]/10' },
+    { label: 'Client List', icon: Users, path: '/proposal/clients', color: 'text-[var(--accent-teal)]', bg: 'bg-[var(--accent-teal)]/10' },
+    { label: 'Pending Approvals', icon: ShieldCheck, path: '/proposal/approval', color: 'text-[var(--warning)]', bg: 'bg-[var(--warning)]/10' },
   ];
 
   return (
     <Card className="h-full">
-      <h3 className="text-lg font-bold text-[var(--text-primary)] mb-6">Quick Actions</h3>
+      <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider mb-4">Quick Actions</h3>
       <div className="grid grid-cols-2 gap-4">
         {actions.map((action, idx) => {
           const Icon = action.icon;

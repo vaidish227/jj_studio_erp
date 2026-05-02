@@ -1,273 +1,411 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Printer, 
-  Send, 
-  CheckCircle, 
-  XCircle, 
-  Edit3, 
+import {
+  ArrowLeft,
+  Printer,
+  History,
   FileText,
   User,
-  MapPin,
   Phone,
   Mail,
-  AlertCircle
+  MapPin,
+  Clock,
+  Edit,
+  Save,
+  Send,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  AlertCircle,
+  Layout
 } from 'lucide-react';
-import { 
-  Button, 
-  Card, 
-  SectionCard, 
-  ActionBar, 
+import {
+  Card,
+  Button,
+  Loader,
   ProposalViewer,
-  StatusBadge 
+  SectionCard,
+  StatusBadge,
+  ActionBar,
+  ConfirmationModal
 } from '../../../shared/components';
 import { crmService } from '../../../shared/services/crmService';
+import { useToast } from '../../../shared/notifications/ToastProvider';
+import { formatDateTime } from '../../../shared/utils/dateUtils';
 
 const ReviewPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const toast = useToast();
+
   const [proposal, setProposal] = useState(null);
+  const [client, setClient] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [user, setUser] = useState(null);
-  const [error, setError] = useState(null);
+
+  // Editable fields
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedData, setEditedData] = useState({ title: '', notes: '' });
+
+  // Modal
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false, title: '', message: '', action: null, status: ''
+  });
 
   useEffect(() => {
-    // Get current user role
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try { setUser(JSON.parse(savedUser)); } catch (e) { console.error('Failed to parse user'); }
     }
-    fetchProposal();
+    if (id) fetchData();
   }, [id]);
 
-  const fetchProposal = async () => {
+  const fetchData = async () => {
+    setIsLoading(true);
     try {
-      setLoading(true);
-      const res = await crmService.getProposalById(id);
-      if (res?.proposal) {
-        setProposal(res.proposal);
-      } else {
-        setError("Proposal not found.");
-      }
+      const response = await crmService.getProposalById(id);
+      const p = response.proposal;
+      setProposal(p);
+      setClient(p?.clientId || p?.leadId);
+      setEditedData({ title: p.title || '', notes: p.notes || '' });
     } catch (err) {
-      console.error('Failed to fetch proposal:', err);
-      setError("Failed to load proposal details.");
+      toast.error('Failed to load proposal');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleStatusUpdate = async (status) => {
+  const handleStatusUpdate = async (newStatus, remarks = '') => {
+    setIsSubmitting(true);
     try {
-      await crmService.updateProposalStatus(id, status);
-      fetchProposal();
+      await crmService.updateProposalStatus(id, { status: newStatus, remarks });
+      toast.success(`Proposal ${newStatus.replace(/_/g, ' ')} successfully!`);
+      const response = await crmService.getProposalById(id);
+      setProposal(response.proposal);
+      setConfirmModal({ ...confirmModal, isOpen: false });
     } catch (err) {
-      console.error('Failed to update status:', err);
-      alert('Failed to update status. Please try again.');
+      toast.error('Failed to update proposal status');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleSaveUpdate = async () => {
+    setIsSubmitting(true);
+    try {
+      await crmService.updateProposal(id, editedData);
+      setProposal({ ...proposal, ...editedData });
+      setIsEditMode(false);
+      toast.success('Proposal updated successfully!');
+    } catch (err) {
+      toast.error('Failed to save updates');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <div className="w-12 h-12 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-[var(--text-muted)] font-bold animate-pulse uppercase tracking-widest text-xs">Loading Proposal...</p>
-      </div>
-    );
-  }
+  const openConfirmModal = (action, status, title, message) => {
+    setConfirmModal({ isOpen: true, title, message, action, status });
+  };
 
-  if (error || !proposal) {
-    return (
-      <div className="max-w-xl mx-auto mt-20 text-center space-y-4">
-        <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
-          <AlertCircle size={40} />
-        </div>
-        <h2 className="text-2xl font-black text-[var(--text-primary)]">Oops!</h2>
-        <p className="text-[var(--text-muted)]">{error || "Something went wrong."}</p>
-        <Button variant="primary" onClick={() => navigate('/proposal')}>
-          Back to Dashboard
-        </Button>
+  if (isLoading) return <Loader fullPage label="Preparing proposal review..." />;
+  if (!proposal) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+      <div className="w-16 h-16 rounded-full bg-[var(--error)]/10 flex items-center justify-center">
+        <AlertCircle size={32} className="text-[var(--error)]" />
       </div>
-    );
-  }
+      <p className="text-lg font-bold text-[var(--text-primary)]">Proposal not found</p>
+      <Button variant="outline" onClick={() => navigate(-1)}>Go Back</Button>
+    </div>
+  );
 
-  const client = proposal.clientId || proposal.leadId || {};
-  const isManager = user?.role?.toLowerCase() === 'admin';
-  const status = proposal.status || 'draft';
+  const role = user?.role?.toLowerCase() || '';
+  const isManager = role === 'manager' || role === 'admin';
+  const isPending = proposal.status === 'pending_approval';
+  const isApproved = proposal.status === 'manager_approved';
+  const isDraft = proposal.status === 'draft';
+  const isRejected = proposal.status === 'rejected';
+  const canEditFields = isEditMode && (isDraft || isRejected || isManager);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <button 
+    <div className="space-y-6 pb-20">
+      {/* ── Header ── */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 print:hidden">
+        <div className="flex items-start gap-4">
+          <button
             onClick={() => navigate(-1)}
-            className="p-2 hover:bg-[var(--surface-hover)] rounded-xl transition-colors text-[var(--text-muted)]"
+            className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)] text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors shrink-0 mt-1"
           >
-            <ArrowLeft size={24} />
+            <ArrowLeft size={18} />
           </button>
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight uppercase">
-                {proposal.title || 'Proposal Review'}
-              </h1>
-              <StatusBadge value={status} />
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-bold text-[var(--text-primary)]">Proposal Review</h1>
+              <StatusBadge status={proposal.status} />
             </div>
-            <p className="text-[var(--text-muted)] font-medium">Reviewing details for {client.name || 'Unknown Client'}</p>
-            <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-[0.2em] mt-2 bg-[var(--surface)] inline-block px-3 py-1 rounded-lg border border-[var(--border)]">
-              Last updated: {new Date(proposal.updatedAt).toLocaleString()}
+            <p className="text-xs text-[var(--text-muted)] font-medium mt-1">
+              REF: #{proposal._id.slice(-8).toUpperCase()} • Created {new Date(proposal.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {/* USER ACTIONS */}
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer size={16} /> Print / PDF
+          </Button>
+
+          {/* User Actions */}
           {!isManager && (
             <>
-              {(status === 'draft' || status === 'rejected') && (
-                <Button 
-                  variant="primary" 
-                  onClick={() => handleStatusUpdate('pending_approval')}
-                  className="bg-[var(--primary)] text-black"
+              {isEditMode ? (
+                <Button variant="primary" size="sm" onClick={handleSaveUpdate} isLoading={isSubmitting}>
+                  <Save size={16} /> Save Changes
+                </Button>
+              ) : (
+                (isDraft || isRejected) && (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+                    <Edit size={16} /> Edit
+                  </Button>
+                )
+              )}
+              {isDraft && !isEditMode && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => openConfirmModal('submit', 'pending_approval', 'Send for Approval', 'Send this proposal to the manager for approval?')}
                 >
-                  <Send size={18} className="mr-2" />
-                  Send for Approval
+                  <Send size={16} /> Send for Approval
                 </Button>
               )}
             </>
           )}
 
-          {/* MANAGER ACTIONS */}
+          {/* Manager Actions */}
           {isManager && (
             <>
-              {status === 'pending_approval' && (
+              {isEditMode ? (
+                <Button variant="primary" size="sm" onClick={handleSaveUpdate} isLoading={isSubmitting}>
+                  <Save size={16} /> Save Changes
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+                  <Edit size={16} /> Edit
+                </Button>
+              )}
+
+              {(isPending || isDraft) && (
                 <>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleStatusUpdate('rejected')}
-                    className="text-red-500 border-red-500 hover:bg-red-50"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-[var(--error)]/30 text-[var(--error)] hover:bg-[var(--error)]/5"
+                    onClick={() => openConfirmModal('reject', 'rejected', 'Reject Proposal', 'Reject this proposal? The user will be notified.')}
                   >
-                    <XCircle size={18} className="mr-2" />
-                    Reject
+                    <XCircle size={16} /> Reject
                   </Button>
-                  <Button 
-                    variant="primary" 
-                    onClick={() => handleStatusUpdate('manager_approved')}
-                    className="bg-green-600 hover:bg-green-700 border-none text-white"
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => openConfirmModal('approve', 'manager_approved', 'Approve Proposal', 'Approve and auto-send this proposal to the client?')}
                   >
-                    <CheckCircle size={18} className="mr-2" />
-                    Approve
+                    <CheckCircle size={16} /> Approve
                   </Button>
                 </>
               )}
 
-              {status === 'manager_approved' && (
-                <Button 
-                  variant="primary" 
-                  onClick={() => handleStatusUpdate('sent')}
-                  className="bg-blue-600 hover:bg-blue-700 border-none text-white"
+              {isApproved && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => openConfirmModal('send', 'sent', 'Send to Client', 'Send this approved proposal to the client via email?')}
                 >
-                  <Send size={18} className="mr-2" />
-                  Send to Client
+                  <Send size={16} /> Send to Client
                 </Button>
               )}
             </>
           )}
-
-          {(status === 'draft' || status === 'rejected' || isManager) && (
-            <Button 
-              variant="outline" 
-              onClick={() => navigate(`/proposal/create?id=${id}`)}
-              className="border-[var(--border)]"
-            >
-              <Edit3 size={18} className="mr-2" />
-              Edit / Modify
-            </Button>
-          )}
-          <Button variant="outline" onClick={handlePrint} className="border-[var(--border)]">
-            <Printer size={18} className="mr-2" />
-            Print / PDF
-          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Client & Status Info */}
-        <div className="lg:col-span-1 space-y-6">
-          <SectionCard title="Client Details">
-            <div className="space-y-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                  <User size={20} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Full Name</p>
-                  <p className="font-bold text-[var(--text-primary)]">{client.name || 'N/A'}</p>
-                </div>
-              </div>
+      {/* ── Two-column layout ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left: Info Panel */}
+        <div className="lg:col-span-4 space-y-4 print:hidden">
 
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-green-50 text-green-600 rounded-xl">
-                  <Mail size={20} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Email Address</p>
-                  <p className="font-bold text-[var(--text-primary)]">{client.email || 'N/A'}</p>
-                </div>
+          {/* Client Details */}
+          <Card>
+            <div className="flex items-center gap-2 mb-4 pb-4 border-b border-[var(--border)]">
+              <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
+                <User size={16} />
               </div>
-
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-orange-50 text-orange-600 rounded-xl">
-                  <Phone size={20} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Phone Number</p>
-                  <p className="font-bold text-[var(--text-primary)]">{client.phone || 'N/A'}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
-                  <MapPin size={20} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-[var(--text-muted)] uppercase mb-1">Address</p>
-                  <p className="font-bold text-[var(--text-primary)] leading-relaxed">{client.address || 'N/A'}</p>
-                </div>
-              </div>
+              <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Client Details</h2>
             </div>
-          </SectionCard>
-
-          <SectionCard title="Workflow Status">
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-[var(--bg)] rounded-xl border border-[var(--border)]">
-                <span className="text-sm font-bold text-[var(--text-muted)] uppercase">Current Phase</span>
-                <StatusBadge value={status} />
+              {[
+                { icon: User, label: 'Full Name', value: client?.name },
+                { icon: Phone, label: 'Phone', value: client?.phone },
+                { icon: Mail, label: 'Email', value: client?.email },
+                { icon: MapPin, label: 'Site Address', value: client?.address },
+              ].map(({ icon: Icon, label, value }) => (
+                <div key={label} className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-[var(--bg)] text-[var(--text-muted)] shrink-0">
+                    <Icon size={14} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{label}</p>
+                    <p className="text-sm font-medium text-[var(--text-primary)] mt-0.5">{value || 'N/A'}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="pt-3 border-t border-[var(--border)] flex justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Lead Status</p>
+                  <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-[var(--primary)]/10 text-[var(--primary)] text-[10px] font-black uppercase tracking-wider">
+                    {client?.status?.replace('_', ' ') || 'Active'}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Project Type</p>
+                  <p className="text-xs font-semibold text-[var(--text-primary)] mt-1">{proposal.leadId?.projectType || 'Interior Design'}</p>
+                </div>
               </div>
-              <p className="text-xs text-[var(--text-muted)] leading-relaxed italic font-medium px-2">
-                {status === 'draft' && "This proposal is currently in draft mode. It hasn't been sent for approval yet."}
-                {status === 'pending_approval' && "Waiting for manager review. No changes can be made while pending."}
-                {status === 'manager_approved' && "Approved by management. Ready to be sent to the client."}
-                {status === 'rejected' && "Proposal has been rejected or requires modification."}
-                {status === 'sent' && "Proposal has been successfully dispatched to the client."}
-              </p>
             </div>
-          </SectionCard>
+          </Card>
+
+          {/* Proposal Details */}
+          <Card>
+            <div className="flex items-center gap-2 mb-4 pb-4 border-b border-[var(--border)]">
+              <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
+                <Layout size={16} />
+              </div>
+              <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Proposal Details</h2>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1.5">Proposal Title</p>
+                {canEditFields ? (
+                  <input
+                    type="text"
+                    value={editedData.title}
+                    onChange={(e) => setEditedData({ ...editedData, title: e.target.value })}
+                    className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm font-medium outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all"
+                  />
+                ) : (
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">{proposal.title}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1.5">Template Used</p>
+                <p className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-2">
+                  <FileText size={14} className="text-[var(--text-muted)]" />
+                  {proposal.templateId?.name || 'Custom / Multiple Templates'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1.5">Notes</p>
+                {canEditFields ? (
+                  <textarea
+                    value={editedData.notes}
+                    onChange={(e) => setEditedData({ ...editedData, notes: e.target.value })}
+                    className="w-full h-20 bg-[var(--bg)] border border-[var(--border)] rounded-xl px-3 py-2 text-sm font-medium outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all resize-none"
+                    placeholder="Add notes..."
+                  />
+                ) : (
+                  <p className="text-sm text-[var(--text-secondary)] italic">
+                    {proposal.notes || 'No additional notes.'}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* Financial Summary */}
+          <Card>
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-[var(--border)]">
+              <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Financial Summary</h2>
+              <span className="text-xs font-bold text-[var(--primary)]">₹ INR</span>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-[var(--text-muted)] font-medium">Subtotal</span>
+                <span className="font-semibold text-[var(--text-primary)]">₹{Number(proposal.subtotal || 0).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-[var(--text-muted)] font-medium">GST (18%)</span>
+                <span className="font-semibold text-[var(--text-primary)]">₹{Number(proposal.gst || 0).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="pt-3 border-t border-[var(--border)] flex justify-between items-center">
+                <span className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Total</span>
+                <span className="text-xl font-bold text-[var(--primary)]">₹{Number(proposal.finalAmount || 0).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Timeline */}
+          <Card>
+            <div className="flex items-center gap-2 mb-4 pb-4 border-b border-[var(--border)]">
+              <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
+                <Clock size={16} />
+              </div>
+              <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Timeline & History</h2>
+            </div>
+            <div className="space-y-4">
+              {proposal.approvalHistory?.length > 0 ? (
+                proposal.approvalHistory
+                  .slice()
+                  .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                  .map((log, idx) => (
+                    <div key={idx} className="relative pl-5 before:absolute before:left-0 before:top-2 before:bottom-0 before:w-px before:bg-[var(--border)] last:before:hidden">
+                      <div className={`absolute left-[-3px] top-1.5 w-1.5 h-1.5 rounded-full ${
+                        log.action?.includes('approve') ? 'bg-[var(--success)]' :
+                        log.action?.includes('reject') ? 'bg-[var(--error)]' : 'bg-[var(--primary)]'
+                      }`} />
+                      <p className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-wide">{log.action?.replace(/_/g, ' ')}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{formatDateTime(log.timestamp)}</p>
+                      {log.remarks && (
+                        <div className="mt-1.5 bg-[var(--bg)] p-2.5 rounded-lg border border-[var(--border)]">
+                          <p className="text-xs text-[var(--text-secondary)] italic">"{log.remarks}"</p>
+                        </div>
+                      )}
+                    </div>
+                  ))
+              ) : (
+                <div className="text-center py-6">
+                  <History size={28} className="mx-auto mb-2 text-[var(--text-muted)] opacity-30" />
+                  <p className="text-xs text-[var(--text-muted)]">No activity recorded yet.</p>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
 
-        {/* Right Column: Proposal Viewer */}
-        <div className="lg:col-span-2">
-          <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden min-h-[800px] flex justify-center p-4 sm:p-8 bg-gray-50/50">
+        {/* Right: Proposal Viewer */}
+        <div className="lg:col-span-8">
+          <div className="bg-[var(--bg)] rounded-2xl border border-[var(--border)] p-4 sm:p-8 min-h-[600px] flex justify-center">
             <ProposalViewer proposal={proposal} client={client} />
           </div>
+          <p className="text-center text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-widest mt-4 flex items-center justify-center gap-2 print:hidden">
+            <AlertCircle size={12} /> Live Preview · Proposal Quotation Table
+          </p>
         </div>
       </div>
 
-
+      {/* ── Confirmation Modal ── */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onConfirm={(remarks) => handleStatusUpdate(confirmModal.status, remarks)}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isLoading={isSubmitting}
+        showRemarks={['reject', 'modify'].includes(confirmModal.action)}
+        isRemarksMandatory={confirmModal.action === 'reject'}
+        remarksPlaceholder={confirmModal.action === 'reject' ? 'Reason for rejection (mandatory)...' : 'Add optional remarks...'}
+        confirmLabel={confirmModal.title}
+        variant={confirmModal.action === 'reject' ? 'danger' : 'primary'}
+      />
     </div>
   );
 };

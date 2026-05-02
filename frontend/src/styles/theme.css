@@ -1,50 +1,50 @@
 :root {
-  /* =========================
+   /* =========================
      🌟 PRIMARY BRAND
   ========================= */
-  --primary: #D4B76C;
-  --primary-hover: #C5A85F;
-  --primary-active: #B89B52;
+   --primary: #D4B76C;
+   --primary-hover: #C5A85F;
+   --primary-active: #B89B52;
 
-  /* =========================
+   /* =========================
      🌞 LIGHT BACKGROUNDS
   ========================= */
-  --bg: #F8F7F3;
-  --surface: #FFFFFF;
+   --bg: #F8F7F3;
+   --surface: #FFFFFF;
 
-  /* =========================
+   /* =========================
      🌑 SIDEBAR (DARK UI)
   ========================= */
-  --sidebar-bg: #2F2F2F;
-  --sidebar-hover: #3A3A3A;
-  --sidebar-active: #D4B76C;
+   --sidebar-bg: #2F2F2F;
+   --sidebar-hover: #3A3A3A;
+   --sidebar-active: #D4B76C;
 
-  --sidebar-text: #EAEAEA;
-  --sidebar-text-muted: #A0A0A0;
+   --sidebar-text: #EAEAEA;
+   --sidebar-text-muted: #A0A0A0;
 
-  /* =========================
+   /* =========================
      📦 BORDERS
   ========================= */
-  --border: #E5E2D8;
-  --divider: #D6D1C4;
+   --border: #E5E2D8;
+   --divider: #D6D1C4;
 
-  /* =========================
+   /* =========================
      📝 TEXT
   ========================= */
-  --text-primary: #2E2E2E;
-  --text-secondary: #6B6B6B;
-  --text-muted: #A0A0A0;
+   --text-primary: #2E2E2E;
+   --text-secondary: #6B6B6B;
+   --text-muted: #A0A0A0;
 
-  /* =========================
+   /* =========================
      🎯 ACCENTS
   ========================= */
-  --accent-blue: #3A6EA5;
-  --accent-teal: #4A8F7C;
+   --accent-blue: #3A6EA5;
+   --accent-teal: #4A8F7C;
 
-  /* =========================
+   /* =========================
      ✅ STATUS COLORS
   ========================= */
-  --success: #4CAF50;
-  --warning: #F4B400;
-  --error: #D93025;
+   --success: #4CAF50;
+   --warning: #F4B400;
+   --error: #D93025;
 }

@@ -34,6 +34,8 @@ import useLeadFlow, { lifecycleLabels } from '../../../shared/hooks/useLeadFlow'
 import { useLeadStatusManager, LEAD_ACTIONS } from '../../../shared/hooks/useLeadStatusManager';
 import { crmService } from '../../../shared/services/crmService';
 import { formatDateShort, formatDateTime } from '../../../shared/utils/dateUtils';
+import { useToast } from '../../../shared/notifications/ToastProvider';
+import { Loader } from '../../../shared/components';
 
 const LIFECYCLE_STEPS = [
   'enquiry',
@@ -69,6 +71,7 @@ const SHOWCASE_OPTIONS = [
 const LeadDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const { setActiveLead } = useCRM();
   const { lead, isLoading, error, updateStatus, updateLead, refresh } = useLeadDetails(id);
   const { meetings, followups, proposals, timeline, refreshRelatedData, scheduleAutomations } =
@@ -96,12 +99,7 @@ const LeadDetailsPage = () => {
 
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 text-[var(--text-muted)]">
-        <Loader2 size={40} className="animate-spin mb-4 opacity-20" />
-        <p className="text-sm">Loading lead profile...</p>
-      </div>
-    );
+    return <Loader fullPage label="Syncing lead profile..." />;
   }
 
   if (error || !lead) {
@@ -139,7 +137,7 @@ const LeadDetailsPage = () => {
 
   const handleScheduleMeeting = async (e) => {
     e.preventDefault();
-    
+
     // --- Validation: Present or future date only ---
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -321,27 +319,25 @@ const LeadDetailsPage = () => {
           {LIFECYCLE_STEPS.map((step, index) => {
             const isCompleted = LIFECYCLE_STEPS.indexOf(lead.lifecycleStage) >= index || lead.status === 'converted';
             const isActive = lead.lifecycleStage === step;
-            
+
             return (
               <React.Fragment key={step}>
                 <div className="flex flex-col items-center gap-3 relative z-10">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
-                    isCompleted 
-                      ? 'bg-[var(--primary)] border-[var(--primary)] text-black' 
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${isCompleted
+                      ? 'bg-[var(--primary)] border-[var(--primary)] text-black'
                       : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-muted)]'
-                  } ${isActive ? 'ring-4 ring-[var(--primary)]/20 scale-110' : ''}`}>
+                    } ${isActive ? 'ring-4 ring-[var(--primary)]/20 scale-110' : ''}`}>
                     {isCompleted ? <CheckCircle2 size={20} /> : <span className="text-xs font-bold">{index + 1}</span>}
                   </div>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
-                    isCompleted ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'
-                  }`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isCompleted ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'
+                    }`}>
                     {lifecycleLabels[step] || step}
                   </span>
                 </div>
                 {index < LIFECYCLE_STEPS.length - 1 && (
                   <div className="flex-1 h-[2px] bg-[var(--border)] mx-2 mb-6 relative">
-                    <div 
-                      className="absolute inset-0 bg-[var(--primary)] transition-all duration-1000 origin-left" 
+                    <div
+                      className="absolute inset-0 bg-[var(--primary)] transition-all duration-1000 origin-left"
                       style={{ transform: `scaleX(${isCompleted ? 1 : 0})` }}
                     />
                   </div>
@@ -441,11 +437,11 @@ const LeadDetailsPage = () => {
           <Card className="space-y-6">
             <SectionTitle title="Show Project" icon={FileImage} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select 
-                value={showcaseType} 
-                onChange={setShowcaseType} 
-                options={SHOWCASE_OPTIONS} 
-                label="Asset Type" 
+              <Select
+                value={showcaseType}
+                onChange={setShowcaseType}
+                options={SHOWCASE_OPTIONS}
+                label="Asset Type"
               />
               <FormField label="Asset Title">
                 <input
@@ -455,7 +451,7 @@ const LeadDetailsPage = () => {
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                 />
               </FormField>
-              
+
               <div className="md:col-span-2">
                 <FormField label="Asset URL (Image/Video/Template)">
                   <input
@@ -533,21 +529,18 @@ const LeadDetailsPage = () => {
               <button
                 disabled={actionLoading || lead.lifecycleStage === 'interested'}
                 onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_INTERESTED), 'Lead marked as Interested. You can now draft a proposal.')}
-                className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${
-                  lead.lifecycleStage === 'interested'
+                className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${lead.lifecycleStage === 'interested'
                     ? 'border-[var(--success)] bg-[var(--success)]/5 cursor-default'
                     : 'border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 cursor-pointer'
-                }`}
+                  }`}
               >
-                <div className={`p-3 rounded-xl transition-colors ${
-                  lead.lifecycleStage === 'interested' ? 'bg-[var(--success)] text-black' : 'bg-[var(--bg)] text-[var(--text-muted)] group-hover:text-[var(--primary)]'
-                }`}>
+                <div className={`p-3 rounded-xl transition-colors ${lead.lifecycleStage === 'interested' ? 'bg-[var(--success)] text-black' : 'bg-[var(--bg)] text-[var(--text-muted)] group-hover:text-[var(--primary)]'
+                  }`}>
                   <CheckCircle2 size={24} />
                 </div>
                 <div className="text-center">
-                  <p className={`font-black uppercase tracking-widest text-xs ${
-                    lead.lifecycleStage === 'interested' ? 'text-[var(--success)]' : 'text-[var(--text-primary)]'
-                  }`}>Interested</p>
+                  <p className={`font-black uppercase tracking-widest text-xs ${lead.lifecycleStage === 'interested' ? 'text-[var(--success)]' : 'text-[var(--text-primary)]'
+                    }`}>Interested</p>
                   <p className="text-[10px] text-[var(--text-muted)] mt-1 font-medium">Handoff to Proposal System</p>
                 </div>
               </button>
@@ -555,21 +548,18 @@ const LeadDetailsPage = () => {
               <button
                 disabled={actionLoading || lead.status === 'lost'}
                 onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_LOST), 'Lead marked as Not Interested (Lost).')}
-                className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${
-                  lead.status === 'lost'
+                className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${lead.status === 'lost'
                     ? 'border-[var(--error)] bg-[var(--error)]/5 cursor-default'
                     : 'border-[var(--border)] hover:border-[var(--error)]/30 hover:bg-[var(--error)]/5 cursor-pointer'
-                }`}
+                  }`}
               >
-                <div className={`p-3 rounded-xl transition-colors ${
-                  lead.status === 'lost' ? 'bg-[var(--error)] text-white' : 'bg-[var(--bg)] text-[var(--text-muted)] group-hover:text-[var(--error)]'
-                }`}>
+                <div className={`p-3 rounded-xl transition-colors ${lead.status === 'lost' ? 'bg-[var(--error)] text-white' : 'bg-[var(--bg)] text-[var(--text-muted)] group-hover:text-[var(--error)]'
+                  }`}>
                   <XCircle size={24} />
                 </div>
                 <div className="text-center">
-                  <p className={`font-black uppercase tracking-widest text-xs ${
-                    lead.status === 'lost' ? 'text-[var(--error)]' : 'text-[var(--text-primary)]'
-                  }`}>Not Interested</p>
+                  <p className={`font-black uppercase tracking-widest text-xs ${lead.status === 'lost' ? 'text-[var(--error)]' : 'text-[var(--text-primary)]'
+                    }`}>Not Interested</p>
                   <p className="text-[10px] text-[var(--text-muted)] mt-1 font-medium">Mark as Lost / No further action</p>
                 </div>
               </button>
@@ -577,9 +567,9 @@ const LeadDetailsPage = () => {
 
             {lead.lifecycleStage === 'interested' && (
               <div className="pt-2 animate-in slide-in-from-top duration-500">
-                <Button 
-                  variant="primary" 
-                  fullWidth 
+                <Button
+                  variant="primary"
+                  fullWidth
                   className="py-4 shadow-lg shadow-[var(--primary)]/20"
                   onClick={() => navigate(`/proposal/create?leadId=${id}`)}
                 >
@@ -635,7 +625,7 @@ const LeadDetailsPage = () => {
 
       <Modal isOpen={isMeetingModalOpen} onClose={() => setIsMeetingModalOpen(false)} title="Schedule Meeting">
         <form onSubmit={handleScheduleMeeting} className="space-y-5">
-          <Select 
+          <Select
             label="Meeting Type"
             value={meetingType}
             onChange={setMeetingType}
@@ -646,7 +636,7 @@ const LeadDetailsPage = () => {
             ]}
           />
 
-          <DateTimePicker 
+          <DateTimePicker
             label="Date & Time"
             dateValue={meetingDate}
             timeValue={meetingTime}

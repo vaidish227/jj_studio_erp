@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Loader2, Search, ExternalLink, Mail, CheckCircle2, XCircle, Clock, Send } from 'lucide-react';
+import { FileText, Loader2, Search, ExternalLink, Mail, CheckCircle2, XCircle, Clock, Send, Eye, Edit3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
 import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import { crmService } from '../../../shared/services/crmService';
 import { formatDateShort } from '../../../shared/utils/dateUtils';
+import { useToast } from '../../../shared/notifications/ToastProvider';
+import { Loader } from '../../../shared/components';
 
 const ProposalListPage = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [proposals, setProposals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const fetchProposals = async () => {
@@ -20,7 +22,7 @@ const ProposalListPage = () => {
       const response = await crmService.getProposals();
       setProposals(response.proposals || []);
     } catch (err) {
-      setError('Failed to fetch proposals');
+      toast.error('Failed to fetch proposals');
     } finally {
       setIsLoading(false);
     }
@@ -39,9 +41,10 @@ const ProposalListPage = () => {
   const handleSendEmail = async (id) => {
     try {
       await crmService.sendProposal(id);
+      toast.success('Proposal sent successfully');
       fetchProposals(); // Refresh to show 'sent' status
     } catch (err) {
-      alert('Failed to send proposal email');
+      toast.error('Failed to send proposal email');
     }
   };
 
@@ -71,16 +74,15 @@ const ProposalListPage = () => {
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-24 text-[var(--text-muted)]">
-          <Loader2 size={40} className="animate-spin mb-4 opacity-20" />
-          <p className="text-sm">Loading proposals...</p>
-        </div>
-      ) : error ? (
-        <div className="text-center py-10 text-[var(--error)] text-sm">{error}</div>
+        <Loader label="Fetching proposals..." />
       ) : filteredProposals.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
           {filteredProposals.map((proposal) => (
-            <Card key={proposal._id} className="hover:shadow-md transition-shadow cursor-default">
+            <Card 
+              key={proposal._id} 
+              className="hover:shadow-md transition-shadow cursor-pointer group"
+              onClick={() => navigate(`/proposal/review/${proposal._id}`)}
+            >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-[var(--accent-teal)]/10 text-[var(--accent-teal)] flex items-center justify-center shrink-0">
@@ -110,37 +112,37 @@ const ProposalListPage = () => {
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
                   <div className="flex flex-col items-end gap-2 mr-4">
                     <span className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] font-bold">Status</span>
-                    <ProposalStatusBadge status={proposal.status} />
+                    <StatusBadge status={proposal.status} />
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/proposal/review/${proposal._id}`)}
+                      className="font-bold"
+                    >
+                      <Eye size={14} className="mr-2" />
+                      Review
+                    </Button>
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => navigate(`/crm/leads/${proposal.leadId?._id || proposal.leadId}`)}
+                      className="font-bold"
                     >
-                      <ExternalLink size={14} />
+                      <ExternalLink size={14} className="mr-2" />
                       View Lead
                     </Button>
-                    {proposal.status === 'draft' && (
+                    {(proposal.status === 'draft' || proposal.status === 'rejected') && (
                       <Button 
                         variant="primary" 
                         size="sm"
-                        onClick={() => handleSendEmail(proposal._id)}
+                        onClick={() => navigate(`/proposal/create?id=${proposal._id}`)}
+                        className="font-bold"
                       >
-                        <Mail size={14} />
-                        Send Email
-                      </Button>
-                    )}
-                    {(proposal.status === 'approved' || proposal.status === 'manager_approved') && (
-                      <Button 
-                        variant="primary" 
-                        size="sm"
-                        onClick={() => handleSendEmail(proposal._id)}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Send size={14} className="mr-2" />
-                        Sent to Client
+                        <Edit3 size={14} className="mr-2" />
+                        Edit
                       </Button>
                     )}
                   </div>
@@ -157,27 +159,6 @@ const ProposalListPage = () => {
           </p>
         </div>
       )}
-    </div>
-  );
-};
-
-const ProposalStatusBadge = ({ status }) => {
-  const configs = {
-    draft: { icon: Clock, color: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg)]', label: 'Draft' },
-    pending_approval: { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', label: 'Pending Approval' },
-    manager_approved: { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', label: 'Approved' },
-    sent: { icon: Mail, color: 'text-[var(--primary)]', bg: 'bg-[var(--primary)]/10', label: 'Sent' },
-    approved: { icon: CheckCircle2, color: 'text-[var(--success)]', bg: 'bg-[var(--success)]/10', label: 'Approved' },
-    rejected: { icon: XCircle, color: 'text-[var(--error)]', bg: 'bg-[var(--error)]/10', label: 'Rejected' },
-  };
-
-  const config = configs[status] || configs.draft;
-  const Icon = config.icon;
-
-  return (
-    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${config.color} ${config.bg} border border-current/20`}>
-      <Icon size={12} />
-      {config.label}
     </div>
   );
 };

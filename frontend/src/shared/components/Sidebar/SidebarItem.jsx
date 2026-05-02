@@ -1,15 +1,15 @@
 import React from 'react';
 
-const SidebarItem = ({ 
-  label, 
-  id, 
-  active, 
-  onSelect, 
+const SidebarItem = ({
+  label,
+  id,
+  active,
+  onSelect,
   depth = 0,
-  path 
+  path
 }) => {
   const isActive = active === id;
-  
+
   // Calculate indentation based on depth
   const indentation = depth === 0 ? 'pl-4' : depth === 1 ? 'pl-12' : 'pl-16';
 

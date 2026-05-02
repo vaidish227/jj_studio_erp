@@ -8,16 +8,17 @@ import Select from '../../../shared/components/Select/Select';
 import DynamicTableBuilder from '../../../shared/components/DynamicTableBuilder/DynamicTableBuilder';
 import { crmService } from '../../../shared/services/crmService';
 import TemplatePreviewModal from '../components/TemplatePreviewModal';
+import { useToast } from '../../../shared/notifications/ToastProvider';
+import { Loader } from '../../../shared/components';
 
 const TemplateEditorPage = () => {
   const { id } = useParams();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -33,7 +34,7 @@ const TemplateEditorPage = () => {
         try {
           const response = await crmService.getTemplateById(id);
           const templateData = response.data; // backend returns { success: true, data: {...} }
-          
+
           if (templateData) {
             setFormData({
               name: templateData.name || '',
@@ -43,8 +44,7 @@ const TemplateEditorPage = () => {
             });
           }
         } catch (err) {
-          setError('Failed to fetch template details.');
-          console.error(err);
+          toast.error('Failed to fetch template details.');
         } finally {
           setLoading(false);
         }
@@ -66,7 +66,7 @@ const TemplateEditorPage = () => {
       setError('Template name is required.');
       return;
     }
-    
+
     if (!formData.structure.columns.length) {
       setError('Template must have at least one column.');
       return;
@@ -74,31 +74,25 @@ const TemplateEditorPage = () => {
 
     setSaving(true);
     setError('');
-    
+
     try {
       if (isEditing) {
         await crmService.updateTemplate(id, formData);
-        setSuccess('Template updated successfully!');
+        toast.success('Template updated successfully!');
       } else {
         await crmService.createTemplate(formData);
-        setSuccess('Template created successfully!');
+        toast.success('Template created successfully!');
       }
       setTimeout(() => navigate('/proposal/templates'), 1000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save template. Please try again.');
-      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to save template.');
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-[var(--text-muted)]">
-        <Loader2 size={40} className="animate-spin mb-4 opacity-20" />
-        <p className="text-sm font-bold uppercase tracking-widest">Loading template...</p>
-      </div>
-    );
+    return <Loader fullPage label="Loading template structure..." />;
   }
 
   return (
@@ -121,7 +115,7 @@ const TemplateEditorPage = () => {
             </p>
           </div>
         </div>
-        
+
         <div className="flex gap-3">
           <Button variant="outline" onClick={() => setPreviewOpen(true)} className="px-6 border-[var(--border)]">
             <Eye size={18} />
@@ -134,11 +128,7 @@ const TemplateEditorPage = () => {
         </div>
       </div>
 
-      {(error || success) && (
-        <div className={`p-4 rounded-xl border text-sm font-medium animate-in slide-in-from-top-2 ${error ? 'bg-[var(--error)]/10 border-[var(--error)] text-[var(--error)]' : 'bg-[var(--success)]/10 border-[var(--success)] text-[var(--success)]'}`}>
-          {error || success}
-        </div>
-      )}
+
 
       {/* Meta Configuration */}
       <Card className="shadow-xl shadow-black/5 border-none p-8 space-y-6">
@@ -159,7 +149,7 @@ const TemplateEditorPage = () => {
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
             />
           </FormField>
-          
+
           <Select
             label="Template Type"
             value={formData.type}
@@ -169,7 +159,7 @@ const TemplateEditorPage = () => {
               { value: 'commercial', label: 'Commercial' },
             ]}
           />
-          
+
           <div className="lg:col-span-3">
             <FormField label="Description (Optional)">
               <textarea
@@ -186,13 +176,13 @@ const TemplateEditorPage = () => {
 
       {/* Dynamic Builder */}
       <div className="pt-4">
-        <DynamicTableBuilder 
-          structure={formData.structure} 
-          onChange={handleStructureChange} 
+        <DynamicTableBuilder
+          structure={formData.structure}
+          onChange={handleStructureChange}
         />
       </div>
 
-      <TemplatePreviewModal 
+      <TemplatePreviewModal
         isOpen={previewOpen}
         onClose={() => setPreviewOpen(false)}
         template={formData}

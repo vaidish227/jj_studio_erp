@@ -1,55 +1,55 @@
 import React from 'react';
-import Badge from '../Badge/Badge';
-import { lifecycleLabels, statusLabelMap } from '../../hooks/useLeadFlow';
 
-const lifecycleVariants = {
-  enquiry: 'primary',
-  meeting_scheduled: 'today',
-  thank_you_sent: 'success',
-  client_info_pending: 'warning',
-  kit: 'tomorrow',
-  followup_due: 'warning',
-  show_project: 'primary',
-  interested: 'success',
-  proposal_sent: 'today',
-  advance_received: 'success',
-  project_moved: 'success',
-  converted: 'success',
-  lost: 'error',
-};
+const StatusBadge = ({ status, className = '' }) => {
+  const configs = {
+    draft: {
+      color: 'bg-[var(--bg)] text-[var(--text-muted)] border-[var(--border)]',
+      label: 'Draft'
+    },
+    pending_approval: {
+      color: 'bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/20',
+      label: 'Pending Approval'
+    },
+    manager_approved: {
+      color: 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/20',
+      label: 'Approved'
+    },
+    rejected: {
+      color: 'bg-[var(--error)]/10 text-[var(--error)] border-[var(--error)]/20',
+      label: 'Rejected'
+    },
+    sent: {
+      color: 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border-[var(--accent-blue)]/20',
+      label: 'Sent to Client'
+    },
+    esign_received: {
+      color: 'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)] border-[var(--accent-teal)]/20',
+      label: 'eSign Received'
+    },
+    payment_received: {
+      color: 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/20',
+      label: 'Paid'
+    },
+    project_ready: {
+      color: 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20',
+      label: 'Project Ready'
+    },
+    project_started: {
+      color: 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/20',
+      label: 'Started'
+    },
+    converted: {
+      color: 'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)] border-[var(--accent-teal)]/20',
+      label: 'Converted'
+    },
+  };
 
-const statusVariants = {
-  new: 'primary',
-  contacted: 'today',
-  meeting_done: 'warning',
-  proposal_sent: 'success',
-  converted: 'success',
-  lost: 'error',
-  // Proposal statuses
-  draft: 'default',
-  pending_approval: 'warning',
-  manager_approved: 'success',
-  rejected: 'error',
-  sent: 'primary',
-  esign_pending: 'warning',
-  signed: 'success',
-  // eSign specific statuses
-  pending: 'warning',
-  completed: 'success',
-};
-
-const StatusBadge = ({ value, type = 'status', className = '' }) => {
-  const isLifecycle = type === 'lifecycle';
-  const label = isLifecycle
-    ? lifecycleLabels[value] || value
-    : statusLabelMap[value] || value;
+  const config = configs[status] || configs.draft;
 
   return (
-    <Badge
-      label={label}
-      variant={isLifecycle ? lifecycleVariants[value] || 'default' : statusVariants[value] || 'default'}
-      className={className}
-    />
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${config.color} ${className}`}>
+      {config.label}
+    </span>
   );
 };
 

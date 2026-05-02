@@ -71,11 +71,10 @@ const LeadListView = ({
               <button
                 key={type}
                 onClick={() => setProjectFilter(type)}
-                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                  projectFilter === type
+                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${projectFilter === type
                     ? 'bg-[var(--primary)] text-black shadow-sm'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
-                }`}
+                  }`}
               >
                 {type}
               </button>

@@ -14,26 +14,28 @@ import {
 import {
   ProposalListPage,
   ProposalDashboard,
-  ProposalTemplatesPage,
-  ProposalClientsPage,
   ProposalApprovalPage,
-  SentProposalsPage,
-  ESignReceivedPage,
-  ApprovedProposalsPage,
+  SentProposalDashboard,
+  SentProposalReviewPage,
+  ApprovedDashboard,
   CreateProposalPage,
   TemplateEditorPage,
-  ReviewPage,
+  ProposalReviewPage,
+  ProposalTemplatesPage,
+  ProposalClientsPage
 } from './modules/proposal';
 import { CRMProvider } from './modules/crm/context/CRMContext';
 import AppLayout from './shared/layouts/AppLayout/AppLayout';
 import PublicLayout from './shared/layouts/PublicLayout/PublicLayout';
 import ProfilePage from './modules/profile/pages/ProfilePage';
 import SettingsPage from './modules/settings/pages/SettingsPage';
+import { ToastProvider } from './shared/notifications/ToastProvider';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <ToastProvider>
+      <BrowserRouter>
+        <Routes>
         {/* Auth */}
         <Route path="/login" element={<LoginPage />} />
 
@@ -59,21 +61,21 @@ export default function App() {
           <Route element={<CRMProvider><Outlet /></CRMProvider>}>
 
             {/* --- Forms --- */}
-            <Route path="/crm/forms/enquiry"    element={<EnquiryFormPage />} />
+            <Route path="/crm/forms/enquiry" element={<EnquiryFormPage />} />
             <Route path="/crm/forms/client-info" element={<ClientInfoFormPage />} />
 
             {/* --- Lead Detail (shared by all pipeline views) --- */}
             <Route path="/crm/leads/:id" element={<LeadDetailsPage />} />
 
             {/* --- Leads Pipeline --- */}
-            <Route path="/crm/new-leads"   element={<NewLeadsPage />} />
-            <Route path="/crm/meetings"    element={<MeetingsPage />} />
-            <Route path="/crm/follow-ups"  element={<FollowUpsPage />} />
-            <Route path="/crm/qualified"   element={<KITPage />} />
+            <Route path="/crm/new-leads" element={<NewLeadsPage />} />
+            <Route path="/crm/meetings" element={<MeetingsPage />} />
+            <Route path="/crm/follow-ups" element={<FollowUpsPage />} />
+            <Route path="/crm/qualified" element={<KITPage />} />
 
             {/* --- Lead Status --- */}
-            <Route path="/crm/converted"   element={<ConvertedPage />} />
-            <Route path="/crm/lost-leads"  element={<LostLeadsPage />} />
+            <Route path="/crm/converted" element={<ConvertedPage />} />
+            <Route path="/crm/lost-leads" element={<LostLeadsPage />} />
 
           </Route>
 
@@ -90,20 +92,22 @@ export default function App() {
               </Route>
               <Route path="clients" element={<ProposalClientsPage />} />
               <Route path="approval" element={<ProposalApprovalPage />} />
-              <Route path="sent" element={<SentProposalsPage />} />
-              <Route path="approved" element={<ApprovedProposalsPage />} />
-              <Route path="review/:id" element={<ReviewPage />} />
+              <Route path="sent" element={<SentProposalDashboard />} />
+              <Route path="sent/:id" element={<SentProposalReviewPage />} />
+              <Route path="approved" element={<ApprovedDashboard />} />
+              <Route path="review/:id" element={<ProposalReviewPage />} />
             </Route>
           </Route>
 
           {/* Other modules */}
-          <Route path="/profile"  element={<ProfilePage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
         {/* Global default redirect */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </ToastProvider>
   );
 }

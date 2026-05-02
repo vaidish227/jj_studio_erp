@@ -44,6 +44,7 @@ export const lifecycleLabels = {
   proposal_sent: 'Proposal Sent',
   advance_received: 'Advance Received',
   project_moved: 'Moved to PM',
+  project_started: 'Project Initiated',
   converted: 'Converted',
   lost: 'Lost',
 };
@@ -63,6 +64,7 @@ export const statusLabelMap = {
   sent: 'Sent to Client',
   esign_pending: 'eSign Pending',
   signed: 'eSign Received',
+  project_started: 'Project Initiated',
 };
 
 const getAutomationTasks = (leadId, meetingDate) => {

@@ -5,25 +5,25 @@ import { crmService } from '../../../shared/services/crmService';
 import Button from '../../../shared/components/Button/Button';
 import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import Avatar from '../../../shared/components/Avatar/Avatar';
+import { useToast } from '../../../shared/notifications/ToastProvider';
+import { Loader } from '../../../shared/components';
 
 const ProposalClientsPage = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [projectFilter, setProjectFilter] = useState('All');
 
   const fetchInterestedLeads = async () => {
     setLoading(true);
-    setError('');
     try {
       // Pull leads who are marked as Interested or have a proposal sent
       const response = await crmService.getLeads({ lifecycleStage: 'interested', limit: 100 });
       setLeads(response.leads || []);
     } catch (err) {
-      console.error('Failed to fetch proposal clients', err);
-      setError('Failed to fetch clients from CRM.');
+      toast.error('Failed to fetch clients from CRM.');
     } finally {
       setLoading(false);
     }
@@ -78,8 +78,8 @@ const ProposalClientsPage = () => {
               key={type}
               onClick={() => setProjectFilter(type)}
               className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${projectFilter === type
-                  ? 'bg-[var(--primary)] text-black shadow-lg shadow-[var(--primary)]/20'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
+                ? 'bg-[var(--primary)] text-black shadow-lg shadow-[var(--primary)]/20'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
                 }`}
             >
               {type}
@@ -89,10 +89,7 @@ const ProposalClientsPage = () => {
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-[var(--text-muted)]">
-          <Loader2 size={40} className="animate-spin mb-4 opacity-20" />
-          <p className="text-sm font-bold uppercase tracking-widest">Syncing with CRM...</p>
-        </div>
+        <Loader label="Syncing with CRM..." />
       ) : filteredLeads.length > 0 ? (
         <div className="space-y-4">
           {filteredLeads.map((lead) => (

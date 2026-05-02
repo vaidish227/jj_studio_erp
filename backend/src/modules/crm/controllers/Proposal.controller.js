@@ -8,23 +8,11 @@ const createProposal = async (req, res) => {
   try {
     const { leadId, templateId, title, description, content, subtotal, gst, finalAmount, status } = req.body;
 
-    // LeadId check
-    if (!leadId) {
-      return res.status(400).json({
-        message: "Lead ID is required",
-      });
-    }
+    if (!leadId) return res.status(400).json({ message: "Lead ID is required" });
 
-    //  Lead fetch
     const lead = await Lead.findById(leadId);
+    if (!lead) return res.status(404).json({ message: "Lead not found" });
 
-    if (!lead) {
-      return res.status(404).json({
-        message: "Lead not found",
-      });
-    }
-
-    //  create proposal with BOTH IDs
     const proposal = await Proposal.create({
       leadId: lead._id,
       clientId: lead.clientId,
@@ -33,37 +21,20 @@ const createProposal = async (req, res) => {
       description,
       content,
       subtotal: subtotal || 0,
-      totalAmount: subtotal || 0, // Using totalAmount to store subtotal per schema or finalAmount based on old code
+      totalAmount: subtotal || 0, 
       gst: gst || 0,
       finalAmount: finalAmount || 0,
       status: status || "draft",
       createdBy: req.user ? req.user.id : null,
     });
 
-    if (status && status !== "draft") {
-      lead.status = "proposal_sent";
-      lead.lifecycleStage = "proposal_sent";
-      lead.interactionHistory = Array.isArray(lead.interactionHistory)
-        ? lead.interactionHistory
-        : [];
-      lead.interactionHistory.push({
-        type: "proposal",
-        title: "Proposal created",
-        description: `A new proposal was generated with status: ${status}`,
-        createdAt: new Date(),
-      });
+    if (status === "pending_approval") {
+      lead.status = "interested"; // Sync with lifecycle
       await lead.save();
     }
 
-    console.log("Proposal created:", proposal._id);
-
-    res.status(201).json({
-      message: "Proposal created successfully",
-      proposal,
-    });
-
+    res.status(201).json({ message: "Proposal created successfully", proposal });
   } catch (err) {
-    console.log(" Error:", err.message);
     res.status(500).json({ message: err.message });
   }
 };
@@ -71,103 +42,178 @@ const createProposal = async (req, res) => {
 //  GET PROPOSALS
 const getProposals = async (req, res) => {
   try {
-    const { leadId, clientId, status, esignStatus } = req.query;
-
+    const { leadId, clientId, status } = req.query;
     const filter = {};
     if (leadId) filter.leadId = leadId;
     if (clientId) filter.clientId = clientId;
-    
     if (status) {
-      if (status.includes(',')) {
-        filter.status = { $in: status.split(',') };
-      } else {
-        filter.status = status;
-      }
+      filter.status = status.includes(',') ? { $in: status.split(',') } : status;
     }
-
-    if (esignStatus) filter.esignStatus = esignStatus;
 
     const proposals = await Proposal.find(filter)
       .populate("leadId", "name email phone")
       .populate("clientId", "name email phone")
+      .populate("templateId", "name")
       .sort({ createdAt: -1 });
 
-    res.json({
-      message: "Proposals fetched",
-      proposals,
-    });
-
+    res.json({ message: "Proposals fetched", proposals });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-//----------------update status-----------------
-// UPDATE STATUS
+// UPDATE PROPOSAL STATUS (Lifecycle Core)
 const updateProposalStatus = async (req, res) => {
   try {
-    const { status, remarks, advancePayment } = req.body;
-    
-    // Build update object
-    const updateObj = { 
-      $set: { status },
-      $push: { 
-        approvalHistory: {
-          action: status,
-          performedBy: req.user ? req.user.id : null,
-          remarks: remarks || "",
-          timestamp: new Date()
-        }
-      }
+    const { status, remarks, amount } = req.body;
+    const proposalId = req.params.id;
+
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) return res.status(404).json({ message: "Proposal not found" });
+
+    const updateObj = { $set: { status } };
+    const historyItem = {
+      action: status,
+      performedBy: req.user ? req.user.id : null,
+      remarks: remarks || "",
+      timestamp: new Date()
     };
 
-    if (advancePayment) {
-      updateObj.$set.advancePayment = advancePayment;
-    }
-
-    if (status === 'signed') {
-      updateObj.$set.esignStatus = 'completed';
-      updateObj.$set.esignSignedAt = new Date();
-    }
-
-    const proposal = await Proposal.findByIdAndUpdate(
-      req.params.id,
-      updateObj,
-      { new: true }
-    );
-
-    if (!proposal) {
-      return res.status(404).json({ message: "Proposal not found" });
-    }
-
-    // Sync with Lead status
-    const leadUpdate = {};
+    // Specific logic per lifecycle stage
     if (status === "manager_approved") {
-      leadUpdate.lifecycleStage = "interested"; 
-    } else if (status === "sent") {
-      leadUpdate.lifecycleStage = "proposal_sent";
-      leadUpdate.status = "proposal_sent";
-    } else if (status === "client_approved" || status === "signed") {
-      leadUpdate.lifecycleStage = "converted"; 
-      leadUpdate.status = "converted";
+      updateObj.$set.approved_by = req.user ? req.user.id : null;
+      updateObj.$set.approved_at = new Date();
+    } else if (status === "rejected") {
+      updateObj.$set.rejected_by = req.user ? req.user.id : null;
+      updateObj.$set.rejection_reason = remarks || "No reason provided";
+    } else if (status === "esign_received") {
+      updateObj.$set.esign = {
+        status: "received",
+        signed_at: req.body.signedAt ? new Date(req.body.signedAt) : new Date()
+      };
+    } else if (status === "payment_received") {
+      updateObj.$set.payments = {
+        status: "received",
+        amount: req.body.amount || proposal.finalAmount * 0.1,
+        received_at: req.body.paidOn ? new Date(req.body.paidOn) : new Date(),
+        method: req.body.paymentMethod || "cash",
+        transactionRef: req.body.transactionRef || "N/A"
+      };
+      updateObj.$set.advancePayment = {
+        amount: req.body.amount || 0,
+        paymentMethod: req.body.paymentMethod || "cash",
+        paymentDate: req.body.paidOn ? new Date(req.body.paidOn) : new Date(),
+        remarks: req.body.transactionRef || ""
+      };
     }
+
+    const updatedProposal = await Proposal.findByIdAndUpdate(
+      proposalId,
+      { ...updateObj, $push: { approvalHistory: historyItem } },
+      { new: true }
+    ).populate("clientId").populate("leadId");
+
+    // AUTO-FLOW LOGIC
+    
+    // 1. If Manager Approved -> Automatically Send to Client
+    if (status === "manager_approved") {
+      try {
+        await triggerSendToClient(updatedProposal);
+        updatedProposal.status = "sent";
+        await updatedProposal.save();
+      } catch (emailErr) {
+        console.error("Auto-send failed:", emailErr.message);
+      }
+    }
+
+    // 2. If eSign Received or Payment Received -> Check for "Project Ready"
+    if (status === "esign_received" || status === "payment_received") {
+      const p = await Proposal.findById(proposalId);
+      if (p.esign?.status === "received" && p.payments?.status === "received") {
+        p.status = "project_ready";
+        await p.save();
+      }
+    }
+
+    // 3. Sync Lead Status
+    const leadUpdate = {};
+    if (status === "sent") leadUpdate.lifecycleStage = "proposal_sent";
+    if (status === "project_started") leadUpdate.lifecycleStage = "converted";
 
     if (Object.keys(leadUpdate).length > 0) {
-      await Lead.findByIdAndUpdate(proposal.leadId, {
-        ...leadUpdate,
-        $push: {
-          interactionHistory: {
-            type: "proposal",
-            title: `Proposal ${status}`,
-            description: remarks || `Proposal status was updated to ${status}.`,
-            createdAt: new Date(),
-          },
-        },
-      });
+      await Lead.findByIdAndUpdate(updatedProposal.leadId, leadUpdate);
     }
 
-    res.json(proposal);
+    res.json(updatedProposal);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
+// Helper for Auto-Send
+const triggerSendToClient = async (proposal) => {
+  if (!proposal.clientId?.email) throw new Error("Client email not found");
+
+  const sections = proposal.content?.sections || [];
+  let itemsHtml = "";
+  sections.forEach(section => {
+    itemsHtml += `<tr><td colspan="4" style="background-color: #f3f4f6; font-weight: bold; padding: 10px;">${section.title}</td></tr>`;
+    section.structure?.rows?.forEach(row => {
+      if (!row.isGroupHeader) {
+        const cols = section.structure.columns;
+        const name = row.cells[cols.find(c => c.label.toLowerCase().includes('item') || c.label.toLowerCase().includes('work'))?.id] || 'Item';
+        const amount = row.cells[cols.find(c => c.label.toLowerCase().includes('amount') || c.label.toLowerCase().includes('total'))?.id] || '0';
+        itemsHtml += `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">${name}</td><td colspan="3" style="text-align: right; padding: 8px;">₹${amount}</td></tr>`;
+      }
+    });
+  });
+
+  await sendEmail({
+    to: proposal.clientId.email,
+    subject: `Proposal Approved: ${proposal.title} - JJ Studio`,
+    html: `<div style="font-family: sans-serif; max-width: 600px;">
+      <h2>Hello ${proposal.clientId.name},</h2>
+      <p>Your proposal for <b>${proposal.title}</b> has been approved by our manager and is ready for your review.</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">${itemsHtml}</table>
+      <div style="background: #f9fafb; padding: 20px; border-radius: 12px;">
+        <p><b>Final Amount: ₹${proposal.finalAmount.toLocaleString('en-IN')}</b></p>
+      </div>
+      <p>Please log in to our portal to complete the eSign and process the advance payment to start the project.</p>
+    </div>`
+  });
+};
+
+// GET BY ID
+const getProposalById = async (req, res) => {
+  try {
+    const proposal = await Proposal.findById(req.params.id)
+      .populate("leadId")
+      .populate("clientId")
+      .populate("templateId", "name");
+    if (!proposal) return res.status(404).json({ message: "Proposal not found" });
+    res.status(200).json({ proposal });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// UPDATE PROPOSAL (FULL)
+const updateProposal = async (req, res) => {
+  try {
+    const { title, description, content, subtotal, gst, finalAmount, status } = req.body;
+    
+    const historyItem = {
+      action: "updated",
+      performedBy: req.user ? req.user.id : null,
+      remarks: "Proposal content modified",
+      timestamp: new Date()
+    };
+
+    const proposal = await Proposal.findByIdAndUpdate(req.params.id, {
+      title, description, content, subtotal, gst, finalAmount, status,
+      $push: { approvalHistory: historyItem }
+    }, { new: true });
+    res.status(200).json({ message: "Proposal updated successfully", proposal });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -177,183 +223,21 @@ const updateProposalStatus = async (req, res) => {
 const deleteProposal = async (req, res) => {
   try {
     await Proposal.findByIdAndDelete(req.params.id);
-
     res.json({ message: "Proposal deleted successfully" });
-
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// GET BY ID
-const getProposalById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({
-        message: "Proposal ID is required",
-      });
-    }
-
-    const proposal = await Proposal.findById(id)
-      .populate("leadId", "name phone")
-      .populate("clientId", "name");
-
-    if (!proposal) {
-      return res.status(404).json({
-        message: "Proposal not found",
-      });
-    }
-
-    console.log(" Proposal fetched:", proposal._id);
-
-    res.status(200).json({
-      message: "Proposal fetched successfully",
-      proposal,
-    });
-
-  } catch (err) {
-    console.log(" Error:", err.message);
-    res.status(500).json({ message: err.message });
-  }
-};
-
-//  UPDATE PROPOSAL (FULL)
-const updateProposal = async (req, res) => {
-  try {
-
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({
-        message: "Proposal ID is required",
-      });
-    }
-
-    const proposal = await Proposal.findById(id);
-
-    if (!proposal) {
-      return res.status(404).json({
-        message: "Proposal not found",
-      });
-    }
-
-    const { title, description, content, subtotal, gst, finalAmount, status } = req.body;
-
-    Object.assign(proposal, {
-      title: title || proposal.title,
-      description: description !== undefined ? description : proposal.description,
-      content: content || proposal.content,
-      subtotal: subtotal !== undefined ? subtotal : proposal.subtotal,
-      totalAmount: subtotal !== undefined ? subtotal : proposal.totalAmount, // Using totalAmount per schema mapping
-      gst: gst !== undefined ? gst : proposal.gst,
-      finalAmount: finalAmount !== undefined ? finalAmount : proposal.finalAmount,
-      status: status || proposal.status,
-    });
-
-    await proposal.save();
-
-    res.status(200).json({
-      message: "Proposal updated successfully",
-      proposal,
-    });
-
-  } catch (err) {
-    console.log(" Error:", err.message);
-    res.status(500).json({ message: err.message });
-  }
-};
-//  SEND PROPOSAL EMAIL
+// SEND PROPOSAL EMAIL (Manual trigger)
 const sendProposalEmail = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const proposal = await Proposal.findById(id)
-      .populate("clientId", "name email");
-
-    if (!proposal) {
-      return res.status(404).json({
-        message: "Proposal not found",
-      });
-    }
-
-    if (!proposal.clientId || !proposal.clientId.email) {
-      return res.status(400).json({
-        message: "Client email not found",
-      });
-    }
-
-    //  dynamic items HTML
-    const itemsHtml = proposal.items.map((item) => `
-      <tr>
-        <td>${item.name}</td>
-        <td>${item.qty}</td>
-        <td>₹${item.rate}</td>
-        <td>₹${item.amount}</td>
-      </tr>
-    `).join("");
-
-    //  mail content 
-    await sendEmail({
-      to: proposal.clientId.email,
-      subject: "Your Proposal from JJ Studio",
-      html: `
-        <h2>Hello ${proposal.clientId.name},</h2>
-
-        <p>Please find your proposal details below:</p>
-
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Rate</th>
-              <th>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
-
-        <br/>
-
-        <p><b>Total Amount:</b> ₹${proposal.totalAmount}</p>
-        <p><b>GST (18%):</b> ₹${proposal.gst}</p>
-        <p><b>Final Amount:</b> ₹${proposal.finalAmount}</p>
-
-        <br/>
-
-        <p>We look forward to working with you.</p>
-
-        <p>Regards,<br/>JJ Studio Team</p>
-      `,
-    });
-
-    // update status
+    const proposal = await Proposal.findById(req.params.id).populate("clientId");
+    await triggerSendToClient(proposal);
     proposal.status = "sent";
     await proposal.save();
-
-    await Lead.findByIdAndUpdate(proposal.leadId, {
-      status: "proposal_sent",
-      lifecycleStage: "proposal_sent",
-      $push: {
-        interactionHistory: {
-          type: "proposal",
-          title: "Proposal sent",
-          description: "Proposal email was sent to the client.",
-          createdAt: new Date(),
-        },
-      },
-    });
-
-    res.status(200).json({
-      message: "Proposal email sent successfully",
-    });
-
+    res.status(200).json({ message: "Proposal email sent successfully" });
   } catch (err) {
-    console.log(" Error:", err.message);
     res.status(500).json({ message: err.message });
   }
 };

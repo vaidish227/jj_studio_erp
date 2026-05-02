@@ -6,12 +6,17 @@ import Card from '../../../shared/components/Card/Card';
 import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import { crmService } from '../../../shared/services/crmService';
 import TemplatePreviewModal from '../components/TemplatePreviewModal';
+import { useToast } from '../../../shared/notifications/ToastProvider';
+import { Loader, ConfirmationModal } from '../../../shared/components';
 
 const ProposalTemplatesPage = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchTemplates();
@@ -29,15 +34,19 @@ const ProposalTemplatesPage = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this template?')) return;
-    
+  const handleDelete = async () => {
+    if (!deleteId) return;
+
+    setIsDeleting(true);
     try {
-      await crmService.deleteTemplate(id);
-      setTemplates(prev => prev.filter(t => t._id !== id));
+      await crmService.deleteTemplate(deleteId);
+      setTemplates(prev => prev.filter(t => t._id !== deleteId));
+      toast.success('Template deleted successfully');
+      setDeleteId(null);
     } catch (error) {
-      console.error('Failed to delete template:', error);
-      alert('Failed to delete template.');
+      toast.error('Failed to delete template');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -71,8 +80,8 @@ const ProposalTemplatesPage = () => {
           <p className="text-[var(--text-muted)] max-w-sm mx-auto mt-2 font-medium">
             Create your first dynamic quotation template to easily generate structured proposals for your clients.
           </p>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="mt-8"
             onClick={() => navigate('/proposal/templates/create')}
           >
@@ -146,7 +155,7 @@ const ProposalTemplatesPage = () => {
                             <Edit3 size={18} />
                           </button>
                           <button
-                            onClick={() => handleDelete(template._id)}
+                            onClick={() => setDeleteId(template._id)}
                             className="p-2 text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 rounded-lg transition-colors"
                             title="Delete Template"
                           >
@@ -164,10 +173,21 @@ const ProposalTemplatesPage = () => {
       )}
 
       {/* Preview Modal */}
-      <TemplatePreviewModal 
-        isOpen={!!previewTemplate} 
-        onClose={() => setPreviewTemplate(null)} 
-        template={previewTemplate} 
+      <TemplatePreviewModal
+        isOpen={!!previewTemplate}
+        onClose={() => setPreviewTemplate(null)}
+        template={previewTemplate}
+      />
+
+      <ConfirmationModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Template"
+        message="Are you sure you want to delete this template? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={isDeleting}
       />
     </div>
   );

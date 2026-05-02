@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @layer components {
+
   /* Sleek Custom Scrollbar */
   .custom-scrollbar {
     scrollbar-width: thin;
@@ -8,7 +9,8 @@
   }
 
   .custom-scrollbar:hover {
-    scrollbar-color: #cbd5e1 transparent; /* Tailwind slate-300 */
+    scrollbar-color: #cbd5e1 transparent;
+    /* Tailwind slate-300 */
   }
 
   /* Webkit browsers (Chrome, Safari, Edge) */
@@ -27,7 +29,8 @@
   }
 
   .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background: #cbd5e1; /* Default for light bg */
+    background: #cbd5e1;
+    /* Default for light bg */
   }
 
   /* Specific override for sidebar (dark background) */
