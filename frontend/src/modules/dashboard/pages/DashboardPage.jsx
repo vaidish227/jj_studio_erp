@@ -4,10 +4,21 @@ import { DashboardCard } from '../../../shared/components';
 import SalesPipeline from '../components/SalesPipeline';
 import FollowUpsPanel from '../components/FollowUpsPanel';
 import useDashboardData from '../hooks/useDashboardData';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 const DashboardPage = () => {
   const { stats, pipeline, followups, isLoading, error } = useDashboardData();
+
+  const {
+    filters,
+    hasActiveFilters,
+    activeFilterCount,
+    filterConfig,
+    updateFilter,
+    clearAllFilters
+  } = useFilters('dashboard', 'overview');
 
   const statCards = [
     {
@@ -56,6 +67,18 @@ const DashboardPage = () => {
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Dashboard</h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">Welcome back! Here's your realtime sales overview.</p>
       </div>
+
+      {/* Dashboard Filters */}
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        showSearch={false}
+        compact={true}
+      />
 
       {error && (
         <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">

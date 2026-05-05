@@ -130,7 +130,6 @@ const SentProposalReviewPage = () => {
           <div className="space-y-4">
             {[
               { label: 'Project Type', value: proposal.leadId?.projectType || 'Interior Design' },
-              { label: 'Total Amount', value: `₹${Number(proposal.finalAmount || 0).toLocaleString('en-IN')}` },
               { label: 'eSign Status', value: esignDone ? 'Completed' : 'Pending', highlight: esignDone },
               { label: 'Signed At', value: proposal.esign?.signed_at ? new Date(proposal.esign.signed_at).toLocaleDateString('en-IN') : 'N/A' },
               { label: 'Proposal Title', value: proposal.title },
@@ -142,82 +141,6 @@ const SentProposalReviewPage = () => {
             ))}
           </div>
         </div>
-
-        {/* PAYMENT RECEIVED */}
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-5 pb-4 border-b border-[var(--border)]">
-            <div className="w-7 h-7 rounded-lg bg-[var(--success)]/10 text-[var(--success)] flex items-center justify-center"><CreditCard size={14} /></div>
-            <h2 className="text-xs font-black uppercase tracking-widest text-[var(--success)]">Payment Received</h2>
-          </div>
-          {paymentDone ? (
-            <div className="space-y-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Advance Paid</p>
-                <p className="text-3xl font-bold text-[var(--text-primary)] mt-1">₹{Number(proposal.payments?.amount || 0).toLocaleString('en-IN')}</p>
-              </div>
-              {[
-                { label: 'Paid On', value: proposal.payments?.received_at ? new Date(proposal.payments.received_at).toLocaleDateString('en-IN') : 'N/A' },
-                { label: 'Method', value: methodLabel[proposal.payments?.method] || proposal.payments?.method || 'N/A' },
-                { label: 'Transaction Ref', value: proposal.payments?.transactionRef || 'N/A' },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{label}</p>
-                  <p className="text-sm font-semibold text-[var(--text-primary)] mt-0.5">{value}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-40 text-center gap-2 opacity-40">
-              <CreditCard size={32} className="text-[var(--text-muted)]" />
-              <p className="text-sm font-medium text-[var(--text-muted)]">No payment received yet</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Quotation Data + History */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quotation Table */}
-        <div className="lg:col-span-2 bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--border)]">
-            <h2 className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">Quotation Data</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-[var(--bg)]">
-                <tr>
-                  {['Item Name', 'Quantity', 'Rate', 'Total'].map(h => (
-                    <th key={h} className="px-6 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {sections.flatMap(sec =>
-                  sec.structure?.rows?.filter(r => !r.isGroupHeader).map((row, ri) => {
-                    const cols = sec.structure.columns;
-                    const get = (keywords) => {
-                      const col = cols.find(c => keywords.some(k => c.label.toLowerCase().includes(k)));
-                      return col ? row.cells[col.id] : '—';
-                    };
-                    return (
-                      <tr key={`${sec.id}-${ri}`} className="hover:bg-[var(--bg)] transition-colors">
-                        <td className="px-6 py-3 text-sm text-[var(--text-primary)] font-medium">{get(['item', 'work', 'name', 'description'])}</td>
-                        <td className="px-6 py-3 text-sm text-[var(--text-secondary)]">{get(['qty', 'quantity'])}</td>
-                        <td className="px-6 py-3 text-sm text-[var(--text-secondary)]">{get(['rate', 'price'])}</td>
-                        <td className="px-6 py-3 text-sm font-bold text-[var(--text-primary)]">{get(['amount', 'total', 'cost'])}</td>
-                      </tr>
-                    );
-                  })
-                )}
-                <tr className="border-t-2 border-[var(--border)] bg-[var(--bg)]">
-                  <td colSpan="3" className="px-6 py-4 text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Final Total</td>
-                  <td className="px-6 py-4 text-base font-bold text-[var(--primary)]">₹{Number(proposal.finalAmount || 0).toLocaleString('en-IN')}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         {/* Full History */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6">
           <div className="flex items-center justify-between mb-5 pb-4 border-b border-[var(--border)]">
@@ -247,6 +170,7 @@ const SentProposalReviewPage = () => {
             )}
           </div>
         </div>
+        
       </div>
     </div>
   );

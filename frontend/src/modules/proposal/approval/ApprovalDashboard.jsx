@@ -1,29 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CheckSquare,
-  Search,
   RotateCcw,
   Eye,
   Edit3,
   ThumbsUp,
   ThumbsDown,
   AlertCircle,
-  Filter,
 } from 'lucide-react';
 import { Button, Loader, StatusBadge } from '../../../shared/components';
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import ConfirmationModal from '../../../shared/components/ConfirmationModal/ConfirmationModal';
 import { formatDateMedium, formatTimeOnly } from '../../../shared/utils/dateUtils';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 
 const ApprovalDashboard = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
 
   // Read user role from localStorage (same pattern as ReviewPage)
   const user = (() => {
@@ -40,11 +38,17 @@ const ApprovalDashboard = () => {
     message: ''
   });
 
-  useEffect(() => {
-    fetchProposals();
-  }, []);
+  const {
+    filters,
+    hasActiveFilters,
+    activeFilterCount,
+    filterConfig,
+    updateFilter,
+    clearAllFilters,
+    process
+  } = useFilters('proposal', 'approval');
 
-  const fetchProposals = async () => {
+  const fetchProposals = useCallback(async () => {
     try {
       setLoading(true);
       const res = await crmService.getProposals();
@@ -54,7 +58,11 @@ const ApprovalDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchProposals();
+  }, [fetchProposals]);
 
   const handleAction = async (remarks) => {
     try {
@@ -77,23 +85,8 @@ const ApprovalDashboard = () => {
     setConfirmModal({ isOpen: true, proposal, action, status, title, message });
   };
 
-  const FILTER_OPTIONS = [
-    { label: 'All', value: 'all' },
-    { label: 'Draft', value: 'draft' },
-    { label: 'Pending', value: 'pending_approval' },
-    { label: 'Approved', value: 'manager_approved' },
-    { label: 'Rejected', value: 'rejected' },
-    { label: 'Sent', value: 'sent' },
-  ];
-
-  const filteredProposals = proposals.filter(p => {
-    const matchesSearch =
-      p.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.clientId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.leadId?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Apply reusable filter system
+  const filteredProposals = process(proposals);
 
   const isFinal = (status) => ['sent', 'project_started', 'project_ready', 'esign_received', 'payment_received'].includes(status);
 
@@ -113,40 +106,17 @@ const ApprovalDashboard = () => {
         </Button>
       </div>
 
-      {/* ── Search & Filters ── */}
-      <div className="flex flex-col md:flex-row gap-4">
-        {/* Search */}
-        <div className="relative group flex-1">
-          <Search
-            size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
-          />
-          <input
-            type="text"
-            placeholder="Search by client or proposal title..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all duration-200"
-          />
-        </div>
-
-        {/* Status Filter Pills */}
-        <div className="flex items-center gap-1 bg-[var(--surface)] p-1 rounded-xl border border-[var(--border)] flex-wrap">
-          {FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setStatusFilter(opt.value)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                statusFilter === opt.value
-                  ? 'bg-[var(--primary)] text-black shadow-sm'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* ── Advanced Filter System ── */}
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        showSearch={true}
+        compact={false}
+      />
 
       {/* ── Table ── */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
@@ -176,17 +146,8 @@ const ApprovalDashboard = () => {
                         <AlertCircle size={28} className="text-[var(--text-muted)] opacity-40" />
                       </div>
                       <p className="text-sm text-[var(--text-muted)]">
-                        {searchTerm
-                          ? `No results for "${searchTerm}"`
-                          : statusFilter !== 'all'
-                          ? `No proposals with status "${statusFilter.replace('_', ' ')}"`
-                          : 'No proposals found.'}
+                        No proposals found.
                       </p>
-                      {statusFilter !== 'all' && (
-                        <Button variant="ghost" size="sm" className="text-[var(--primary)]" onClick={() => setStatusFilter('all')}>
-                          View all proposals
-                        </Button>
-                      )}
                     </div>
                   </td>
                 </tr>

@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
-  Search,
   RotateCcw,
   PlayCircle,
   Eye,
@@ -14,17 +13,26 @@ import { Card, Button, Loader, StatusBadge } from '../../../shared/components';
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { formatDateMedium } from '../../../shared/utils/dateUtils';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 
 const ApprovedDashboard = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => { fetchProposals(); }, []);
+  const {
+    filters,
+    hasActiveFilters,
+    activeFilterCount,
+    filterConfig,
+    updateFilter,
+    clearAllFilters,
+    process
+  } = useFilters('proposal', 'approved');
 
-  const fetchProposals = async () => {
+  const fetchProposals = useCallback(async () => {
     try {
       setLoading(true);
       const res = await crmService.getProposals({ status: 'project_ready,project_started' });
@@ -34,7 +42,12 @@ const ApprovedDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => { fetchProposals(); }, [fetchProposals]);
+
+  // Apply reusable filter system
+  const filteredProposals = process(proposals);
 
   const startProject = async (id) => {
     try {
@@ -49,12 +62,6 @@ const ApprovedDashboard = () => {
     }
   };
 
-  const filteredProposals = proposals.filter(p =>
-    p.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.clientId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.leadId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
     <div className="space-y-6 pb-10">
       {/* Header */}
@@ -68,17 +75,17 @@ const ApprovedDashboard = () => {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative group">
-        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors" />
-        <input
-          type="text"
-          placeholder="Search by client or proposal..."
-          className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      {/* Advanced Filter System */}
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        showSearch={true}
+        compact={false}
+      />
 
       {/* Grid */}
       {loading ? (
@@ -149,7 +156,7 @@ const ApprovedDashboard = () => {
                 >
                   <Eye size={13} /> Review
                 </button>
-                <span className="text-sm font-bold text-[var(--text-primary)]">₹{p.finalAmount?.toLocaleString('en-IN')}</span>
+                <span className="text-sm font-bold text-[var(--success)]">Payment Received</span>
               </div>
             </Card>
           ))}

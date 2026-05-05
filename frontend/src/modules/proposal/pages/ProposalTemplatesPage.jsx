@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, Loader2, Edit3, Trash2, Calendar, LayoutGrid, Eye, X } from 'lucide-react';
 import Button from '../../../shared/components/Button/Button';
@@ -8,6 +8,8 @@ import { crmService } from '../../../shared/services/crmService';
 import TemplatePreviewModal from '../components/TemplatePreviewModal';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader, ConfirmationModal } from '../../../shared/components';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 
 const ProposalTemplatesPage = () => {
   const navigate = useNavigate();
@@ -18,11 +20,17 @@ const ProposalTemplatesPage = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
+  const {
+    filters,
+    hasActiveFilters,
+    activeFilterCount,
+    filterConfig,
+    updateFilter,
+    clearAllFilters,
+    process
+  } = useFilters('proposal', 'templates');
 
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
       const response = await crmService.getTemplates();
@@ -32,7 +40,14 @@ const ProposalTemplatesPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [fetchTemplates]);
+
+  // Apply reusable filter system
+  const filteredTemplates = process(templates);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -66,12 +81,24 @@ const ProposalTemplatesPage = () => {
         </Button>
       </div>
 
+      {/* Advanced Filter System */}
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        showSearch={true}
+        compact={false}
+      />
+
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 text-[var(--text-muted)]">
           <Loader2 size={40} className="animate-spin mb-4 opacity-20" />
           <p className="text-sm font-bold uppercase tracking-widest">Loading templates...</p>
         </div>
-      ) : templates.length === 0 ? (
+      ) : filteredTemplates.length === 0 ? (
         <div className="bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-3xl p-16 text-center">
           <div className="w-20 h-20 bg-[var(--bg)] rounded-full flex items-center justify-center mx-auto mb-6">
             <LayoutGrid size={32} className="text-[var(--text-muted)] opacity-30" />
@@ -102,7 +129,7 @@ const ProposalTemplatesPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {templates.map((template) => {
+                {filteredTemplates.map((template) => {
                   const structure = template.structure || {};
                   const columnsCount = structure.columns?.length || 0;
                   const rowsCount = structure.rows?.length || 0;

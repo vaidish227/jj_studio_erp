@@ -11,7 +11,6 @@ import {
   MapPin,
   Phone,
   Plus,
-  Search,
   XCircle,
   RotateCcw,
 } from 'lucide-react';
@@ -23,8 +22,10 @@ import Modal from '../../../shared/components/Modal/Modal';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Select from '../../../shared/components/Select/Select';
 import { crmService } from '../../../shared/services/crmService';
-import { DashboardCard, SearchInput, ViewToggle, Loader } from '../../../shared/components';
+import { DashboardCard, ViewToggle, Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -39,9 +40,7 @@ const MeetingsPage = () => {
   const toast = useToast();
   const [searchParams] = useSearchParams();
   const navbarQuery = searchParams.get('q') || '';
-  const [localSearch, setLocalSearch] = useState('');
   const [viewMode, setViewMode] = useState('calendar');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [meetings, setMeetings] = useState([]);
   const [leads, setLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,6 +56,16 @@ const MeetingsPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const {
+    filters,
+    hasActiveFilters,
+    activeFilterCount,
+    filterConfig,
+    updateFilter,
+    clearAllFilters,
+    process
+  } = useFilters('crm', 'meetings');
 
   const fetchData = useCallback(async (isInitialLoad = false) => {
     if (isInitialLoad) setIsLoading(true); // only first time
@@ -90,31 +99,35 @@ const MeetingsPage = () => {
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
-  const searchTerm = `${navbarQuery} ${localSearch}`.trim().toLowerCase();
+  // Apply navbar search to filters
+const searchTerm = navbarQuery.toLowerCase();
 
-  const filteredMeetingsByStatus = useMemo(() => {
-    if (statusFilter === 'all') return meetings;
-    return meetings.filter((meeting) => meeting.status === statusFilter);
-  }, [meetings, statusFilter]);
+  // Apply reusable filter system
+  const filteredMeetings = useMemo(() => {
+    // Combine navbar search with filter system
+    let processedMeetings = process(meetings);
+    
+    if (searchTerm) {
+      processedMeetings = processedMeetings.filter((meeting) => {
+        const lead = meeting.leadId || {};
+        const haystack = [
+          lead.name,
+          lead.phone,
+          lead.projectType,
+          lead.city,
+          meeting.notes,
+          meeting.type,
+          meeting.status,
+        ]
+          .join(' ')
+          .toLowerCase();
 
-  const searchedMeetings = useMemo(() => {
-    return filteredMeetingsByStatus.filter((meeting) => {
-      const lead = meeting.leadId || {};
-      const haystack = [
-        lead.name,
-        lead.phone,
-        lead.projectType,
-        lead.city,
-        meeting.notes,
-        meeting.type,
-        meeting.status,
-      ]
-        .join(' ')
-        .toLowerCase();
-
-      return haystack.includes(searchTerm);
-    });
-  }, [filteredMeetingsByStatus, searchTerm]);
+        return haystack.includes(searchTerm);
+      });
+    }
+    
+    return processedMeetings;
+  }, [meetings, process, searchTerm]);
 
   const stats = useMemo(() => ({
     total: meetings.length,
@@ -138,24 +151,24 @@ const MeetingsPage = () => {
 
     for (let i = 1; i <= totalDays; i += 1) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
-      const dayMeetings = searchedMeetings.filter(
+      const dayMeetings = filteredMeetings.filter(
         (meeting) => new Date(meeting.date).toDateString() === date.toDateString()
       );
       days.push({ day: i, date, meetingCount: dayMeetings.length });
     }
 
     return days;
-  }, [currentMonth, searchedMeetings]);
+  }, [currentMonth, filteredMeetings]);
 
   const visibleMeetings = useMemo(() => {
     if (viewMode === 'calendar') {
-      return searchedMeetings.filter(
+      return filteredMeetings.filter(
         (meeting) => new Date(meeting.date).toDateString() === selectedDate.toDateString()
       );
     }
 
-    return searchedMeetings;
-  }, [searchedMeetings, selectedDate, viewMode]);
+    return filteredMeetings;
+  }, [filteredMeetings, selectedDate, viewMode]);
 
   const handleCreateMeeting = async (e) => {
     e.preventDefault();
@@ -245,12 +258,6 @@ const MeetingsPage = () => {
         </div>
 
         <div className="flex flex-col md:flex-row items-center gap-4 w-full lg:w-auto">
-          <SearchInput
-            value={localSearch}
-            onChange={setLocalSearch}
-            placeholder="Search meetings..."
-            className="w-full md:w-72"
-          />
           <ViewToggle
             view={viewMode}
             onViewChange={setViewMode}
@@ -262,6 +269,18 @@ const MeetingsPage = () => {
         </div>
       </div>
 
+      {/* Advanced Filter System */}
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        showSearch={true}
+        compact={false}
+      />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <DashboardCard title="Total Meetings" value={stats.total} icon={CalendarIcon} iconBg="bg-[var(--primary)]/10" compact />
@@ -269,36 +288,6 @@ const MeetingsPage = () => {
         <DashboardCard title="Completed" value={stats.completed} icon={CheckCircle2} iconBg="bg-[var(--success)]/10" compact />
         <DashboardCard title="Cancelled" value={stats.cancelled} icon={XCircle} iconBg="bg-[var(--error)]/10" compact />
         <DashboardCard title="On-Site" value={stats.site} icon={MapPin} iconBg="bg-[var(--warning)]/10" compact />
-      </div>
-
-      <div className="flex items-center gap-2 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl w-fit">
-        <button
-          onClick={() => setStatusFilter('all')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'all' ? 'bg-[var(--primary)] text-black shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-        >
-          All
-        </button>
-        <button
-          onClick={() => setStatusFilter('scheduled')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'scheduled' ? 'bg-[var(--primary)] text-black shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-        >
-          <Clock size={14} />
-          Scheduled
-        </button>
-        <button
-          onClick={() => setStatusFilter('completed')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'completed' ? 'bg-[var(--success)] text-black shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-        >
-          <CheckCircle2 size={14} />
-          Completed
-        </button>
-        <button
-          onClick={() => setStatusFilter('cancelled')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${statusFilter === 'cancelled' ? 'bg-[var(--error)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
-        >
-          <XCircle size={14} />
-          Cancelled
-        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

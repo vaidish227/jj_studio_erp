@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Loader2, Search, ExternalLink, Mail, CheckCircle2, XCircle, Clock, Send, Eye, Edit3 } from 'lucide-react';
+import { FileText, Loader2, ExternalLink, Mail, CheckCircle2, XCircle, Clock, Send, Eye, Edit3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
@@ -8,13 +8,14 @@ import { crmService } from '../../../shared/services/crmService';
 import { formatDateShort } from '../../../shared/utils/dateUtils';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader } from '../../../shared/components';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 
 const ProposalListPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [proposals, setProposals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchProposals = async () => {
     setIsLoading(true);
@@ -32,11 +33,18 @@ const ProposalListPage = () => {
     fetchProposals();
   }, []);
 
-  const filteredProposals = proposals.filter(p => 
-    p.leadId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.clientId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p._id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const {
+    filters,
+    hasActiveFilters,
+    activeFilterCount,
+    filterConfig,
+    updateFilter,
+    clearAllFilters,
+    process
+  } = useFilters('proposal', 'proposals');
+
+  // Apply filters to proposals
+  const filteredProposals = process(proposals);
 
   const handleSendEmail = async (id) => {
     try {
@@ -59,19 +67,14 @@ const ProposalListPage = () => {
         </div>
       </div>
 
-      <div className="relative group">
-        <Search
-          size={18}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
-        />
-        <input
-          type="text"
-          placeholder="Search by client name or proposal ID..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all duration-200"
-        />
-      </div>
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+      />
 
       {isLoading ? (
         <Loader label="Fetching proposals..." />
@@ -155,7 +158,7 @@ const ProposalListPage = () => {
         <div className="text-center py-24 bg-[var(--surface)] rounded-2xl border border-dashed border-[var(--border)]">
           <FileText size={48} className="text-[var(--text-muted)] opacity-20 mx-auto mb-4" />
           <p className="text-[var(--text-muted)] text-sm">
-            {searchTerm ? `No proposals matching "${searchTerm}"` : 'No proposals found.'}
+            No proposals found.
           </p>
         </div>
       )}

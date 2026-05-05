@@ -248,13 +248,13 @@ const EnquiryFormPage = () => {
                 placeholder="Ex: 2500"
               />
               <Input
-                label="Budget Estimate (₹)"
+                label="Fees Estimate (₹)"
                 name="quotedAmount"
                 type="number"
                 value={formData.quotedAmount}
                 onChange={handleChange}
                 icon={IndianRupee}
-                placeholder="Approx budget"
+                placeholder="Ex: 50000"
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">

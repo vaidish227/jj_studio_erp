@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search,
   RotateCcw,
   Eye,
   FileCheck,
@@ -14,6 +13,9 @@ import {
 import { Button, Loader, StatusBadge } from '../../../shared/components';
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+import PaymentStatusModal from '../../../shared/components/PaymentStatusModal';
 
 // ─── eSign Confirmation Modal ────────────────────────────────────────────────
 const EsignModal = ({ proposal, onClose, onConfirm, isLoading }) => {
@@ -76,104 +78,13 @@ const EsignModal = ({ proposal, onClose, onConfirm, isLoading }) => {
 
 // ─── Payment Confirmation Modal ───────────────────────────────────────────────
 const PaymentModal = ({ proposal, onClose, onConfirm, isLoading }) => {
-  const [form, setForm] = useState({
-    amount: proposal.finalAmount || '',
-    paymentMethod: 'bank_transfer',
-    transactionRef: '',
-    paidOn: new Date().toISOString().split('T')[0],
-  });
-
-  const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
-
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-[var(--border)]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[var(--success)]/10 text-[var(--success)] flex items-center justify-center">
-              <CreditCard size={18} />
-            </div>
-            <h2 className="text-base font-bold text-[var(--text-primary)]">Confirm Advance Payment</h2>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--bg)] text-[var(--text-muted)] transition-colors">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-5">
-          {/* Client Info */}
-          <div className="bg-[var(--bg)] p-4 rounded-xl border border-[var(--border)]">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-2">Client</p>
-            <p className="text-sm font-bold text-[var(--text-primary)]">{proposal.clientId?.name || proposal.leadId?.name}</p>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">{proposal.clientId?.phone || proposal.leadId?.phone}</p>
-          </div>
-
-          {/* Amount */}
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Advance Amount (₹)</label>
-            <input
-              type="number"
-              value={form.amount}
-              onChange={(e) => set('amount', e.target.value)}
-              placeholder="Enter amount received..."
-              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all font-bold"
-            />
-          </div>
-
-          {/* Payment Method */}
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Payment Method</label>
-            <select
-              value={form.paymentMethod}
-              onChange={(e) => set('paymentMethod', e.target.value)}
-              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] transition-all"
-            >
-              <option value="cash">Cash</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-              <option value="upi">UPI</option>
-              <option value="card">Card</option>
-            </select>
-          </div>
-
-          {/* Transaction Ref */}
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Transaction Ref / Cheque No. (Optional)</label>
-            <input
-              type="text"
-              value={form.transactionRef}
-              onChange={(e) => set('transactionRef', e.target.value)}
-              placeholder="e.g. TXN123456 or N/A"
-              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all"
-            />
-          </div>
-
-          {/* Paid On */}
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2">Payment Date</label>
-            <input
-              type="date"
-              value={form.paidOn}
-              onChange={(e) => set('paidOn', e.target.value)}
-              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] transition-all"
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-3 p-6 border-t border-[var(--border)]">
-          <Button variant="outline" onClick={onClose} disabled={isLoading} className="flex-1">Cancel</Button>
-          <Button
-            variant="primary"
-            onClick={() => onConfirm(form)}
-            isLoading={isLoading}
-            disabled={!form.amount}
-            className="flex-1 font-bold"
-          >
-            <CreditCard size={15} /> Confirm Payment
-          </Button>
-        </div>
-      </div>
-    </div>
+    <PaymentStatusModal
+      proposal={proposal}
+      onClose={onClose}
+      onConfirm={onConfirm}
+      isLoading={isLoading}
+    />
   );
 };
 
@@ -184,15 +95,22 @@ const SentProposalDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [proposals, setProposals] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
 
   // Modal state
   const [esignModal, setEsignModal] = useState(null);   // proposal object
   const [paymentModal, setPaymentModal] = useState(null); // proposal object
 
-  useEffect(() => { fetchProposals(); }, []);
+  const {
+    filters,
+    hasActiveFilters,
+    activeFilterCount,
+    filterConfig,
+    updateFilter,
+    clearAllFilters,
+    process
+  } = useFilters('proposal', 'sent');
 
-  const fetchProposals = async () => {
+  const fetchProposals = useCallback(async () => {
     try {
       setLoading(true);
       const res = await crmService.getProposals({ status: 'sent,esign_received,payment_received,project_ready,project_started' });
@@ -202,7 +120,9 @@ const SentProposalDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => { fetchProposals(); }, [fetchProposals]);
 
   const handleEsignConfirm = async ({ signedAt }) => {
     try {
@@ -225,15 +145,16 @@ const SentProposalDashboard = () => {
   const handlePaymentConfirm = async (form) => {
     try {
       setActionLoading(true);
+      const newStatus = form.status === 'received' ? 'payment_received' : 'sent';
+      
       await crmService.updateProposalStatus(paymentModal._id, {
-        status: 'payment_received',
-        amount: Number(form.amount),
-        paymentMethod: form.paymentMethod,
-        transactionRef: form.transactionRef || 'N/A',
+        status: newStatus,
+        paymentStatus: form.status,
         paidOn: form.paidOn,
-        remarks: `Advance payment received via ${form.paymentMethod}`
+        remarks: `Payment status updated to ${form.status}`
       });
-      toast.success('Payment marked as received!');
+      
+      toast.success('Payment status updated successfully!');
       setPaymentModal(null);
       fetchProposals();
     } catch (err) {
@@ -243,14 +164,14 @@ const SentProposalDashboard = () => {
     }
   };
 
-  const filteredProposals = proposals.filter(p =>
-    p.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.clientId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.leadId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Apply reusable filter system
+  const filteredProposals = process(proposals);
 
   const esignDone = (p) => p.esign?.status === 'received' || ['esign_received', 'payment_received', 'project_ready', 'project_started'].includes(p.status);
-  const paymentDone = (p) => p.payments?.status === 'received' || ['payment_received', 'project_ready', 'project_started'].includes(p.status);
+  const paymentStatus = (p) => {
+    if (['payment_received', 'project_ready', 'project_started'].includes(p.status)) return 'received';
+    return 'pending';
+  };
 
   return (
     <div className="space-y-6 pb-10">
@@ -267,17 +188,17 @@ const SentProposalDashboard = () => {
         </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative group">
-        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors" />
-        <input
-          type="text"
-          placeholder="Search by client or proposal..."
-          className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      {/* Advanced Filter System */}
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        showSearch={true}
+        compact={false}
+      />
 
       {/* Table */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
@@ -287,8 +208,7 @@ const SentProposalDashboard = () => {
               <tr className="border-b border-[var(--border)] bg-[var(--bg)]">
                 <th className="px-6 py-4 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">Client & Proposal</th>
                 <th className="px-6 py-4 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest text-center">eSign</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest text-center">Payment</th>
-                <th className="px-6 py-4 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest text-right">Amount</th>
+                <th className="px-6 py-4 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest text-center">Payment Status</th>
                 <th className="px-6 py-4 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
@@ -350,36 +270,28 @@ const SentProposalDashboard = () => {
                       )}
                     </td>
 
-                    {/* Payment */}
+                    {/* Payment Status */}
                     <td className="px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
-                      {paymentDone(p) ? (
+                      {paymentStatus(p) === 'received' ? (
                         <div className="flex flex-col items-center gap-1.5">
                           <span className="flex items-center gap-1.5 text-[var(--success)] text-xs font-bold">
-                            <CreditCard size={14} /> Paid
+                            <CreditCard size={14} /> Received
                           </span>
-                          <span className="text-[10px] text-[var(--text-muted)]">Mark Paid</span>
+                          <span className="text-[9px] text-[var(--text-muted)]">Payment Complete</span>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center gap-1.5">
-                          <span className="flex items-center gap-1.5 text-[var(--text-muted)] text-xs font-medium">
+                          <span className="flex items-center gap-1.5 text-[var(--warning)] text-xs font-bold">
                             <Clock size={14} /> Pending
                           </span>
                           <button
                             onClick={() => setPaymentModal(p)}
                             className="text-[10px] font-bold text-[var(--primary)] hover:underline uppercase tracking-wide"
                           >
-                            Mark Paid
+                            Update Status
                           </button>
                         </div>
                       )}
-                    </td>
-
-                    {/* Amount + Status Badge */}
-                    <td className="px-6 py-5 text-right">
-                      <p className="text-sm font-bold text-[var(--text-primary)]">₹{Number(p.finalAmount || 0).toLocaleString('en-IN')}</p>
-                      <div className="mt-1.5 flex justify-end">
-                        <StatusBadge status={p.status} />
-                      </div>
                     </td>
 
                     {/* Actions */}

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Users, Search, Loader2, FilePlus, Phone, Mail, ArrowRight, MapPin, CalendarDays, Building2 } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Users, Loader2, FilePlus, Phone, Mail, ArrowRight, MapPin, CalendarDays, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { crmService } from '../../../shared/services/crmService';
 import Button from '../../../shared/components/Button/Button';
@@ -7,16 +7,26 @@ import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import Avatar from '../../../shared/components/Avatar/Avatar';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader } from '../../../shared/components';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 
 const ProposalClientsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [projectFilter, setProjectFilter] = useState('All');
 
-  const fetchInterestedLeads = async () => {
+  const {
+    filters,
+    hasActiveFilters,
+    activeFilterCount,
+    filterConfig,
+    updateFilter,
+    clearAllFilters,
+    process
+  } = useFilters('proposal', 'clients');
+
+  const fetchInterestedLeads = useCallback(async () => {
     setLoading(true);
     try {
       // Pull leads who are marked as Interested or have a proposal sent
@@ -27,22 +37,14 @@ const ProposalClientsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchInterestedLeads();
-  }, []);
+  }, [fetchInterestedLeads]);
 
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch =
-      lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.phone?.includes(searchTerm);
-
-    const matchesFilter = projectFilter === 'All' || lead.projectType === projectFilter;
-
-    return matchesSearch && matchesFilter;
-  });
+  // Apply reusable filter system
+  const filteredLeads = process(leads);
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
@@ -57,36 +59,17 @@ const ProposalClientsPage = () => {
         <Button variant="outline" onClick={fetchInterestedLeads}>Refresh Data</Button>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
-        <div className="relative group w-full max-w-2xl">
-          <Search
-            size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
-          />
-          <input
-            type="text"
-            placeholder="Search by name, email or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 py-4 text-sm rounded-2xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all shadow-sm"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 bg-[var(--surface)] p-1.5 rounded-2xl border border-[var(--border)]">
-          {['All', 'Residential', 'Commercial'].map((type) => (
-            <button
-              key={type}
-              onClick={() => setProjectFilter(type)}
-              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${projectFilter === type
-                ? 'bg-[var(--primary)] text-black shadow-lg shadow-[var(--primary)]/20'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
-                }`}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Advanced Filter System */}
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        showSearch={true}
+        compact={false}
+      />
 
       {loading ? (
         <Loader label="Syncing with CRM..." />

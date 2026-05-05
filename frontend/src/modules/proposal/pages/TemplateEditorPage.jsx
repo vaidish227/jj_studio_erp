@@ -20,6 +20,7 @@ const TemplateEditorPage = () => {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -128,7 +129,12 @@ const TemplateEditorPage = () => {
         </div>
       </div>
 
-
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
+          <p className="text-sm font-medium">{error}</p>
+        </div>
+      )}
 
       {/* Meta Configuration */}
       <Card className="shadow-xl shadow-black/5 border-none p-8 space-y-6">
