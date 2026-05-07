@@ -1,13 +1,26 @@
 const express = require("express");
 const router = express.Router();
 
-const { createClient, getClients, getClientById, updateClient, deleteClient, getTotalClients} = require("../controllers/Client.controller");
+const {
+  createClientEnquiry,
+  getClients,
+  getClientById,
+  updateClientDetails,
+  updateClientStatus,
+  deleteClient,
+  appendTimelineEvent,
+  getStats,
+} = require("../controllers/CRMClient.controller");
 
-router.post("/createclient", createClient);
-router.get("/get", getClients);
-router.get("/get/:id", getClientById);
-router.put("/update/:id", updateClient);
-router.delete("/delete/:id", deleteClient);
-router.get("/totalclient", getTotalClients)
+// ─── Client Lifecycle Routes ─────────────────────────────────────────
+router.post("/create", createClientEnquiry);              // Enquiry form → create
+router.post("/createclient", createClientEnquiry);        // Backward compat alias
+router.get("/get", getClients);                           // List all
+router.get("/get/:id", getClientById);                    // Get by ID
+router.put("/update/:id", updateClientDetails);           // Client info form → enrich
+router.patch("/status/:id", updateClientStatus);          // Status + lifecycle update
+router.delete("/delete/:id", deleteClient);               // Delete
+router.post("/timeline/:id", appendTimelineEvent);        // Append timeline event
+router.get("/totalclient", getStats);                     // Stats endpoint
 
 module.exports = router;

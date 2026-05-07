@@ -1,5 +1,5 @@
 const Proposal = require("../models/Proposal.model");
-const Lead = require("../models/Lead.model")
+const CRMClient = require("../models/CRMClient.model")
 const sendEmail = require("../utils/sendEmail");
 require("dotenv").config();
 
@@ -8,20 +8,19 @@ const createProposal = async (req, res) => {
   try {
     const { leadId, templateId, title, description, content, subtotal, gst, finalAmount, status } = req.body;
 
-    if (!leadId) return res.status(400).json({ message: "Lead ID is required" });
+    if (!leadId) return res.status(400).json({ message: "Client ID is required" });
 
-    const lead = await Lead.findById(leadId);
-    if (!lead) return res.status(404).json({ message: "Lead not found" });
+    const lead = await CRMClient.findById(leadId);
+    if (!lead) return res.status(404).json({ message: "Client not found" });
 
     const proposal = await Proposal.create({
       leadId: lead._id,
-      clientId: lead.clientId,
       templateId,
       title: title || "New Proposal",
       description,
       content,
       subtotal: subtotal || 0,
-      totalAmount: subtotal || 0, 
+      totalAmount: subtotal || 0,
       gst: gst || 0,
       finalAmount: finalAmount || 0,
       status: status || "draft",
@@ -51,8 +50,7 @@ const getProposals = async (req, res) => {
     }
 
     const proposals = await Proposal.find(filter)
-      .populate("leadId", "name email phone")
-      .populate("clientId", "name email phone")
+      .populate("leadId", "name email phone trackingId")
       .populate("templateId", "name")
       .sort({ createdAt: -1 });
 
@@ -111,10 +109,10 @@ const updateProposalStatus = async (req, res) => {
       proposalId,
       { ...updateObj, $push: { approvalHistory: historyItem } },
       { new: true }
-    ).populate("clientId").populate("leadId");
+    ).populate("leadId", "name email phone trackingId");
 
     // AUTO-FLOW LOGIC
-    
+
     // 1. If Manager Approved -> Automatically Send to Client
     if (status === "manager_approved") {
       try {
@@ -141,7 +139,8 @@ const updateProposalStatus = async (req, res) => {
     if (status === "project_started") leadUpdate.lifecycleStage = "converted";
 
     if (Object.keys(leadUpdate).length > 0) {
-      await Lead.findByIdAndUpdate(updatedProposal.leadId, leadUpdate);
+      const targetId = updatedProposal.leadId?._id || updatedProposal.leadId;
+      await CRMClient.findByIdAndUpdate(targetId, leadUpdate);
     }
 
     res.json(updatedProposal);
@@ -152,7 +151,9 @@ const updateProposalStatus = async (req, res) => {
 
 // Helper for Auto-Send
 const triggerSendToClient = async (proposal) => {
-  if (!proposal.clientId?.email) throw new Error("Client email not found");
+  // In unified model, leadId IS the client
+  const client = proposal.leadId;
+  if (!client?.email) throw new Error("Client email not found");
 
   const sections = proposal.content?.sections || [];
   let itemsHtml = "";
@@ -169,10 +170,10 @@ const triggerSendToClient = async (proposal) => {
   });
 
   await sendEmail({
-    to: proposal.clientId.email,
+    to: client.email,
     subject: `Proposal Approved: ${proposal.title} - JJ Studio`,
     html: `<div style="font-family: sans-serif; max-width: 600px;">
-      <h2>Hello ${proposal.clientId.name},</h2>
+      <h2>Hello ${client.name},</h2>
       <p>Your proposal for <b>${proposal.title}</b> has been approved by our manager and is ready for your review.</p>
       <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">${itemsHtml}</table>
       <div style="background: #f9fafb; padding: 20px; border-radius: 12px;">
@@ -187,8 +188,7 @@ const triggerSendToClient = async (proposal) => {
 const getProposalById = async (req, res) => {
   try {
     const proposal = await Proposal.findById(req.params.id)
-      .populate("leadId")
-      .populate("clientId")
+      .populate("leadId", "name email phone trackingId city projectType siteAddress")
       .populate("templateId", "name");
     if (!proposal) return res.status(404).json({ message: "Proposal not found" });
     res.status(200).json({ proposal });
@@ -201,7 +201,7 @@ const getProposalById = async (req, res) => {
 const updateProposal = async (req, res) => {
   try {
     const { title, description, content, subtotal, gst, finalAmount, status } = req.body;
-    
+
     const historyItem = {
       action: "updated",
       performedBy: req.user ? req.user.id : null,
@@ -232,7 +232,7 @@ const deleteProposal = async (req, res) => {
 // SEND PROPOSAL EMAIL (Manual trigger)
 const sendProposalEmail = async (req, res) => {
   try {
-    const proposal = await Proposal.findById(req.params.id).populate("clientId");
+    const proposal = await Proposal.findById(req.params.id).populate("leadId", "name email phone");
     await triggerSendToClient(proposal);
     proposal.status = "sent";
     await proposal.save();

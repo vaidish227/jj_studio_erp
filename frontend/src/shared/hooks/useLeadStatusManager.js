@@ -28,31 +28,38 @@ const ACTION_STATUS_MAP = {
 };
 
 /**
- * useLeadStatusManager — Hook to manage automatic lead status updates.
+ * useLeadStatusManager — Hook to manage automatic client status updates.
+ * 
+ * In the unified architecture, this now makes a SINGLE API call
+ * to PATCH /api/clients/status/:id with both status and lifecycleStage
+ * (previously required 2 separate calls).
  */
 export const useLeadStatusManager = () => {
   /**
-   * Automatically transitions a lead's status based on a specific action.
+   * Automatically transitions a client's status based on a specific action.
    */
-  const transitionStatus = useCallback(async (leadId, action) => {
-    if (!leadId || !action) return;
+  const transitionStatus = useCallback(async (clientId, action) => {
+    if (!clientId || !action) return;
 
     const mapping = ACTION_STATUS_MAP[action];
     if (!mapping) return;
 
     try {
-      // First update the status (this also triggers some lifecycle mapping in backend)
-      await crmService.updateLeadStatus(leadId, mapping.status);
+      // Single API call — PATCH /api/clients/status/:id
+      // The new CRMClient controller handles both status + lifecycle in one request
+      await crmService.updateClientStatus(clientId, {
+        status: mapping.status,
+        lifecycleStage: mapping.lifecycle,
+      });
       
-      // If the action requires a specific lifecycle stage that differs from the default 
-      // mapping in the backend's updateLeadStatus, we update it explicitly.
-      if (mapping.lifecycle) {
-        await crmService.updateLead(leadId, { lifecycleStage: mapping.lifecycle });
-      }
-      
-      console.log(`Lead ${leadId} automatically transitioned to ${mapping.status}/${mapping.lifecycle} via ${action}`);
+      console.log(
+        `Client ${clientId} transitioned to ${mapping.status}/${mapping.lifecycle} via ${action}`
+      );
     } catch (error) {
-      console.error(`Failed to automatically update lead status for ${leadId}:`, error);
+      console.error(
+        `Failed to update client status for ${clientId}:`,
+        error
+      );
     }
   }, []);
 

@@ -1,3 +1,7 @@
+/**
+ * @deprecated This controller is deprecated. Use CRMClient.controller.js instead.
+ * All client lifecycle operations are now handled by the unified CRMClient controller.
+ */
 const Client = require("../models/Client.model");
 const Lead = require("../models/Lead.model");
 

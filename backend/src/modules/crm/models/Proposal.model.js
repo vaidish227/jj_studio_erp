@@ -5,12 +5,8 @@ const proposalSchema = new mongoose.Schema(
 
     leadId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Lead",
+      ref: "CRMClient",
       required: true,
-    },
-    clientId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Client",
     },
     templateId: {
       type: mongoose.Schema.Types.ObjectId,

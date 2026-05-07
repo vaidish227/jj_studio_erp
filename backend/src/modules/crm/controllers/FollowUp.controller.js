@@ -1,15 +1,16 @@
 const Followup = require("../models/FollowUp.model");
-const Lead = require("../models/Lead.model");
+const Lead = require("../models/CRMClient.model");
+const mongoose = require("mongoose");
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 
 const createFollowup = async (req, res) => {
     try {
         const { leadId, date, note, nextFollowupDate, assignedTo } = req.body;
 
-        if (!leadId || !date) {
-            console.log("Missing required fields");
+        if (!leadId || !isValidId(leadId) || !date) {
             return res.status(400).json({
-                message: "leadId and date are required",
+                message: "Valid leadId and date are required",
             });
         }
 
@@ -84,10 +85,9 @@ const getFollowupsByLead = async (req, res) => {
 
         const { leadId } = req.params;
 
-        if (!leadId) {
-            console.log("Lead ID missing");
+        if (!leadId || !isValidId(leadId)) {
             return res.status(400).json({
-                message: "Lead ID is required",
+                message: "Valid Lead ID is required",
             });
         }
 
@@ -114,10 +114,9 @@ const updateFollowup = async (req, res) => {
         const { id } = req.params;
         const { note, status, nextFollowupDate } = req.body;
 
-        if (!id) {
-            console.log("Followup ID missing");
+        if (!id || !isValidId(id)) {
             return res.status(400).json({
-                message: "Followup ID is required",
+                message: "Valid Followup ID is required",
             });
         }
 
