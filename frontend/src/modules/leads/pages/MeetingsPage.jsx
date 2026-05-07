@@ -49,7 +49,11 @@ const MeetingsPage = () => {
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [selectedLead, setSelectedLead] = useState('');
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
-  const [meetingTime, setMeetingTime] = useState('10:00');
+  const [meetingTime, setMeetingTime] = useState(() => {
+    const now = new Date();
+    const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
+    return `${String(nextHour.getHours()).padStart(2, '0')}:00`;
+  });
   const [meetingType, setMeetingType] = useState('office');
   const [meetingNotes, setMeetingNotes] = useState('');
   const [meetingStatus, setMeetingStatus] = useState('scheduled');
@@ -176,6 +180,15 @@ const searchTerm = navbarQuery.toLowerCase();
 
     setIsSubmitting(true);
 
+    const meetingDateTime = new Date(`${meetingDate}T${meetingTime}:00`);
+    const now = new Date();
+    
+    if (meetingDateTime < now) {
+      toast.error('Cannot schedule a meeting in the past.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       await crmService.createMeeting({
         leadId: selectedLead,
@@ -222,6 +235,15 @@ const searchTerm = navbarQuery.toLowerCase();
 
     setIsSubmitting(true);
 
+    const meetingDateTime = new Date(`${meetingDate}T${meetingTime}:00`);
+    const now = new Date();
+    
+    if (meetingDateTime < now) {
+      toast.error('Cannot reschedule a meeting to the past.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       await crmService.updateMeeting(selectedMeeting._id, {
         date: `${meetingDate}T${meetingTime}`,
@@ -232,7 +254,11 @@ const searchTerm = navbarQuery.toLowerCase();
 
       setSelectedMeeting(null);
       setMeetingDate(new Date().toISOString().split('T')[0]);
-      setMeetingTime('10:00');
+      setMeetingTime(() => {
+        const now = new Date();
+        const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
+        return `${String(nextHour.getHours()).padStart(2, '0')}:00`;
+      });
       setMeetingType('office');
       setMeetingNotes('');
       setIsRescheduleModalOpen(false);

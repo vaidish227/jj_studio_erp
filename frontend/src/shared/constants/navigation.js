@@ -6,7 +6,8 @@ import {
   CheckSquare,
   BarChart2,
   Settings,
-  FileText
+  FileText,
+  MessageCircle // <-- Added for the KIT main menu
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
@@ -21,33 +22,62 @@ export const NAV_ITEMS = [
     label: 'CRM',
     icon: Users,
     children: [
-      {
-        id: 'crm-forms',
-        label: 'Forms',
-        children: [
-          { id: 'enquiry-form', label: 'Enquiry Form', path: '/crm/forms/enquiry' },
-        ]
+      { 
+        id: 'crm-form', 
+        label: 'Form', 
+        path: '/crm/forms/enquiry' 
       },
-      {
-        id: 'leads-pipeline',
-        label: 'Leads Pipeline',
-        children: [
-          { id: 'new-leads', label: 'New Leads', path: '/crm/new-leads' },
-          { id: 'meetings', label: 'Meetings', path: '/crm/meetings' },
-          { id: 'follow-ups', label: 'Follow-ups', path: '/crm/follow-ups' },
-          { id: 'kit', label: 'Keep In Touch (KIT)', path: '/crm/qualified' },
-        ]
+      { 
+        id: 'new-leads', 
+        label: 'New Leads', 
+        path: '/crm/new-leads' 
       },
-      {
-        id: 'crm-status',
-        label: 'Lead Status',
-        children: [
-          { id: 'converted', label: 'Converted', path: '/crm/converted' },
-          { id: 'lost-leads', label: 'Lost Leads', path: '/crm/lost-leads' },
-        ]
+      { 
+        id: 'meetings', 
+        label: 'Meetings', 
+        path: '/crm/meetings' 
+      },
+      { 
+        id: 'converted', 
+        label: 'Converted', 
+        path: '/crm/converted' 
+      },
+      { 
+        id: 'lost', 
+        label: 'Lost', 
+        path: '/crm/lost-leads' 
       },
     ],
   },
+  // --- NEW TOP-LEVEL KIT MODULE ---
+  {
+    id: 'kit',
+    label: 'KIT',
+    icon: MessageCircle, 
+    children: [
+      { 
+        id: 'kit-follow-ups', 
+        label: 'Follow Ups', 
+        path: '/kit/follow-ups' 
+      },
+      { 
+        id: 'kit-whatsapp', 
+        label: 'WhatsApp Templates', 
+        path: '/kit/whatsapp' 
+      },
+      { 
+        id: 'kit-mail', 
+        label: 'Mail Templates', 
+        path: '/kit/mail' 
+      },
+      { 
+        id: 'kit-settings', 
+        label: 'Timeline Settings', 
+        path: '/kit/settings' 
+      },
+    ]
+  },
+  // ---------------------------------
   {
     id: 'proposal-system',
     label: 'Proposal & Quotation System',
