@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { crmService } from '../../../shared/services/crmService';
 import { useCRM } from '../context/CRMContext';
 
@@ -69,6 +69,7 @@ const useLead = () => {
 
     setIsLoading(true);
     try {
+      // Map frontend field names to unified CRMClient schema
       const payload = {
         name: formData.clientName,
         phone: formData.contactMobile,
@@ -84,18 +85,23 @@ const useLead = () => {
         budget: formData.quotedAmount,
         city: formData.city,
         siteAddress: formData.siteDetails,
-        notes: formData.notes
+        notes: formData.notes,
+        source: formData.referredBy ? 'referral' : 'walk_in',
       };
 
+      // Calls POST /api/clients/create → CRMClient.controller.createClientEnquiry
       const response = await crmService.createLead(payload);
       
-      // Track lead in context for flow continuity
-      if (response && response._id) {
+      // Response returns { client, lead } — use either
+      const newClient = response.client || response.lead;
+      if (newClient && (newClient._id || newClient.id)) {
         setActiveLead({
-          id: response._id,
-          name: formData.clientName,
-          email: formData.email,
-          phone: formData.contactMobile
+          id: newClient._id || newClient.id,
+          _id: newClient._id || newClient.id,
+          name: newClient.name,
+          email: newClient.email,
+          phone: newClient.phone,
+          trackingId: newClient.trackingId,
         });
       }
 

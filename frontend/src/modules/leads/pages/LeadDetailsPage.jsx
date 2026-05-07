@@ -234,12 +234,14 @@ const LeadDetailsPage = () => {
       name: lead.name,
       phone: lead.phone,
       email: lead.email,
+      trackingId: lead.trackingId,
     });
 
+    // In unified model: leadId IS the clientId — same CRMClient record
     navigate('/crm/forms/client-info', {
       state: {
         leadId: id,
-        clientId: lead.clientId || null,
+        clientId: id, // Unified: same document
         name: lead.name,
         phone: lead.phone,
         email: lead.email,
@@ -284,7 +286,7 @@ const LeadDetailsPage = () => {
               <StatusBadge value={lead.lifecycleStage} type="lifecycle" />
             </div>
             <p className="text-sm text-[var(--text-muted)]">
-              Lead #{id.slice(-6).toUpperCase()} • {formatDateShort(lead.createdAt)}
+              Lead {lead.trackingId || `#${id.slice(-6).toUpperCase()}`} • {formatDateShort(lead.createdAt)}
             </p>
             <div className="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
               <span className="inline-flex items-center gap-2"><Phone size={14} /> {lead.phone || '—'}</span>
@@ -324,8 +326,8 @@ const LeadDetailsPage = () => {
               <React.Fragment key={step}>
                 <div className="flex flex-col items-center gap-3 relative z-10">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${isCompleted
-                      ? 'bg-[var(--primary)] border-[var(--primary)] text-black'
-                      : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-muted)]'
+                    ? 'bg-[var(--primary)] border-[var(--primary)] text-black'
+                    : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-muted)]'
                     } ${isActive ? 'ring-4 ring-[var(--primary)]/20 scale-110' : ''}`}>
                     {isCompleted ? <CheckCircle2 size={20} /> : <span className="text-xs font-bold">{index + 1}</span>}
                   </div>
@@ -363,7 +365,15 @@ const LeadDetailsPage = () => {
               <InfoItem icon={Phone} label="Phone" value={lead.phone} />
               <InfoItem icon={Building2} label="Project Type" value={lead.projectType} />
               <InfoItem icon={IndianRupee} label="Budget" value={lead.budget ? `Rs. ${Number(lead.budget).toLocaleString('en-IN')}` : '—'} />
-              <InfoItem icon={MapPin} label="Site Address" value={lead.siteAddress || '—'} />
+              <InfoItem 
+                icon={MapPin} 
+                label="Site Address" 
+                value={
+                  typeof lead.siteAddress === 'object' 
+                    ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || '—' 
+                    : lead.siteAddress || '—'
+                } 
+              />
             </div>
           </Card>
 
@@ -530,8 +540,8 @@ const LeadDetailsPage = () => {
                 disabled={actionLoading || lead.lifecycleStage === 'interested'}
                 onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_INTERESTED), 'Lead marked as Interested. You can now draft a proposal.')}
                 className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${lead.lifecycleStage === 'interested'
-                    ? 'border-[var(--success)] bg-[var(--success)]/5 cursor-default'
-                    : 'border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 cursor-pointer'
+                  ? 'border-[var(--success)] bg-[var(--success)]/5 cursor-default'
+                  : 'border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 cursor-pointer'
                   }`}
               >
                 <div className={`p-3 rounded-xl transition-colors ${lead.lifecycleStage === 'interested' ? 'bg-[var(--success)] text-black' : 'bg-[var(--bg)] text-[var(--text-muted)] group-hover:text-[var(--primary)]'
@@ -549,8 +559,8 @@ const LeadDetailsPage = () => {
                 disabled={actionLoading || lead.status === 'lost'}
                 onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_LOST), 'Lead marked as Not Interested (Lost).')}
                 className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${lead.status === 'lost'
-                    ? 'border-[var(--error)] bg-[var(--error)]/5 cursor-default'
-                    : 'border-[var(--border)] hover:border-[var(--error)]/30 hover:bg-[var(--error)]/5 cursor-pointer'
+                  ? 'border-[var(--error)] bg-[var(--error)]/5 cursor-default'
+                  : 'border-[var(--border)] hover:border-[var(--error)]/30 hover:bg-[var(--error)]/5 cursor-pointer'
                   }`}
               >
                 <div className={`p-3 rounded-xl transition-colors ${lead.status === 'lost' ? 'bg-[var(--error)] text-white' : 'bg-[var(--bg)] text-[var(--text-muted)] group-hover:text-[var(--error)]'

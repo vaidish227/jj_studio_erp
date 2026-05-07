@@ -1,5 +1,7 @@
 const Meeting = require("../models/Metting.model");
-const Lead = require("../models/Lead.model");
+const Lead = require("../models/CRMClient.model");
+const mongoose = require("mongoose");
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 const sendEmail = require("../utils/sendEmail");
 const getMeetingTemplate = require("../utils/Template/meetingTemplate");
 const getMeetingRescheduleTemplate = require("../utils/Template/meetingRescheduleTemplate");
@@ -10,10 +12,13 @@ const createMeeting = async (req, res) => {
     const { leadId, date, type, status = "scheduled" } = req.body;
 
     if (!leadId || !date || !type) {
-      console.log("Required fields missing");
       return res.status(400).json({
         message: "leadId, date and type are required",
       });
+    }
+
+    if (!isValidId(leadId)) {
+      return res.status(400).json({ message: "Invalid leadId" });
     }
 
     const meetingDateObj = new Date(date);
@@ -111,9 +116,9 @@ const getMeetingsByLead = async (req, res) => {
 
     const { leadId } = req.params;
 
-    if (!leadId) {
+    if (!leadId || !isValidId(leadId)) {
       return res.status(400).json({
-        message: "Lead ID is required",
+        message: "Valid Lead ID is required",
       });
     }
 
@@ -136,9 +141,9 @@ const updateMeeting = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id) {
+    if (!id || !isValidId(id)) {
       return res.status(400).json({
-        message: "Meeting ID is required",
+        message: "Valid Meeting ID is required",
       });
     }
 

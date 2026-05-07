@@ -45,7 +45,8 @@ const validateForm = (data) => {
 };
 
 /**
- * Maps a Client API response object → flat form state.
+ * Maps a CRMClient API response object → flat form state.
+ * Works with the UNIFIED CRMClient model (same record for enquiry + client info).
  */
 const clientToFormData = (client) => ({
   date: client.createdAt
@@ -72,7 +73,7 @@ const clientToFormData = (client) => ({
   flatUnit: client.siteAddress?.unit || '',
   floorNumber: client.siteAddress?.floor || '',
   completeSiteAddress: client.siteAddress?.fullAddress || '',
-  city: client.siteAddress?.city || '',
+  city: client.siteAddress?.city || client.city || '',
   numChildren: client.children?.length ? String(client.children.length) : '',
   ageChildren: client.children?.length
     ? client.children.map((c) => c.age).filter(Boolean).join(', ')
@@ -82,9 +83,16 @@ const clientToFormData = (client) => ({
 /**
  * useClientInfo
  *
+ * Unified hook for the Client Information Form.
+ * In the new architecture, both Enquiry and Client Info write to the SAME
+ * CRMClient record. This hook:
+ *   1. Fetches the existing CRMClient record (created by Enquiry Form)
+ *   2. Prefills ALL fields (name, phone, email from enquiry + any additional data)
+ *   3. On submit, UPDATES the same record (PUT /api/clients/update/:id)
+ *
  * @param {object} options
- * @param {object}  options.activeLead  – { id, _id, name, phone, email } from CRM context / location state
- * @param {string}  options.clientId    – existing Client._id if the lead already has one
+ * @param {object}  options.activeLead  – { id, _id, name, phone, email } from CRM context
+ * @param {string}  options.clientId    – existing CRMClient._id (same as leadId in unified model)
  * @param {function} options.onSuccess  – callback(client, formData) after successful save
  */
 export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
@@ -94,19 +102,22 @@ export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
   const [isFetching, setIsFetching] = useState(false);
   const [apiError, setApiError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
-  // Track which client record to UPDATE (null = must CREATE)
+  // In unified model, the "client" IS the lead — same record
   const [existingClientId, setExistingClientId] = useState(clientId || null);
 
   /**
-   * Fetch existing client and populate the entire form.
+   * Fetch existing CRMClient record and populate the entire form.
+   * This works for BOTH enquiry-only records AND fully-enriched records.
    */
   const fetchExistingClient = useCallback(async (cid) => {
     if (!cid) return;
     setIsFetching(true);
     try {
+      // Uses GET /api/clients/get/:id → CRMClient.controller.getClientById
       const response = await crmService.getClientById(cid);
-      if (response?.client) {
-        setFormData(clientToFormData(response.client));
+      const client = response?.client || response?.lead;
+      if (client) {
+        setFormData(clientToFormData(client));
         setExistingClientId(cid);
       }
     } catch {
@@ -117,34 +128,33 @@ export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
   }, []);
 
   // Destructure to primitives — avoids passing the object itself as a dep
-  // (object refs change every render, causing an infinite re-render loop)
-  const _leadId    = activeLead?._id || activeLead?.id;
-  const _leadName  = activeLead?.name;
+  const _leadId = activeLead?._id || activeLead?.id;
+  const _leadName = activeLead?.name;
   const _leadPhone = activeLead?.phone;
   const _leadEmail = activeLead?.email;
 
   useEffect(() => {
-    if (clientId) {
-      // Existing client → fetch full data
-      fetchExistingClient(clientId);
+    // In the unified model, clientId === leadId — same document
+    const targetId = clientId || _leadId;
+
+    if (targetId) {
+      // Always fetch the full record from the unified collection
+      // This prefills BOTH enquiry fields AND any client info already entered
+      fetchExistingClient(targetId);
     } else if (_leadId) {
-      // No client yet → pre-fill info from the lead enquiry
+      // Fallback: pre-fill from context if no ID to fetch
       setFormData((prev) => ({
         ...prev,
-        name:                _leadName               || '',
-        contactNumber:       _leadPhone              || '',
-        email:               _leadEmail              || '',
-        spouseName:          activeLead?.spouse?.name || '',
-        spouseContact:       activeLead?.spouse?.phone || '',
-        city:                activeLead?.city        || '',
-        completeSiteAddress: activeLead?.siteAddress || '',
+        name: _leadName || '',
+        contactNumber: _leadPhone || '',
+        email: _leadEmail || '',
       }));
     } else {
       // Context cleared → reset to fresh form
       setFormData(initialState);
       setExistingClientId(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, _leadId, _leadName, _leadPhone, _leadEmail, fetchExistingClient]);
 
   const handleChange = (e) => {
@@ -167,6 +177,7 @@ export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
 
     setIsLoading(true);
     try {
+      // Build payload matching unified CRMClient schema
       const payload = {
         name: formData.name,
         phone: formData.contactNumber,
@@ -183,9 +194,11 @@ export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
           anniversary: formData.anniversaryDate || undefined,
         },
         children: formData.numChildren
-          ? Array.from({ length: Number(formData.numChildren) || 0 }, () => ({
-              age: Number(formData.ageChildren || 0),
-            }))
+          ? Array.from({ length: Number(formData.numChildren) || 0 }, (_, idx) => ({
+            age: formData.ageChildren
+              ? Number(formData.ageChildren.split(',').map(s => s.trim())[idx]) || 0
+              : 0,
+          }))
           : [],
         siteAddress: {
           buildingName: formData.projectBuildingName,
@@ -195,26 +208,34 @@ export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
           fullAddress: formData.completeSiteAddress,
           city: formData.city,
         },
-        leadId: activeLead?._id || activeLead?.id,
       };
 
       let response;
-      if (existingClientId) {
-        // ── UPDATE existing client ──────────────────────────────────
-        response = await crmService.updateClient(existingClientId, payload);
+      // In unified model: leadId IS the clientId — always UPDATE
+      const targetId = existingClientId || _leadId;
+
+      if (targetId) {
+        // ── UPDATE existing CRMClient record ────────────────────────
+        // PUT /api/clients/update/:id → CRMClient.controller.updateClientDetails
+        response = await crmService.updateClient(targetId, payload);
+        if (!existingClientId) {
+          setExistingClientId(targetId);
+        }
       } else {
-        // ── CREATE new client ───────────────────────────────────────
+        // ── CREATE new (rare edge case: no lead context) ────────────
         response = await crmService.createClient(payload);
-        if (response?.client?._id) {
-          setExistingClientId(response.client._id);
+        const newClient = response?.client;
+        if (newClient?._id) {
+          setExistingClientId(newClient._id);
         }
       }
 
       setIsSuccess(true);
+      const resultClient = response?.client || response?.lead;
       if (onSuccess) {
-        onSuccess(response.client, formData);
+        onSuccess(resultClient, formData);
       }
-      return response.client;
+      return resultClient;
     } catch (error) {
       setApiError(error || 'Failed to submit client information. Please try again.');
       return null;
@@ -231,7 +252,7 @@ export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
     isFetching,
     apiError,
     isSuccess,
-    isUpdate: !!existingClientId,
+    isUpdate: !!(existingClientId || _leadId),
     handleChange,
     submitClientInfo,
   };
