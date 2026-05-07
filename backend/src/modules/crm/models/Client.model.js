@@ -1,3 +1,7 @@
+/**
+ * @deprecated This model is deprecated. Use CRMClient.model.js instead.
+ * The 'clients' collection is now unified into the 'crmclients' collection.
+ */
 const mongoose = require("mongoose");
 
 const clientSchema = new mongoose.Schema(

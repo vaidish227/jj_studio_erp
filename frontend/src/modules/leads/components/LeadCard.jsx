@@ -11,7 +11,7 @@ const priorityConfig = {
 
 const LeadCard = ({ lead, onMenuClick, onClick }) => {
   const navigate = useNavigate();
-  const { _id, id, name, phone, city, project, date, status = 'NEW', priority = 'medium' } = lead;
+  const { _id, id, name, phone, city, project, date, status = 'NEW', priority = 'medium', trackingId } = lead;
   const prio = priorityConfig[priority] ?? priorityConfig.medium;
 
   const handleCardClick = () => {
@@ -41,7 +41,14 @@ const LeadCard = ({ lead, onMenuClick, onClick }) => {
 
       {/* Name / Phone / City */}
       <div className="flex-1 min-w-0 space-y-1">
-        <p className="text-base font-bold text-[var(--text-primary)]">{name}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-base font-bold text-[var(--text-primary)]">{name}</p>
+          {trackingId && (
+            <span className="text-[10px] font-black bg-[var(--primary)]/10 text-[var(--primary)] px-2 py-0.5 rounded-md uppercase tracking-wider">
+              {trackingId}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
           <Phone size={13} className="shrink-0" />
           <span>{phone}</span>
