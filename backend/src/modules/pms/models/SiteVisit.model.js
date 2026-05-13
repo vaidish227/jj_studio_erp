@@ -1,15 +1,53 @@
 const mongoose = require("mongoose");
 
-const siteVisitSchema = new mongoose.Schema({
-  projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
+/**
+ * PMS Site Visit Schema
+ * Tracks visits made by Designers, Project Managers, or Principals to the site.
+ * Different from daily site logs (which are by supervisors).
+ */
+const siteVisitSchema = new mongoose.Schema(
+  {
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      required: true,
+    },
+    visitorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-  date: Date,
+    // --- Visit Details ---
+    visitDate: {
+      type: Date,
+      default: Date.now,
+    },
+    purpose: {
+      type: String,
+      enum: ["Measurement", "Quality Check", "Client Meeting at Site", "Snag List", "Final Handover"],
+      required: true,
+    },
+    
+    observations: String,
+    actionsRequired: String,
 
-  visitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    // --- Media ---
+    photos: [String],
 
-  notes: String,
+    status: {
+      type: String,
+      enum: ["planned", "completed", "cancelled"],
+      default: "completed",
+    },
 
-  photos: [String] // image URLs
-}, { timestamps: true });
+    // --- Next Steps ---
+    nextVisitDate: Date,
+  },
+  {
+    timestamps: true,
+    collection: "pms_site_visits",
+  }
+);
 
-module.exports = mongoose.model("SiteVisit", siteVisitSchema);
+module.exports = mongoose.model("SiteVisit", siteVisitSchema, "pms_site_visits");
