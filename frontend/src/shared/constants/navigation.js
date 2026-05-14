@@ -13,6 +13,9 @@ import {
 // Each item has an optional `permission` key.
 // If present, the sidebar hides the item when the user lacks that permission.
 // Children inherit the parent's permission unless they define their own.
+//
+// IMPORTANT: child `id` values must match the last URL segment of their `path`
+// because AppLayout derives activeItem from the last path segment.
 
 export const NAV_ITEMS = [
   {
@@ -41,10 +44,10 @@ export const NAV_ITEMS = [
     icon: MessageCircle,
     permission: 'kit.read',
     children: [
-      { id: 'kit-follow-ups', label: 'Follow Ups',        path: '/kit/follow-ups' },
+      { id: 'kit-follow-ups', label: 'Follow Ups',         path: '/kit/follow-ups' },
       { id: 'kit-whatsapp',   label: 'WhatsApp Templates', path: '/kit/whatsapp' },
-      { id: 'kit-mail',       label: 'Mail Templates',    path: '/kit/mail' },
-      { id: 'kit-settings',   label: 'Timeline Settings', path: '/kit/settings' },
+      { id: 'kit-mail',       label: 'Mail Templates',     path: '/kit/mail' },
+      { id: 'kit-settings',   label: 'Timeline Settings',  path: '/kit/settings' },
     ],
   },
   {
@@ -53,33 +56,13 @@ export const NAV_ITEMS = [
     icon: FileText,
     permission: 'proposal.read',
     children: [
-      { id: 'proposal-list',      label: 'Proposal Dashboard',  path: '/proposal' },
-      { id: 'proposal-create',    label: 'Create Proposal',     path: '/proposal/create',   permission: 'proposal.create' },
-      { id: 'proposal-clients',   label: 'Client List',         path: '/proposal/clients' },
-      { id: 'proposal-templates', label: 'Quotation Template',  path: '/proposal/templates' },
-      { id: 'proposal-approval',  label: 'Manager Approval',    path: '/proposal/approval', permission: 'proposal.approve' },
-      { id: 'proposal-sent',      label: 'Sent & eSign Track',  path: '/proposal/sent' },
-      { id: 'proposal-approved',  label: 'Approved',            path: '/proposal/approved' },
-    ],
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    icon: Settings,
-    permission: 'settings.read',
-    children: [
-      {
-        id: 'settings-users',
-        label: 'User Management',
-        path: '/settings/users',
-        permission: 'users.manage',
-      },
-      {
-        id: 'settings-roles',
-        label: 'Roles & Permissions',
-        path: '/settings/roles',
-        permission: 'users.manage',
-      },
+      { id: 'proposal-list',      label: 'Proposal Dashboard', path: '/proposal' },
+      { id: 'proposal-create',    label: 'Create Proposal',    path: '/proposal/create',   permission: 'proposal.create' },
+      { id: 'proposal-clients',   label: 'Client List',        path: '/proposal/clients' },
+      { id: 'proposal-templates', label: 'Quotation Template', path: '/proposal/templates' },
+      { id: 'proposal-approval',  label: 'Manager Approval',   path: '/proposal/approval', permission: 'proposal.approve' },
+      { id: 'proposal-sent',      label: 'Sent & eSign Track', path: '/proposal/sent' },
+      { id: 'proposal-approved',  label: 'Approved',           path: '/proposal/approved' },
     ],
   },
   {
@@ -110,5 +93,15 @@ export const NAV_ITEMS = [
     path: '/reports',
     permission: 'reports.read',
   },
-  
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: Settings,
+    permission: 'settings.read',
+    children: [
+      // id MUST match last URL segment so AppLayout activeItem detection works
+      { id: 'users',              label: 'User Management',    path: '/settings/users',              permission: 'users.manage' },
+      { id: 'roles-permissions',  label: 'Roles & Permissions', path: '/settings/roles-permissions', permission: 'users.manage' },
+    ],
+  },
 ];

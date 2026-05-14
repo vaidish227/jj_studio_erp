@@ -31,6 +31,8 @@ import AppLayout from './shared/layouts/AppLayout/AppLayout';
 import PublicLayout from './shared/layouts/PublicLayout/PublicLayout';
 import ProfilePage from './modules/profile/pages/ProfilePage';
 import SettingsPage from './modules/settings/pages/SettingsPage';
+import UserManagementPage from './modules/settings/pages/UserManagementPage';
+import RolesPermissionsPage from './modules/settings/pages/RolesPermissionsPage';
 
 export default function App() {
   return (
@@ -94,7 +96,11 @@ export default function App() {
 
               {/* Other modules */}
               <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/settings/*" element={<SettingsPage />} />
+
+              {/* Settings */}
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings/users" element={<UserManagementPage />} />
+              <Route path="/settings/roles-permissions" element={<RolesPermissionsPage />} />
             </Route>
 
             {/* Global default redirect */}

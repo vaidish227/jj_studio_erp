@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Shield, Save, RotateCcw, Users, Minus,
+  Shield, Save, RotateCcw, Check, Minus,
   Eye, Plus, Pencil, Trash2, CheckCircle, Download, Settings2,
   LayoutDashboard, UserCheck, Briefcase, CheckSquare,
   BarChart2, FileText, MessageCircle, DollarSign, Store,
-  Globe, UserCog, ChevronRight, Zap, Search, Layers, Check,
+  Globe, UserCog, ChevronRight, ChevronLeft, Zap, Search, Layers, Users,
 } from 'lucide-react';
 import { useRolesPermissions } from '../hooks/useRolesPermissions';
 import { PERMISSION_MODULES, ROLE_OPTIONS } from '../../../shared/constants/permissions';
 
-// ─── Module icons ─────────────────────────────────────────────────────────────
+// ─── Config ───────────────────────────────────────────────────────────────────
+
 const MODULE_ICONS = {
   dashboard:     LayoutDashboard,
   crm:           Users,
@@ -26,8 +28,6 @@ const MODULE_ICONS = {
   client_portal: Globe,
 };
 
-// ─── Action config — single professional colour scheme ────────────────────────
-// No rainbow colours. Each action is identified by its icon, not its colour.
 const ACTION_CONFIG = {
   read:    { icon: Eye,         label: 'Read',    hint: 'Can view records in this module' },
   create:  { icon: Plus,        label: 'Create',  hint: 'Can add new records' },
@@ -40,7 +40,6 @@ const ACTION_CONFIG = {
 
 const ALL_ACTIONS = Object.keys(ACTION_CONFIG);
 
-// ─── Module groups ─────────────────────────────────────────────────────────────
 const MODULE_GROUPS = [
   { label: 'Core',                  keys: ['dashboard', 'crm', 'kit', 'clients'] },
   { label: 'Documents & Proposals', keys: ['proposal'] },
@@ -52,8 +51,8 @@ const MODULE_GROUPS = [
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const RoleCard = ({ role, isSelected, onClick }) => {
-  const meta      = ROLE_OPTIONS.find((r) => r.value === role.name);
-  const color     = meta?.color || role.color || '#6B6B6B';
+  const meta       = ROLE_OPTIONS.find((r) => r.value === role.name);
+  const color      = meta?.color || role.color || '#6B6B6B';
   const isWildcard = role.permissions.includes('*');
   const total      = isWildcard ? '∞' : role.permissions.length;
 
@@ -101,7 +100,6 @@ const RoleCard = ({ role, isSelected, onClick }) => {
   );
 };
 
-// Column header — icon + short label + tooltip
 const ActionHeader = ({ action }) => {
   const { icon: Icon, label, hint } = ACTION_CONFIG[action];
   const [tip, setTip] = useState(false);
@@ -127,12 +125,10 @@ const ActionHeader = ({ action }) => {
   );
 };
 
-// Icon-based permission toggle — no checkbox, uses the action's own icon as indicator
 const PermCell = ({ action, active, isWildcard, isSupported, onChange }) => {
   const { icon: Icon, label } = ACTION_CONFIG[action];
   const [tip, setTip] = useState(false);
 
-  // Module doesn't support this action
   if (!isSupported) {
     return (
       <td className="py-2 px-1">
@@ -143,11 +139,10 @@ const PermCell = ({ action, active, isWildcard, isSupported, onChange }) => {
     );
   }
 
-  // Admin wildcard — auto-granted, read-only
   if (isWildcard) {
     return (
       <td className="py-2 px-1">
-        <div className="flex justify-center relative group">
+        <div className="flex justify-center relative">
           <div
             className="w-8 h-8 rounded-lg bg-[var(--primary)]/20 border border-[var(--primary)]/40 flex items-center justify-center cursor-default"
             onMouseEnter={() => setTip(true)}
@@ -183,7 +178,7 @@ const PermCell = ({ action, active, isWildcard, isSupported, onChange }) => {
         </button>
         {tip && (
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[70] bg-[var(--text-primary)] text-white text-xs rounded-lg px-3 py-1.5 whitespace-nowrap shadow-lg pointer-events-none">
-            {active ? `Revoke ${label} access` : `Grant ${label} access`}
+            {active ? `Revoke ${label}` : `Grant ${label}`}
             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--text-primary)]" />
           </div>
         )}
@@ -192,37 +187,26 @@ const PermCell = ({ action, active, isWildcard, isSupported, onChange }) => {
   );
 };
 
-// "Grant all / Revoke all" toggle for a module row
 const RowAllToggle = ({ allActive, someActive, isWildcard, onChange }) => {
   const [tip, setTip] = useState(false);
 
   if (isWildcard) {
     return (
       <td className="py-2 px-1 border-l border-[var(--border)]">
-        <div className="flex justify-center relative">
-          <div
-            className="w-8 h-8 rounded-lg bg-[var(--primary)]/20 border border-[var(--primary)]/40 flex items-center justify-center cursor-default"
-            onMouseEnter={() => setTip(true)}
-            onMouseLeave={() => setTip(false)}
-          >
+        <div className="flex justify-center">
+          <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/20 border border-[var(--primary)]/40 flex items-center justify-center cursor-default">
             <Check size={13} className="text-[var(--primary)]" />
           </div>
-          {tip && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[70] bg-[var(--text-primary)] text-white text-xs rounded-lg px-3 py-1.5 whitespace-nowrap shadow-lg pointer-events-none">
-              All permissions auto-granted (wildcard role)
-              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--text-primary)]" />
-            </div>
-          )}
         </div>
       </td>
     );
   }
 
   const tipText = allActive
-    ? 'Revoke all permissions for this module'
+    ? 'Revoke all'
     : someActive
-      ? 'Grant remaining permissions for this module'
-      : 'Grant all permissions for this module';
+      ? 'Grant remaining'
+      : 'Grant all';
 
   return (
     <td className="py-2 px-1 border-l border-[var(--border)]">
@@ -239,7 +223,7 @@ const RowAllToggle = ({ allActive, someActive, isWildcard, onChange }) => {
                 : 'bg-transparent border-[var(--border)] text-[var(--border)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)] hover:bg-[var(--primary)]/5'
           }`}
         >
-          {allActive  && <Check  size={13} />}
+          {allActive && <Check size={13} />}
           {someActive && !allActive && <Minus size={13} />}
         </button>
         {tip && (
@@ -253,7 +237,6 @@ const RowAllToggle = ({ allActive, someActive, isWildcard, onChange }) => {
   );
 };
 
-// Floating save bar
 const SaveBar = ({ isDirty, saving, onSave, onDiscard }) => {
   if (!isDirty) return null;
   return (
@@ -286,22 +269,22 @@ const SaveBar = ({ isDirty, saving, onSave, onDiscard }) => {
 };
 
 // ─── Main page ────────────────────────────────────────────────────────────────
+
 const RolesPermissionsPage = () => {
+  const navigate = useNavigate();
   const {
-    roles, users, selectedRole, draftPermissions,
+    roles, selectedRole, draftPermissions,
     isDirty, loading, saving,
     selectRole, togglePermission, toggleModule,
-    savePermissions, discardChanges, updateUserRole,
+    savePermissions, discardChanges,
   } = useRolesPermissions();
 
-  const [activeTab, setActiveTab]       = useState('permissions');
   const [moduleSearch, setModuleSearch] = useState('');
 
   const isWildcard   = draftPermissions.includes('*');
   const grantedCount = isWildcard ? '∞' : draftPermissions.length;
   const query        = moduleSearch.toLowerCase().trim();
 
-  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-[var(--text-muted)]">
@@ -311,7 +294,6 @@ const RolesPermissionsPage = () => {
     );
   }
 
-  // ── Module row renderer ────────────────────────────────────────────────────
   const renderRow = (mod) => {
     const Icon        = MODULE_ICONS[mod.key] || Shield;
     const modulePerms = mod.actions.map((a) => `${mod.key}.${a}`);
@@ -326,14 +308,10 @@ const RolesPermissionsPage = () => {
           anyActive ? 'bg-[var(--primary)]/[0.03]' : 'hover:bg-[var(--bg)]/50'
         }`}
       >
-        {/* Sticky module name column */}
-        <td className="sticky left-0 z-10 py-2.5 pl-4 pr-3 border-r border-[var(--border)] bg-[var(--surface)] group-hover:bg-[var(--bg)]"
-          style={{ minWidth: '180px' }}>
-          <div className={`flex items-center gap-2.5 ${anyActive ? '' : ''}`}>
+        <td className="sticky left-0 z-10 py-2.5 pl-4 pr-3 border-r border-[var(--border)] bg-[var(--surface)]" style={{ minWidth: '180px' }}>
+          <div className="flex items-center gap-2.5">
             <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-              anyActive
-                ? 'bg-[var(--primary)]/12 text-[var(--primary)]'
-                : 'bg-[var(--bg)] text-[var(--text-muted)]'
+              anyActive ? 'bg-[var(--primary)]/12 text-[var(--primary)]' : 'bg-[var(--bg)] text-[var(--text-muted)]'
             }`}>
               <Icon size={14} />
             </div>
@@ -345,7 +323,6 @@ const RolesPermissionsPage = () => {
           </div>
         </td>
 
-        {/* Permission icon-toggles */}
         {ALL_ACTIONS.map((action) => {
           const perm        = `${mod.key}.${action}`;
           const isSupported = mod.actions.includes(action);
@@ -371,30 +348,19 @@ const RolesPermissionsPage = () => {
     );
   };
 
-  // Group separator row
   const renderGroupHeader = (label) => (
     <tr key={`gh-${label}`} className="bg-[var(--bg)]">
-      {/* Sticky cell for group header label */}
-      <td
-        colSpan={ALL_ACTIONS.length + 2}
-        className="px-4 pt-4 pb-1.5"
-      >
+      <td colSpan={ALL_ACTIONS.length + 2} className="px-4 pt-4 pb-1.5">
         <div className="flex items-center gap-2">
           <Layers size={10} className="text-[var(--text-muted)] shrink-0" />
-          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-            {label}
-          </span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">{label}</span>
           <div className="flex-1 h-px bg-[var(--border)]" />
         </div>
       </td>
     </tr>
   );
 
-  // Flat search results or grouped modules
-  const searchResults = query
-    ? PERMISSION_MODULES.filter((m) => m.label.toLowerCase().includes(query))
-    : null;
-
+  const searchResults  = query ? PERMISSION_MODULES.filter((m) => m.label.toLowerCase().includes(query)) : null;
   const groupedModules = MODULE_GROUPS.map((g) => ({
     ...g,
     modules: g.keys.map((k) => PERMISSION_MODULES.find((m) => m.key === k)).filter(Boolean),
@@ -402,309 +368,213 @@ const RolesPermissionsPage = () => {
 
   return (
     <>
-      {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="mb-5">
-        <h2 className="text-xl font-bold text-[var(--text-primary)]">Roles &amp; Permissions</h2>
-        <p className="text-sm text-[var(--text-muted)] mt-0.5">
-          Control exactly what each role can see and do in the system.
-        </p>
+      {/* ── Page header ────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 mb-5">
+        <button
+          onClick={() => navigate('/settings')}
+          className="p-2 rounded-xl hover:bg-[var(--bg)] transition-colors text-[var(--text-muted)]"
+          title="Back to Settings"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <div>
+          <h2 className="text-xl font-bold text-[var(--text-primary)]">Roles &amp; Permissions</h2>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">
+            Control exactly what each role can see and do in the system.
+          </p>
+        </div>
       </div>
 
-      {/* ── Tab bar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 bg-[var(--bg)] p-1 rounded-xl border border-[var(--border)] w-fit mb-5">
-        {[
-          { id: 'permissions', label: 'Permission Matrix', icon: Shield },
-          { id: 'users',       label: 'User Assignments',  icon: Users  },
-        ].map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === id
-                ? 'bg-[var(--primary)] text-black shadow-sm'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            <Icon size={15} />
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* ── Two-column layout ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[256px_1fr] gap-4 pb-24">
 
-      {/* ════════════════ PERMISSION MATRIX ══════════════════════════════ */}
-      {activeTab === 'permissions' && (
-        <div className="grid grid-cols-1 lg:grid-cols-[256px_1fr] gap-4 pb-24">
-
-          {/* ── Left: Role list ────────────────────────────────────────── */}
-          <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-sm self-start lg:sticky lg:top-4">
-            <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--bg)]">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                {roles.length} Roles
-              </p>
-            </div>
-            <div className="p-2 space-y-0.5 max-h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar">
-              {roles.map((role) => (
-                <RoleCard
-                  key={role._id}
-                  role={role}
-                  isSelected={selectedRole?._id === role._id}
-                  onClick={() => selectRole(role)}
-                />
-              ))}
-            </div>
+        {/* Left: Role list */}
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-sm self-start lg:sticky lg:top-4">
+          <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--bg)]">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+              {roles.length} Roles
+            </p>
           </div>
+          <div className="p-2 space-y-0.5 max-h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar">
+            {roles.map((role) => (
+              <RoleCard
+                key={role._id}
+                role={role}
+                isSelected={selectedRole?._id === role._id}
+                onClick={() => selectRole(role)}
+              />
+            ))}
+          </div>
+        </div>
 
-          {/* ── Right: Matrix ──────────────────────────────────────────── */}
-          {selectedRole ? (
-            <div className="space-y-3 min-w-0">
+        {/* Right: Permission matrix or empty state */}
+        {selectedRole ? (
+          <div className="space-y-3 min-w-0">
 
-              {/* Role info strip */}
-              <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-4 shadow-sm">
-                <div className="flex items-center gap-4 flex-wrap">
-                  {(() => {
-                    const meta  = ROLE_OPTIONS.find((r) => r.value === selectedRole.name);
-                    const color = meta?.color || selectedRole.color || '#6B6B6B';
-                    return (
-                      <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-sm shrink-0"
-                        style={{ backgroundColor: color }}
-                      >
-                        {selectedRole.displayName.charAt(0)}
-                      </div>
-                    );
-                  })()}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-[var(--text-primary)] text-base">{selectedRole.displayName}</h3>
-                      {selectedRole.isSystem && (
-                        <span className="px-2 py-0.5 bg-[var(--bg)] border border-[var(--border)] rounded-full text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wide">
-                          System
-                        </span>
-                      )}
-                      {isDirty && (
-                        <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded-full text-xs text-amber-600 font-medium">
-                          Unsaved
-                        </span>
-                      )}
+            {/* Role info strip */}
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-4 shadow-sm">
+              <div className="flex items-center gap-4 flex-wrap">
+                {(() => {
+                  const meta  = ROLE_OPTIONS.find((r) => r.value === selectedRole.name);
+                  const color = meta?.color || selectedRole.color || '#6B6B6B';
+                  return (
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-sm shrink-0"
+                      style={{ backgroundColor: color }}
+                    >
+                      {selectedRole.displayName.charAt(0)}
                     </div>
-                    {selectedRole.description && (
-                      <p className="text-sm text-[var(--text-muted)] mt-0.5">{selectedRole.description}</p>
+                  );
+                })()}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-[var(--text-primary)] text-base">{selectedRole.displayName}</h3>
+                    {selectedRole.isSystem && (
+                      <span className="px-2 py-0.5 bg-[var(--bg)] border border-[var(--border)] rounded-full text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wide">
+                        System
+                      </span>
+                    )}
+                    {isDirty && (
+                      <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded-full text-xs text-amber-600 font-medium">
+                        Unsaved
+                      </span>
                     )}
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-2xl font-black text-[var(--primary)]">{grantedCount}</p>
-                    <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">permissions</p>
-                  </div>
+                  {selectedRole.description && (
+                    <p className="text-sm text-[var(--text-muted)] mt-0.5">{selectedRole.description}</p>
+                  )}
                 </div>
-              </div>
-
-              {/* Wildcard banner */}
-              {isWildcard && (
-                <div className="flex items-center gap-3 px-4 py-3 bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-2xl">
-                  <div className="w-8 h-8 rounded-xl bg-[var(--primary)] flex items-center justify-center shrink-0">
-                    <Zap size={15} className="text-black" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-[var(--text-primary)]">Wildcard Access Enabled</p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      This role has unrestricted access to all current and future modules.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Matrix card */}
-              <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
-
-                {/* Toolbar */}
-                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--bg)]">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                      Permission Matrix
-                    </p>
-                    <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">
-                      — Click an icon to toggle access
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl w-44">
-                    <Search size={13} className="text-[var(--text-muted)] shrink-0" />
-                    <input
-                      type="text"
-                      value={moduleSearch}
-                      onChange={(e) => setModuleSearch(e.target.value)}
-                      placeholder="Filter modules…"
-                      className="bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none w-full"
-                    />
-                  </div>
-                </div>
-
-                {/* Scrollable table wrapper — horizontal scroll while module column stays fixed */}
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-
-                    {/* Sticky header row */}
-                    <thead>
-                      <tr className="border-b-2 border-[var(--border)]">
-
-                        {/* Sticky MODULE column header */}
-                        <th
-                          className="sticky left-0 z-20 bg-[var(--bg)] text-left py-3 pl-4 pr-3 border-r border-[var(--border)]"
-                          style={{ minWidth: '180px' }}
-                        >
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                            Module
-                          </span>
-                        </th>
-
-                        {/* Action columns */}
-                        {ALL_ACTIONS.map((action) => (
-                          <ActionHeader key={action} action={action} />
-                        ))}
-
-                        {/* "All" column */}
-                        <th className="py-3 w-14 border-l border-[var(--border)]">
-                          <div className="flex flex-col items-center gap-1.5">
-                            <Zap size={14} className="text-[var(--primary)]" />
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--primary)]">All</span>
-                          </div>
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {/* ── Flat search results ── */}
-                      {searchResults && (
-                        searchResults.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={ALL_ACTIONS.length + 2}
-                              className="text-center py-10 text-sm text-[var(--text-muted)]"
-                            >
-                              No modules match &ldquo;{moduleSearch}&rdquo;
-                            </td>
-                          </tr>
-                        ) : searchResults.map(renderRow)
-                      )}
-
-                      {/* ── Grouped view ── */}
-                      {!searchResults && groupedModules.map((group) =>
-                        group.modules.length === 0 ? null : (
-                          <React.Fragment key={group.label}>
-                            {renderGroupHeader(group.label)}
-                            {group.modules.map(renderRow)}
-                          </React.Fragment>
-                        )
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Legend */}
-                <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--bg)] flex items-center gap-5 flex-wrap">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Legend</p>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center">
-                      <Eye size={11} className="text-black" />
-                    </div>
-                    <span className="text-xs text-[var(--text-secondary)]">Granted</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-6 h-6 rounded-lg border border-[var(--border)] flex items-center justify-center">
-                      <Eye size={11} className="text-[var(--border)]" />
-                    </div>
-                    <span className="text-xs text-[var(--text-secondary)]">Not granted</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[var(--border)] text-sm font-bold">—</span>
-                    <span className="text-xs text-[var(--text-secondary)]">Not applicable</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-6 h-6 rounded-lg bg-[var(--primary)]/20 border border-[var(--primary)]/40 flex items-center justify-center">
-                      <Eye size={11} className="text-[var(--primary)]" />
-                    </div>
-                    <span className="text-xs text-[var(--text-secondary)]">Auto-granted (wildcard)</span>
-                  </div>
+                <div className="text-right shrink-0">
+                  <p className="text-2xl font-black text-[var(--primary)]">{grantedCount}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">permissions</p>
                 </div>
               </div>
             </div>
 
-          ) : (
-            /* No role selected */
-            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-16 flex flex-col items-center justify-center text-center shadow-sm">
-              <div className="w-14 h-14 bg-[var(--bg)] rounded-2xl flex items-center justify-center mb-4">
-                <Shield size={28} className="text-[var(--text-muted)]" />
+            {/* Wildcard banner */}
+            {isWildcard && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-2xl">
+                <div className="w-8 h-8 rounded-xl bg-[var(--primary)] flex items-center justify-center shrink-0">
+                  <Zap size={15} className="text-black" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-[var(--text-primary)]">Wildcard Access Enabled</p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    This role has unrestricted access to all current and future modules.
+                  </p>
+                </div>
               </div>
-              <p className="font-bold text-[var(--text-primary)] mb-1">Select a Role</p>
-              <p className="text-sm text-[var(--text-muted)] max-w-xs">
-                Choose a role from the left panel to view and edit its permissions.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+            )}
 
-      {/* ════════════════ USER ASSIGNMENTS ═══════════════════════════════ */}
-      {activeTab === 'users' && (
-        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-sm">
-          <div className="px-5 py-4 border-b border-[var(--border)] bg-[var(--bg)] flex items-center justify-between">
-            <div>
-              <p className="font-bold text-[var(--text-primary)]">User Role Assignments</p>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Changes take effect on the user's next login.
-              </p>
+            {/* Matrix card */}
+            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+
+              {/* Toolbar */}
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--bg)]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                  Permission Matrix
+                  <span className="font-normal normal-case tracking-normal ml-1.5 hidden sm:inline">
+                    — Click an icon to toggle access
+                  </span>
+                </p>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl w-44">
+                  <Search size={13} className="text-[var(--text-muted)] shrink-0" />
+                  <input
+                    type="text"
+                    value={moduleSearch}
+                    onChange={(e) => setModuleSearch(e.target.value)}
+                    placeholder="Filter modules…"
+                    className="bg-transparent text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-[var(--border)]">
+                      <th
+                        className="sticky left-0 z-20 bg-[var(--bg)] text-left py-3 pl-4 pr-3 border-r border-[var(--border)]"
+                        style={{ minWidth: '180px' }}
+                      >
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Module</span>
+                      </th>
+                      {ALL_ACTIONS.map((action) => (
+                        <ActionHeader key={action} action={action} />
+                      ))}
+                      <th className="py-3 w-14 border-l border-[var(--border)]">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <Zap size={14} className="text-[var(--primary)]" />
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--primary)]">All</span>
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {searchResults && (
+                      searchResults.length === 0 ? (
+                        <tr>
+                          <td colSpan={ALL_ACTIONS.length + 2} className="text-center py-10 text-sm text-[var(--text-muted)]">
+                            No modules match &ldquo;{moduleSearch}&rdquo;
+                          </td>
+                        </tr>
+                      ) : searchResults.map(renderRow)
+                    )}
+                    {!searchResults && groupedModules.map((group) =>
+                      group.modules.length === 0 ? null : (
+                        <React.Fragment key={group.label}>
+                          {renderGroupHeader(group.label)}
+                          {group.modules.map(renderRow)}
+                        </React.Fragment>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Legend */}
+              <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--bg)] flex items-center gap-5 flex-wrap">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Legend</p>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center">
+                    <Eye size={11} className="text-black" />
+                  </div>
+                  <span className="text-xs text-[var(--text-secondary)]">Granted</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-lg border border-[var(--border)] flex items-center justify-center">
+                    <Eye size={11} className="text-[var(--border)]" />
+                  </div>
+                  <span className="text-xs text-[var(--text-secondary)]">Not granted</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[var(--border)] text-sm font-bold">—</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Not applicable</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-[var(--primary)]/20 border border-[var(--primary)]/40 flex items-center justify-center">
+                    <Eye size={11} className="text-[var(--primary)]" />
+                  </div>
+                  <span className="text-xs text-[var(--text-secondary)]">Auto-granted (wildcard)</span>
+                </div>
+              </div>
             </div>
-            <span className="px-3 py-1 bg-[var(--primary)]/15 text-[var(--primary)] text-xs font-bold rounded-full">
-              {users.length} users
-            </span>
           </div>
 
-          {users.length === 0 ? (
-            <div className="py-12 text-center">
-              <Users size={28} className="text-[var(--border)] mx-auto mb-3" />
-              <p className="text-sm text-[var(--text-muted)]">No users found.</p>
+        ) : (
+          <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-16 flex flex-col items-center justify-center text-center shadow-sm">
+            <div className="w-14 h-14 bg-[var(--bg)] rounded-2xl flex items-center justify-center mb-4">
+              <Shield size={28} className="text-[var(--text-muted)]" />
             </div>
-          ) : (
-            <div className="divide-y divide-[var(--border)]">
-              {users.map((u) => {
-                const roleMeta = ROLE_OPTIONS.find((r) => r.value === u.role);
-                const color    = roleMeta?.color || '#6B6B6B';
-                return (
-                  <div
-                    key={u._id}
-                    className="flex items-center gap-4 px-5 py-3.5 hover:bg-[var(--bg)]/50 transition-colors"
-                  >
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
-                      style={{ backgroundColor: color }}
-                    >
-                      {u.name?.charAt(0)?.toUpperCase() || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{u.name}</p>
-                      <p className="text-xs text-[var(--text-muted)] truncate">{u.email}</p>
-                    </div>
-                    <span
-                      className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold text-white shrink-0"
-                      style={{ backgroundColor: color }}
-                    >
-                      {roleMeta?.label || u.role}
-                    </span>
-                    <select
-                      value={u.role}
-                      onChange={(e) => updateUserRole(u._id, e.target.value)}
-                      className="text-sm px-3 py-2 rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] outline-none focus:border-[var(--primary)] transition-colors cursor-pointer"
-                    >
-                      {ROLE_OPTIONS.map((r) => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+            <p className="font-bold text-[var(--text-primary)] mb-1">Select a Role</p>
+            <p className="text-sm text-[var(--text-muted)] max-w-xs">
+              Choose a role from the left panel to view and edit its permissions.
+            </p>
+          </div>
+        )}
+      </div>
 
       <SaveBar
         isDirty={isDirty}

@@ -172,7 +172,7 @@ const ProfileDropdown = ({
                   <DropItem
                     icon={Key}
                     label="Roles & Permissions"
-                    onClick={() => handleNav('/settings/roles')}
+                    onClick={() => handleNav('/settings/roles-permissions')}
                   />
                 </div>
               )}

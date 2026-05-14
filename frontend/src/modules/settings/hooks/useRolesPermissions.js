@@ -6,7 +6,6 @@ export const useRolesPermissions = () => {
   const { success, error } = useToast();
 
   const [roles, setRoles] = useState([]);
-  const [users, setUsers] = useState([]);
   const [selectedRole, setSelectedRole] = useState(null);
   const [draftPermissions, setDraftPermissions] = useState([]);
   const [isDirty, setIsDirty] = useState(false);
@@ -31,19 +30,9 @@ export const useRolesPermissions = () => {
     }
   }, []);
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      const res = await settingsService.getUsers();
-      setUsers(res.data || []);
-    } catch (err) {
-      error(err || 'Failed to load users');
-    }
-  }, []);
-
   useEffect(() => {
     fetchRoles();
-    fetchUsers();
-  }, [fetchRoles, fetchUsers]);
+  }, [fetchRoles]);
 
   const selectRole = (role) => {
     setSelectedRole(role);
@@ -98,19 +87,8 @@ export const useRolesPermissions = () => {
     }
   };
 
-  const updateUserRole = async (userId, newRole) => {
-    try {
-      const res = await settingsService.updateUserRole(userId, { role: newRole });
-      setUsers((prev) => prev.map((u) => u._id === userId ? res.data : u));
-      success('User role updated');
-    } catch (err) {
-      error(err || 'Failed to update user role');
-    }
-  };
-
   return {
     roles,
-    users,
     selectedRole,
     draftPermissions,
     isDirty,
@@ -121,7 +99,6 @@ export const useRolesPermissions = () => {
     toggleModule,
     savePermissions,
     discardChanges,
-    updateUserRole,
     refetch: fetchRoles,
   };
 };
