@@ -4,7 +4,7 @@ const meetingSchema = new mongoose.Schema(
   {
     leadId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Lead",
+      ref: "CRMClient",
       required: true
     },
 

@@ -1,136 +1,82 @@
-import React, { useState, useMemo } from 'react';
-import { Bell, Shield, Palette, Globe, Smartphone, Lock, Users } from 'lucide-react';
-import Card from '../../../shared/components/Card/Card';
-import Button from '../../../shared/components/Button/Button';
-import Checkbox from '../../../shared/components/Checkbox/Checkbox';
-import CreateUserForm from '../components/CreateUserForm';
+import { useNavigate } from 'react-router-dom';
+import { Users, Shield, ChevronRight } from 'lucide-react';
+import usePermission from '../../../shared/hooks/usePermission';
+
+const SETTINGS_CARDS = [
+  {
+    id: 'users',
+    icon: Users,
+    title: 'User Management',
+    description: 'Create and manage user accounts, assign roles, and control team access.',
+    path: '/settings/users',
+    color: '#3A6EA5',
+  },
+  {
+    id: 'roles',
+    icon: Shield,
+    title: 'Roles & Permissions',
+    description: 'Define role permissions, manage module access, and configure what each role can do.',
+    path: '/settings/roles-permissions',
+    color: '#D4B76C',
+  },
+];
 
 const SettingsPage = () => {
-  const [activeTab, setActiveTab] = useState('general');
-
-  // Get user info to check for Admin role
-  const user = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user')) || {};
-    } catch {
-      return {};
-    }
-  }, []);
-
-  const isAdmin = user.role?.toLowerCase() === 'admin';
-
-  const navItems = [
-    { id: 'general', icon: Globe, label: 'General' },
-    { id: 'notifications', icon: Bell, label: 'Notifications' },
-    { id: 'security', icon: Lock, label: 'Security' },
-    { id: 'appearance', icon: Palette, label: 'Appearance' },
-    { id: 'mobile', icon: Smartphone, label: 'Mobile App' },
-    ...(isAdmin ? [{ id: 'users', icon: Users, label: 'User Management' }] : []),
-  ];
+  const navigate   = useNavigate();
+  const canManage  = usePermission('users.manage');
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-[var(--text-primary)]">Settings</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Navigation */}
-        <div className="md:col-span-1 space-y-2">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`
-                w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all
-                ${activeTab === item.id 
-                  ? 'bg-[var(--primary)] text-black shadow-lg shadow-[var(--primary)]/20' 
-                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg)]'}
-              `}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="md:col-span-2 space-y-6">
-          {activeTab === 'general' && (
-            <div className="space-y-6">
-              <Card className="p-6">
-                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-6">General Settings</h3>
-                
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--text-primary)]">Email Notifications</p>
-                      <p className="text-xs text-[var(--text-muted)]">Receive daily lead summaries via email.</p>
-                    </div>
-                    <Checkbox id="email-notif" checked={true} onChange={() => {}} />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--text-primary)]">Desktop Alerts</p>
-                      <p className="text-xs text-[var(--text-muted)]">Show browser notifications for new leads.</p>
-                    </div>
-                    <Checkbox id="desktop-alert" checked={false} onChange={() => {}} />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--text-primary)]">Public Profile</p>
-                      <p className="text-xs text-[var(--text-muted)]">Allow your profile to be visible to other team members.</p>
-                    </div>
-                    <Checkbox id="public-profile" checked={true} onChange={() => {}} />
-                  </div>
-                </div>
-
-                <div className="mt-8 pt-6 border-t border-[var(--border)] flex justify-end gap-3">
-                  <Button variant="ghost">Reset</Button>
-                  <Button variant="primary">Save Changes</Button>
-                </div>
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-4">Language & Region</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase">Language</label>
-                    <select className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] transition-colors">
-                      <option>English (US)</option>
-                      <option>Hindi</option>
-                      <option>Gujarati</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-[var(--text-muted)] uppercase">Timezone</label>
-                    <select className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] transition-colors">
-                      <option>(GMT+05:30) Mumbai, New Delhi</option>
-                      <option>(GMT+00:00) UTC</option>
-                    </select>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {activeTab === 'users' && isAdmin && (
-            <CreateUserForm />
-          )}
-
-          {activeTab !== 'general' && activeTab !== 'users' && (
-            <Card className="p-12 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 bg-[var(--bg)] rounded-full flex items-center justify-center mb-4 text-[var(--text-muted)]">
-                <Shield size={32} />
-              </div>
-              <h3 className="text-lg font-bold text-[var(--text-primary)]">Module Coming Soon</h3>
-              <p className="text-sm text-[var(--text-muted)] mt-1 max-w-xs">
-                We're currently working on this feature. It will be available in the next update.
-              </p>
-            </Card>
-          )}
-        </div>
+    <div className="max-w-3xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Settings</h1>
+        <p className="text-sm text-[var(--text-muted)] mt-1">
+          Manage system configuration and access control.
+        </p>
       </div>
+
+      {canManage ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {SETTINGS_CARDS.map((card) => {
+            const Icon = card.icon;
+            return (
+              <button
+                key={card.id}
+                onClick={() => navigate(card.path)}
+                className="group text-left p-6 bg-[var(--surface)] border-2 border-[var(--border)] hover:border-[var(--primary)] rounded-2xl shadow-sm hover:shadow-md transition-all duration-200"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center"
+                    style={{ backgroundColor: `${card.color}1A` }}
+                  >
+                    <Icon size={22} style={{ color: card.color }} />
+                  </div>
+                  <ChevronRight
+                    size={18}
+                    className="text-[var(--border)] group-hover:text-[var(--primary)] group-hover:translate-x-0.5 transition-all mt-1 shrink-0"
+                  />
+                </div>
+                <h2 className="font-bold text-[var(--text-primary)] text-base mb-1.5">
+                  {card.title}
+                </h2>
+                <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                  {card.description}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 bg-[var(--bg)] rounded-2xl flex items-center justify-center mb-4">
+            <Shield size={28} className="text-[var(--text-muted)]" />
+          </div>
+          <p className="text-sm font-semibold text-[var(--text-secondary)]">No settings available</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1 max-w-xs">
+            Contact an administrator to access system settings.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

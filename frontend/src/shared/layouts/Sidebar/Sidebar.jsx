@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
 import Avatar from '../../components/Avatar/Avatar';
 import ProfileDropdown from '../../components/ProfileDropdown/ProfileDropdown';
 import SidebarGroup from '../../components/Sidebar/SidebarGroup';
 import SidebarItem from '../../components/Sidebar/SidebarItem';
 import { NAV_ITEMS } from '../../constants/navigation';
+import { useAuth } from '../../context/AuthContext';
 import LogoImg from '../../../assets/JJ-FINAL-LOGO-PNG.png';
 
 const Sidebar = ({
@@ -12,9 +13,13 @@ const Sidebar = ({
   onSelect,
   isMobileOpen = false,
   onMobileClose,
-  user = { name: 'Sarah Smith', role: 'Admin' },
+  user: userProp,
 }) => {
   const [expanded, setExpanded] = useState(['crm', 'forms']);
+  const { hasPermission, user: authUser } = useAuth();
+
+  // Prefer the live user from AuthContext; fall back to prop for public usage
+  const user = authUser || userProp || { name: 'User', role: 'sales' };
 
   const handleToggle = (id) =>
     setExpanded((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
@@ -23,6 +28,28 @@ const Sidebar = ({
     onSelect(id, path);
     onMobileClose?.();
   };
+
+  // ─── Filter nav items based on user's permissions ─────────────────────────
+  const filterItem = (item) => {
+    // Admin wildcard — show everything
+    if (hasPermission('*')) return true;
+    // If item has a required permission, check it
+    if (item.permission) return hasPermission(item.permission);
+    // No permission defined — visible by default
+    return true;
+  };
+
+  const filteredNavItems = NAV_ITEMS
+    .filter(filterItem)
+    .map((item) => {
+      if (!item.children) return item;
+      // Also filter children
+      const visibleChildren = item.children.filter(filterItem);
+      // If all children are hidden, hide the group too
+      if (visibleChildren.length === 0) return null;
+      return { ...item, children: visibleChildren };
+    })
+    .filter(Boolean);
 
   const sidebarContent = (
     <aside className="flex flex-col w-64 h-full bg-[var(--sidebar-bg)]">
@@ -47,7 +74,7 @@ const Sidebar = ({
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
-        {NAV_ITEMS.map((item) => (
+        {filteredNavItems.map((item) => (
           item.children ? (
             <SidebarGroup
               key={item.id}

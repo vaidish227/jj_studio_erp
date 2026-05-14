@@ -1,21 +1,19 @@
 import React from 'react';
-import { User, Mail, Lock, ShieldCheck } from 'lucide-react';
+import { User, Mail, Lock } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Input from '../../../shared/components/Input/Input';
 import Button from '../../../shared/components/Button/Button';
 import FormField from '../../../shared/components/FormField/FormField';
 import Select from '../../../shared/components/Select/Select';
 import { useCreateUser } from '../hooks/useCreateUser';
+import { ROLE_OPTIONS } from '../../../shared/constants/permissions';
 
-const ROLE_OPTIONS = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'designer', label: 'Designer' },
-  { value: 'supervisor', label: 'Supervisor' },
-  { value: 'sales', label: 'Sales' },
-];
+const FORM_ROLE_OPTIONS = ROLE_OPTIONS
+  .filter((r) => r.value !== 'client' && r.value !== 'vendor')
+  .map((r) => ({ value: r.value, label: r.label }));
 
 const CreateUserForm = () => {
-  const { formData, errors, isLoading, status, handleChange, handleSubmit } = useCreateUser();
+  const { formData, errors, isLoading, handleChange, handleSubmit } = useCreateUser();
 
   return (
     <Card className="p-6">
@@ -60,22 +58,12 @@ const CreateUserForm = () => {
 
           <FormField label="User Role">
             <Select
-              options={ROLE_OPTIONS}
+              options={FORM_ROLE_OPTIONS}
               value={formData.role}
               onChange={(value) => handleChange('role', value)}
             />
           </FormField>
         </div>
-
-        {status.message && (
-          <div className={`p-4 rounded-xl text-sm font-medium border ${
-            status.type === 'success' 
-              ? 'bg-green-500/10 border-green-500/30 text-green-500' 
-              : 'bg-red-500/10 border-red-500/30 text-red-500'
-          }`}>
-            {status.message}
-          </div>
-        )}
 
         <div className="pt-4 flex justify-end">
           <Button

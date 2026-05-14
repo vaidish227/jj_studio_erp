@@ -1,34 +1,32 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../../../shared/services/authService';
+import { useAuth } from '../../../shared/context/AuthContext';
 
 const initialState = {
   email: '',
   password: '',
-  role: 'admin',
   rememberMe: false,
 };
 
 const validateForm = ({ email, password }) => {
   const errors = {};
-
   if (!email) {
     errors.email = 'Email is required.';
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errors.email = 'Please enter a valid email.';
   }
-
   if (!password) {
     errors.password = 'Password is required.';
   } else if (password.length < 6) {
     errors.password = 'Password must be at least 6 characters.';
   }
-
   return errors;
 };
 
 const useLogin = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState(initialState);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -36,10 +34,7 @@ const useLogin = () => {
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear field error on change
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: '' }));
-    }
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -56,17 +51,12 @@ const useLogin = () => {
     try {
       const response = await authService.login({
         email: formData.email,
-        password: formData.password
+        password: formData.password,
       });
 
-      // Handle successful login
       if (response.token) {
-        localStorage.setItem('auth_token', response.token);
-        if (response.user) {
-          localStorage.setItem('user', JSON.stringify(response.user));
-        }
-        
-        // Redirect to dashboard
+        // Store auth state in context (which also writes to localStorage)
+        login(response.user, response.token, response.permissions || []);
         navigate('/dashboard');
       }
     } catch (err) {
@@ -76,14 +66,7 @@ const useLogin = () => {
     }
   };
 
-  return {
-    formData,
-    errors,
-    isLoading,
-    apiError,
-    handleChange,
-    handleSubmit,
-  };
+  return { formData, errors, isLoading, apiError, handleChange, handleSubmit };
 };
 
 export default useLogin;

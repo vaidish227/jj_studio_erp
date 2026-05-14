@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { authService } from '../../../shared/services/authService';
+import { useToast } from '../../../shared/notifications/ToastProvider';
 
 const initialState = {
   name: '',
@@ -25,19 +26,18 @@ const validateForm = (data) => {
 };
 
 export const useCreateUser = () => {
+  const { success, error } = useToast();
   const [formData, setFormData] = useState(initialState);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState({ type: '', message: '' });
 
   const handleChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus({ type: '', message: '' });
 
     const validationErrors = validateForm(formData);
     if (Object.keys(validationErrors).length > 0) {
@@ -48,10 +48,10 @@ export const useCreateUser = () => {
     setIsLoading(true);
     try {
       await authService.signup(formData);
-      setStatus({ type: 'success', message: 'User created successfully!' });
+      success('User created successfully!');
       setFormData(initialState);
     } catch (err) {
-      setStatus({ type: 'error', message: err || 'Failed to create user' });
+      error(err || 'Failed to create user');
     } finally {
       setIsLoading(false);
     }
@@ -61,8 +61,7 @@ export const useCreateUser = () => {
     formData,
     errors,
     isLoading,
-    status,
     handleChange,
-    handleSubmit
+    handleSubmit,
   };
 };

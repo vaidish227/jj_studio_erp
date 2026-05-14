@@ -29,10 +29,16 @@ const userSchema = new mongoose.Schema(
 
         role: {
             type: String,
-            enum: ["admin", "sales", "manager", "accounts", "designer", "supervisor"],
+            enum: ["admin", "md", "manager", "sales", "accounts", "designer", "supervisor", "vendor", "client"],
             default: "sales",
         },
-       
+
+        // Per-user permission overrides (added on top of role permissions)
+        customPermissions: {
+            type: [String],
+            default: [],
+        },
+
 },
     {
         timestamps: true,

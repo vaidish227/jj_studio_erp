@@ -211,7 +211,7 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-end gap-3">
             {/* Edit / Cancel-edit toggle — only for existing clients */}
             {isUpdate && !isFetching && (
               isEditing ? (
@@ -219,7 +219,7 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                   variant="ghost"
                   type="button"
                   onClick={() => { setIsEditing(false); setUpdateSuccess(false); }}
-                  className="text-[var(--text-muted)]"
+                  className="text-[var(--text-muted)] flex items-center gap-2 whitespace-nowrap shrink-0"
                 >
                   <X size={16} />
                   Cancel Edit
