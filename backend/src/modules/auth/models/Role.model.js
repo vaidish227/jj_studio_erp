@@ -28,8 +28,18 @@ const ALL_PERMISSIONS = [
   "users.read", "users.create", "users.update", "users.delete", "users.manage",
   // Vendor portal
   "vendor.read", "vendor.create", "vendor.update",
+  // Drawings / DDMS
+  "drawings.read", "drawings.upload", "drawings.approve", "drawings.release",
+  // Site execution
+  "site_logs.read", "site_logs.create",
   // Client portal
   "client_portal.read",
+  // Mail module
+  "mail.send", "mail.read", "mail.manage",
+  // WhatsApp module
+  "whatsapp.send", "whatsapp.read", "whatsapp.manage",
+  // Communication settings
+  "communication.settings.manage",
 ];
 
 const roleSchema = new mongoose.Schema(

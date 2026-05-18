@@ -1,26 +1,26 @@
 const express = require("express");
 const router = express.Router();
+const { requirePermission } = require("../../../middleware/auth.middleware");
 const {
   createTask,
+  getMyTasks,
   getTasksByProject,
+  getTaskById,
   updateTask,
   updateChecklistStatus,
   deleteTask,
 } = require("../controllers/Task.controller");
 
-// Create Task
-router.post("/create", createTask);
+// Must be declared before /:id to avoid route shadowing
+router.get("/my-tasks",           requirePermission("tasks.read"), getMyTasks);
+router.get("/project/:projectId", requirePermission("tasks.read"), getTasksByProject);
+router.get("/:id",                requirePermission("tasks.read"), getTaskById);
 
-// Get Tasks by Project ID
-router.get("/project/:projectId", getTasksByProject);
+router.post("/create", requirePermission("tasks.create"), createTask);
 
-// Update Task (Status, Assignment, etc.)
-router.put("/update/:id", updateTask);
+router.put("/update/:id",                    requirePermission("tasks.update"), updateTask);
+router.patch("/checklist/:taskId/:itemIndex", requirePermission("tasks.update"), updateChecklistStatus);
 
-// Update specific checklist item status
-router.patch("/checklist/:taskId/:itemIndex", updateChecklistStatus);
-
-// Delete Task
-router.delete("/delete/:id", deleteTask);
+router.delete("/delete/:id", requirePermission("tasks.delete"), deleteTask);
 
 module.exports = router;

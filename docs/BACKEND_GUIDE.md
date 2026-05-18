@@ -36,19 +36,57 @@ app.listen(process.env.PORT || 5000, () => {
 ```
 
 ### `backend/src/app.js`
-Configures Express with middleware and all route registrations:
+Configures Express with middleware and all route registrations. JWT verification (`verifyToken`) is applied globally after `/api/auth` — every route below it is protected.
+
 ```js
 const express = require('express');
 const cors = require('cors');
+const { verifyToken } = require('./middleware/auth.middleware');
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// 14 route groups registered here
+// Public — no auth
 app.use('/api/auth', require('./modules/auth/routes/auth.routes'));
-app.use('/api/clients', require('./modules/crm/routes/Client.route'));
-// ... etc.
+
+// All routes below require a valid JWT
+app.use(verifyToken);
+
+// CRM
+app.use('/api/leads',     require('./modules/crm/routes/Lead.route'));
+app.use('/api/clients',   require('./modules/crm/routes/Client.route'));
+app.use('/api/followup',  require('./modules/crm/routes/FollowUp.route'));
+app.use('/api/metting',   require('./modules/crm/routes/Metting.routes'));
+app.use('/api/proposal',  require('./modules/crm/routes/Proposal.route'));
+
+// Proposal System
+app.use('/api/boq',             require('./modules/proposal/routes/Boq.route'));
+app.use('/api/boqitem',         require('./modules/proposal/routes/Boq_item.route'));
+app.use('/api/Template',        require('./modules/proposal/routes/Template_route'));
+app.use('/api/Approve',         require('./modules/proposal/routes/Approval.Route'));
+app.use('/api/payment',         require('./modules/proposal/routes/Payment.Routes'));
+app.use('/api/proposalversion', require('./modules/proposal/routes/Proposalversion.Route'));
+app.use('/api/activity',        require('./modules/proposal/routes/Activity.route'));
+app.use('/api/esign',           require('./modules/proposal/routes/Esign.route'));
+
+// WhatsApp
+app.use('/api/whatsapp', require('./modules/whatspp/routes/whatsapp.route'));
+
+// PMS — Project Management System
+app.use('/api/pms/project',   require('./modules/pms/routes/Project.route'));
+app.use('/api/pms/task',      require('./modules/pms/routes/Task.route'));
+app.use('/api/pms/drawing',   require('./modules/pms/routes/Drawing.route'));
+app.use('/api/pms/vendor',    require('./modules/pms/routes/Vendor.route'));
+app.use('/api/pms/sitelog',   require('./modules/pms/routes/SiteLog.route'));
+app.use('/api/pms/po',        require('./modules/pms/routes/PurchaseOrder.route'));
+app.use('/api/pms/material',  require('./modules/pms/routes/Material.route'));
+app.use('/api/pms/approval',  require('./modules/pms/routes/Approval.route'));
+app.use('/api/pms/sitevisit', require('./modules/pms/routes/SiteVisit.route'));
+app.use('/api/pms/dashboard', require('./modules/pms/routes/PMSDashboard.route'));
+
+// Settings & RBAC
+app.use('/api/roles', require('./modules/settings/routes/Roles.route'));
 
 module.exports = app;
 ```

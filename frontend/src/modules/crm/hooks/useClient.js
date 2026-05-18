@@ -113,7 +113,7 @@ const useClient = () => {
       clearActiveLead(); // Flow complete
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      setApiError(err || 'Failed to submit client information. Please try again.');
+      setApiError(err?.message || 'Failed to submit client information. Please try again.');
     } finally {
       setIsLoading(false);
     }

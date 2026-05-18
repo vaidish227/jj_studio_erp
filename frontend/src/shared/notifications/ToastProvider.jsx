@@ -8,7 +8,9 @@ export const ToastProvider = ({ children }) => {
 
   const addToast = useCallback((message, type = 'info', duration = 3000) => {
     const id = Math.random().toString(36).substr(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+    // Normalize: error objects from apiClient have a `message` property
+    const msg = message && typeof message === 'object' ? (message.message || 'An error occurred') : (message || 'An error occurred');
+    setToasts((prev) => [...prev, { id, message: msg, type }]);
 
     if (duration) {
       setTimeout(() => {

@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requirePermission } = require("../../../middleware/auth.middleware");
 const {
   createSiteLog,
   getProjectLogs,
@@ -7,16 +8,9 @@ const {
   updateLog,
 } = require("../controllers/SiteLog.controller");
 
-// Create Daily Log
-router.post("/create", createSiteLog);
-
-// Get Logs for Project
-router.get("/project/:projectId", getProjectLogs);
-
-// Get Single Log
-router.get("/:id", getLogById);
-
-// Update Log (Review/Status)
-router.put("/update/:id", updateLog);
+router.post("/create",             requirePermission("site_logs.create"), createSiteLog);
+router.get("/project/:projectId",  requirePermission("site_logs.read"),   getProjectLogs);
+router.get("/:id",                 requirePermission("site_logs.read"),   getLogById);
+router.put("/update/:id",          requirePermission("site_logs.create"), updateLog);
 
 module.exports = router;

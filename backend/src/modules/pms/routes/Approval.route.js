@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requirePermission } = require("../../../middleware/auth.middleware");
 const {
   requestApproval,
   getProjectApprovals,
@@ -7,16 +8,9 @@ const {
   getPendingApprovals,
 } = require("../controllers/Approval.controller");
 
-// Request Approval
-router.post("/request", requestApproval);
-
-// Get Approvals for a Project
-router.get("/project/:projectId", getProjectApprovals);
-
-// Get Pending Approvals for a specific user
-router.get("/pending/:userId", getPendingApprovals);
-
-// Respond to Approval (Approve/Reject)
-router.patch("/respond/:id", respondToApproval);
+router.post("/request",              requirePermission("approvals.create"),  requestApproval);
+router.get("/project/:projectId",    requirePermission("approvals.read"),    getProjectApprovals);
+router.get("/pending/:userId",       requirePermission("approvals.read"),    getPendingApprovals);
+router.patch("/respond/:id",         requirePermission("approvals.respond"), respondToApproval);
 
 module.exports = router;

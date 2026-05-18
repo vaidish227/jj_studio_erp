@@ -1,51 +1,71 @@
 const Material = require("../models/Material.model");
+const { createMaterialSchema, updateMaterialSchema } = require("../validator/Material.validator");
 
 /**
- * @desc Create a new Material Selection
  * @route POST /api/pms/material/create
  */
 const createMaterial = async (req, res) => {
   try {
-    const material = await Material.create(req.body);
-    res.status(201).json({ success: true, message: "Material selection recorded", material });
+    const { error, value } = createMaterialSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
+    }
+
+    if (!value.taskId) delete value.taskId;
+
+    const material = await Material.create(value);
+    res.status(201).json({ message: "Material selection recorded", material });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[createMaterial]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Get all Materials for a Project
+ * @route GET /api/pms/material/project/:projectId
  */
 const getProjectMaterials = async (req, res) => {
   try {
     const materials = await Material.find({ projectId: req.params.projectId })
-      .populate("taskId", "title")
-      .sort({ category: 1 });
+      .populate("taskId", "title taskType")
+      .sort({ category: 1, createdAt: -1 });
 
-    res.status(200).json({ success: true, count: materials.length, materials });
+    res.status(200).json({ count: materials.length, materials });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[getProjectMaterials]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Update Material status/details
+ * @route PUT /api/pms/material/update/:id
  */
 const updateMaterial = async (req, res) => {
   try {
+    const { error, value } = updateMaterialSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
+    }
+
     const material = await Material.findByIdAndUpdate(
       req.params.id,
-      { $set: req.body },
-      { new: true }
+      { $set: value },
+      { new: true, runValidators: true }
     );
-    res.status(200).json({ success: true, material });
+
+    if (!material) {
+      return res.status(404).json({ message: "Material record not found" });
+    }
+
+    res.status(200).json({ message: "Material updated", material });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[updateMaterial]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 module.exports = {
   createMaterial,
   getProjectMaterials,
-  updateMaterial
+  updateMaterial,
 };

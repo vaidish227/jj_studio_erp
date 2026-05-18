@@ -237,7 +237,7 @@ export const useClientInfo = ({ activeLead, clientId, onSuccess } = {}) => {
       }
       return resultClient;
     } catch (error) {
-      setApiError(error || 'Failed to submit client information. Please try again.');
+      setApiError(error?.message || 'Failed to submit client information. Please try again.');
       return null;
     } finally {
       setIsLoading(false);

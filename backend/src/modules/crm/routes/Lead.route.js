@@ -14,6 +14,7 @@ const {
   triggerThankYouAutomation,
   recordShowProject,
   recordAdvancePayment,
+  markInterested,
 } = require("../controllers/CRMClient.controller");
 
 // ─── All lead routes now proxy to the unified CRMClient controller ──
@@ -25,6 +26,7 @@ router.patch("/updatestatus/:id", updateClientStatus);
 router.post("/automation/thank-you/:id", triggerThankYouAutomation);
 router.patch("/show-project/:id", recordShowProject);
 router.patch("/advance-payment/:id", recordAdvancePayment);
+router.patch("/mark-interested/:id", markInterested);
 router.delete("/delete/:id", deleteClient);
 router.post("/convert/:id", convertClient);
 router.get("/total", getStats);

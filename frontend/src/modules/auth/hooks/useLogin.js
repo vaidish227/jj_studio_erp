@@ -60,7 +60,7 @@ const useLogin = () => {
         navigate('/dashboard');
       }
     } catch (err) {
-      setApiError(err || 'Login failed. Please try again.');
+      setApiError(err?.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

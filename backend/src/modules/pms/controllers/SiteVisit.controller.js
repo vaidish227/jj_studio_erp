@@ -1,81 +1,81 @@
 const SiteVisit = require("../models/SiteVisit.model");
+const { createSiteVisitSchema, updateSiteVisitSchema } = require("../validator/SiteVisit.validator");
 
 /**
- * @desc Create a new Site Visit record (Designer/Manager)
  * @route POST /api/pms/sitevisit/create
  */
 const createSiteVisit = async (req, res) => {
   try {
-    const { projectId, visitorId, visitDate, purpose, observations, actionsRequired, photos } = req.body;
+    const { error, value } = createSiteVisitSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
+    }
 
-    const siteVisit = await SiteVisit.create({
-      projectId,
-      visitorId,
-      visitDate,
-      purpose,
-      observations,
-      actionsRequired,
-      photos
-    });
+    const siteVisit = await SiteVisit.create(value);
 
-    res.status(201).json({
-      success: true,
-      message: "Site visit recorded successfully",
-      siteVisit
-    });
+    res.status(201).json({ message: "Site visit recorded successfully", siteVisit });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[createSiteVisit]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Get all Site Visits for a Project
  * @route GET /api/pms/sitevisit/project/:projectId
  */
 const getProjectVisits = async (req, res) => {
   try {
     const visits = await SiteVisit.find({ projectId: req.params.projectId })
-      .populate("visitorId", "name role")
+      .populate("visitorId", "name email")
       .sort({ visitDate: -1 });
 
-    res.status(200).json({
-      success: true,
-      count: visits.length,
-      visits
-    });
+    res.status(200).json({ count: visits.length, visits });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[getProjectVisits]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Update Site Visit observations
+ * @route PUT /api/pms/sitevisit/update/:id
  */
 const updateSiteVisit = async (req, res) => {
   try {
+    const { error, value } = updateSiteVisitSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
+    }
+
     const visit = await SiteVisit.findByIdAndUpdate(
       req.params.id,
-      { $set: req.body },
-      { new: true }
-    );
+      { $set: value },
+      { new: true, runValidators: true }
+    ).populate("visitorId", "name email");
 
-    if (!visit) return res.status(404).json({ message: "Visit record not found" });
+    if (!visit) {
+      return res.status(404).json({ message: "Site visit record not found" });
+    }
 
-    res.status(200).json({ success: true, visit });
+    res.status(200).json({ message: "Site visit updated", visit });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[updateSiteVisit]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Delete Site Visit
+ * @route DELETE /api/pms/sitevisit/delete/:id
  */
 const deleteSiteVisit = async (req, res) => {
   try {
-    await SiteVisit.findByIdAndDelete(req.params.id);
-    res.status(200).json({ success: true, message: "Site visit record deleted" });
+    const visit = await SiteVisit.findByIdAndDelete(req.params.id);
+    if (!visit) {
+      return res.status(404).json({ message: "Site visit record not found" });
+    }
+    res.status(200).json({ message: "Site visit deleted" });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[deleteSiteVisit]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -83,5 +83,5 @@ module.exports = {
   createSiteVisit,
   getProjectVisits,
   updateSiteVisit,
-  deleteSiteVisit
+  deleteSiteVisit,
 };

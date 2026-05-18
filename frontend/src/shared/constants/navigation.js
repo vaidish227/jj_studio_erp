@@ -8,6 +8,10 @@ import {
   Settings,
   FileText,
   MessageCircle,
+  FolderOpen,
+  Store,
+  Calendar,
+  ClipboardCheck,
 } from 'lucide-react';
 
 // Each item has an optional `permission` key.
@@ -31,11 +35,12 @@ export const NAV_ITEMS = [
     icon: Users,
     permission: 'crm.read',
     children: [
-      { id: 'crm-form',   label: 'Form',      path: '/crm/forms/enquiry', permission: 'crm.create' },
-      { id: 'new-leads',  label: 'New Leads', path: '/crm/new-leads' },
-      { id: 'meetings',   label: 'Meetings',  path: '/crm/meetings' },
-      { id: 'converted',  label: 'Converted', path: '/crm/converted' },
-      { id: 'lost',       label: 'Lost',      path: '/crm/lost-leads' },
+      { id: 'crm-form',    label: 'Form',        path: '/crm/forms/enquiry', permission: 'crm.create' },
+      { id: 'crm-clients', label: 'All Clients', path: '/crm/clients' },
+      { id: 'new-leads',   label: 'New Leads',   path: '/crm/new-leads' },
+      { id: 'meetings',    label: 'Meetings',     path: '/crm/meetings' },
+      { id: 'converted',   label: 'Converted',    path: '/crm/converted' },
+      { id: 'lost',        label: 'Lost',         path: '/crm/lost-leads' },
     ],
   },
   {
@@ -74,17 +79,27 @@ export const NAV_ITEMS = [
   },
   {
     id: 'projects',
-    label: 'Projects',
+    label: 'Project Management',
     icon: Briefcase,
-    path: '/projects',
     permission: 'projects.read',
+    children: [
+      { id: 'projects-all',    label: 'All Projects',      path: '/projects' },
+      { id: 'projects-create', label: 'New Project',       path: '/projects/create', permission: 'projects.create' },
+      { id: 'tasks',           label: 'My Tasks',          path: '/tasks' },
+      { id: 'pms-calendar',    label: 'Calendar',          path: '/pms/calendar',    permission: 'calendar.read' },
+      { id: 'pms-approvals',   label: 'Approvals',         path: '/pms/approvals',   permission: 'approvals.read' },
+      { id: 'vendors',         label: 'Vendor Directory',  path: '/vendors',         permission: 'vendor.read' },
+    ],
   },
   {
-    id: 'tasks',
-    label: 'Tasks',
-    icon: CheckSquare,
-    path: '/tasks',
-    permission: 'tasks.read',
+    id: 'design-drawing',
+    label: 'Design & Drawing (DLR)',
+    icon: FolderOpen,
+    permission: 'drawings.read',
+    children: [
+      { id: 'drawings',          label: 'Drawing Library',   path: '/drawings' },
+      { id: 'pending-approvals', label: 'Pending Approvals', path: '/drawings/pending-approvals', permission: 'drawings.approve' },
+    ],
   },
   {
     id: 'reports',
@@ -99,9 +114,8 @@ export const NAV_ITEMS = [
     icon: Settings,
     permission: 'settings.read',
     children: [
-      // id MUST match last URL segment so AppLayout activeItem detection works
-      { id: 'users',              label: 'User Management',    path: '/settings/users',              permission: 'users.manage' },
-      { id: 'roles-permissions',  label: 'Roles & Permissions', path: '/settings/roles-permissions', permission: 'users.manage' },
+      { id: 'users',             label: 'User Management',     path: '/settings/users',             permission: 'users.manage' },
+      { id: 'roles-permissions', label: 'Roles & Permissions', path: '/settings/roles-permissions', permission: 'users.manage' },
     ],
   },
 ];

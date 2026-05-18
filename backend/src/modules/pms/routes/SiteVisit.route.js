@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requirePermission } = require("../../../middleware/auth.middleware");
 const {
   createSiteVisit,
   getProjectVisits,
@@ -7,16 +8,9 @@ const {
   deleteSiteVisit,
 } = require("../controllers/SiteVisit.controller");
 
-// Record Site Visit
-router.post("/create", createSiteVisit);
-
-// Get Visits by Project
-router.get("/project/:projectId", getProjectVisits);
-
-// Update Visit
-router.put("/update/:id", updateSiteVisit);
-
-// Delete Visit
-router.delete("/delete/:id", deleteSiteVisit);
+router.post("/create",                requirePermission("site_visits.create"), createSiteVisit);
+router.get("/project/:projectId",     requirePermission("site_visits.read"),   getProjectVisits);
+router.put("/update/:id",             requirePermission("site_visits.update"), updateSiteVisit);
+router.delete("/delete/:id",          requirePermission("projects.delete"),    deleteSiteVisit);
 
 module.exports = router;

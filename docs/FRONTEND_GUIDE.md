@@ -80,6 +80,34 @@ frontend/src/
 │   │   ├── components/
 │   │   └── index.js
 │   │
+│   ├── pms/                      # Project Management System + DDMS
+│   │   ├── context/
+│   │   │   └── PMSContext.jsx        # activeProject, invalidateProjects()
+│   │   ├── pages/
+│   │   │   ├── ProjectsPage.jsx      # /projects
+│   │   │   ├── ProjectDetailPage.jsx # /projects/:id (6-tab shell)
+│   │   │   ├── MyTasksPage.jsx       # /tasks
+│   │   │   ├── DrawingLibraryPage.jsx # /drawings + /drawings/pending-approvals
+│   │   │   └── VendorDirectoryPage.jsx # /vendors
+│   │   ├── hooks/
+│   │   │   ├── useProjects.js
+│   │   │   ├── useProjectDetail.js   # project + tasks + drawings + siteLogs
+│   │   │   ├── useProjectForm.js
+│   │   │   ├── useTaskForm.js        # form + checklist builder
+│   │   │   ├── useDrawings.js        # filter state + version refresh
+│   │   │   └── useVendors.js
+│   │   └── components/
+│   │       ├── *StatusBadge.jsx      # ProjectStatusBadge, TaskStatusBadge, etc.
+│   │       ├── TaskTypeIcon.jsx      # exports TASK_TYPE_CONFIG
+│   │       ├── TaskCard.jsx + ChecklistPanel.jsx + ChecklistItem.jsx
+│   │       ├── Create*Modal.jsx      # CreateProjectModal, CreateTaskModal, CreateVendorModal
+│   │       ├── KickstartChecklist.jsx
+│   │       ├── ClientApprovalTracker.jsx
+│   │       ├── Drawing*.jsx          # DrawingCard, DrawingVersionHistory
+│   │       ├── *DrawingModal.jsx     # Upload, Revise, Approve, Release
+│   │       └── tabs/                 # OverviewTab, TasksTab, DrawingsTab,
+│   │                                 # SiteLogsTab, TeamTab, ClientApprovalsTab
+│   │
 │   ├── profile/
 │   │   └── pages/ProfilePage.jsx
 │   │
@@ -149,8 +177,17 @@ The router uses React Router v7 with **nested layouts**. The `AppLayout` is the 
 | `/proposal/sent/:id` | SentProposalReviewPage | Yes | CRMProvider |
 | `/proposal/approved` | ApprovedDashboard | Yes | CRMProvider |
 | `/proposal/review/:id` | ProposalReviewPage | Yes | CRMProvider |
+| `/projects` | ProjectsPage | Yes | PMSProvider |
+| `/projects/create` | ProjectsPage | Yes | PMSProvider |
+| `/projects/:id` | ProjectDetailPage | Yes | PMSProvider |
+| `/tasks` | MyTasksPage | Yes | PMSProvider |
+| `/drawings` | DrawingLibraryPage | Yes | PMSProvider |
+| `/drawings/pending-approvals` | DrawingLibraryPage | Yes | PMSProvider |
+| `/vendors` | VendorDirectoryPage | Yes | PMSProvider |
 | `/profile` | ProfilePage | Yes | None |
 | `/settings` | SettingsPage | Yes | None |
+| `/settings/users` | UserManagementPage | Yes | None |
+| `/settings/roles-permissions` | RolesPermissionsPage | Yes | None |
 | `*` | → `/dashboard` | — | — |
 
 **Note:** "Auth" here means guarded by `AppLayout` — currently `AppLayout` does NOT redirect to login if no token. This should be added.
@@ -200,21 +237,26 @@ Persistent shell for all authenticated pages:
 const { activeLead, setActiveLead, clearActiveLead } = useCRM();
 ```
 
-**State shape:**
-```js
-{
-  activeLead: CRMClient | null,      // Persisted in localStorage
-  crmState: {
-    lastStep: string,
-    drafts: {}
-  }
-}
-```
-
 **Key methods:**
 - `setActiveLead(lead)` — Set current working lead (persists to localStorage)
 - `clearActiveLead()` — Clear active lead on form completion
-- `useLeadFlow(leadId)` — Hook for lifecycle automation
+
+### PMSContext (`modules/pms/context/PMSContext.jsx`)
+
+```jsx
+// Provider wraps BrowserRouter in App.jsx (app-wide)
+<PMSProvider>
+  <BrowserRouter>...</BrowserRouter>
+</PMSProvider>
+
+// Access anywhere
+const { activeProject, setActiveProject, projectsVersion, invalidateProjects } = usePMS();
+```
+
+**Key methods:**
+- `setActiveProject(project)` — Set when ProjectDetailPage loads
+- `invalidateProjects()` — Bumps `projectsVersion`, causing `useProjects` to re-fetch
+- Used by `useProjectDetail` to sync active project to context
 
 ### ToastContext (`shared/notifications/ToastProvider.jsx`)
 
@@ -243,10 +285,36 @@ error('Failed to save — please try again');
 ```
 Component/Hook
   → crmService.methodName()     [for CRM data]
+  → pmsService.methodName()     [for PMS/DDMS/Vendor data]
   → authService.methodName()    [for auth]
   → apiClient.verb(path, data)  [for direct calls]
   → Axios instance
   → Backend API
+```
+
+### pmsService.js (`shared/services/pmsService.js`)
+All PMS-related API calls go through `pmsService`. Never call `apiClient` directly for PMS resources.
+
+```js
+import { pmsService } from '@/shared/services/pmsService';
+
+// Projects
+await pmsService.getAllProjects({ status: 'design_phase' });
+await pmsService.getProjectById(id);
+await pmsService.updateKickstart(projectId, { mainGroupCreated: true });
+await pmsService.updateClientApproval(projectId, { type: 'ac', status: 'obtained' });
+
+// Tasks
+await pmsService.getTasksByProject(projectId);
+await pmsService.getMyTasks();
+await pmsService.toggleChecklist(taskId, itemIndex, isCompleted);
+
+// Drawings
+await pmsService.getAllDrawings({ status: 'sent_for_approval' });
+await pmsService.uploadDrawing({ projectId, title, drawingType, fileUrl, ... });
+await pmsService.approveDrawing(id, { remarks });
+await pmsService.rejectDrawing(id, { rejectionReason });
+await pmsService.releaseDrawing(id);
 ```
 
 ### apiClient.js (Base Axios Instance)
@@ -529,22 +597,28 @@ success('Operation complete', 5000);  // 5 second display
 Navigation items are defined in `src/shared/constants/navigation.js` and rendered by `Sidebar.jsx`.
 
 ```js
-// Structure
-[
+// Each item has an optional `permission` key; sidebar hides items the user lacks.
+// Items with `children` render as collapsible groups.
+// Child `id` must match the last URL segment of `path` (AppLayout activeItem detection).
+export const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', path: '/dashboard', permission: 'dashboard.read' },
   {
-    group: 'CRM',
-    icon: Users,
-    items: [
-      { label: 'New Leads', path: '/crm/new-leads', icon: UserPlus },
-      { label: 'Meetings', path: '/crm/meetings', icon: Calendar },
+    id: 'crm', label: 'CRM', permission: 'crm.read',
+    children: [
+      { id: 'new-leads', label: 'New Leads', path: '/crm/new-leads' },
+      { id: 'meetings',  label: 'Meetings',  path: '/crm/meetings' },
       // ...
-    ]
+    ],
   },
+  // ... kit, proposal-system, clients, projects, tasks, reports ...
   {
-    group: 'Proposals',
-    items: [ /* ... */ ]
-  }
-]
+    id: 'settings', label: 'Settings', permission: 'settings.read',
+    children: [
+      { id: 'users',             label: 'User Management',    path: '/settings/users',             permission: 'users.manage' },
+      { id: 'roles-permissions', label: 'Roles & Permissions', path: '/settings/roles-permissions', permission: 'users.manage' },
+    ],
+  },
+];
 ```
 
 To add a new nav item: update `navigation.js` and add the corresponding route in `App.jsx`.
@@ -572,6 +646,11 @@ To add a new nav item: update `navigation.js` and add the corresponding route in
 - Use `lucide-react` for all icons
 - Apply Tailwind classes only (no custom CSS unless theme variable)
 - Read token from `localStorage.getItem('auth_token')` via apiClient interceptor (don't do it manually)
+- Follow the **version-trigger pattern** for data-fetching hooks (React 19 compiler requirement):
+  ```js
+  // Only async callbacks (then/catch/finally) set state inside effects
+  // setIsLoading(true) goes in event-handler context (refresh callback), not the effect body
+  ```
 
 ### Never
 - Call `axios` directly — always use `apiClient`

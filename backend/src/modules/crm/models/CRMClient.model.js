@@ -214,6 +214,12 @@ const crmClientSchema = new mongoose.Schema(
     },
 
     // ─── Future Module Anchor Points ─────────────────────────────────
+    linkedProposals: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Proposal",
+      },
+    ],
     linkedProjects: [
       {
         type: mongoose.Schema.Types.ObjectId,

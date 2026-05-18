@@ -12,7 +12,8 @@ import {
   LayoutGrid,
   Sparkles,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
@@ -32,6 +33,7 @@ const EnquiryFormPage = () => {
     errors,
     isLoading,
     apiError,
+    existingClient,
     isSuccess,
     handleChange,
     handleSelectChange,
@@ -39,11 +41,11 @@ const EnquiryFormPage = () => {
   } = useLead();
 
   const handleFormSubmit = async (e) => {
-    await handleSubmit(e);
-    if (!apiError) {
+    const result = await handleSubmit(e);
+    if (result?.success) {
       toast.success('Enquiry captured successfully!');
-    } else {
-      toast.error(apiError);
+    } else if (result && !result.existingId && result.message) {
+      toast.error(result.message);
     }
   };
 
@@ -61,9 +63,9 @@ const EnquiryFormPage = () => {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/crm/leads/new')}
+            <Button
+              variant="outline"
+              onClick={() => navigate('/crm/new-leads')}
               className="px-8"
             >
               View All Leads
@@ -180,13 +182,28 @@ const EnquiryFormPage = () => {
 
           <Card className="hover:shadow-md transition-shadow duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <Select
+                label="Lead Source"
+                name="source"
+                value={formData.source}
+                onChange={(val) => handleSelectChange('source', val)}
+                options={[
+                  { value: 'walk_in', label: 'Walk-In' },
+                  { value: 'referral', label: 'Referral' },
+                  { value: 'instagram', label: 'Instagram' },
+                  { value: 'website', label: 'Website' },
+                  { value: 'whatsapp', label: 'WhatsApp' },
+                  { value: 'other', label: 'Other' },
+                ]}
+                icon={Layers}
+              />
               <Input
                 label="Referred By"
                 name="referredBy"
                 value={formData.referredBy}
                 onChange={handleChange}
                 icon={Users}
-                placeholder="Ex: Architect Name / Instagram"
+                placeholder="Name / Instagram handle"
               />
               <Input
                 label="Referrer Phone"
@@ -197,13 +214,13 @@ const EnquiryFormPage = () => {
                 placeholder="Optional"
               />
               <Select
-                label="Enquiry Type"
+                label="Project Type"
                 name="enquiryType"
                 value={formData.enquiryType}
                 onChange={(val) => handleSelectChange('enquiryType', val)}
                 options={[
                   { value: 'Residential', label: 'Residential' },
-                  { value: 'Commercial', label: 'Commercial' }
+                  { value: 'Commercial', label: 'Commercial' },
                 ]}
                 icon={Layers}
               />
@@ -231,6 +248,14 @@ const EnquiryFormPage = () => {
                 icon={Calendar}
               />
               <Input
+                label="Preferred Meeting Date"
+                name="preferredMeetingDate"
+                type="date"
+                value={formData.preferredMeetingDate}
+                onChange={handleChange}
+                icon={Calendar}
+              />
+              <Input
                 label="City / Location"
                 name="city"
                 value={formData.city}
@@ -254,7 +279,7 @@ const EnquiryFormPage = () => {
                 value={formData.quotedAmount}
                 onChange={handleChange}
                 icon={IndianRupee}
-                placeholder="Ex: 50000"
+                placeholder="Ex: 1500000"
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
@@ -279,6 +304,31 @@ const EnquiryFormPage = () => {
             </div>
           </Card>
         </section>
+
+        {/* Existing client conflict banner */}
+        {existingClient && (
+          <div className="flex items-start gap-4 rounded-2xl border border-[var(--warning)]/40 bg-[var(--warning)]/8 px-5 py-4">
+            <AlertCircle size={20} className="text-[var(--warning)] mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-[var(--text-primary)]">Client already exists in the system</p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                A record with this phone or email already exists ({existingClient.trackingId}).
+                You cannot create a duplicate — use the existing client record to send a proposal.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/crm/new-leads`)}
+                className="whitespace-nowrap"
+              >
+                Open CRM
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Action Bar */}
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-white/80 backdrop-blur-md border-t border-[var(--border)] px-8 py-4 flex items-center justify-between z-50">
