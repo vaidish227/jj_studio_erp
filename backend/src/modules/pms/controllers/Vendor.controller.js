@@ -1,106 +1,96 @@
 const Vendor = require("../models/Vendor.model");
+const { createVendorSchema, updateVendorSchema } = require("../validator/Vendor.validator");
 
 /**
- * @desc Create a new Vendor (External Agency)
  * @route POST /api/pms/vendor/create
  */
 const createVendor = async (req, res) => {
   try {
-    const { name, category, contactPerson, phone, email, address, notes } = req.body;
+    const { error, value } = createVendorSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
+    }
 
-    const vendor = await Vendor.create({
-      name,
-      category,
-      contactPerson,
-      phone,
-      email,
-      address,
-      notes
-    });
+    const vendor = await Vendor.create(value);
 
-    res.status(201).json({
-      success: true,
-      message: "Vendor created successfully",
-      vendor
-    });
+    res.status(201).json({ message: "Vendor created successfully", vendor });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[createVendor]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Get all Vendors with optional category filtering
  * @route GET /api/pms/vendor/all
  */
 const getAllVendors = async (req, res) => {
   try {
-    const { category } = req.query;
-    const filter = category ? { category } : {};
+    const { category, status } = req.query;
+    const filter = {};
+
+    if (category) filter.category = category;
+    if (status)   filter.status   = status;
 
     const vendors = await Vendor.find(filter).sort({ name: 1 });
 
-    res.status(200).json({
-      success: true,
-      count: vendors.length,
-      vendors
-    });
+    res.status(200).json({ count: vendors.length, vendors });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[getAllVendors]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Get Vendor by ID
+ * @route GET /api/pms/vendor/:id
  */
 const getVendorById = async (req, res) => {
   try {
     const vendor = await Vendor.findById(req.params.id);
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
-    res.status(200).json({ success: true, vendor });
+    res.status(200).json({ vendor });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[getVendorById]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Update Vendor details
+ * @route PUT /api/pms/vendor/update/:id
  */
 const updateVendor = async (req, res) => {
   try {
+    const { error, value } = updateVendorSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
+    }
+
     const vendor = await Vendor.findByIdAndUpdate(
       req.params.id,
-      { $set: req.body },
+      { $set: value },
       { new: true, runValidators: true }
     );
 
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
 
-    res.status(200).json({
-      success: true,
-      message: "Vendor updated successfully",
-      vendor
-    });
+    res.status(200).json({ message: "Vendor updated successfully", vendor });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[updateVendor]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 /**
- * @desc Delete Vendor
+ * @route DELETE /api/pms/vendor/delete/:id
  */
 const deleteVendor = async (req, res) => {
   try {
-    await Vendor.findByIdAndDelete(req.params.id);
-    res.status(200).json({ success: true, message: "Vendor deleted successfully" });
+    const vendor = await Vendor.findByIdAndDelete(req.params.id);
+    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
+    res.status(200).json({ message: "Vendor deleted successfully" });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("[deleteVendor]", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = {
-  createVendor,
-  getAllVendors,
-  getVendorById,
-  updateVendor,
-  deleteVendor
-};
+module.exports = { createVendor, getAllVendors, getVendorById, updateVendor, deleteVendor };

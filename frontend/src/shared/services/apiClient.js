@@ -21,12 +21,13 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message =
-      error?.response?.data?.message ||
-      error?.message ||
-      'Something went wrong';
-
-    return Promise.reject(message);
+    const data = error?.response?.data;
+    // Preserve the full response data so callers can access extra fields (e.g. existingId)
+    if (data && typeof data === 'object') {
+      return Promise.reject(data);
+    }
+    const message = (typeof data === 'string' ? data : null) || error?.message || 'Something went wrong';
+    return Promise.reject({ message });
   }
 );
 

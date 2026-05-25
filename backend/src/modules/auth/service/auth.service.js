@@ -10,17 +10,22 @@ const loginUser = async (data) => {
   const user = await User.findOne({ email });
   if (!user) throw new Error("User not found");
 
-  // 2. Check password
+  // 2. Check active status
+  if (user.isActive === false) {
+    throw new Error("Account is inactive. Contact your administrator.");
+  }
+
+  // 3. Check password
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("Invalid credentials");
 
-  // 3. Load effective permissions: role permissions + custom overrides
+  // 4. Load effective permissions: role permissions + custom overrides
   const roleDoc = await Role.findOne({ name: user.role }).lean();
   const rolePermissions = roleDoc ? roleDoc.permissions : [];
   const customPermissions = user.customPermissions || [];
   const permissions = [...new Set([...rolePermissions, ...customPermissions])];
 
-  // 4. Generate JWT — include role so middleware can use it without DB lookup
+  // 5. Generate JWT — include role so middleware can use it without DB lookup
   const token = jwt.sign(
     { id: user._id, email: user.email, role: user.role },
     process.env.JWT_SECRET || "secretkey",

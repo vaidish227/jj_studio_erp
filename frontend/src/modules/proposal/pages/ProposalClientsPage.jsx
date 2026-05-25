@@ -29,8 +29,11 @@ const ProposalClientsPage = () => {
   const fetchInterestedLeads = useCallback(async () => {
     setLoading(true);
     try {
-      // Pull leads who are marked as Interested or have a proposal sent
-      const response = await crmService.getLeads({ lifecycleStage: 'interested', limit: 100 });
+      // Pull leads who are ready for a proposal (interested) or already have one in progress
+      const response = await crmService.getLeads({
+        lifecycleStage: 'interested,proposal_sent,advance_received,project_moved',
+        limit: 100,
+      });
       setLeads(response.leads || []);
     } catch (err) {
       toast.error('Failed to fetch clients from CRM.');

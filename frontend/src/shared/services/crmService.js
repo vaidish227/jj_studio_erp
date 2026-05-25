@@ -29,6 +29,10 @@ export const crmService = {
   // CONVERT: Mark client as converted
   convertLeadToClient: (id) => apiClient.post(`/leads/convert/${id}`),
 
+  // INTERESTED: Mark client as interested (triggers proposal pipeline)
+  markInterested: (id, note) =>
+    apiClient.patch(`/leads/mark-interested/${id}`, { note }),
+
   // AUTOMATION
   triggerThankYou: (id) => apiClient.post(`/leads/automation/thank-you/${id}`),
   updateShowProject: (id, data) => apiClient.patch(`/leads/show-project/${id}`, data),
@@ -47,6 +51,9 @@ export const crmService = {
   },
   getMeetingsByLead: (leadId) => apiClient.get(`/metting/get/${leadId}`),
   updateMeeting: (id, data) => apiClient.put(`/metting/update/${id}`, data),
+  // Capture outcome after a meeting — drives clientInterested → lifecycle transition
+  completeMeeting: (id, outcomeData) =>
+    apiClient.put(`/metting/update/${id}`, { status: 'completed', ...outcomeData }),
 
   // ─── Follow-ups / KIT ─────────────────────────────────────────────
   createFollowup: (followupData) => apiClient.post('/followup/create', followupData),

@@ -32,14 +32,23 @@
 | `followups` | `FollowUp` | CRM | Active |
 | `activities` | `Activity` | Proposal | Active |
 | `proposalversions` | `ProposalVersion` | Proposal | Active |
+| `pms_projects` | `Project` | PMS | Active |
+| `pms_tasks` | `Task` | PMS | Active |
+| `pms_drawings` | `Drawing` | PMS/DDMS | Active |
+| `pms_vendors` | `Vendor` | PMS | Active |
+| `pms_sitelogs` | `SiteLog` | PMS | Active |
+| `pms_sitevisits` | `SiteVisit` | PMS | Active |
+| `pms_materials` | `Material` | PMS | Active |
+| `pms_purchaseorders` | `PurchaseOrder` | PMS | Active |
+| `pms_approvals` | `PMSApproval` | PMS | Active |
+| `pms_milestones` | `ProjectMilestone` | PMS | Active |
+| `pms_activity_logs` | `PMSActivityLog` | PMS | Active |
+| `pms_whatsapp_groups` | `WhatsAppProjectGroup` | PMS | Active |
+| `roles` | `Role` | Auth/RBAC | Active |
 
-### Stub Collections (Models defined, no controllers)
+### Stub Collections (Models defined, limited active use)
 | Collection | Model | Module |
 |-----------|-------|--------|
-| `projects` | `Project` | pms |
-| `tasks` | `Task` | pms |
-| `milestones` | `Milestone` | pms |
-| `sitevisits` | `SiteVisit` | pms |
 | `employees` | `Employee` | hrm |
 | `inventories` | `Inventory` | inventory |
 
@@ -505,33 +514,185 @@ Line items within a BOQ. Each item represents a specific work item (e.g., "Livin
 
 ---
 
-### 3.12 Project (PMS — Stub)
+### 3.12 Project (PMS — Active)
 
-**Collection:** `projects`
+**Collection:** `pms_projects`
 **Model file:** `modules/pms/models/Project.model.js`
 
 ```
-┌──────────────────────────────────────────────┐
-│                  Project                      │
-├──────────────────────────────────────────────┤
-│ _id          ObjectId                        │
-│ clientId     ObjectId ref CRMClient (required)│
-│ proposalId   ObjectId ref Proposal           │
-│ name         String (required)               │
-│ projectType  Enum: Residential|Commercial    │
-│ siteAddress  String                          │
-│ city         String                          │
-│ area         Number                          │
-│ budget       Number                          │
-│ status       Enum: design|execution|completed│
-│ designer     ObjectId ref User               │
-│ supervisor   ObjectId ref User               │
-│ startDate    Date                            │
-│ endDate      Date                            │
-│ notes        String                          │
-│ createdAt    Date                            │
-│ updatedAt    Date                            │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                         Project                               │
+├──────────────────────────────────────────────────────────────┤
+│ IDENTIFICATION                                                │
+│ _id               ObjectId                                   │
+│ trackingId        String (auto: PMS-YYYY-NNNN)               │
+│ clientId          ObjectId ref CRMClient (required)          │
+│ proposalId        ObjectId ref Proposal                      │
+│ name              String (required)                          │
+│ projectType       Enum: Residential | Commercial             │
+│                                                              │
+│ SITE ADDRESS                                                  │
+│ siteAddress       { fullAddress, buildingName, tower,        │
+│                     unit, floor, city }                      │
+│ area              Number (sqft)                              │
+│ budget            Number                                     │
+│                                                              │
+│ STATUS                                                        │
+│ status            Enum: design_phase | execution_phase       │
+│                   | handover | completed | on_hold           │
+│                   | cancelled (default: design_phase)        │
+│ estimatedCompletionDate Date                                 │
+│                                                              │
+│ TEAM ASSIGNMENTS                                              │
+│ primaryDesigner   ObjectId ref User (Designer A)             │
+│ designerB         ObjectId ref User (measurements/furniture) │
+│ designerC         ObjectId ref User (AC/automation/technical)│
+│ designerD         ObjectId ref User (kitchen/bathroom)       │
+│ designerE         ObjectId ref User (concept/3D)             │
+│ supervisor        ObjectId ref User                          │
+│ contractor        ObjectId ref User                          │
+│                                                              │
+│ KICKSTART CHECKLIST                                           │
+│ kickstartCompleted Boolean (auto when all 6 flags true)      │
+│ kickstartData      {                                         │
+│                      mainGroupCreated: Boolean,              │
+│                      drawingGroupCreated: Boolean,           │
+│                      supervisionGroupCreated: Boolean,       │
+│                      paymentGroupCreated: Boolean,           │
+│                      detailFormSentToClient: Boolean,        │
+│                      labourQuotationSent: Boolean            │
+│                    }                                         │
+│                                                              │
+│ CLIENT APPROVALS                                              │
+│ clientApprovals   [{ type: Enum (6 types),                   │
+│                      status: pending|obtained|not_applicable,│
+│                      obtainedAt: Date, notes: String }]      │
+│                                                              │
+│ METADATA                                                      │
+│ notes             String                                     │
+│ startDate         Date                                       │
+│ createdAt         Date (auto)                                │
+│ updatedAt         Date (auto)                                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**clientApprovals.type Enum:** `ac | automation | kitchen | bathroom_material | cp_fittings | wall_floor_material`
+
+---
+
+### 3.13 Task (PMS — Active)
+
+**Collection:** `pms_tasks`
+**Model file:** `modules/pms/models/Task.model.js`
+
+```
+┌──────────────────────────────────────────────────┐
+│                     Task                          │
+├──────────────────────────────────────────────────┤
+│ _id               ObjectId                       │
+│ projectId         ObjectId ref Project (required)│
+│ title             String (required)              │
+│ taskType          Enum (9 types, see below)       │
+│ status            Enum: not_started | in_progress│
+│                   | pending_client_approval       │
+│                   | approved | released_to_site   │
+│                   | completed | on_hold           │
+│ priority          Enum: low|medium|high|urgent    │
+│ assignedTo        ObjectId ref User              │
+│ startDate         Date                           │
+│ dueDate           Date                           │
+│ notes             String                         │
+│ checklist         [{ item: String,               │
+│                      isCompleted: Boolean,        │
+│                      completedAt: Date }]         │
+│ externalCoordination {                           │
+│                      isNeeded: Boolean,           │
+│                      vendorId: ObjectId ref Vendor│
+│                      quotationUrl: String,        │
+│                      amount: Number }             │
+│ createdAt         Date (auto)                    │
+│ updatedAt         Date (auto)                    │
+└──────────────────────────────────────────────────┘
+```
+
+**taskType Enum:** `ac_coordination | technical_drawing | kitchen_drawing | bathroom_drawing | automation_coordination | 3d_render | concept_making | furniture_layout | site_measurement`
+
+---
+
+### 3.14 Drawing (PMS/DDMS — Active)
+
+**Collection:** `pms_drawings`
+**Model file:** `modules/pms/models/Drawing.model.js`
+
+```
+┌──────────────────────────────────────────────────┐
+│                    Drawing                        │
+├──────────────────────────────────────────────────┤
+│ _id               ObjectId                       │
+│ projectId         ObjectId ref Project (required)│
+│ taskId            ObjectId ref Task (optional)   │
+│ title             String (required)              │
+│ drawingType       Enum (15 types, see below)      │
+│ fileUrl           String (required — external URL)│
+│ fileName          String                         │
+│ fileType          String                         │
+│ fileSize          Number                         │
+│ version           Number (auto-increments per    │
+│                   title+project combination)      │
+│ revisionNotes     String                         │
+│ revisionHistory   [{ version, fileUrl, fileName, │
+│                      uploadedBy, uploadedAt,      │
+│                      notes }]                    │
+│ status            Enum: draft | sent_for_approval│
+│                   | approved | rejected           │
+│                   | released_to_site             │
+│ approvedBy        ObjectId ref User              │
+│ approvalDate      Date                           │
+│ rejectedBy        ObjectId ref User              │
+│ rejectedAt        Date                           │
+│ rejectionReason   String                         │
+│ isReleased        Boolean (default: false)       │
+│ releasedAt        Date                           │
+│ releasedBy        ObjectId ref User              │
+│ uploadedBy        ObjectId ref User              │
+│ remarks           String                         │
+│ notes             String                         │
+│ createdAt         Date (auto)                    │
+│ updatedAt         Date (auto)                    │
+└──────────────────────────────────────────────────┘
+```
+
+**drawingType Enum:** `plan | elevation | civil | electrical | plumbing | technical_detail | ac_coordination | automation | kitchen | bathroom | 3d_render | concept | material_selection | site_photo | other`
+
+**Indexes:** `{ projectId: 1 }`, `{ taskId: 1 }`, `{ status: 1 }`, `{ isReleased: 1 }`, `{ drawingType: 1 }`
+
+---
+
+### 3.15 Vendor (PMS — Active)
+
+**Collection:** `pms_vendors`
+**Model file:** `modules/pms/models/Vendor.model.js`
+
+```
+┌──────────────────────────────────────────────────┐
+│                    Vendor                         │
+├──────────────────────────────────────────────────┤
+│ _id            ObjectId                          │
+│ name           String (required)                 │
+│ category       Enum: AC | Automation | Kitchen   │
+│                | Carpentry | Electrical           │
+│                | Plumbing | Other                 │
+│ contactPerson  String                            │
+│ phone          String (required)                 │
+│ email          String                            │
+│ address        String                            │
+│ rating         Number (0–5, default: 0)          │
+│ status         Enum: active | inactive           │
+│                | blacklisted (default: active)   │
+│ notes          String                            │
+│ createdAt      Date (auto)                       │
+│ updatedAt      Date (auto)                       │
+└──────────────────────────────────────────────────┘
 ```
 
 ---
@@ -570,10 +731,20 @@ Boq (1)
 Template (1)
  └─→ Proposal.templateId (many, optional reference)
 
-Project (1) [future]
+Project (1)
  ├─→ Task.projectId (many)
- ├─→ Milestone.projectId (many)
+ ├─→ Drawing.projectId (many)
+ ├─→ SiteLog.projectId (many)
  └─→ SiteVisit.projectId (many)
+
+Task (1)
+ └─→ Drawing.taskId (many, optional)
+
+Drawing (1)
+ ├─→ Drawing.uploadedBy → User
+ ├─→ Drawing.approvedBy → User
+ ├─→ Drawing.releasedBy → User
+ └─→ Drawing.revisionHistory[].uploadedBy → User
 ```
 
 ---

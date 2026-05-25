@@ -11,7 +11,9 @@ const initialState = {
   referredBy: '',
   referredMobile: '',
   enquiryType: 'Residential',
+  source: 'walk_in',
   enquiryDate: new Date().toISOString().split('T')[0],
+  preferredMeetingDate: '',
   siteDetails: '',
   city: '',
   quotedAmount: '',
@@ -42,6 +44,7 @@ const useLead = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [existingClient, setExistingClient] = useState(null);
   const { setActiveLead } = useCRM();
 
   const handleChange = (e) => {
@@ -59,12 +62,13 @@ const useLead = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setApiError('');
+    setExistingClient(null);
     setIsSuccess(false);
 
     const validationErrors = validateForm(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      return;
+      return { success: false };
     }
 
     setIsLoading(true);
@@ -76,17 +80,18 @@ const useLead = () => {
         email: formData.email,
         spouse: {
           name: formData.spouseName,
-          phone: formData.spouseMobile
+          phone: formData.spouseMobile,
         },
         referredBy: formData.referredBy,
         referrerPhone: formData.referredMobile,
         projectType: formData.enquiryType,
-        area: formData.approxArea,
-        budget: formData.quotedAmount,
+        source: formData.source || (formData.referredBy ? 'referral' : 'walk_in'),
+        area: formData.approxArea ? Number(formData.approxArea) : undefined,
+        budget: formData.quotedAmount ? Number(formData.quotedAmount) : undefined,
         city: formData.city,
         siteAddress: formData.siteDetails,
         notes: formData.notes,
-        source: formData.referredBy ? 'referral' : 'walk_in',
+        preferredMeetingDate: formData.preferredMeetingDate || undefined,
       };
 
       // Calls POST /api/clients/create → CRMClient.controller.createClientEnquiry
@@ -107,8 +112,14 @@ const useLead = () => {
 
       setIsSuccess(true);
       setFormData(initialState);
+      return { success: true };
     } catch (err) {
-      setApiError(err || 'Failed to submit enquiry. Please try again.');
+      const message = err?.message || 'Failed to submit enquiry. Please try again.';
+      setApiError(message);
+      if (err?.existingId) {
+        setExistingClient({ id: err.existingId, trackingId: err.trackingId });
+      }
+      return { success: false, existingId: err?.existingId, trackingId: err?.trackingId, message };
     } finally {
       setIsLoading(false);
     }
@@ -119,6 +130,7 @@ const useLead = () => {
     errors,
     isLoading,
     apiError,
+    existingClient,
     isSuccess,
     handleChange,
     handleSelectChange,

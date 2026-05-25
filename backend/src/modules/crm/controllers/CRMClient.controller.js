@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const CRMClient = require("../models/CRMClient.model");
 require("dotenv").config();
 const sendEmail = require("../utils/sendEmail");
@@ -168,7 +169,11 @@ const getClients = async (req, res) => {
 
     const query = {};
     if (status) query.status = status;
-    if (lifecycleStage) query.lifecycleStage = lifecycleStage;
+    if (lifecycleStage) {
+      query.lifecycleStage = lifecycleStage.includes(',')
+        ? { $in: lifecycleStage.split(',').map((s) => s.trim()) }
+        : lifecycleStage;
+    }
     if (projectType) query.projectType = projectType;
 
     const clients = await CRMClient.find(query)
@@ -200,8 +205,8 @@ const getClientById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({ message: "Client ID is required" });
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid or missing client ID" });
     }
 
     const client = await CRMClient.findById(id);
@@ -602,6 +607,50 @@ const convertClient = async (req, res) => {
 };
 
 // =====================================================================
+//  MARK CLIENT AS INTERESTED
+//  Called from LeadDetailsPage when sales marks interest manually,
+//  or automatically triggered by Meeting controller on completion.
+// =====================================================================
+const markInterested = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid client ID" });
+    }
+
+    const client = await CRMClient.findById(id);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    if (client.lifecycleStage === "converted" || client.status === "converted") {
+      return res.status(400).json({ message: "Client is already converted" });
+    }
+
+    client.lifecycleStage = "interested";
+    client.status = "contacted";
+
+    appendInteraction(client, {
+      type: "status_change",
+      title: "Client marked as interested",
+      description: note || "Client interest confirmed. Ready for proposal creation.",
+      metadata: { markedBy: req.user?._id },
+    });
+
+    await client.save();
+
+    res.status(200).json({
+      message: "Client marked as interested",
+      client,
+      lead: client,
+    });
+  } catch (error) {
+    console.log("Error marking client as interested:", error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// =====================================================================
 //  STATS
 // =====================================================================
 const getStats = async (req, res) => {
@@ -635,5 +684,6 @@ module.exports = {
   recordShowProject,
   recordAdvancePayment,
   convertClient,
+  markInterested,
   getStats,
 };
