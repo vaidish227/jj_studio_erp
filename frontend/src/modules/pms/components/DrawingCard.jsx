@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { FileText, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle, MessageCircle, GitBranch } from 'lucide-react';
 import { Button } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import DrawingStatusBadge from './DrawingStatusBadge';
 import DrawingVersionHistory from './DrawingVersionHistory';
+import DesignCommentThread from './DesignCommentThread';
+import RevisionRequestPanel from './RevisionRequestPanel';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
@@ -28,7 +30,9 @@ export const DRAWING_TYPE_LABELS = {
 };
 
 const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevise }) => {
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory,   setShowHistory]   = useState(false);
+  const [showComments,  setShowComments]  = useState(false);
+  const [showRevisions, setShowRevisions] = useState(false);
   const hasHistory = drawing.revisionHistory?.length > 0;
 
   return (
@@ -132,24 +136,73 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
           )}
         </div>
 
-        {hasHistory && (
+        {/* Collaboration toggles */}
+        <div className="flex items-center gap-2 ml-auto">
+          <PermissionGate permission="design.comment">
+            <button
+              type="button"
+              onClick={() => { setShowComments((v) => !v); setShowRevisions(false); setShowHistory(false); }}
+              className={`flex items-center gap-1 text-[10px] font-semibold transition-colors
+                ${showComments ? 'text-[var(--accent-blue)]' : 'text-[var(--text-muted)] hover:text-[var(--accent-blue)]'}`}
+            >
+              <MessageCircle size={11} />
+              Comments
+            </button>
+          </PermissionGate>
+
           <button
             type="button"
-            onClick={() => setShowHistory((v) => !v)}
-            className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]
-                       hover:text-[var(--primary)] transition-colors ml-auto"
+            onClick={() => { setShowRevisions((v) => !v); setShowComments(false); setShowHistory(false); }}
+            className={`flex items-center gap-1 text-[10px] font-semibold transition-colors
+              ${showRevisions ? 'text-[var(--error)]' : 'text-[var(--text-muted)] hover:text-[var(--error)]'}`}
           >
-            <Clock size={11} />
-            History
-            {showHistory ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            <GitBranch size={11} />
+            Revisions
           </button>
-        )}
+
+          {hasHistory && (
+            <button
+              type="button"
+              onClick={() => { setShowHistory((v) => !v); setShowComments(false); setShowRevisions(false); }}
+              className={`flex items-center gap-1 text-[10px] font-semibold transition-colors
+                ${showHistory ? 'text-[var(--primary)]' : 'text-[var(--text-muted)] hover:text-[var(--primary)]'}`}
+            >
+              <Clock size={11} />
+              History
+              {showHistory ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Submission notes (shown when in review) */}
+      {drawing.status === 'sent_for_approval' && drawing.submissionNotes && (
+        <div className="px-3 py-2 rounded-lg bg-[var(--warning)]/5 border border-[var(--warning)]/20">
+          <p className="text-[10px] font-black text-[var(--warning)] uppercase tracking-wider mb-0.5">
+            Submission Notes
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">{drawing.submissionNotes}</p>
+        </div>
+      )}
 
       {/* Version history */}
       {showHistory && (
         <div className="border-t border-[var(--border)] pt-3">
           <DrawingVersionHistory revisionHistory={drawing.revisionHistory} />
+        </div>
+      )}
+
+      {/* Comment thread */}
+      {showComments && (
+        <div className="border-t border-[var(--border)] pt-3">
+          <DesignCommentThread drawingId={drawing._id} />
+        </div>
+      )}
+
+      {/* Revision requests */}
+      {showRevisions && (
+        <div className="border-t border-[var(--border)] pt-3">
+          <RevisionRequestPanel drawingId={drawing._id} />
         </div>
       )}
     </div>

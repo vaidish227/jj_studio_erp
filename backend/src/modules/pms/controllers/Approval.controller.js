@@ -42,10 +42,13 @@ const getProjectApprovals = async (req, res) => {
  */
 const getPendingApprovals = async (req, res) => {
   try {
-    const approvals = await Approval.find({
-      approverId: req.params.userId,
-      status: "pending",
-    }).populate("projectId", "name trackingId");
+    const query = { approverId: req.params.userId };
+    if (req.query.status) query.status = req.query.status;
+
+    const approvals = await Approval.find(query)
+      .populate("projectId",   "name trackingId")
+      .populate("requestedBy", "name")
+      .sort({ createdAt: -1 });
 
     res.status(200).json({ count: approvals.length, approvals });
   } catch (error) {

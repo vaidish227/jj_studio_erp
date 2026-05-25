@@ -73,6 +73,12 @@ app.use("/api/communication/settings", commSettingsRoutes);
 const pmsProjectRoutes = require("./modules/pms/routes/Project.route");
 app.use("/api/pms/project", pmsProjectRoutes);
 
+const pmsProjectInitiationRoutes = require("./modules/pms/routes/ProjectInitiation.route");
+app.use("/api/pms/project-initiation", pmsProjectInitiationRoutes);
+
+const pmsAssignableUsersRoutes = require("./modules/auth/routes/AssignableUsers.route");
+app.use("/api/pms/users", pmsAssignableUsersRoutes);
+
 const pmsTaskRoutes = require("./modules/pms/routes/Task.route");
 app.use("/api/pms/task", pmsTaskRoutes);
 
@@ -111,6 +117,16 @@ app.use("/api/pms/whatsapp-group", pmsWhatsAppGroupRoutes);
 
 const pmsCalendarRoutes = require("./modules/pms/routes/Calendar.route");
 app.use("/api/pms/calendar", pmsCalendarRoutes);
+
+// ─── DDMS — Design & Drawing Management ──────────────────────────────────────
+const designerDashboardRoutes = require("./modules/pms/routes/DesignerDashboard.route");
+app.use("/api/pms/designer", designerDashboardRoutes);
+
+const designCommentRoutes = require("./modules/pms/routes/DesignComment.route");
+app.use("/api/pms/design-comments", designCommentRoutes);
+
+const designRevisionRoutes = require("./modules/pms/routes/DesignRevisionRequest.route");
+app.use("/api/pms/design-revisions", designRevisionRoutes);
 
 // ─── Settings & RBAC (admin only — guarded inside the route file) ─────────────
 const rolesRoutes = require("./modules/settings/routes/Roles.route");

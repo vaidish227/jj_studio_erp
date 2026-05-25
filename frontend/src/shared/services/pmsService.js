@@ -13,6 +13,7 @@ export const pmsService = {
 
   // ─── Tasks ─────────────────────────────────────────────────────────────────
   createTask:            (data)                      => apiClient.post('/pms/task/create', data),
+  getAllTasks:            (params)                    => apiClient.get('/pms/task/all', { params }),
   getTasksByProject:     (projectId)                 => apiClient.get(`/pms/task/project/${projectId}`),
   getMyTasks:            ()                          => apiClient.get('/pms/task/my-tasks'),
   getTaskById:           (id)                        => apiClient.get(`/pms/task/${id}`),
@@ -76,11 +77,16 @@ export const pmsService = {
   respondToApproval:     (id, data)          => apiClient.patch(`/pms/approval/respond/${id}`, data),
 
   // ─── WhatsApp Groups ───────────────────────────────────────────────────────
-  createWhatsAppGroup:   (data)              => apiClient.post('/pms/whatsapp-group/create', data),
+  createWhatsAppGroup:        (data)         => apiClient.post('/pms/whatsapp-group/create', data),
+  getAllWhatsAppGroups:        (params)       => apiClient.get('/pms/whatsapp-group/all', { params }),
   getWhatsAppGroupsByProject: (projectId)    => apiClient.get(`/pms/whatsapp-group/project/${projectId}`),
-  updateWhatsAppGroup:   (id, data)          => apiClient.put(`/pms/whatsapp-group/update/${id}`, data),
-  deleteWhatsAppGroup:   (id)                => apiClient.delete(`/pms/whatsapp-group/delete/${id}`),
-  sendWhatsAppGroupUpdate: (id, data)        => apiClient.post(`/pms/whatsapp-group/send/${id}`, data),
+  getWhatsAppGroupById:       (id)           => apiClient.get(`/pms/whatsapp-group/${id}`),
+  updateWhatsAppGroup:        (id, data)     => apiClient.put(`/pms/whatsapp-group/update/${id}`, data),
+  deleteWhatsAppGroup:        (id)           => apiClient.delete(`/pms/whatsapp-group/delete/${id}`),
+  addWhatsAppGroupMember:     (id, data)     => apiClient.post(`/pms/whatsapp-group/${id}/members`, data),
+  removeWhatsAppGroupMember:  (id, phone)    => apiClient.delete(`/pms/whatsapp-group/${id}/members/${encodeURIComponent(phone)}`),
+  syncWhatsAppGroup:          (id)           => apiClient.post(`/pms/whatsapp-group/${id}/sync`),
+  sendWhatsAppGroupUpdate:    (id, data)     => apiClient.post(`/pms/whatsapp-group/send/${id}`, data),
 
   // ─── Calendar ──────────────────────────────────────────────────────────────
   getCalendarEvents:     (params)            => apiClient.get('/pms/calendar/events', { params }),
@@ -89,4 +95,37 @@ export const pmsService = {
   getGlobalStats:        ()                  => apiClient.get('/pms/dashboard/global-stats'),
   getProjectDashboard:   (projectId)         => apiClient.get(`/pms/dashboard/project/${projectId}`),
   getUserDashboard:      (params)            => apiClient.get('/pms/dashboard/user', { params }),
+
+  // ─── Task Workflow (designer→PM review cycle) ─────────────────────────────
+  submitTask:       (id, data)  => apiClient.patch(`/pms/task/submit/${id}`, data || {}),
+  approveTask:      (id, data)  => apiClient.patch(`/pms/task/approve/${id}`, data || {}),
+  requestRevision:  (id, data)  => apiClient.patch(`/pms/task/request-revision/${id}`, data),
+  reassignTask:     (id, data)  => apiClient.patch(`/pms/task/reassign/${id}`, data),
+  getReviewQueue:   (params)    => apiClient.get('/pms/task/review-queue', { params }),
+
+  // ─── Designer-scoped project list ─────────────────────────────────────────
+  getMyProjects:    (params)    => apiClient.get('/pms/project/my-projects', { params }),
+
+  // ─── Assignable Users (task assignment & team management) ─────────────────
+  getAssignableUsers:      ()                       => apiClient.get('/pms/users/assignable'),
+  updateUserContact:       (userId, data)           => apiClient.patch(`/pms/users/${userId}/contact`, data),
+
+  // ─── Project Initiation (Proposal → PMS) ──────────────────────────────────
+  getProposalPreview:    (proposalId)        => apiClient.get(`/pms/project-initiation/proposal-preview/${proposalId}`),
+  initiateFromProposal:  (data)              => apiClient.post('/pms/project-initiation/from-proposal', data),
+
+  // ─── DLR Sheet ─────────────────────────────────────────────────────────────
+  getDLRSheet:           (projectId)         => apiClient.get(`/pms/drawing/dlr/${projectId}`),
+
+  // ─── DDMS — Designer Dashboard ────────────────────────────────────────────
+  getDesignerDashboard:  ()                  => apiClient.get('/pms/designer/dashboard'),
+
+  // ─── DDMS — Design Comments ────────────────────────────────────────────────
+  getDrawingComments:    (drawingId)         => apiClient.get(`/pms/design-comments/${drawingId}`),
+  addDrawingComment:     (drawingId, data)   => apiClient.post(`/pms/design-comments/${drawingId}`, data),
+
+  // ─── DDMS — Revision Requests ─────────────────────────────────────────────
+  createRevisionRequest:         (data)      => apiClient.post('/pms/design-revisions', data),
+  getRevisionRequestsByDrawing:  (drawingId) => apiClient.get(`/pms/design-revisions/drawing/${drawingId}`),
+  resolveRevisionRequest:        (id)        => apiClient.patch(`/pms/design-revisions/${id}/resolve`),
 };

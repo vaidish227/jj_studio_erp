@@ -13,6 +13,7 @@ import DrawingsTab        from '../components/tabs/DrawingsTab';
 import SiteLogsTab        from '../components/tabs/SiteLogsTab';
 import TeamTab            from '../components/tabs/TeamTab';
 import ClientApprovalsTab from '../components/tabs/ClientApprovalsTab';
+import DLRSheetTab        from '../components/tabs/DLRSheetTab';
 import MilestonesTab      from '../components/tabs/MilestonesTab';
 import SiteVisitsTab      from '../components/tabs/SiteVisitsTab';
 import MaterialsTab       from '../components/tabs/MaterialsTab';
@@ -32,6 +33,7 @@ const TABS = [
   { id: 'overview',        label: 'Overview' },
   { id: 'tasks',           label: 'Tasks' },
   { id: 'drawings',        label: 'Drawings' },
+  { id: 'dlr',             label: 'DLR Sheet' },
   { id: 'milestones',      label: 'Milestones' },
   { id: 'logs',            label: 'Site Logs' },
   { id: 'site_visits',     label: 'Site Visits' },
@@ -136,7 +138,7 @@ const ProjectDetailPage = () => {
           <div className="flex items-start gap-2">
             <User size={14} className="text-[var(--text-muted)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Designer A</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Primary Designer</p>
               <p className="text-sm text-[var(--text-primary)]">{project.primaryDesigner?.name || '—'}</p>
             </div>
           </div>
@@ -201,6 +203,9 @@ const ProjectDetailPage = () => {
             onDrawingUpdated={refreshDrawings}
           />
         )}
+        {activeTab === 'dlr'       && (
+          <DLRSheetTab project={project} />
+        )}
         {activeTab === 'logs'      && (
           <SiteLogsTab
             project={project}
@@ -209,7 +214,7 @@ const ProjectDetailPage = () => {
           />
         )}
         {activeTab === 'team'      && (
-          <TeamTab project={project} />
+          <TeamTab project={project} onUpdated={refresh} />
         )}
         {activeTab === 'approvals' && (
           <ClientApprovalsTab

@@ -1,5 +1,43 @@
 const mongoose = require("mongoose");
 
+const memberSchema = new mongoose.Schema(
+  {
+    // Optional — links to an ERP user. Null for external/client members.
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    phone: { type: String, required: true },
+    name:  { type: String },
+    role:  { type: String },
+
+    // Categorises member origin for display and filtering
+    memberType: {
+      type: String,
+      enum: ["team_member", "client", "external"],
+      default: "team_member",
+    },
+
+    addedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    // null = unknown (not yet verified), true/false = result of WA check
+    hasWhatsApp: {
+      type: Boolean,
+      default: null,
+    },
+  },
+  { _id: false }
+);
+
 const whatsAppProjectGroupSchema = new mongoose.Schema(
   {
     projectId: {
@@ -20,19 +58,22 @@ const whatsAppProjectGroupSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ID returned by the WhatsApp provider (Maytapi/Twilio)
+    // ID returned by the WhatsApp provider when the group is created/linked via Maytapi
     providerGroupId: {
       type: String,
       default: null,
     },
 
-    members: [
-      {
-        phone: { type: String, required: true },
-        name:  { type: String },
-        role:  { type: String },
-      },
-    ],
+    // Tracks whether this ERP group has been synchronised with a real WhatsApp group
+    syncStatus: {
+      type: String,
+      enum: ["unsynced", "synced", "partial", "failed"],
+      default: "unsynced",
+    },
+    syncedAt:   { type: Date, default: null },
+    syncErrors: { type: [String], default: [] },
+
+    members: { type: [memberSchema], default: [] },
 
     isActive: {
       type: Boolean,
@@ -57,5 +98,7 @@ const whatsAppProjectGroupSchema = new mongoose.Schema(
 
 whatsAppProjectGroupSchema.index({ projectId: 1 });
 whatsAppProjectGroupSchema.index({ groupType: 1 });
+whatsAppProjectGroupSchema.index({ syncStatus: 1 });
+whatsAppProjectGroupSchema.index({ createdBy: 1 });
 
 module.exports = mongoose.model("WhatsAppProjectGroup", whatsAppProjectGroupSchema, "pms_whatsapp_groups");

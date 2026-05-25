@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, List, LayoutGrid } from 'lucide-react';
+import { Plus, List, LayoutGrid, Info, CheckCircle2 } from 'lucide-react';
 import { Button } from '../../../../shared/components';
 import PermissionGate from '../../../../shared/components/PermissionGate/PermissionGate';
 import TaskCard from '../TaskCard';
@@ -7,10 +7,15 @@ import CreateTaskModal from '../CreateTaskModal';
 import { TASK_TYPE_CONFIG } from '../TaskTypeIcon';
 
 const KANBAN_COLUMNS = [
-  { id: 'not_started', label: 'Not Started', color: 'text-[var(--text-muted)]',  bg: 'bg-[var(--border)]',            border: 'border-[var(--border)]' },
-  { id: 'in_progress', label: 'In Progress',  color: 'text-[var(--accent-blue)]', bg: 'bg-[var(--accent-blue)]/10',    border: 'border-[var(--accent-blue)]/30' },
-  { id: 'on_hold',     label: 'On Hold',      color: 'text-[var(--warning)]',     bg: 'bg-[var(--warning)]/10',        border: 'border-[var(--warning)]/30' },
-  { id: 'completed',   label: 'Completed',    color: 'text-[var(--success)]',     bg: 'bg-[var(--success)]/10',        border: 'border-[var(--success)]/30' },
+  { id: 'not_started',              label: 'Not Started',       color: 'text-[var(--text-muted)]',    bg: 'bg-[var(--border)]',               border: 'border-[var(--border)]' },
+  { id: 'in_progress',              label: 'In Progress',       color: 'text-[var(--accent-blue)]',   bg: 'bg-[var(--accent-blue)]/10',       border: 'border-[var(--accent-blue)]/30' },
+  { id: 'revision_requested',       label: 'Revision Needed',   color: 'text-[var(--error)]',         bg: 'bg-[var(--error)]/10',             border: 'border-[var(--error)]/30' },
+  { id: 'pending_review',           label: 'Pending Review',    color: 'text-[var(--warning)]',       bg: 'bg-[var(--warning)]/10',           border: 'border-[var(--warning)]/30' },
+  { id: 'pending_client_approval',  label: 'Client Approval',   color: 'text-[var(--accent-blue)]',   bg: 'bg-[var(--accent-blue)]/10',       border: 'border-[var(--accent-blue)]/30' },
+  { id: 'on_hold',                  label: 'On Hold',           color: 'text-[var(--text-muted)]',    bg: 'bg-[var(--border)]',               border: 'border-[var(--border)]' },
+  { id: 'approved',                 label: 'Approved',          color: 'text-[var(--success)]',       bg: 'bg-[var(--success)]/10',           border: 'border-[var(--success)]/30' },
+  { id: 'released_to_site',         label: 'Released to Site',  color: 'text-[var(--primary)]',       bg: 'bg-[var(--primary)]/10',           border: 'border-[var(--primary)]/30' },
+  { id: 'completed',                label: 'Completed',         color: 'text-[var(--success)]',       bg: 'bg-[var(--success)]/10',           border: 'border-[var(--success)]/30' },
 ];
 
 const KanbanBoard = ({ tasks, onTaskUpdated }) => {
@@ -22,7 +27,7 @@ const KanbanBoard = ({ tasks, onTaskUpdated }) => {
   }, {});
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-9 gap-3 overflow-x-auto">
       {KANBAN_COLUMNS.map((col) => {
         const colTasks = byStatus[col.id] || [];
         return (
@@ -86,12 +91,48 @@ const ListView = ({ tasks, onTaskUpdated }) => {
   );
 };
 
+// Furniture layout gate indicator — informs PM when sub-tasks can be assigned.
+const FurnitureLayoutBanner = ({ tasks }) => {
+  const furnitureTask = tasks.find((t) => t.taskType === 'furniture_layout');
+  if (!furnitureTask) return null;
+
+  const isApproved = ['approved', 'released_to_site', 'completed'].includes(furnitureTask.status);
+
+  if (isApproved) {
+    return (
+      <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl
+                      bg-[var(--accent-green)]/8 border border-[var(--accent-green)]/25">
+        <CheckCircle2 size={15} className="text-[var(--accent-green)] shrink-0" />
+        <p className="text-xs text-[var(--accent-green)] font-semibold">
+          Furniture Layout approved — all design sub-tasks (AC, Kitchen, Bathroom, Technical, Concept) can now be assigned.
+        </p>
+      </div>
+    );
+  }
+
+  const isBlocking = ['not_started', 'in_progress', 'on_hold', 'pending_review', 'revision_requested', 'pending_client_approval'].includes(furnitureTask.status);
+  if (!isBlocking) return null;
+
+  return (
+    <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl
+                    bg-[var(--warning)]/8 border border-[var(--warning)]/25">
+      <Info size={15} className="text-[var(--warning)] shrink-0" />
+      <p className="text-xs text-[var(--warning)] font-semibold">
+        Furniture Layout is <span className="capitalize">{furnitureTask.status.replace(/_/g, ' ')}</span>
+        {' '}— design sub-tasks are typically assigned after Furniture Layout receives client approval.
+      </p>
+    </div>
+  );
+};
+
 const TasksTab = ({ project, tasks, onTaskCreated, onTaskUpdated }) => {
   const [showCreate, setShowCreate] = useState(false);
   const [view, setView] = useState('list');
 
   return (
     <div className="space-y-4">
+      <FurnitureLayoutBanner tasks={tasks} />
+
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-[var(--text-muted)]">
           {tasks.length} task{tasks.length !== 1 ? 's' : ''}

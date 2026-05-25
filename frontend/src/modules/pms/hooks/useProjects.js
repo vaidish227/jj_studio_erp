@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { pmsService } from '../../../shared/services/pmsService';
 import { usePMS } from '../context/PMSContext';
+import { useAuth } from '../../../shared/context/AuthContext';
 
 const useProjects = (initialFilters = {}) => {
   const { projectsVersion } = usePMS();
+  const { user } = useAuth();
 
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -11,11 +13,18 @@ const useProjects = (initialFilters = {}) => {
   const [total, setTotal]         = useState(0);
   const [filters, setFilters]     = useState(initialFilters);
 
+  // Designers only see projects they're assigned to
+  const isDesigner = user?.role === 'designer';
+
   // Async-only — no synchronous setState in effect body
   useEffect(() => {
     let cancelled = false;
 
-    pmsService.getAllProjects(filters)
+    const fetchFn = isDesigner
+      ? pmsService.getMyProjects(filters)
+      : pmsService.getAllProjects(filters);
+
+    fetchFn
       .then((res) => {
         if (cancelled) return;
         setProjects(res.projects || []);
@@ -26,7 +35,7 @@ const useProjects = (initialFilters = {}) => {
       .finally(() => { if (!cancelled) setIsLoading(false); });
 
     return () => { cancelled = true; };
-  }, [filters, projectsVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters, projectsVersion, isDesigner]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // updateFilters resets loading before changing deps — event-handler context
   const updateFilters = useCallback((next) => {

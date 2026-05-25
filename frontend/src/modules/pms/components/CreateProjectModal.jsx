@@ -70,7 +70,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreated }) => {
           <FormField label="Project Type" error={errors.projectType} required>
             <Select
               value={form.projectType}
-              onChange={(e) => setField('projectType', e.target.value)}
+              onChange={(val) => setField('projectType', val)}
               options={PROJECT_TYPES}
             />
           </FormField>

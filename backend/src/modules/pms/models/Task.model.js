@@ -25,6 +25,7 @@ const taskSchema = new mongoose.Schema(
         "concept_making",
         "furniture_layout",
         "site_measurement",
+        "civil_drawing",
       ],
       required: true,
     },
@@ -47,6 +48,8 @@ const taskSchema = new mongoose.Schema(
       enum: [
         "not_started",
         "in_progress",
+        "pending_review",           // designer submitted to PM/PC/MD for internal review
+        "revision_requested",       // PM/PC/MD sent back with change instructions
         "pending_client_approval",
         "approved",
         "released_to_site",
@@ -86,6 +89,33 @@ const taskSchema = new mongoose.Schema(
     },
 
     notes: String,
+
+    // --- Submission (designer → PM review) ---
+    submissionNotes: String,
+    submittedAt: Date,
+
+    // --- Revision (PM → designer) ---
+    revisionInstructions: String,
+    revisionDeadline: Date,
+
+    // --- Approval tracking ---
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    approvedAt: Date,
+
+    // --- Reassignment tracking ---
+    reassignedFrom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    reassignedAt: Date,
+    reassignedReason: String,
+
+    // --- Status remarks ---
+    holdReason: String,   // required when status → on_hold
+    delayReason: String,  // optional note explaining a deadline extension
   },
   {
     timestamps: true,

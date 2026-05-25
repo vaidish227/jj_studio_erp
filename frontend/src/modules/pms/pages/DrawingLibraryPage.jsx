@@ -75,7 +75,7 @@ const DrawingLibraryPage = () => {
             <h1 className="text-xl font-extrabold text-[var(--text-primary)]">
               Drawing Library
             </h1>
-            <p className="text-xs text-[var(--text-muted)]">Design & Drawing Repository (DLR)</p>
+            <p className="text-xs text-[var(--text-muted)]">Design & Drawing Management</p>
           </div>
         </div>
         <PermissionGate permission="drawings.upload">
@@ -144,7 +144,7 @@ const DrawingLibraryPage = () => {
           <div className="ml-auto w-48">
             <Select
               value={filters.drawingType || ''}
-              onChange={(e) => updateFilter('drawingType', e.target.value)}
+              onChange={(val) => updateFilter('drawingType', val)}
               options={DRAWING_TYPE_OPTIONS}
             />
           </div>

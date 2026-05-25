@@ -1,3 +1,4 @@
+const bcrypt = require("bcrypt");
 const Role = require("../../auth/models/Role.model");
 const User = require("../../auth/models/user.model");
 const { ALL_PERMISSIONS } = require("../../auth/models/Role.model");
@@ -144,6 +145,105 @@ const updateUserRole = async (req, res) => {
   }
 };
 
+// ─── PATCH /api/roles/users/:userId ──────────────────────────────────────────
+// Full user profile update by admin (name, email, phone, dept, designation, role, isActive, customPermissions)
+const updateUser = async (req, res) => {
+  try {
+    const { name, email, phone, department, designation, role, isActive, customPermissions } = req.body;
+    const validRoles = ["admin", "md", "manager", "sales", "accounts", "designer", "supervisor", "vendor", "client"];
+
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({ message: `Invalid role: ${role}` });
+    }
+
+    if (email) {
+      const conflict = await User.findOne({ email: email.toLowerCase().trim(), _id: { $ne: req.params.userId } });
+      if (conflict) return res.status(409).json({ message: "Email already in use by another user" });
+    }
+
+    const updates = {};
+    if (name        !== undefined) updates.name        = name.trim();
+    if (email       !== undefined) updates.email       = email.toLowerCase().trim();
+    if (phone       !== undefined) updates.phone       = phone;
+    if (department  !== undefined) updates.department  = department;
+    if (designation !== undefined) updates.designation = designation;
+    if (role        !== undefined) updates.role        = role;
+    if (isActive    !== undefined) updates.isActive    = isActive;
+    if (customPermissions !== undefined) {
+      const invalid = customPermissions.filter((p) => !ALL_PERMISSIONS.includes(p) && p !== '*');
+      if (invalid.length > 0) {
+        return res.status(400).json({ message: `Invalid permissions: ${invalid.join(', ')}` });
+      }
+      updates.customPermissions = customPermissions;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.userId,
+      { $set: updates },
+      { new: true, select: "-password" }
+    );
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    return res.status(200).json({ message: "User updated", data: user });
+  } catch (err) {
+    console.error("[updateUser]", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── POST /api/roles/users/:userId/reset-password ─────────────────────────────
+// Admin sets a new password for any user (no old password required)
+const adminResetPassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    const user = await User.findByIdAndUpdate(
+      req.params.userId,
+      { $set: { password: hashed } },
+      { new: true, select: "-password" }
+    );
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    return res.status(200).json({ message: "Password reset successfully" });
+  } catch (err) {
+    console.error("[adminResetPassword]", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── GET /api/roles/users/:userId/effective-permissions ──────────────────────
+// Returns the merged effective permission set: role perms + custom overrides
+const getEffectivePermissions = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select('-password').lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const roleDoc = await Role.findOne({ name: user.role }).lean();
+    const rolePermissions = roleDoc ? roleDoc.permissions : [];
+    const customPermissions = user.customPermissions || [];
+    const effective = [...new Set([...rolePermissions, ...customPermissions])];
+
+    return res.status(200).json({
+      message: "Effective permissions",
+      data: {
+        userId: user._id,
+        name: user.name,
+        role: user.role,
+        rolePermissions,
+        customPermissions,
+        effective,
+      },
+    });
+  } catch (err) {
+    console.error("[getEffectivePermissions]", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getAllRoles,
   getRoleById,
@@ -153,4 +253,7 @@ module.exports = {
   deleteRole,
   getAllUsers,
   updateUserRole,
+  updateUser,
+  adminResetPassword,
+  getEffectivePermissions,
 };

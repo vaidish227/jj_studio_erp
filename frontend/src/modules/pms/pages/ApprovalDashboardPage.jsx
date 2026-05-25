@@ -91,7 +91,7 @@ const ApprovalDashboardPage = () => {
     if (!user?._id) return;
     setIsLoading(true);
     try {
-      const res = await pmsService.getPendingApprovals(user._id);
+      const res = await pmsService.getPendingApprovalsByUser(user._id);
       setApprovals(res.approvals || []);
     } catch {
       toastError('Failed to load approvals');

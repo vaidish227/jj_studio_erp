@@ -36,11 +36,18 @@ import UserManagementPage from './modules/settings/pages/UserManagementPage';
 import RolesPermissionsPage from './modules/settings/pages/RolesPermissionsPage';
 import ProjectsPage from './modules/pms/pages/ProjectsPage';
 import ProjectDetailPage from './modules/pms/pages/ProjectDetailPage';
+import ProjectInitiationPage from './modules/pms/pages/ProjectInitiationPage';
 import MyTasksPage from './modules/pms/pages/MyTasksPage';
+import TaskDetailPage from './modules/pms/pages/TaskDetailPage';
 import DrawingLibraryPage from './modules/pms/pages/DrawingLibraryPage';
 import VendorDirectoryPage from './modules/pms/pages/VendorDirectoryPage';
 import CalendarPage from './modules/pms/pages/CalendarPage';
 import ApprovalDashboardPage from './modules/pms/pages/ApprovalDashboardPage';
+import DesignerDashboardPage from './modules/pms/pages/DesignerDashboardPage';
+import ManagerReviewQueuePage from './modules/pms/pages/ManagerReviewQueuePage';
+import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
+import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
+import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
 
 export default function App() {
   return (
@@ -105,18 +112,30 @@ export default function App() {
                 </Route>
 
                 {/* PMS — Project Management */}
-                <Route path="/projects"        element={<ProjectsPage />} />
-                <Route path="/projects/create" element={<ProjectsPage />} />
-                <Route path="/projects/:id"    element={<ProjectDetailPage />} />
-                <Route path="/tasks"           element={<MyTasksPage />} />
+                <Route path="/projects"                        element={<ProjectsPage />} />
+                <Route path="/projects/create"                 element={<ProjectsPage />} />
+                <Route path="/projects/initiate/:proposalId"   element={<ProjectInitiationPage />} />
+                <Route path="/projects/:id"                    element={<ProjectDetailPage />} />
+                {/* /tasks/:id must come BEFORE /tasks to prevent route shadowing */}
+                <Route path="/tasks/:id"                       element={<TaskDetailPage />} />
+                <Route path="/tasks"                           element={<MyTasksPage />} />
+
+                {/* DDMS — Designer Dashboard (before /drawings to prevent shadowing) */}
+                <Route path="/designer/dashboard" element={<DesignerDashboardPage />} />
 
                 {/* DLR — Drawing Library */}
                 <Route path="/drawings"                    element={<DrawingLibraryPage />} />
                 <Route path="/drawings/pending-approvals"  element={<DrawingLibraryPage />} />
 
-                {/* PMS — Calendar & Approvals */}
-                <Route path="/pms/calendar"  element={<CalendarPage />} />
-                <Route path="/pms/approvals" element={<ApprovalDashboardPage />} />
+                {/* PMS — New sidebar pages */}
+                <Route path="/pms/assign-task"       element={<AssignTaskPage />} />
+                <Route path="/pms/review-design"     element={<ReviewDesignPage />} />
+                <Route path="/pms/whatsapp-groups"   element={<WhatsAppGroupsPage />} />
+
+                {/* PMS — Legacy routes kept for backward compatibility */}
+                <Route path="/pms/calendar"      element={<CalendarPage />} />
+                <Route path="/pms/approvals"     element={<ApprovalDashboardPage />} />
+                <Route path="/pms/review-queue"  element={<ManagerReviewQueuePage />} />
 
                 {/* Vendor Directory */}
                 <Route path="/vendors" element={<VendorDirectoryPage />} />

@@ -76,6 +76,11 @@ const drawingSchema = new mongoose.Schema(
       },
     ],
 
+    // --- Submission notes (added when sending for approval) ---
+    submissionNotes: {
+      type: String,
+    },
+
     // --- Status & Lifecycle ---
     status: {
       type: String,

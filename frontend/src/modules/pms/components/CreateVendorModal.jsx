@@ -96,7 +96,7 @@ const CreateVendorModal = ({ isOpen, onClose, editVendor = null, onSaved }) => {
         <FormField label="Category" error={errors.category} required>
           <Select
             value={form.category}
-            onChange={(e) => set('category', e.target.value)}
+            onChange={(val) => set('category', val)}
             options={CATEGORIES}
           />
         </FormField>

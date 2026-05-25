@@ -81,7 +81,7 @@ const UploadDrawingModal = ({ isOpen, onClose, projectId, taskId, onUploaded }) 
         <FormField label="Drawing Type" error={errors.drawingType} required>
           <Select
             value={form.drawingType}
-            onChange={(e) => set('drawingType', e.target.value)}
+            onChange={(val) => set('drawingType', val)}
             options={DRAWING_TYPE_OPTIONS}
           />
         </FormField>

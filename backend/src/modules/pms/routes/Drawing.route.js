@@ -13,13 +13,15 @@ const {
   rejectDrawing,
   releaseDrawing,
   deleteDrawing,
+  getDLRSheet,
 } = require("../controllers/Drawing.controller");
 
-// List & query
-router.get("/all",                    requirePermission("drawings.read"), getAllDrawings);
+// List & query — static segments before parameterised routes
+router.get("/all",                    requirePermission("drawings.read"),    getAllDrawings);
 router.get("/pending-approvals",      requirePermission("drawings.approve"), getPendingApprovals);
-router.get("/project/:projectId",     requirePermission("drawings.read"), getDrawingsByProject);
-router.get("/task/:taskId",           requirePermission("drawings.read"), getDrawingsByTask);
+router.get("/dlr/:projectId",         requirePermission("drawings.read"),    getDLRSheet);
+router.get("/project/:projectId",     requirePermission("drawings.read"),    getDrawingsByProject);
+router.get("/task/:taskId",           requirePermission("drawings.read"),    getDrawingsByTask);
 
 // Upload & revision
 router.post("/upload",     requirePermission("drawings.upload"), uploadDrawing);

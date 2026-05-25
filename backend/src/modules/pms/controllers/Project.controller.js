@@ -9,13 +9,13 @@ const {
 const { logActivity } = require("../../../shared/activityLogger");
 
 const TEAM_POPULATE = [
-  { path: "primaryDesigner", select: "name email" },
-  { path: "supervisor",      select: "name email" },
-  { path: "designerB",       select: "name email" },
-  { path: "designerC",       select: "name email" },
-  { path: "designerD",       select: "name email" },
-  { path: "designerE",       select: "name email" },
-  { path: "contractor",      select: "name email" },
+  { path: "primaryDesigner", select: "name email role" },
+  { path: "supervisor",      select: "name email role" },
+  { path: "designerB",       select: "name email role" },
+  { path: "designerC",       select: "name email role" },
+  { path: "designerD",       select: "name email role" },
+  { path: "designerE",       select: "name email role" },
+  { path: "contractor",      select: "name email role" },
 ];
 
 /**
@@ -295,9 +295,52 @@ const updateClientApproval = async (req, res) => {
   }
 };
 
+/**
+ * @route GET /api/pms/project/my-projects
+ * Returns only projects where the logged-in user is part of the design team.
+ * Used by designer role to enforce project visibility isolation.
+ */
+const getMyProjects = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { status, page = 1, limit = 50 } = req.query;
+
+    const filter = {
+      $or: [
+        { primaryDesigner: userId },
+        { designerB: userId },
+        { designerC: userId },
+        { designerD: userId },
+        { designerE: userId },
+        { supervisor:  userId },
+        { contractor:  userId },
+      ],
+    };
+
+    if (status) filter.status = status;
+
+    const skip  = (Number(page) - 1) * Number(limit);
+    const total = await Project.countDocuments(filter);
+
+    const projects = await Project.find(filter)
+      .populate("clientId",   "name phone email trackingId")
+      .populate("proposalId", "title totalAmount")
+      .populate(TEAM_POPULATE)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    res.status(200).json({ total, page: Number(page), count: projects.length, projects });
+  } catch (error) {
+    console.error("[getMyProjects]", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createProject,
   getAllProjects,
+  getMyProjects,
   getProjectById,
   updateProject,
   deleteProject,

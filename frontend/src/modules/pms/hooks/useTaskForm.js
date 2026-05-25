@@ -3,6 +3,7 @@ import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 
 const INITIAL = {
+  projectId:   '',
   taskType:    '',
   title:       '',
   assignedTo:  '',
@@ -19,7 +20,9 @@ const INITIAL = {
   },
 };
 
-const useTaskForm = (projectId, onSuccess) => {
+// initialProjectId: fixed projectId prop (e.g. from ProjectDetailPage).
+// When null/undefined the caller (AssignTaskPage) sets form.projectId via setField().
+const useTaskForm = (initialProjectId = '', onSuccess) => {
   const toast                           = useToast();
   const [form, setForm]                 = useState(INITIAL);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,20 +64,25 @@ const useTaskForm = (projectId, onSuccess) => {
 
   const validate = () => {
     const e = {};
+    if (!form.projectId && !initialProjectId) e.projectId = 'Project is required';
     if (!form.taskType) e.taskType = 'Task type is required';
     if (!form.title.trim()) e.title = 'Title is required';
     return e;
   };
 
-  const submit = useCallback(async () => {
+  // extraFields: optional overrides injected by the calling component (e.g. notifyMail, notifyWhatsApp)
+  const submit = useCallback(async (extraFields = {}) => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
 
     setIsSubmitting(true);
+    // form.projectId wins when set by selector; fall back to the constructor param
+    const resolvedProjectId = form.projectId || initialProjectId;
     try {
       const payload = {
         ...form,
-        projectId,
+        ...extraFields,
+        projectId: resolvedProjectId,
         externalCoordination: form.externalCoordination.isNeeded
           ? {
               ...form.externalCoordination,
@@ -85,7 +93,24 @@ const useTaskForm = (projectId, onSuccess) => {
           : { isNeeded: false },
       };
       const res = await pmsService.createTask(payload);
-      toast.success(`Task "${res.task.title}" created`);
+      toast.success(`Task "${res.task.title}" assigned`);
+
+      const nr = res.notificationResults || {};
+      if (nr.whatsapp?.sent === false) {
+        toast.warning(
+          nr.whatsapp.reason === 'no_phone'
+            ? 'WhatsApp skipped — no phone number saved for this employee'
+            : `WhatsApp failed: ${nr.whatsapp.reason}`
+        );
+      }
+      if (nr.mail?.sent === false) {
+        toast.warning(
+          nr.mail.reason === 'no_email'
+            ? 'Email skipped — no email address on file'
+            : `Email failed: ${nr.mail.reason}`
+        );
+      }
+
       setForm(INITIAL);
       onSuccess?.(res.task);
     } catch (err) {
@@ -93,7 +118,7 @@ const useTaskForm = (projectId, onSuccess) => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [form, projectId, toast, onSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form, initialProjectId, toast, onSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reset = useCallback(() => { setForm(INITIAL); setErrors({}); }, []);
 
