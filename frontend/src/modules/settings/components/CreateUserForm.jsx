@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Mail, Lock } from 'lucide-react';
+import { User, Mail, Lock, Phone } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Input from '../../../shared/components/Input/Input';
 import Button from '../../../shared/components/Button/Button';
@@ -53,6 +53,17 @@ const CreateUserForm = () => {
               value={formData.password}
               onChange={(e) => handleChange('password', e.target.value)}
               error={errors.password}
+            />
+          </FormField>
+
+          <FormField label="WhatsApp Number (optional)">
+            <Input
+              type="tel"
+              icon={Phone}
+              placeholder="+91 9876543210"
+              value={formData.phone}
+              onChange={(e) => handleChange('phone', e.target.value)}
+              error={errors.phone}
             />
           </FormField>
 

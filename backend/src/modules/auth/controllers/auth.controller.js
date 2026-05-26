@@ -88,8 +88,7 @@ const changePasswordController = async (req, res) => {
       return res.status(400).json({ message: error.message });
     }
 
-    // ⚠️ assume userId mil raha hai (JWT middleware se)
-    const userId = req.user?.id || req.body.userId;
+    const userId = req.user?.id;
 
     const result = await changePassword(userId, req.body);
 

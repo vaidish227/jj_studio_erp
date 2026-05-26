@@ -100,22 +100,36 @@ Controller Function (controllers/X.controller.js)
 
 ### 2.4 Registered API Routes
 
-| Mount Path | Module File | Purpose |
-|------------|-------------|---------|
-| `/api/auth` | `auth/routes/auth.routes.js` | Login, signup, password |
-| `/api/leads` | `crm/routes/Lead.route.js` | Legacy leads (deprecated) |
-| `/api/clients` | `crm/routes/Client.route.js` | Primary CRMClient CRUD |
-| `/api/followup` | `crm/routes/FollowUp.route.js` | Follow-up management |
-| `/api/metting` | `crm/routes/Metting.routes.js` | Meeting management |
-| `/api/proposal` | `crm/routes/Proposal.route.js` | CRM proposals |
-| `/api/boq` | `proposal/routes/Boq.route.js` | Bill of Quantities |
-| `/api/boqitem` | `proposal/routes/Boq_item.route.js` | BOQ line items |
-| `/api/Template` | `proposal/routes/Template_route.js` | Proposal templates |
-| `/api/Approve` | `proposal/routes/Approval.Route.js` | Approval workflow |
-| `/api/payment` | `proposal/routes/Payment.Routes.js` | Payment recording |
-| `/api/proposalversion` | `proposal/routes/Proposalversion.Route.js` | Version history |
-| `/api/activity` | `proposal/routes/Activity.route.js` | Activity log |
-| `/api/esign` | `proposal/routes/Esign.route.js` | E-signature tracking |
+| Mount Path | Module File | Auth | Purpose |
+|------------|-------------|------|---------|
+| `/api/auth` | `auth/routes/auth.routes.js` | Public | Login, signup, password |
+| `/api/leads` | `crm/routes/Lead.route.js` | JWT | Legacy leads (deprecated) |
+| `/api/clients` | `crm/routes/Client.route.js` | JWT | Primary CRMClient CRUD |
+| `/api/followup` | `crm/routes/FollowUp.route.js` | JWT | Follow-up management |
+| `/api/metting` | `crm/routes/Metting.routes.js` | JWT | Meeting management |
+| `/api/proposal` | `crm/routes/Proposal.route.js` | JWT | CRM proposals |
+| `/api/boq` | `proposal/routes/Boq.route.js` | JWT | Bill of Quantities |
+| `/api/boqitem` | `proposal/routes/Boq_item.route.js` | JWT | BOQ line items |
+| `/api/Template` | `proposal/routes/Template_route.js` | JWT | Proposal templates |
+| `/api/Approve` | `proposal/routes/Approval.Route.js` | JWT | Approval workflow |
+| `/api/payment` | `proposal/routes/Payment.Routes.js` | JWT | Payment recording |
+| `/api/proposalversion` | `proposal/routes/Proposalversion.Route.js` | JWT | Version history |
+| `/api/activity` | `proposal/routes/Activity.route.js` | JWT | Activity log |
+| `/api/esign` | `proposal/routes/Esign.route.js` | JWT | E-signature tracking |
+| `/api/whatsapp` | `whatspp/routes/whatsapp.route.js` | JWT | WhatsApp messaging |
+| `/api/pms/project` | `pms/routes/Project.route.js` | JWT | PMS projects |
+| `/api/pms/task` | `pms/routes/Task.route.js` | JWT | PMS tasks |
+| `/api/pms/drawing` | `pms/routes/Drawing.route.js` | JWT | PMS drawings |
+| `/api/pms/vendor` | `pms/routes/Vendor.route.js` | JWT | PMS vendors |
+| `/api/pms/sitelog` | `pms/routes/SiteLog.route.js` | JWT | PMS site logs |
+| `/api/pms/po` | `pms/routes/PurchaseOrder.route.js` | JWT | Purchase orders |
+| `/api/pms/material` | `pms/routes/Material.route.js` | JWT | Materials tracking |
+| `/api/pms/approval` | `pms/routes/Approval.route.js` | JWT | PMS approvals |
+| `/api/pms/sitevisit` | `pms/routes/SiteVisit.route.js` | JWT | Site visits |
+| `/api/pms/dashboard` | `pms/routes/PMSDashboard.route.js` | JWT | PMS dashboard stats |
+| `/api/roles` | `settings/routes/Roles.route.js` | JWT + admin/md | RBAC role & user management |
+
+> **Auth column:** `Public` = no JWT required. `JWT` = `verifyToken` applied globally in `app.js`. Additional role guards are applied inside individual route files.
 
 ### 2.5 Authentication Architecture
 

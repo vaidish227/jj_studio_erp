@@ -1,5 +1,6 @@
 const Proposal = require("../models/Proposal.model");
-const CRMClient = require("../models/CRMClient.model")
+const CRMClient = require("../models/CRMClient.model");
+const Project = require("../../pms/models/Project.model");
 const sendEmail = require("../utils/sendEmail");
 require("dotenv").config();
 
@@ -27,8 +28,14 @@ const createProposal = async (req, res) => {
       createdBy: req.user ? req.user.id : null,
     });
 
+    // Always link proposal to the CRMClient record
+    await CRMClient.findByIdAndUpdate(lead._id, {
+      $addToSet: { linkedProposals: proposal._id },
+    });
+
     if (status === "pending_approval") {
-      lead.status = "interested"; // Sync with lifecycle
+      lead.status = "interested";
+      lead.lifecycleStage = "interested";
       await lead.save();
     }
 
@@ -81,9 +88,28 @@ const updateProposalStatus = async (req, res) => {
     if (status === "manager_approved") {
       updateObj.$set.approved_by = req.user ? req.user.id : null;
       updateObj.$set.approved_at = new Date();
+    } else if (status === "revision_requested") {
+      updateObj.$set.revisionReason = remarks || "Revision required";
+      updateObj.$set.revisionRequestedBy = req.user ? req.user.id : null;
+      updateObj.$set.revisionRequestedAt = new Date();
     } else if (status === "rejected") {
       updateObj.$set.rejected_by = req.user ? req.user.id : null;
       updateObj.$set.rejection_reason = remarks || "No reason provided";
+    } else if (status === "signed") {
+      updateObj.$set.esign = {
+        status: "received",
+        signed_at: new Date()
+      };
+      if (req.body.advancePayment) {
+        const ap = req.body.advancePayment;
+        updateObj.$set.advancePayment = {
+          amount: ap.amount || 0,
+          paidBy: ap.paidBy || "",
+          method: ap.method || "bank_transfer",
+          remarks: ap.remarks || "",
+          paymentDate: ap.paymentDate ? new Date(ap.paymentDate) : new Date()
+        };
+      }
     } else if (status === "esign_received") {
       updateObj.$set.esign = {
         status: "received",
@@ -113,6 +139,73 @@ const updateProposalStatus = async (req, res) => {
 
     // AUTO-FLOW LOGIC
 
+    // 0. eSign + Advance received → convert client, create project, move to project_started
+    if (status === "signed") {
+      // Transition proposal to project_started
+      await Proposal.findByIdAndUpdate(proposalId, { $set: { status: "project_started" } });
+      updatedProposal.status = "project_started";
+
+      const targetClientId = updatedProposal.leadId?._id || updatedProposal.leadId;
+
+      // Mark CRMClient as converted
+      await CRMClient.findByIdAndUpdate(targetClientId, {
+        lifecycleStage: "converted",
+        status: "converted",
+      });
+
+      // Auto-create PMS Project
+      try {
+        const existingProject = await Project.findOne({ proposalId: proposalId });
+        if (!existingProject) {
+          const client = await CRMClient.findById(targetClientId);
+          const year = new Date().getFullYear();
+          const count = (await Project.countDocuments()) + 1;
+          const trackingId = `PRJ-${year}-${String(count).padStart(4, "0")}`;
+
+          const siteAddr = client?.siteAddress || {};
+          const fullAddress =
+            siteAddr.fullAddress ||
+            (client?.address ? String(client.address) : "") ||
+            "TBD";
+
+          const project = await Project.create({
+            clientId: targetClientId,
+            proposalId: proposalId,
+            trackingId,
+            name: updatedProposal.title || `${client?.name || "Client"} — Interior Project`,
+            projectType: client?.projectType || "Residential",
+            siteAddress: {
+              fullAddress,
+              buildingName: siteAddr.buildingName || "",
+              tower: siteAddr.tower || "",
+              unit: siteAddr.unit || "",
+              floor: siteAddr.floor || "",
+              city: siteAddr.city || client?.city || "",
+            },
+            area: client?.area || null,
+            budget: updatedProposal.finalAmount || client?.budget || null,
+            status: "design_phase",
+            notes: `Auto-created from Proposal: ${updatedProposal.title}. Final amount: ₹${(updatedProposal.finalAmount || 0).toLocaleString("en-IN")}.`,
+          });
+
+          // Link project — do NOT overwrite lifecycleStage, client is already "converted"
+          await CRMClient.findByIdAndUpdate(targetClientId, {
+            $addToSet: { linkedProjects: project._id },
+          });
+
+          updatedProposal._autoCreatedProject = {
+            _id: project._id,
+            trackingId: project.trackingId,
+            name: project.name,
+          };
+        }
+      } catch (projErr) {
+        console.error("[auto-create project]", projErr.message);
+      }
+
+      return res.json(updatedProposal);
+    }
+
     // 1. If Manager Approved -> Automatically Send to Client
     if (status === "manager_approved") {
       try {
@@ -133,14 +226,71 @@ const updateProposalStatus = async (req, res) => {
       }
     }
 
-    // 3. Sync Lead Status
-    const leadUpdate = {};
-    if (status === "sent") leadUpdate.lifecycleStage = "proposal_sent";
-    if (status === "project_started") leadUpdate.lifecycleStage = "converted";
+    // 3. Sync Lead Status + auto-create PMS project on project_started
+    const targetClientId = updatedProposal.leadId?._id || updatedProposal.leadId;
 
-    if (Object.keys(leadUpdate).length > 0) {
-      const targetId = updatedProposal.leadId?._id || updatedProposal.leadId;
-      await CRMClient.findByIdAndUpdate(targetId, leadUpdate);
+    if (status === "sent") {
+      await CRMClient.findByIdAndUpdate(targetClientId, { lifecycleStage: "proposal_sent" });
+    }
+
+    if (status === "project_started") {
+      // Mark CRMClient as converted
+      await CRMClient.findByIdAndUpdate(targetClientId, {
+        lifecycleStage: "converted",
+        status: "converted",
+      });
+
+      // Auto-create a PMS Project if one doesn't already exist for this proposal
+      try {
+        const existingProject = await Project.findOne({ proposalId: proposalId });
+        if (!existingProject) {
+          const client = await CRMClient.findById(targetClientId);
+          const year = new Date().getFullYear();
+          const count = (await Project.countDocuments()) + 1;
+          const trackingId = `PRJ-${year}-${String(count).padStart(4, "0")}`;
+
+          // Build a clean site address — prefer enriched siteAddress, fall back to city/address
+          const siteAddr = client?.siteAddress || {};
+          const fullAddress =
+            siteAddr.fullAddress ||
+            (client?.address ? String(client.address) : "") ||
+            "TBD";
+
+          const project = await Project.create({
+            clientId: targetClientId,
+            proposalId: proposalId,
+            trackingId,
+            name: updatedProposal.title || `${client?.name || "Client"} — Interior Project`,
+            projectType: client?.projectType || "Residential",
+            siteAddress: {
+              fullAddress,
+              buildingName: siteAddr.buildingName || "",
+              tower: siteAddr.tower || "",
+              unit: siteAddr.unit || "",
+              floor: siteAddr.floor || "",
+              city: siteAddr.city || client?.city || "",
+            },
+            area: client?.area || null,
+            budget: updatedProposal.finalAmount || client?.budget || null,
+            status: "design_phase",
+            notes: `Auto-created from Proposal: ${updatedProposal.title}. Final amount: ₹${(updatedProposal.finalAmount || 0).toLocaleString("en-IN")}.`,
+          });
+
+          // Link project back to CRMClient — keep lifecycleStage as "converted"
+          await CRMClient.findByIdAndUpdate(targetClientId, {
+            $addToSet: { linkedProjects: project._id },
+          });
+
+          // Attach project ref to response so frontend can redirect
+          updatedProposal._autoCreatedProject = {
+            _id: project._id,
+            trackingId: project.trackingId,
+            name: project.name,
+          };
+        }
+      } catch (projErr) {
+        console.error("[auto-create project]", projErr.message);
+      }
     }
 
     res.json(updatedProposal);

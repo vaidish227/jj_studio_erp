@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
-import { CheckCircle, XCircle, Send, AlertCircle, User, Calendar, FileText, Info } from 'lucide-react';
+import { CheckCircle, XCircle, Send, AlertCircle, User, Calendar, FileText, Info, RefreshCw } from 'lucide-react';
 
 const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
   const [remarks, setRemarks] = useState('');
@@ -9,6 +9,7 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
 
   const isApprove = action === 'manager_approved';
   const isReject = action === 'rejected';
+  const isRevision = action === 'revision_requested';
   const isSend = action === 'sent';
   const isSign = action === 'signed';
 
@@ -22,8 +23,8 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isReject && !remarks.trim()) {
-      alert("Please provide a reason for rejection.");
+    if ((isReject || isRevision) && !remarks.trim()) {
+      alert(isRevision ? "Please describe what revision is required." : "Please provide a reason for rejection.");
       return;
     }
 
@@ -61,11 +62,11 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
       onClose={onClose}
       title={
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${isApprove ? 'bg-green-100 text-green-600' : isReject ? 'bg-red-100 text-red-600' : isSign ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-            {isApprove ? <CheckCircle size={20} /> : isReject ? <XCircle size={20} /> : isSign ? <FileText size={20} /> : <Send size={20} />}
+          <div className={`p-2 rounded-lg ${isApprove ? 'bg-green-100 text-green-600' : isReject ? 'bg-red-100 text-red-600' : isRevision ? 'bg-orange-100 text-orange-600' : isSign ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+            {isApprove ? <CheckCircle size={20} /> : isReject ? <XCircle size={20} /> : isRevision ? <RefreshCw size={20} /> : isSign ? <FileText size={20} /> : <Send size={20} />}
           </div>
           <span className="font-black uppercase tracking-tight">
-            {isApprove ? 'Approve Proposal' : isReject ? 'Reject Proposal' : isSign ? 'eSign Received & Approve Project' : 'Send to Client'}
+            {isApprove ? 'Approve Proposal' : isReject ? 'Reject Proposal' : isRevision ? 'Request Revision' : isSign ? 'eSign Received & Approve Project' : 'Send to Client'}
           </span>
         </div>
       }
@@ -143,14 +144,14 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
 
         <div>
           <label className="text-xs font-black text-[var(--text-muted)] uppercase tracking-wider mb-2 block">
-            {isReject ? 'Reason for Rejection (Mandatory)' : 'Remarks / Internal Notes'}
+            {isReject ? 'Reason for Rejection (Mandatory)' : isRevision ? 'Revision Required (Mandatory)' : 'Remarks / Internal Notes'}
           </label>
           <textarea 
             className="w-full px-4 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--primary)] transition-all font-medium text-sm min-h-[100px]"
-            placeholder={isReject ? "Explain why this proposal is being rejected..." : "Add any internal notes..."}
+            placeholder={isReject ? "Explain why this proposal is being rejected..." : isRevision ? "Describe what needs to be revised before approval..." : "Add any internal notes..."}
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            required={isReject}
+            required={isReject || isRevision}
           />
         </div>
 
@@ -159,6 +160,15 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
             <AlertCircle size={18} className="text-green-600 mt-0.5" />
             <p className="text-xs text-green-700 font-medium leading-relaxed">
               Once approved, this proposal will be ready to be sent to the client. You can dispatch it immediately after this step.
+            </p>
+          </div>
+        )}
+
+        {isRevision && (
+          <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl flex items-start gap-3">
+            <RefreshCw size={18} className="text-orange-600 mt-0.5" />
+            <p className="text-xs text-orange-700 font-medium leading-relaxed">
+              This will send the proposal back to <b>Revision Requested</b> status. The proposal creator will be notified to make changes and re-submit for approval.
             </p>
           </div>
         )}

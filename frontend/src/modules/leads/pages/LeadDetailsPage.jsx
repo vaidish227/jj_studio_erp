@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Phone,
   Plus,
+  RotateCcw,
   User,
   UserPlus,
   XCircle,
@@ -36,12 +37,15 @@ import { crmService } from '../../../shared/services/crmService';
 import { formatDateShort, formatDateTime } from '../../../shared/utils/dateUtils';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader } from '../../../shared/components';
+import LeadLifecycleStepper from '../components/LeadLifecycleStepper';
+import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
 
 const LIFECYCLE_STEPS = [
   'enquiry',
   'meeting_scheduled',
   'kit',
   'show_project',
+  'interested',
   'proposal_sent',
   'converted'
 ];
@@ -94,6 +98,12 @@ const LeadDetailsPage = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+  const [outcomeModalMeeting, setOutcomeModalMeeting] = useState(null);
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [rescheduleTargetMeeting, setRescheduleTargetMeeting] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('10:00');
+  const [rescheduleNotes, setRescheduleNotes] = useState('');
 
   const projectAssets = lead?.showProject?.assets || [];
 
@@ -135,21 +145,44 @@ const LeadDetailsPage = () => {
     }
   };
 
+  const validateFutureDateTime = (dateStr, timeStr, fieldLabel = 'Meeting') => {
+    const now = new Date();
+    const selected = new Date(`${dateStr}T${timeStr}`);
+    if (selected <= now) {
+      const todayStr = now.toISOString().split('T')[0];
+      if (dateStr === todayStr) {
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const nextHH = String(now.getHours() + 1).padStart(2, '0');
+        return `${fieldLabel} time must be after ${hh}:${mm} for today. Earliest available slot: ${nextHH}:00.`;
+      }
+      return `${fieldLabel} date and time must be in the future. Please select a valid date.`;
+    }
+    return null;
+  };
+
+  const findSlotConflict = (dateStr, timeStr, excludeMeetingId = null) => {
+    const selected = new Date(`${dateStr}T${timeStr}`);
+    return meetings.find(m => {
+      if (excludeMeetingId && m._id === excludeMeetingId) return false;
+      if (['cancelled', 'completed'].includes(m.status)) return false;
+      return Math.abs(new Date(m.date).getTime() - selected.getTime()) < 60 * 60 * 1000;
+    }) || null;
+  };
+
   const handleScheduleMeeting = async (e) => {
     e.preventDefault();
 
-    // --- Validation: Present or future date only ---
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const selectedDate = new Date(meetingDate);
-    selectedDate.setHours(0, 0, 0, 0);
+    const dateTimeError = validateFutureDateTime(meetingDate, meetingTime);
+    if (dateTimeError) { setActionError(dateTimeError); return; }
 
-    if (selectedDate < now) {
-      setActionError('You cannot schedule a meeting in the past.');
+    const conflict = findSlotConflict(meetingDate, meetingTime);
+    if (conflict) {
+      setActionError(`Already allocated slot: a meeting for this lead is set at ${formatDateTime(conflict.date)}. Please choose a different time.`);
       return;
     }
 
-    const isoDate = `${meetingDate}T${meetingTime}`;
+    const isoDate = new Date(`${meetingDate}T${meetingTime}`).toISOString();
 
     await runAction(async () => {
       await crmService.createMeeting({
@@ -161,7 +194,42 @@ const LeadDetailsPage = () => {
       scheduleAutomations(id, isoDate);
       await transitionStatus(id, LEAD_ACTIONS.SCHEDULE_MEETING);
       setIsMeetingModalOpen(false);
-    }, 'Meeting scheduled and automation timers started.');
+    }, 'Meeting scheduled successfully.');
+  };
+
+  const openRescheduleModal = (meeting) => {
+    const d = new Date(meeting.date);
+    setRescheduleTargetMeeting(meeting);
+    setRescheduleDate(d.toISOString().split('T')[0]);
+    setRescheduleTime(d.toTimeString().slice(0, 5));
+    setRescheduleNotes(meeting.notes || '');
+    setActionError('');
+    setIsRescheduleModalOpen(true);
+  };
+
+  const handleRescheduleMeeting = async (e) => {
+    e.preventDefault();
+
+    const dateTimeError = validateFutureDateTime(rescheduleDate, rescheduleTime, 'New meeting');
+    if (dateTimeError) { setActionError(dateTimeError); return; }
+
+    const conflict = findSlotConflict(rescheduleDate, rescheduleTime, rescheduleTargetMeeting._id);
+    if (conflict) {
+      setActionError(`Already allocated slot: a meeting exists at ${formatDateTime(conflict.date)}. Please choose a different time.`);
+      return;
+    }
+
+    const isoDate = new Date(`${rescheduleDate}T${rescheduleTime}`).toISOString();
+
+    await runAction(async () => {
+      await crmService.updateMeeting(rescheduleTargetMeeting._id, {
+        date: isoDate,
+        status: 'rescheduled',
+        notes: rescheduleNotes || rescheduleTargetMeeting.notes,
+      });
+      setIsRescheduleModalOpen(false);
+      setRescheduleTargetMeeting(null);
+    }, 'Meeting rescheduled. A confirmation email has been sent to the client.');
   };
 
   const handleSaveNote = async () => {
@@ -256,6 +324,26 @@ const LeadDetailsPage = () => {
     }, 'Lead converted successfully.');
   };
 
+  const handleMeetingOutcome = async (meetingId, outcomeData, markLost = false) => {
+    await runAction(async () => {
+      await crmService.completeMeeting(meetingId, outcomeData);
+      if (markLost) {
+        await crmService.updateClientStatus(id, { status: 'lost', lifecycleStage: 'lost' });
+      }
+    }, outcomeData.clientInterested ? 'Client marked as Interested — create proposal now!' : 'Meeting outcome recorded.');
+
+    if (outcomeData.clientInterested) {
+      toast.success('Client is interested! Proceed to create a proposal.');
+    }
+  };
+
+  const handleMarkInterested = async () => {
+    await runAction(async () => {
+      await crmService.markInterested(id);
+    }, 'Client marked as Interested. You can now create a proposal.');
+    toast.success('Lead marked as Interested — proceed to Proposal!');
+  };
+
   const handleStatusChange = async (value) => {
     await runAction(async () => {
       await updateStatus(value);
@@ -316,38 +404,11 @@ const LeadDetailsPage = () => {
       </div>
 
       {/* Lifecycle Stepper */}
-      <Card className="py-8 px-4 overflow-x-auto">
-        <div className="flex items-center justify-between min-w-[600px] px-8">
-          {LIFECYCLE_STEPS.map((step, index) => {
-            const isCompleted = LIFECYCLE_STEPS.indexOf(lead.lifecycleStage) >= index || lead.status === 'converted';
-            const isActive = lead.lifecycleStage === step;
-
-            return (
-              <React.Fragment key={step}>
-                <div className="flex flex-col items-center gap-3 relative z-10">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${isCompleted
-                    ? 'bg-[var(--primary)] border-[var(--primary)] text-black'
-                    : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-muted)]'
-                    } ${isActive ? 'ring-4 ring-[var(--primary)]/20 scale-110' : ''}`}>
-                    {isCompleted ? <CheckCircle2 size={20} /> : <span className="text-xs font-bold">{index + 1}</span>}
-                  </div>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isCompleted ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'
-                    }`}>
-                    {lifecycleLabels[step] || step}
-                  </span>
-                </div>
-                {index < LIFECYCLE_STEPS.length - 1 && (
-                  <div className="flex-1 h-[2px] bg-[var(--border)] mx-2 mb-6 relative">
-                    <div
-                      className="absolute inset-0 bg-[var(--primary)] transition-all duration-1000 origin-left"
-                      style={{ transform: `scaleX(${isCompleted ? 1 : 0})` }}
-                    />
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
+      <Card className="py-5 px-6">
+        <LeadLifecycleStepper
+          lifecycleStage={lead.lifecycleStage}
+          status={lead.status}
+        />
       </Card>
 
       {(actionError || actionSuccess) && (
@@ -537,8 +598,8 @@ const LeadDetailsPage = () => {
 
             <div className="flex flex-col sm:flex-row gap-4">
               <button
-                disabled={actionLoading || lead.lifecycleStage === 'interested'}
-                onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_INTERESTED), 'Lead marked as Interested. You can now draft a proposal.')}
+                disabled={actionLoading || lead.lifecycleStage === 'interested' || lead.status === 'converted'}
+                onClick={handleMarkInterested}
                 className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${lead.lifecycleStage === 'interested'
                   ? 'border-[var(--success)] bg-[var(--success)]/5 cursor-default'
                   : 'border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 cursor-pointer'
@@ -603,13 +664,69 @@ const LeadDetailsPage = () => {
           </Card>
 
           <Card className="space-y-4">
-            <SectionTitle title="Meetings" icon={Calendar} />
+            <div className="flex items-center justify-between">
+              <SectionTitle title="Meetings" icon={Calendar} />
+              <button
+                onClick={() => setIsMeetingModalOpen(true)}
+                className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
+              >
+                <Plus size={12} /> Schedule
+              </button>
+            </div>
             {meetings.length ? meetings.map((meeting) => (
-              <div key={meeting._id} className="rounded-xl border border-[var(--border)] px-4 py-3">
-                <p className="font-semibold text-[var(--text-primary)] capitalize">{meeting.type} meeting</p>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  {formatDateTime(meeting.date)}
-                </p>
+              <div key={meeting._id} className="rounded-xl border border-[var(--border)] px-4 py-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold text-[var(--text-primary)] capitalize text-sm">
+                    {meeting.type} meeting
+                  </p>
+                  <span className={[
+                    'text-[10px] font-bold uppercase px-2 py-0.5 rounded-full',
+                    meeting.status === 'completed'  ? 'bg-emerald-100 text-emerald-700' :
+                    meeting.status === 'cancelled'  ? 'bg-red-100 text-red-600' :
+                    meeting.status === 'rescheduled'? 'bg-amber-100 text-amber-700' :
+                    'bg-blue-100 text-blue-700'
+                  ].join(' ')}>
+                    {meeting.status}
+                  </span>
+                </div>
+
+                <p className="text-xs text-[var(--text-muted)]">{formatDateTime(meeting.date)}</p>
+
+                {/* Show original date if rescheduled */}
+                {meeting.rescheduledFrom && (
+                  <p className="text-[10px] text-amber-600 font-medium">
+                    Originally: {formatDateTime(meeting.rescheduledFrom)}
+                  </p>
+                )}
+
+                {meeting.assignedTo?.name && (
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    With: <span className="font-medium">{meeting.assignedTo.name}</span>
+                  </p>
+                )}
+                {meeting.outcome && (
+                  <p className="text-xs text-[var(--text-muted)] italic">"{meeting.outcome}"</p>
+                )}
+
+                {/* Actions for active (non-completed, non-cancelled) meetings */}
+                {['scheduled', 'rescheduled'].includes(meeting.status) && (
+                  <div className="flex items-center gap-3 pt-1">
+                    <button
+                      onClick={() => openRescheduleModal(meeting)}
+                      className="flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline transition-colors"
+                    >
+                      <RotateCcw size={10} />
+                      Reschedule
+                    </button>
+                    <span className="text-[var(--border)] select-none">·</span>
+                    <button
+                      onClick={() => setOutcomeModalMeeting(meeting)}
+                      className="text-xs font-bold text-[var(--primary)] hover:underline transition-colors"
+                    >
+                      Record Outcome →
+                    </button>
+                  </div>
+                )}
               </div>
             )) : (
               <EmptyState text="No meetings scheduled yet." />
@@ -633,7 +750,14 @@ const LeadDetailsPage = () => {
         </div>
       </div>
 
-      <Modal isOpen={isMeetingModalOpen} onClose={() => setIsMeetingModalOpen(false)} title="Schedule Meeting">
+      <MeetingOutcomeModal
+        isOpen={Boolean(outcomeModalMeeting)}
+        onClose={() => setOutcomeModalMeeting(null)}
+        meeting={outcomeModalMeeting}
+        onSave={handleMeetingOutcome}
+      />
+
+      <Modal isOpen={isMeetingModalOpen} onClose={() => { setIsMeetingModalOpen(false); setActionError(''); }} title="Schedule Meeting">
         <form onSubmit={handleScheduleMeeting} className="space-y-5">
           <Select
             label="Meeting Type"
@@ -650,9 +774,10 @@ const LeadDetailsPage = () => {
             label="Date & Time"
             dateValue={meetingDate}
             timeValue={meetingTime}
-            onDateChange={setMeetingDate}
-            onTimeChange={setMeetingTime}
+            onDateChange={(v) => { setMeetingDate(v); setActionError(''); }}
+            onTimeChange={(v) => { setMeetingTime(v); setActionError(''); }}
             required
+            minDate={new Date().toISOString().split('T')[0]}
           />
 
           <div className="space-y-2">
@@ -666,12 +791,76 @@ const LeadDetailsPage = () => {
             />
           </div>
 
+          {actionError && (
+            <div className="rounded-xl border px-4 py-3 text-sm bg-[var(--error)]/10 border-[var(--error)]/20 text-[var(--error)] font-medium">
+              {actionError}
+            </div>
+          )}
+
           <div className="flex gap-3">
-            <Button variant="ghost" type="button" onClick={() => setIsMeetingModalOpen(false)} fullWidth>
+            <Button variant="ghost" type="button" onClick={() => { setIsMeetingModalOpen(false); setActionError(''); }} fullWidth>
               Cancel
             </Button>
             <Button variant="primary" type="submit" isLoading={actionLoading} fullWidth>
               Save Meeting
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Reschedule Meeting Modal */}
+      <Modal
+        isOpen={isRescheduleModalOpen}
+        onClose={() => { setIsRescheduleModalOpen(false); setRescheduleTargetMeeting(null); setActionError(''); }}
+        title="Reschedule Meeting"
+      >
+        <form onSubmit={handleRescheduleMeeting} className="space-y-5">
+          {/* Current appointment info */}
+          {rescheduleTargetMeeting && (
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <RotateCcw size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Current Appointment</p>
+                <p className="text-sm font-bold text-amber-900 mt-0.5">{formatDateTime(rescheduleTargetMeeting.date)}</p>
+                <p className="text-xs text-amber-700 capitalize mt-0.5">{rescheduleTargetMeeting.type} meeting</p>
+              </div>
+            </div>
+          )}
+
+          <DateTimePicker
+            label="New Date & Time"
+            dateValue={rescheduleDate}
+            timeValue={rescheduleTime}
+            onDateChange={(v) => { setRescheduleDate(v); setActionError(''); }}
+            onTimeChange={(v) => { setRescheduleTime(v); setActionError(''); }}
+            required
+            minDate={new Date().toISOString().split('T')[0]}
+          />
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-[var(--text-primary)]">Reason for Rescheduling <span className="text-[var(--text-muted)] font-normal">(Optional)</span></label>
+            <textarea
+              value={rescheduleNotes}
+              onChange={(e) => setRescheduleNotes(e.target.value)}
+              placeholder="e.g. Client requested later time, site unavailable..."
+              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+              rows={3}
+            />
+          </div>
+
+          {actionError && (
+            <div className="rounded-xl border px-4 py-3 text-sm bg-[var(--error)]/10 border-[var(--error)]/20 text-[var(--error)] font-medium">
+              {actionError}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button variant="ghost" type="button" onClick={() => { setIsRescheduleModalOpen(false); setRescheduleTargetMeeting(null); setActionError(''); }} fullWidth>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" isLoading={actionLoading} fullWidth>
+              <RotateCcw size={14} className="mr-2" />
+              Confirm Reschedule
             </Button>
           </div>
         </form>

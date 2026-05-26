@@ -16,7 +16,7 @@ export const useApi = (apiFunc) => {
       setData(result);
       return result;
     } catch (err) {
-      setError(err);
+      setError(err?.message || err);
       throw err;
     } finally {
       setLoading(false);

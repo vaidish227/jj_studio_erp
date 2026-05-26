@@ -5,25 +5,25 @@ const meetingSchema = new mongoose.Schema(
     leadId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "CRMClient",
-      required: true
+      required: true,
     },
 
     date: {
       type: Date,
-      required: true
+      required: true,
     },
 
     type: {
       type: String,
       enum: ["call", "office", "site"],
-      required: true
+      required: true,
     },
 
     notes: String,
 
     status: {
       type: String,
-      enum: ["scheduled", "completed", "cancelled"],
+      enum: ["scheduled", "rescheduled", "completed", "cancelled", "follow_up_required"],
       default: "scheduled",
     },
 
@@ -32,10 +32,31 @@ const meetingSchema = new mongoose.Schema(
       default: 60,
     },
 
+    // Staff member assigned to conduct this meeting
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    // Captured after meeting completion
+    outcome: String,
+
+    // Key signal: drives the CRM "Interested" lifecycle transition
+    clientInterested: {
+      type: Boolean,
+      default: null, // null = not yet captured
+    },
+
+    // Next follow-up date (set when follow_up_required)
+    followUpDate: Date,
+
+    // Original date before reschedule (audit trail)
+    rescheduledFrom: Date,
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    }
+      ref: "User",
+    },
   },
   { timestamps: true }
 );

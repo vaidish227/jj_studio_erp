@@ -10,6 +10,9 @@ const {
   deleteRole,
   getAllUsers,
   updateUserRole,
+  updateUser,
+  adminResetPassword,
+  getEffectivePermissions,
 } = require("../controllers/Roles.controller");
 
 // ─── All routes require authentication + admin role ───────────────────────────
@@ -18,7 +21,10 @@ router.use(verifyToken, requireRole("admin", "md"));
 // ─── Static routes first (must come before /:id to avoid being swallowed) ─────
 router.get("/permissions/all", getAllPermissions);
 router.get("/users/list", getAllUsers);
-router.patch("/users/:userId/role", requireRole("admin"), updateUserRole);
+router.get("/users/:userId/effective-permissions", getEffectivePermissions);
+router.patch("/users/:userId/role",           requireRole("admin"), updateUserRole);
+router.patch("/users/:userId",               requireRole("admin"), updateUser);
+router.post("/users/:userId/reset-password", requireRole("admin"), adminResetPassword);
 
 // ─── Role CRUD (dynamic :id segments last) ────────────────────────────────────
 router.get("/", getAllRoles);

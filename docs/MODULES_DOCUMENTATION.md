@@ -443,28 +443,42 @@ modules/dashboard/
 ## MODULE 5: SETTINGS & USER MANAGEMENT
 
 ### Purpose
-Admin-facing module for creating new users and managing system configuration.
+Admin-facing module for user management, RBAC, and role/permission configuration. Split into two dedicated pages under a Settings landing.
 
 ### Frontend Structure
 ```
 modules/settings/
 ├── pages/
-│   └── SettingsPage.jsx
-├── components/
-│   └── CreateUserForm.jsx
+│   ├── SettingsPage.jsx          → Landing: two cards (Users, Roles & Permissions)
+│   ├── UserManagementPage.jsx    → Create users + live team list with role selector
+│   └── RolesPermissionsPage.jsx  → Permission matrix by role
 └── hooks/
-    └── useCreateUser.js
+    ├── useUserManagement.js      → Fetch/create users, update user role
+    └── useRolesPermissions.js    → Fetch roles, manage permission matrix state
 ```
+
+### Routes
+| Path | Page | Notes |
+|------|------|-------|
+| `/settings` | SettingsPage | Landing; shows access-denied if no `users.manage` |
+| `/settings/users` | UserManagementPage | Create accounts + role assignment |
+| `/settings/roles-permissions` | RolesPermissionsPage | Permission matrix editor |
 
 ### API Endpoints Used
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/auth/signup` | Create new user (admin only) |
+| POST | `/api/auth/signup` | Create new user |
+| GET | `/api/roles/users/list` | List all users |
+| PATCH | `/api/roles/users/:userId/role` | Update a user's role |
+| GET | `/api/roles` | List all roles |
+| GET | `/api/roles/permissions/all` | List all permissions |
+| PATCH | `/api/roles/:id` | Save permission matrix for a role |
 
 ### Business Rules
-1. Only admins should create new users (currently unprotected)
-2. Role assignment happens at creation time
-3. No user deletion currently implemented
+1. Only users with `users.manage` permission can access Settings pages
+2. Role assignment available both at creation time and post-creation via the user list
+3. Permission matrix changes are saved per-role (one PATCH per role save)
+4. No user deletion currently implemented
 
 ---
 
@@ -486,51 +500,277 @@ modules/profile/
 
 ---
 
-## MODULE 7: PMS — PROJECT MANAGEMENT SYSTEM (STUB)
+## MODULE 7: PMS — PROJECT MANAGEMENT SYSTEM
 
 ### Purpose
-Will manage active interior design projects after client conversion. Track tasks, milestones, site visits, designers, and supervisors.
+Manages active interior design projects after client conversion. Tracks tasks by designer sub-flow, drawing approvals, team assignments, kickstart milestones, client approvals, site logs, and vendors.
 
-### Current State
-Models defined, no controllers or routes yet.
+### Business Context
+After a client converts (advance payment received), a Project is created and assigned to Designer A (primary). Sub-designer slots B/C/D/E handle specialized sub-flows (AC, kitchens, bathrooms, automation, concepts). Tasks are created per sub-flow and drawings uploaded to the DLR (Drawing Library Repository). A supervisor oversees site execution and logs site visits.
 
-### Models
+### Project Lifecycle
 ```
-modules/pms/models/
-├── Project.model.js      → Core project entity
-├── Task.model.js         → Project tasks
-├── Milestone.model.js    → Project milestones
-└── SiteVisit.model.js    → Site visit records
+design_phase → execution_phase → handover → completed
+(or)                          → on_hold | cancelled
 ```
 
-### Project Model Fields
-| Field | Type | Notes |
-|-------|------|-------|
-| `clientId` | ObjectId ref CRMClient | Required |
-| `proposalId` | ObjectId ref Proposal | Optional |
-| `name` | String | Required |
-| `projectType` | Enum | Residential, Commercial |
-| `siteAddress` | String | |
-| `city` | String | |
-| `area` | Number | sq ft |
-| `budget` | Number | |
-| `status` | Enum | design, execution, completed |
-| `designer` | ObjectId ref User | |
-| `supervisor` | ObjectId ref User | |
-| `startDate` | Date | |
-| `endDate` | Date | |
-| `notes` | String | |
+### Backend Structure
+```
+modules/pms/
+├── controllers/
+│   ├── Project.controller.js        → Project CRUD + kickstart + team + client approvals
+│   ├── Task.controller.js           → Task CRUD + checklist toggle + getMyTasks
+│   ├── Drawing.controller.js        → Full drawing lifecycle (upload, revise, approve, release)
+│   ├── Vendor.controller.js         → Vendor directory CRUD
+│   ├── SiteLog.controller.js        → Site log entries per project
+│   ├── Milestone.controller.js      → Milestone CRUD with auto-completedDate
+│   ├── ActivityLog.controller.js    → Paginated activity log read
+│   ├── WhatsAppGroup.controller.js  → WA group CRUD + sendGroupUpdate
+│   ├── Calendar.controller.js       → Aggregated calendar events (read-only)
+│   ├── Approval.controller.js       → Approval requests + responses
+│   ├── SiteVisit.controller.js      → Site visit logs
+│   ├── Material.controller.js       → Material selection tracking
+│   ├── PurchaseOrder.controller.js  → PO CRUD + line items auto-total
+│   └── PMSDashboard.controller.js   → PMS summary stats
+├── models/
+│   ├── Project.model.js             → Project with kickstart, team slots, client approvals
+│   ├── Task.model.js                → Tasks with checklist and external coordination
+│   ├── Drawing.model.js             → Drawings with versioning and approval lifecycle
+│   ├── ProjectMilestone.model.js    → Milestones with critical flag + order
+│   ├── PMSActivityLog.model.js      → Audit trail (15 action types, 11 entity types)
+│   └── WhatsAppProjectGroup.model.js → WA groups linked to whatsapp.service
+├── validator/ (Joi schemas for all controllers)
+└── routes/ (one per controller)
+
+backend/src/shared/
+└── activityLogger.js               → Fire-and-forget logActivity() utility
+```
+
+### Frontend Structure
+```
+modules/pms/
+├── context/
+│   └── PMSContext.jsx              → activeProject, invalidateProjects()
+├── hooks/
+│   ├── useProjects.js              → paginated/filtered project list
+│   ├── useProjectDetail.js         → project + tasks + drawings + siteLogs
+│   ├── useProjectForm.js           → create project form logic
+│   ├── useTaskForm.js              → create task form + checklist builder
+│   ├── useDrawings.js              → drawings list with filter state
+│   ├── useVendors.js               → vendor list with category filter
+│   ├── useMilestones.js            → milestones CRUD
+│   ├── useSiteVisits.js            → site visits CRUD
+│   ├── useMaterials.js             → materials CRUD
+│   ├── usePurchaseOrders.js        → PO CRUD
+│   ├── useActivityLog.js           → paginated logs with loadMore/hasMore
+│   └── useWhatsAppGroups.js        → WA groups CRUD + sendUpdate
+├── pages/
+│   ├── ProjectsPage.jsx            → /projects (list + grid, filter, create modal)
+│   ├── ProjectDetailPage.jsx       → /projects/:id (12-tab detail view)
+│   ├── MyTasksPage.jsx             → /tasks (cross-project tasks for logged-in user)
+│   ├── DrawingLibraryPage.jsx      → /drawings + /drawings/pending-approvals
+│   ├── VendorDirectoryPage.jsx     → /vendors
+│   ├── CalendarPage.jsx            → /pms/calendar (monthly grid, 5 event types)
+│   └── ApprovalDashboardPage.jsx   → /pms/approvals (pending approval queue)
+└── components/
+    ├── (badge/icon/card components same as before)
+    └── tabs/
+        ├── OverviewTab.jsx          → Summary cards + kickstart + client approvals
+        ├── TasksTab.jsx             → List view (by taskType) OR Kanban (by status)
+        ├── DrawingsTab.jsx          → Project drawings list
+        ├── SiteLogsTab.jsx          → Chronological logs + inline add form
+        ├── TeamTab.jsx              → Designer A-E + supervisor + contractor
+        ├── ClientApprovalsTab.jsx   → Full 6-approval tracker
+        ├── MilestonesTab.jsx        → Timeline with critical/overdue detection
+        ├── SiteVisitsTab.jsx        → Site visit logs with purpose/observations
+        ├── MaterialsTab.jsx         → Grouped by category, edit in place
+        ├── PurchaseOrdersTab.jsx    → PO cards with status workflow + line items
+        ├── WhatsAppTab.jsx          → WA group cards with send update flow
+        └── ActivityTab.jsx          → Paginated audit timeline with 15 action icons
+```
+
+### API Endpoints — Projects
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/project/create` | Create project |
+| GET | `/api/pms/project/all` | List projects (paginated, filterable by status) |
+| GET | `/api/pms/project/:id` | Get project by ID |
+| PUT | `/api/pms/project/update/:id` | Update project |
+| PATCH | `/api/pms/project/kickstart/:id` | Update kickstart checklist flags |
+| PATCH | `/api/pms/project/team/:id` | Update team assignments |
+| PATCH | `/api/pms/project/client-approval/:id` | Upsert a client approval record |
+| DELETE | `/api/pms/project/delete/:id` | Delete project |
+
+### API Endpoints — Tasks
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/task/create` | Create task |
+| GET | `/api/pms/task/my-tasks` | Tasks assigned to the current user |
+| GET | `/api/pms/task/project/:projectId` | Tasks for a project |
+| GET | `/api/pms/task/:id` | Get single task by ID |
+| PUT | `/api/pms/task/update/:id` | Update task (validates allowed fields only) |
+| PATCH | `/api/pms/task/checklist/:taskId/:idx` | Toggle single checklist item |
+| DELETE | `/api/pms/task/delete/:id` | Delete task |
+
+### API Endpoints — Drawings (DDMS / DLR)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/drawing/upload` | Upload new drawing (URL-based) |
+| POST | `/api/pms/drawing/revise/:id` | Upload revision (archives current to history) |
+| GET | `/api/pms/drawing/all` | List all drawings (paginated, filterable) |
+| GET | `/api/pms/drawing/pending-approvals` | Drawings with status=sent_for_approval |
+| GET | `/api/pms/drawing/project/:projectId` | Drawings for a project |
+| PATCH | `/api/pms/drawing/send-for-approval/:id` | Transition draft/rejected → sent_for_approval |
+| PATCH | `/api/pms/drawing/approve/:id` | Approve (requires drawings.approve permission) |
+| PATCH | `/api/pms/drawing/reject/:id` | Reject with required rejectionReason |
+| PATCH | `/api/pms/drawing/release/:id` | Release to site (propagates to parent task) |
+| DELETE | `/api/pms/drawing/delete/:id` | Delete drawing |
+
+### API Endpoints — Vendors
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/pms/vendor/all` | List vendors (optional `?category=AC`) |
+| POST | `/api/pms/vendor/create` | Add vendor |
+| PUT | `/api/pms/vendor/update/:id` | Update vendor |
+| DELETE | `/api/pms/vendor/delete/:id` | Delete vendor |
+
+### API Endpoints — Milestones
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/milestone/create` | Create milestone |
+| GET | `/api/pms/milestone/project/:projectId` | List milestones for project |
+| PATCH | `/api/pms/milestone/update/:id` | Update milestone (auto-sets completedDate) |
+| DELETE | `/api/pms/milestone/delete/:id` | Delete milestone |
+
+### API Endpoints — Site Visits
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/site-visit/create` | Log site visit |
+| GET | `/api/pms/site-visit/project/:projectId` | List visits for project |
+| PUT | `/api/pms/site-visit/update/:id` | Update visit |
+| DELETE | `/api/pms/site-visit/delete/:id` | Delete visit |
+
+### API Endpoints — Materials
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/material/create` | Add material |
+| GET | `/api/pms/material/project/:projectId` | List materials for project |
+| PUT | `/api/pms/material/update/:id` | Update material |
+
+### API Endpoints — Purchase Orders
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/purchase-order/create` | Create PO (line items auto-total) |
+| GET | `/api/pms/purchase-order/project/:projectId` | List POs for project |
+| PATCH | `/api/pms/purchase-order/update/:id` | Update status or payment status |
+| DELETE | `/api/pms/purchase-order/delete/:id` | Delete PO |
+
+### API Endpoints — Approvals
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/approval/request` | Create approval request |
+| GET | `/api/pms/approval/project/:projectId` | Approvals for a project |
+| GET | `/api/pms/approval/pending/:userId` | Pending approvals for a user |
+| PATCH | `/api/pms/approval/respond/:id` | Submit approval response |
+
+### API Endpoints — WhatsApp Groups
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/pms/whatsapp-group/create` | Create group record |
+| GET | `/api/pms/whatsapp-group/project/:projectId` | Groups for project |
+| PUT | `/api/pms/whatsapp-group/update/:id` | Update group |
+| DELETE | `/api/pms/whatsapp-group/delete/:id` | Delete group |
+| POST | `/api/pms/whatsapp-group/send/:id` | Send message to all members |
+
+### API Endpoints — Activity Log
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/pms/activity/project/:projectId` | Paginated activity log |
+
+### API Endpoints — Calendar
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/pms/calendar/events` | Aggregated events (`?startDate&endDate&projectId&types[]`) |
+
+### Task Types (9 enums → TASK_TYPE_CONFIG)
+| Enum | Label | Assigned to |
+|------|-------|-------------|
+| `ac_coordination` | AC Coordination | Designer C |
+| `technical_drawing` | Technical Drawing | Designer C |
+| `kitchen_drawing` | Kitchen Drawing | Designer D |
+| `bathroom_drawing` | Bathroom Drawing | Designer D |
+| `automation_coordination` | Automation | Designer C |
+| `3d_render` | 3D Render | Designer E |
+| `concept_making` | Concept Making | Designer E |
+| `furniture_layout` | Furniture Layout | Designer B |
+| `site_measurement` | Site Measurement | Designer B |
+
+### RBAC Permission Mapping
+| Permission | Grants access to |
+|-----------|-----------------|
+| `projects.read` | GET all projects, GET project by ID |
+| `projects.create` | POST create project |
+| `projects.update` | PUT update, PATCH kickstart/team/client-approval |
+| `projects.delete` | DELETE project |
+| `tasks.read` | GET tasks by project, GET task by ID, GET my-tasks |
+| `tasks.create` | POST create task |
+| `tasks.update` | PUT update task, PATCH checklist item |
+| `tasks.delete` | DELETE task |
+| `drawings.read` | GET all drawings, GET by project/task |
+| `drawings.upload` | POST upload/revise, PATCH send-for-approval, DELETE |
+| `drawings.approve` | GET pending-approvals, PATCH approve/reject |
+| `drawings.release` | PATCH release to site |
+| `vendor.read` | GET all vendors, GET vendor by ID |
+| `vendor.create` | POST create vendor |
+| `vendor.update` | PUT update vendor, DELETE vendor |
+| `site_logs.read` | GET project logs, GET log by ID |
+| `site_logs.create` | POST create log, PUT update log |
+| `site_visits.read` | GET site visits by project |
+| `site_visits.create` | POST log visit |
+| `site_visits.update` | PUT update visit, DELETE visit |
+| `materials.read` | GET materials by project |
+| `materials.create` | POST add material |
+| `materials.update` | PUT update material |
+| `materials.delete` | DELETE material |
+| `purchase_orders.read` | GET POs by project |
+| `purchase_orders.create` | POST create PO |
+| `purchase_orders.update` | PATCH update PO, DELETE PO |
+| `milestones.read` | GET milestones by project |
+| `milestones.create` | POST create milestone |
+| `milestones.update` | PATCH update milestone |
+| `milestones.delete` | DELETE milestone |
+| `approvals.read` | GET project approvals, GET pending |
+| `approvals.create` | POST request approval |
+| `approvals.respond` | PATCH respond to approval |
+| `activity.read` | GET activity log |
+| `calendar.read` | GET calendar events |
+| `pms.whatsapp.manage` | Full WA group CRUD + send |
+
+### Validator Structure
+All PMS controllers validate `req.body` with Joi before any DB operation.
+Validator files: `modules/pms/validator/{Project,Task,Drawing,Vendor,SiteLog,Milestone,WhatsAppGroup,Approval,SiteVisit,Material,PurchaseOrder}.validator.js`
+
+### Key Business Rules
+1. `proposalId` on Project is **optional** — not every project originates from a formal proposal
+2. Drawing upload is URL-based — file must be hosted externally (Google Drive, Cloudinary, etc.)
+3. `sendForApproval` only works when status is `draft` or `rejected`
+4. `releaseDrawing` sets the parent task status to `released_to_site`
+5. `kickstartCompleted` is auto-set when all 6 kickstart flags are true
+6. `clientApprovals` is an upsert — creating a new approval or updating existing by type
+7. `SiteLog.supervisorId` is always set from `req.user._id` (never from request body)
+8. `updateProject` and `updateTask` only accept whitelisted fields — immutable fields (trackingId, clientId, projectId, taskType) cannot be overwritten via the API
+9. `PurchaseOrder.items[].amount` is auto-computed as `quantity * rate` on create/update
+10. `ProjectMilestone.completedDate` is auto-set when status is changed to `completed`
+11. `PMSActivityLog` writes are fire-and-forget — never block a request; errors only `console.error`
+12. `Calendar.getCalendarEvents` is read-only aggregation — no new model, derives from existing date fields across 5 models
+13. Run `node backend/src/scripts/seedRoles.js` after any permission change
 
 ### Integration Points
-- Created when CRMClient.advancePayment.movedToProjectManagement = true
-- CRMClient.linkedProjects[] stores Project ObjectIds
-- Proposal.leadId connects back to the client
-
-### Next Steps to Implement
-1. Create `pms/controllers/Project.controller.js`
-2. Create `pms/routes/Project.route.js`
-3. Register `/api/projects` in `app.js`
-4. Create frontend `modules/pms/` with project list, detail, task board
+- Projects link to `CRMClient` via `clientId` and optionally to `Proposal` via `proposalId`
+- `CRMClient.linkedProjects[]` stores Project ObjectIds
+- Drawing `releaseDrawing` propagates status to parent Task
+- `WhatsAppProjectGroup.sendGroupUpdate` calls existing `whatsapp.service.sendImmediate()` — no new provider logic
+- Calendar aggregates from: Task.dueDate, ProjectMilestone.dueDate, SiteVisit.visitDate, PurchaseOrder.expectedDeliveryDate, Project.estimatedCompletionDate
 
 ---
 

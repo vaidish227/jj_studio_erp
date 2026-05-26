@@ -57,6 +57,77 @@ app.use("/api/activity", activityRoutes);
 const esignRoutes = require("./modules/proposal/routes/Esign.route");
 app.use("/api/esign", esignRoutes);
 
+// ─── Mail module ──────────────────────────────────────────────────────────────
+const mailRoutes = require("./modules/mail/routes/Mail.route");
+app.use("/api/mail", mailRoutes);
+
+// ─── WhatsApp module (replaces legacy whatspp module) ─────────────────────────
+const whatsappRoutes = require("./modules/whatsapp/routes/WhatsApp.route");
+app.use("/api/whatsapp", whatsappRoutes);
+
+// ─── Communication settings ───────────────────────────────────────────────────
+const commSettingsRoutes = require("./modules/communication/routes/CommSettings.route");
+app.use("/api/communication/settings", commSettingsRoutes);
+
+// ─── PMS (Project Management System) ─────────────────────────────────────────
+const pmsProjectRoutes = require("./modules/pms/routes/Project.route");
+app.use("/api/pms/project", pmsProjectRoutes);
+
+const pmsProjectInitiationRoutes = require("./modules/pms/routes/ProjectInitiation.route");
+app.use("/api/pms/project-initiation", pmsProjectInitiationRoutes);
+
+const pmsAssignableUsersRoutes = require("./modules/auth/routes/AssignableUsers.route");
+app.use("/api/pms/users", pmsAssignableUsersRoutes);
+
+const pmsTaskRoutes = require("./modules/pms/routes/Task.route");
+app.use("/api/pms/task", pmsTaskRoutes);
+
+const pmsDrawingRoutes = require("./modules/pms/routes/Drawing.route");
+app.use("/api/pms/drawing", pmsDrawingRoutes);
+
+const pmsVendorRoutes = require("./modules/pms/routes/Vendor.route");
+app.use("/api/pms/vendor", pmsVendorRoutes);
+
+const pmsSiteLogRoutes = require("./modules/pms/routes/SiteLog.route");
+app.use("/api/pms/sitelog", pmsSiteLogRoutes);
+
+const pmsPurchaseOrderRoutes = require("./modules/pms/routes/PurchaseOrder.route");
+app.use("/api/pms/po", pmsPurchaseOrderRoutes);
+
+const pmsMaterialRoutes = require("./modules/pms/routes/Material.route");
+app.use("/api/pms/material", pmsMaterialRoutes);
+
+const pmsApprovalRoutes = require("./modules/pms/routes/Approval.route");
+app.use("/api/pms/approval", pmsApprovalRoutes);
+
+const pmsSiteVisitRoutes = require("./modules/pms/routes/SiteVisit.route");
+app.use("/api/pms/sitevisit", pmsSiteVisitRoutes);
+
+const pmsDashboardRoutes = require("./modules/pms/routes/PMSDashboard.route");
+app.use("/api/pms/dashboard", pmsDashboardRoutes);
+
+const pmsMilestoneRoutes = require("./modules/pms/routes/Milestone.route");
+app.use("/api/pms/milestone", pmsMilestoneRoutes);
+
+const pmsActivityLogRoutes = require("./modules/pms/routes/ActivityLog.route");
+app.use("/api/pms/activity", pmsActivityLogRoutes);
+
+const pmsWhatsAppGroupRoutes = require("./modules/pms/routes/WhatsAppGroup.route");
+app.use("/api/pms/whatsapp-group", pmsWhatsAppGroupRoutes);
+
+const pmsCalendarRoutes = require("./modules/pms/routes/Calendar.route");
+app.use("/api/pms/calendar", pmsCalendarRoutes);
+
+// ─── DDMS — Design & Drawing Management ──────────────────────────────────────
+const designerDashboardRoutes = require("./modules/pms/routes/DesignerDashboard.route");
+app.use("/api/pms/designer", designerDashboardRoutes);
+
+const designCommentRoutes = require("./modules/pms/routes/DesignComment.route");
+app.use("/api/pms/design-comments", designCommentRoutes);
+
+const designRevisionRoutes = require("./modules/pms/routes/DesignRevisionRequest.route");
+app.use("/api/pms/design-revisions", designRevisionRoutes);
+
 // ─── Settings & RBAC (admin only — guarded inside the route file) ─────────────
 const rolesRoutes = require("./modules/settings/routes/Roles.route");
 app.use("/api/roles", rolesRoutes);

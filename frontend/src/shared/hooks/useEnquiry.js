@@ -95,7 +95,7 @@ export const useEnquiry = ({ onSuccess } = {}) => {
       setFormData(initialState);
       return lead;
     } catch (error) {
-      setApiError(error || 'Failed to submit enquiry. Please try again.');
+      setApiError(error?.message || 'Failed to submit enquiry. Please try again.');
       return null;
     } finally {
       setIsLoading(false);

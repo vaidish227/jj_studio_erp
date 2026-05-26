@@ -59,12 +59,12 @@ const createClient = async (req, res) => {
             lead.clientId = client._id;
             lead.lifecycleStage = "kit";
             lead.clientInfoCompletedAt = new Date();
-            
+
             // Sync contact details back to lead in case they were changed in the form
             lead.name = name;
             lead.phone = phone;
             lead.email = email;
-            
+
             if (siteAddress?.fullAddress) {
                 lead.siteAddress = siteAddress.fullAddress;
             }
@@ -196,9 +196,9 @@ const updateClient = async (req, res) => {
         if (client.leadId) {
             const leadUpdates = {};
 
-            if (req.body.hasOwnProperty('name'))  leadUpdates.name  = req.body.name;
-            if (req.body.hasOwnProperty('phone')) leadUpdates.phone  = req.body.phone;
-            if (req.body.hasOwnProperty('email')) leadUpdates.email  = req.body.email;
+            if (req.body.hasOwnProperty('name')) leadUpdates.name = req.body.name;
+            if (req.body.hasOwnProperty('phone')) leadUpdates.phone = req.body.phone;
+            if (req.body.hasOwnProperty('email')) leadUpdates.email = req.body.email;
 
             if (req.body.siteAddress) {
                 if (req.body.siteAddress.fullAddress) {
@@ -272,17 +272,17 @@ const deleteClient = async (req, res) => {
 };
 
 const getTotalClients = async (req, res) => {
-  try {
-    const totalClients = await Client.countDocuments();
+    try {
+        const totalClients = await Client.countDocuments();
 
-    res.status(200).json({
-      totalClients,
-    });
+        res.status(200).json({
+            totalClients,
+        });
 
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
+    } catch (error) {
+        res.status(500).json({
+            message: error.message,
+        });
+    }
 };
-module.exports = { createClient, getClients, getClientById, updateClient, deleteClient, getTotalClients};
+module.exports = { createClient, getClients, getClientById, updateClient, deleteClient, getTotalClients };

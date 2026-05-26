@@ -46,7 +46,7 @@ const CreateProposalPage = () => {
       try {
         setLoading(true);
         const [leadsRes, templatesRes] = await Promise.all([
-          crmService.getLeads({ lifecycleStage: 'interested' }),
+          crmService.getLeads({ lifecycleStage: 'interested,proposal_sent,advance_received,project_moved', limit: 200 }),
           crmService.getTemplates()
         ]);
 
@@ -177,17 +177,6 @@ const CreateProposalPage = () => {
     setSaving(status);
 
     try {
-      const selectedLead = leads.find(l => l._id === selectedLeadId);
-
-      if (selectedLead && !selectedLead.clientId) {
-        await crmService.createClient({
-          name: selectedLead.name,
-          phone: selectedLead.phone,
-          email: selectedLead.email,
-          leadId: selectedLeadId,
-        });
-      }
-
       const payload = {
         leadId: selectedLeadId,
         templateId: null, // Multiple templates exist now
@@ -218,7 +207,7 @@ const CreateProposalPage = () => {
         navigate('/proposal/dashboard');
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save proposal.');
+      toast.error(err?.message || 'Failed to save proposal.');
     } finally {
       setSaving(false);
     }

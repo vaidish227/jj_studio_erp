@@ -214,6 +214,12 @@ const crmClientSchema = new mongoose.Schema(
     },
 
     // ─── Future Module Anchor Points ─────────────────────────────────
+    linkedProposals: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Proposal",
+      },
+    ],
     linkedProjects: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -234,6 +240,10 @@ const crmClientSchema = new mongoose.Schema(
     },
     notes: String,
     lastInteractionAt: Date,
+    whatsappSent: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
@@ -252,5 +262,7 @@ crmClientSchema.index({ phone: 1 });
 crmClientSchema.index({ email: 1 });
 crmClientSchema.index({ trackingId: 1 });
 crmClientSchema.index({ status: 1, lifecycleStage: 1 });
+crmClientSchema.index({ whatsappSent: 1, createdAt: -1 }); // Optimized for welcome message cron
+
 
 module.exports = mongoose.model("CRMClient", crmClientSchema);
