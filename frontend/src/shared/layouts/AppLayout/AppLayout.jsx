@@ -3,6 +3,8 @@ import { useLocation, useNavigate, Outlet, useSearchParams } from 'react-router-
 import Sidebar from '../Sidebar/Sidebar';
 import Navbar from '../Navbar/Navbar';
 import { useAuth } from '../../context/AuthContext';
+import { AIChatProvider } from '../../../modules/ai/context/AIChatContext';
+import ChatLauncher from '../../../modules/ai/components/ChatLauncher';
 
 const AppLayout = ({ children }) => {
   const [isMobileOpen,  setIsMobileOpen]  = useState(false);
@@ -18,7 +20,7 @@ const AppLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, hasPermission } = useAuth();
 
   // Redirect to login if not authenticated (after initial load)
   React.useEffect(() => {
@@ -106,6 +108,12 @@ const AppLayout = ({ children }) => {
           ERP System. All rights reserved.
         </footer>
       </div>
+
+      {hasPermission('ai.chat') && (
+        <AIChatProvider>
+          <ChatLauncher />
+        </AIChatProvider>
+      )}
     </div>
   );
 };

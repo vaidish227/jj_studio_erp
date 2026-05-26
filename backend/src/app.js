@@ -132,4 +132,8 @@ app.use("/api/pms/design-revisions", designRevisionRoutes);
 const rolesRoutes = require("./modules/settings/routes/Roles.route");
 app.use("/api/roles", rolesRoutes);
 
+// ─── AI Assistant ────────────────────────────────────────────────────────────
+const aiRoutes = require("./modules/ai/routes/ai.route");
+app.use("/api/ai", aiRoutes);
+
 module.exports = app;

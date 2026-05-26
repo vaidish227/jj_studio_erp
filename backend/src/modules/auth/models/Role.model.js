@@ -68,6 +68,8 @@ const ALL_PERMISSIONS = [
   "pms.tab.tasks", "pms.tab.drawings", "pms.tab.team",
   // Settings tabs
   "settings.tab.users", "settings.tab.roles",
+  // ── AI Assistant ─────────────────────────────────────────────────────────────
+  "ai.chat", "ai.admin", "ai.docs.read", "ai.docs.manage",
 ];
 
 const roleSchema = new mongoose.Schema(

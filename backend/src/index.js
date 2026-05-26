@@ -6,12 +6,16 @@ const { connectDb } = require("./config/db")
 
 const { startMailQueueProcessor }     = require("./modules/mail/cron/mailQueueProcessor");
 const { startWhatsAppQueueProcessor } = require("./modules/whatsapp/cron/whatsappQueueProcessor");
+const { startUserFactsSummarizer }    = require("./modules/ai/cron/userFactsSummarizer");
 
 connectDb();
 
 // Start communication queue processors
 startMailQueueProcessor();
 startWhatsAppQueueProcessor();
+
+// Start AI long-term memory nightly summarizer
+startUserFactsSummarizer();
 
 const PORT = process.env.PORT || 5000;
 

@@ -11,16 +11,20 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "axios": "^1.16.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "gpt-tokenizer": "^2.9.0",
     "joi": "^18.1.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.5.0",
     "node-cron": "^4.2.1",
-    "nodemailer": "^8.0.6"
+    "nodemailer": "^8.0.6",
+    "openai": "^4.77.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
