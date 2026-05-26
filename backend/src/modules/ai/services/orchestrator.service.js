@@ -97,21 +97,23 @@ async function run({ user, message, conversationId, sse, abortSignal }) {
   ]);
 
   // Emit citations early so the UI can render a "Sources" panel before tokens stream.
-  if (retrievedChunks.length) {
-    sse?.emit("citations", {
-      citations: retrievedChunks.map((c, i) => ({
-        n: i + 1,
-        documentId: c.documentId,
-        chunkId: c.chunkId,
-        title: c.title,
-        source: c.source,
-        sourceType: c.sourceType,
-        sourceUrl: c.sourceUrl,
-        score: c.score,
-        excerpt: c.text.slice(0, 240),
-      })),
-    });
-  }
+  // Always emit — even with 0 hits — so the UI can show "RAG ran, no sources"
+  // vs "RAG never ran" (this event simply absent).
+  sse?.emit("citations", {
+    ragRan: canSearchDocs,
+    ragHits: retrievedChunks.length,
+    citations: retrievedChunks.map((c, i) => ({
+      n: i + 1,
+      documentId: c.documentId,
+      chunkId: c.chunkId,
+      title: c.title,
+      source: c.source,
+      sourceType: c.sourceType,
+      sourceUrl: c.sourceUrl,
+      score: c.score,
+      excerpt: c.text.slice(0, 240),
+    })),
+  });
 
   // 2b. Build the conversation we send to OpenAI
   const userPermissions = sanitize(user.permissions || [], { stringCap: 100, maxDepth: 2 });
@@ -375,6 +377,8 @@ async function run({ user, message, conversationId, sse, abortSignal }) {
     tokens: totalPromptTokens + totalCompletionTokens,
     costUsd: Number(totalCostUsd.toFixed(6)),
     error: errorCode,
+    ragRan: canSearchDocs,
+    ragHits: retrievedChunks.length,
     citationCount: retrievedChunks.length,
   });
   sse?.close();

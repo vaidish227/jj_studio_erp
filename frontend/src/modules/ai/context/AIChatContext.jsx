@@ -95,12 +95,18 @@ export const AIChatProvider = ({ children }) => {
         if (type === 'meta' && payload?.conversationId && !conversationId) {
           setConversationId(payload.conversationId);
         } else if (type === 'citations') {
-          // Attach citations to the draft assistant message so they render
-          // alongside the streaming text.
+          // Attach citations + RAG status to the draft assistant message so
+          // they render alongside the streaming text. `ragRan` is true if the
+          // orchestrator actually attempted a retrieval (user has ai.docs.read).
           setMessages((prev) =>
             prev.map((m) =>
               m.id === draftAssistantId
-                ? { ...m, citations: payload?.citations || [] }
+                ? {
+                    ...m,
+                    citations: payload?.citations || [],
+                    ragRan: !!payload?.ragRan,
+                    ragHits: payload?.ragHits ?? (payload?.citations?.length || 0),
+                  }
                 : m
             )
           );

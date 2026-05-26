@@ -1,0 +1,75 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronRight, Phone, MapPin } from 'lucide-react';
+
+const STATUS_BADGE = {
+  new:           { label: 'New',          className: 'bg-blue-50 text-blue-700' },
+  contacted:     { label: 'Contacted',    className: 'bg-cyan-50 text-cyan-700' },
+  meeting_done:  { label: 'Met',          className: 'bg-violet-50 text-violet-700' },
+  proposal_sent: { label: 'Proposal',     className: 'bg-amber-50 text-amber-700' },
+  converted:     { label: 'Converted',    className: 'bg-emerald-50 text-emerald-700' },
+  lost:          { label: 'Lost',         className: 'bg-rose-50 text-rose-700' },
+};
+
+const fmtBudget = (n) => {
+  if (!n || Number.isNaN(Number(n))) return null;
+  const v = Number(n);
+  if (v >= 10_000_000) return `${(v / 10_000_000).toFixed(1)}Cr`;
+  if (v >= 100_000)    return `${(v / 100_000).toFixed(1)}L`;
+  if (v >= 1_000)      return `${(v / 1_000).toFixed(0)}K`;
+  return String(v);
+};
+
+const LeadCard = ({ items }) => {
+  const navigate = useNavigate();
+  if (!items?.length) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {items.map((l) => {
+        const badge = STATUS_BADGE[l.status] || { label: l.status, className: 'bg-gray-100 text-gray-700' };
+        const budget = fmtBudget(l.budget);
+        return (
+          <button
+            type="button"
+            key={l.id}
+            onClick={() => l.url && navigate(l.url)}
+            className="text-left bg-white border border-[var(--border,#e5e5e5)] rounded-lg px-3 py-2 hover:border-[var(--primary,#D4B76C)] transition-colors group"
+          >
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm font-medium text-[var(--text,#2E2E2E)] truncate">{l.name}</div>
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted,#A0A0A0)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px]">
+                  <span className={`px-1.5 py-0.5 rounded ${badge.className}`}>{badge.label}</span>
+                  {l.projectType && (
+                    <span className="text-[var(--text-muted,#A0A0A0)]">{l.projectType}</span>
+                  )}
+                  {l.city && (
+                    <span className="inline-flex items-center gap-0.5 text-[var(--text-muted,#A0A0A0)]">
+                      <MapPin className="w-3 h-3" /> {l.city}
+                    </span>
+                  )}
+                  {l.phone && (
+                    <span className="inline-flex items-center gap-0.5 text-[var(--text-muted,#A0A0A0)]">
+                      <Phone className="w-3 h-3" /> {l.phone}
+                    </span>
+                  )}
+                  {budget && (
+                    <span className="text-[var(--text-muted,#A0A0A0)]">₹{budget}</span>
+                  )}
+                  {l.assignee?.name && (
+                    <span className="text-[var(--text-muted,#A0A0A0)]">· {l.assignee.name}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+export default LeadCard;

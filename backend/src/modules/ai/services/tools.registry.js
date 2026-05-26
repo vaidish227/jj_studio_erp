@@ -3,12 +3,17 @@
 // The registry adapts these into the OpenAI tools-function schema and filters
 // by caller permissions so the model only sees tools the user is allowed to invoke.
 
-const getMyTasks          = require("../tools/getMyTasks.tool");
-const getTaskDetails      = require("../tools/getTaskDetails.tool");
-const getOverdueTasks     = require("../tools/getOverdueTasks.tool");
-const getChecklist        = require("../tools/getChecklist.tool");
-const getProjectSummary   = require("../tools/getProjectSummary.tool");
+const getMyTasks           = require("../tools/getMyTasks.tool");
+const getTaskDetails       = require("../tools/getTaskDetails.tool");
+const getOverdueTasks      = require("../tools/getOverdueTasks.tool");
+const getChecklist         = require("../tools/getChecklist.tool");
+const getProjectSummary    = require("../tools/getProjectSummary.tool");
 const getDesignerDashboard = require("../tools/getDesignerDashboard.tool");
+// V2.1 additions
+const getLeads             = require("../tools/getLeads.tool");
+const getClients           = require("../tools/getClients.tool");
+const searchProjects       = require("../tools/searchProjects.tool");
+const searchActivity       = require("../tools/searchActivity.tool");
 
 const TOOLS = [
   getMyTasks,
@@ -17,6 +22,10 @@ const TOOLS = [
   getChecklist,
   getProjectSummary,
   getDesignerDashboard,
+  getLeads,
+  getClients,
+  searchProjects,
+  searchActivity,
 ];
 
 const byName = new Map(TOOLS.map((t) => [t.name, t]));

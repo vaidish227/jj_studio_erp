@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
 const SOURCE_TYPE_LABEL = {
@@ -10,8 +10,26 @@ const SOURCE_TYPE_LABEL = {
   other: 'Source',
 };
 
-const SourcesPanel = ({ citations = [] }) => {
+const SourcesPanel = forwardRef(({ citations = [] }, ref) => {
   const [expanded, setExpanded] = useState(false);
+  const [flashIdx, setFlashIdx] = useState(null);
+  const itemRefs = useRef(new Map());
+
+  useImperativeHandle(ref, () => ({
+    highlight: (n) => {
+      setExpanded(true);
+      // Defer so the panel actually renders before we try to scroll
+      setTimeout(() => {
+        const el = itemRefs.current.get(n);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          setFlashIdx(n);
+          setTimeout(() => setFlashIdx(null), 1500);
+        }
+      }, 30);
+    },
+  }), []);
+
   if (!citations.length) return null;
 
   return (
@@ -31,7 +49,13 @@ const SourcesPanel = ({ citations = [] }) => {
       {expanded && (
         <div className="mt-1.5 space-y-1.5 border-l-2 border-[var(--primary,#D4B76C)]/40 pl-2">
           {citations.map((c) => (
-            <div key={c.chunkId || c.n} className="leading-snug">
+            <div
+              key={c.chunkId || c.n}
+              ref={(el) => { if (el) itemRefs.current.set(c.n, el); }}
+              className={`leading-snug rounded transition-colors ${
+                flashIdx === c.n ? 'bg-[var(--primary,#D4B76C)]/15 -mx-1 px-1' : ''
+              }`}
+            >
               <div className="flex items-baseline gap-1.5">
                 <span className="font-mono text-[10px] text-[var(--text-muted,#A0A0A0)] flex-shrink-0">
                   [{c.n}]
@@ -72,6 +96,8 @@ const SourcesPanel = ({ citations = [] }) => {
       )}
     </div>
   );
-};
+});
+
+SourcesPanel.displayName = 'SourcesPanel';
 
 export default SourcesPanel;

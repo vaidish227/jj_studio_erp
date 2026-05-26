@@ -34,7 +34,8 @@ module.exports = {
   },
 
   handler: async (args, ctx) => {
-    const scope = args.scope || "me";
+    const canTeam = canSeeTeam(ctx.permissions);
+    const scope = args.scope || (canTeam ? "team" : "me");
     const limit = Math.min(args.limit || 25, 50);
     const now = new Date();
 
@@ -44,7 +45,7 @@ module.exports = {
     };
 
     if (scope === "team") {
-      if (!canSeeTeam(ctx.permissions)) {
+      if (!canTeam) {
         return {
           ok: false,
           error: "denied",
@@ -63,8 +64,8 @@ module.exports = {
       .limit(limit)
       .lean();
 
-    const projectIds = [...new Set(tasks.map((t) => String(t.projectId)).filter(Boolean))];
-    const userIds    = [...new Set(tasks.map((t) => String(t.assignedTo)).filter(Boolean))];
+    const projectIds = [...new Set(tasks.filter((t) => t.projectId).map((t) => String(t.projectId)))];
+    const userIds    = [...new Set(tasks.filter((t) => t.assignedTo).map((t) => String(t.assignedTo)))];
 
     const [projects, users] = await Promise.all([
       projectIds.length

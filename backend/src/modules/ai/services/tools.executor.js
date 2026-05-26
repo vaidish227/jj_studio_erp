@@ -16,8 +16,10 @@ const addFormats = require("ajv-formats");
 const registry = require("./tools.registry");
 const aiConfig = require("../config/aiConfig");
 const { sanitize, previewForAudit } = require("../utils/sanitize");
-const { logActivity } = require("../../../shared/activityLogger");
 const AIToolCall = require("../models/AIToolCall.model");
+// Note: we deliberately do NOT write AI tool invocations to PMSActivityLog —
+// its `projectId` is required and `entityType` enum doesn't include "ai_query".
+// AIToolCall is the authoritative audit surface for AI activity.
 
 const ajv = new Ajv({
   allErrors: true,
@@ -151,7 +153,7 @@ async function persistAudit({
   ctx, conversationId, messageId, toolName, args,
   status, errorCode, latencyMs, permissionCheckPassed, resultPreview,
 }) {
-  // Both calls are fire-and-forget — auditing must never break the chat loop.
+  // Fire-and-forget — auditing must never break the chat loop.
   try {
     await AIToolCall.create({
       conversationId: conversationId || null,
@@ -167,20 +169,6 @@ async function persistAudit({
     });
   } catch (err) {
     console.error("[AI][audit:AIToolCall]", err.message);
-  }
-
-  try {
-    await logActivity({
-      projectId: null,
-      actorId: ctx?.userId || null,
-      entityType: "ai_query",
-      entityId: null,
-      action: toolName,
-      description: `[AI tool] ${toolName} — ${status}`,
-      metadata: { args: sanitize(args, { stringCap: 300, maxDepth: 4 }), status, latencyMs },
-    });
-  } catch (err) {
-    console.error("[AI][audit:activityLog]", err.message);
   }
 }
 

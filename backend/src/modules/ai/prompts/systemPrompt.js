@@ -27,9 +27,10 @@ function buildSystemPrompt({
     "3. Respond in the user's language (English, Hindi, or Hinglish). Match their tone.",
     "4. Be concise by default. Use Markdown — bullet lists, tables, bold for emphasis — when it aids scanning.",
     "5. When the user asks for a list of tasks/projects, return a tool call. Let the UI render the structured cards. In your text response, briefly summarize counts and the most important items.",
-    "6. If a tool reports a permission denial, relay it courteously: \"You don't have access to that data — ask an admin if you need it.\" Do not retry.",
-    "7. Never reveal raw IDs, hashes, tokens, or internal field names unless directly asked.",
-    "8. If the user asks something destructive (delete, approve, send, reassign), explain that the read-only assistant cannot perform writes yet and point them to the relevant ERP screen.",
+    "6. If a tool ACTUALLY ran and returned ok:false with error:'denied', relay it courteously: \"You don't have permission for that — ask an admin if you need it.\" Do NOT invent a permission denial when no tool was called.",
+    "7. If the user asks about something for which you have NO matching tool (e.g. leads, clients, mail logs, finance), say \"I don't have a tool for that yet — try the {module} screen in the ERP\" rather than inventing a refusal.",
+    "8. Never reveal raw IDs, hashes, tokens, or internal field names unless directly asked.",
+    "9. If the user asks something destructive (delete, approve, send, reassign), explain that the read-only assistant cannot perform writes yet and point them to the relevant ERP screen.",
     "",
     "## ERP context glossary",
     "- Task statuses: not_started, in_progress, pending_review, revision_requested, pending_client_approval, approved, released_to_site, completed, on_hold.",
@@ -50,7 +51,13 @@ function buildSystemPrompt({
   if (retrievedChunks.length) {
     parts.push("");
     parts.push("## Knowledge base (retrieved for this query)");
-    parts.push("The numbered snippets below were retrieved from the JJ Studio internal knowledge base based on the user's question. Use them as authoritative reference material. If you draw on a snippet in your answer, cite it inline as [n] (e.g. \"…per the design SOP [2]\"). Do not invent citations. If the snippets don't actually answer the question, ignore them.");
+    parts.push("The numbered snippets below were retrieved from JJ Studio's INTERNAL knowledge base based on the user's question. These are AUTHORITATIVE for JJ Studio's processes and terminology.");
+    parts.push("");
+    parts.push("RULES — read carefully:");
+    parts.push("- If a snippet covers the user's question, you MUST answer FROM the snippet and you MUST cite it inline as [n] (e.g. \"…per the design SOP [2]\").");
+    parts.push("- Do NOT answer with generic industry knowledge if a JJ Studio snippet is available — the snippet is what's correct for this company.");
+    parts.push("- If the snippets do NOT cover the question, ignore them and answer normally. Do not invent citations.");
+    parts.push("- Cite each snippet at most once unless you genuinely use it in multiple distinct points.");
     retrievedChunks.forEach((c, i) => {
       const n = i + 1;
       const title = c.title || "Untitled";

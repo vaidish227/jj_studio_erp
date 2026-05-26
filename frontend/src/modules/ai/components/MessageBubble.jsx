@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { User, Sparkles, AlertCircle } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
 import FeedbackButtons from './FeedbackButtons';
 import SourcesPanel from './SourcesPanel';
+import RagStatusPill from './RagStatusPill';
 
 const MessageBubble = ({ message }) => {
   const isUser = message.role === 'user';
   const isError = message.status === 'error';
+  const sourcesRef = useRef(null);
+
+  const onCitationClick = (n) => sourcesRef.current?.highlight?.(n);
 
   return (
     <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -46,7 +50,9 @@ const MessageBubble = ({ message }) => {
             <div className="whitespace-pre-wrap break-words">{message.content}</div>
           ) : (
             <div className="prose-sm">
-              <MarkdownRenderer>{message.content || (message.status === 'streaming' ? '…' : '')}</MarkdownRenderer>
+              <MarkdownRenderer onCitationClick={onCitationClick}>
+                {message.content || (message.status === 'streaming' ? '…' : '')}
+              </MarkdownRenderer>
               {message.status === 'streaming' && (
                 <span className="inline-block w-1.5 h-3 ml-0.5 bg-[var(--text,#2E2E2E)] animate-pulse align-middle" />
               )}
@@ -55,7 +61,15 @@ const MessageBubble = ({ message }) => {
         </div>
 
         {!isUser && message.citations?.length > 0 && (
-          <SourcesPanel citations={message.citations} />
+          <SourcesPanel ref={sourcesRef} citations={message.citations} />
+        )}
+
+        {!isUser && (
+          <RagStatusPill
+            ragRan={message.ragRan}
+            ragHits={message.ragHits}
+            hasCitations={message.citations?.length > 0}
+          />
         )}
 
         {!isUser && message.status === 'done' && message.id && !String(message.id).startsWith('draft-') && (

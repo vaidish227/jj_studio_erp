@@ -4,8 +4,10 @@
 const { openSseChannel } = require("../services/stream.service");
 const orchestrator = require("../services/orchestrator.service");
 const openai = require("../services/openai.service");
+const vectorIndex = require("../services/vectorIndex.service");
 const aiConfig = require("../config/aiConfig");
 const { chatSchema, validate } = require("../validators/chat.validator");
+const AIDocument = require("../models/AIDocument.model");
 
 async function streamChat(req, res) {
   let body;
@@ -63,10 +65,29 @@ async function streamChat(req, res) {
 
 async function health(_req, res) {
   if (!aiConfig.openai.apiKey) {
-    return res.json({ ok: false, error: "ai_not_configured" });
+    return res.json({
+      ok: false,
+      openai: { configured: false },
+      vectorIndex: { status: "skipped" },
+      documents: { total: 0 },
+    });
   }
-  const ping = await openai.ping();
-  res.json({ ok: ping.ok, latencyMs: ping.latencyMs, error: ping.error });
+  const [ping, vec, docCount] = await Promise.all([
+    openai.ping(),
+    vectorIndex.probe(),
+    AIDocument.countDocuments({ status: "active" }),
+  ]);
+  res.json({
+    ok: ping.ok && (vec.status === "ready" || vec.status === "building"),
+    openai: { configured: true, ok: ping.ok, latencyMs: ping.latencyMs, error: ping.error || null },
+    vectorIndex: vec,
+    documents: { total: docCount },
+    models: {
+      default: aiConfig.models.default,
+      complex: aiConfig.models.complex,
+      embedding: aiConfig.models.embedding,
+    },
+  });
 }
 
 module.exports = { streamChat, health };

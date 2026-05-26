@@ -1,7 +1,31 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { useAIChat } from '../context/AIChatContext';
 import conversationsService from '../services/conversationsService';
+
+function dayBucket(date) {
+  if (!date) return 'older';
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return 'older';
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const t = d.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (t >= startOfToday)              return 'today';
+  if (t >= startOfToday - dayMs)      return 'yesterday';
+  if (t >= startOfToday - 7 * dayMs)  return 'thisWeek';
+  if (t >= startOfToday - 30 * dayMs) return 'thisMonth';
+  return 'older';
+}
+
+const BUCKET_ORDER = ['today', 'yesterday', 'thisWeek', 'thisMonth', 'older'];
+const BUCKET_LABEL = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  thisWeek: 'This week',
+  thisMonth: 'This month',
+  older: 'Older',
+};
 
 const ConversationSidebar = () => {
   const {
@@ -12,6 +36,16 @@ const ConversationSidebar = () => {
     startNewConversation,
   } = useAIChat();
   const [collapsed, setCollapsed] = useState(true); // start collapsed to maximize chat space
+
+  const grouped = useMemo(() => {
+    const groups = { today: [], yesterday: [], thisWeek: [], thisMonth: [], older: [] };
+    for (const c of conversations) {
+      groups[dayBucket(c.lastMessageAt || c.startedAt)].push(c);
+    }
+    return BUCKET_ORDER
+      .map((k) => ({ key: k, label: BUCKET_LABEL[k], items: groups[k] }))
+      .filter((g) => g.items.length > 0);
+  }, [conversations]);
 
   const onDelete = async (id, e) => {
     e.stopPropagation();
@@ -60,30 +94,37 @@ const ConversationSidebar = () => {
             No past chats yet.
           </div>
         )}
-        {conversations.map((c) => {
-          const active = String(c._id) === String(conversationId);
-          return (
-            <button
-              type="button"
-              key={c._id}
-              onClick={() => loadConversation(c._id)}
-              className={`w-full text-left px-2 py-2 text-xs border-b border-transparent hover:bg-white transition-colors group flex items-center gap-1 ${
-                active ? 'bg-white border-[var(--border,#e5e5e5)]' : ''
-              }`}
-              title={c.title}
-            >
-              <span className="flex-1 truncate text-[var(--text,#2E2E2E)]">{c.title}</span>
-              <span
-                onClick={(e) => onDelete(c._id, e)}
-                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-50 text-[var(--text-muted,#A0A0A0)] hover:text-red-600"
-                role="button"
-                aria-label="Delete"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </span>
-            </button>
-          );
-        })}
+        {grouped.map((group) => (
+          <div key={group.key}>
+            <div className="sticky top-0 z-[1] px-2 py-1 text-[10px] uppercase tracking-wide text-[var(--text-muted,#A0A0A0)] bg-[var(--bg,#F8F7F3)] font-medium">
+              {group.label}
+            </div>
+            {group.items.map((c) => {
+              const active = String(c._id) === String(conversationId);
+              return (
+                <button
+                  type="button"
+                  key={c._id}
+                  onClick={() => loadConversation(c._id)}
+                  className={`w-full text-left px-2 py-2 text-xs border-b border-transparent hover:bg-white transition-colors group flex items-center gap-1 ${
+                    active ? 'bg-white border-[var(--border,#e5e5e5)]' : ''
+                  }`}
+                  title={c.title}
+                >
+                  <span className="flex-1 truncate text-[var(--text,#2E2E2E)]">{c.title}</span>
+                  <span
+                    onClick={(e) => onDelete(c._id, e)}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-50 text-[var(--text-muted,#A0A0A0)] hover:text-red-600"
+                    role="button"
+                    aria-label="Delete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );

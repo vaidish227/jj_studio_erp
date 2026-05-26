@@ -72,7 +72,7 @@ module.exports = {
       .lean();
 
     // Hydrate project trackingId + name in a single batch query
-    const projectIds = [...new Set(tasks.map((t) => String(t.projectId)).filter(Boolean))];
+    const projectIds = [...new Set(tasks.filter((t) => t.projectId).map((t) => String(t.projectId)))];
     const projects = projectIds.length
       ? await Project.find({ _id: { $in: projectIds } })
           .select("trackingId name status")
