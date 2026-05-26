@@ -14,8 +14,15 @@ const getLeads             = require("../tools/getLeads.tool");
 const getClients           = require("../tools/getClients.tool");
 const searchProjects       = require("../tools/searchProjects.tool");
 const searchActivity       = require("../tools/searchActivity.tool");
+// V3 write tools (two-phase: dryRun -> user confirm -> apply)
+const updateTaskStatus     = require("../tools/updateTaskStatus.tool");
+const toggleChecklistItem  = require("../tools/toggleChecklistItem.tool");
+const reassignTask         = require("../tools/reassignTask.tool");
+const requestTaskRevision  = require("../tools/requestTaskRevision.tool");
+const addTaskNote          = require("../tools/addTaskNote.tool");
 
 const TOOLS = [
+  // Read
   getMyTasks,
   getTaskDetails,
   getOverdueTasks,
@@ -26,6 +33,12 @@ const TOOLS = [
   getClients,
   searchProjects,
   searchActivity,
+  // Write — confirmation-gated
+  updateTaskStatus,
+  toggleChecklistItem,
+  reassignTask,
+  requestTaskRevision,
+  addTaskNote,
 ];
 
 const byName = new Map(TOOLS.map((t) => [t.name, t]));

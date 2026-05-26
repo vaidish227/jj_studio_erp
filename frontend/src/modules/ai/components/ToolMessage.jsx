@@ -10,19 +10,26 @@ import ChecklistCard from './ChecklistCard';
 import LeadCard from './LeadCard';
 import ProjectListCard from './ProjectListCard';
 import ActivityCard from './ActivityCard';
+import ActionConfirmCard from './ActionConfirmCard';
 
 // Human-friendly labels + icons for each tool, used by the inline chip.
 const TOOL_META = {
-  getMyTasks:           { label: 'My tasks',           Icon: ListTodo },
-  getTaskDetails:       { label: 'Task details',       Icon: FileText },
-  getOverdueTasks:      { label: 'Overdue tasks',      Icon: Clock },
-  getChecklist:         { label: 'Checklist',          Icon: ClipboardList },
-  getProjectSummary:    { label: 'Project summary',    Icon: FileText },
-  getDesignerDashboard: { label: 'Dashboard',          Icon: LayoutDashboard },
-  searchProjects:       { label: 'Project search',     Icon: Search },
-  searchActivity:       { label: 'Recent activity',    Icon: Activity },
-  getLeads:             { label: 'Leads',              Icon: Users },
-  getClients:           { label: 'Clients',            Icon: Users },
+  getMyTasks:           { label: 'My tasks',            Icon: ListTodo },
+  getTaskDetails:       { label: 'Task details',        Icon: FileText },
+  getOverdueTasks:      { label: 'Overdue tasks',       Icon: Clock },
+  getChecklist:         { label: 'Checklist',           Icon: ClipboardList },
+  getProjectSummary:    { label: 'Project summary',     Icon: FileText },
+  getDesignerDashboard: { label: 'Dashboard',           Icon: LayoutDashboard },
+  searchProjects:       { label: 'Project search',      Icon: Search },
+  searchActivity:       { label: 'Recent activity',     Icon: Activity },
+  getLeads:             { label: 'Leads',               Icon: Users },
+  getClients:           { label: 'Clients',             Icon: Users },
+  // Write tools (V3)
+  updateTaskStatus:     { label: 'Update task status',  Icon: FileText, isWrite: true },
+  toggleChecklistItem:  { label: 'Tick checklist item', Icon: ClipboardList, isWrite: true },
+  reassignTask:         { label: 'Reassign task',       Icon: Users, isWrite: true },
+  requestTaskRevision:  { label: 'Request revision',    Icon: FileText, isWrite: true },
+  addTaskNote:          { label: 'Add task note',       Icon: FileText, isWrite: true },
 };
 
 /**
@@ -34,6 +41,7 @@ const TOOL_META = {
 const ToolMessage = ({ message }) => {
   const pending = message.role === 'tool_pending';
   const isError = message.status === 'error' || message.ok === false;
+  const isProposal = message.uiHint === 'actionProposal' || message.status === 'pending_confirmation';
   const meta = TOOL_META[message.toolName] || { label: toolDisplayName(message.toolName), Icon: CheckCircle2 };
   const ToolIcon = meta.Icon;
 
@@ -49,7 +57,7 @@ const ToolMessage = ({ message }) => {
     );
   }
 
-  if (isError) {
+  if (isError && !isProposal) {
     return (
       <div className="pl-9 flex items-start gap-2 text-xs">
         <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-red-500 flex-shrink-0" />
@@ -57,6 +65,20 @@ const ToolMessage = ({ message }) => {
           <span className="font-medium text-red-700">{meta.label}</span>
           <span className="text-[var(--text-muted,#A0A0A0)]"> · {message.summaryText || message.error || 'Failed'}</span>
         </div>
+      </div>
+    );
+  }
+
+  // Write-tool proposal → render the confirm/cancel card instead of a result.
+  if (isProposal) {
+    return (
+      <div className="pl-9">
+        <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted,#A0A0A0)] bg-[var(--bg,#F8F7F3)] rounded-full px-2 py-0.5 border border-[var(--border,#e5e5e5)] mb-1.5">
+          <ToolIcon className="w-3 h-3 text-amber-600" />
+          <span className="font-medium text-[var(--text,#2E2E2E)]">{meta.label}</span>
+          <span className="opacity-80"> · proposed</span>
+        </div>
+        <ActionConfirmCard message={message} />
       </div>
     );
   }

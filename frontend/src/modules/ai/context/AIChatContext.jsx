@@ -123,19 +123,27 @@ export const AIChatProvider = ({ children }) => {
             },
           ]);
         } else if (type === 'tool_result') {
+          // For write-tool proposals, capture the extra confirmation fields.
+          // The role stays as 'tool' but uiHint='actionProposal' tells the UI
+          // to render the ConfirmCard instead of a normal result card.
+          const isProposal = payload.status === 'pending_confirmation';
           setMessages((prev) =>
             prev.map((m) =>
               m.toolCallId === payload.id && m.role === 'tool_pending'
                 ? {
                     ...m,
                     role: 'tool',
-                    status: payload.ok ? 'done' : 'error',
+                    status: isProposal ? 'pending_confirmation' : (payload.ok ? 'done' : 'error'),
                     ok: payload.ok,
                     error: payload.error,
                     summaryText: payload.summaryText,
                     uiHint: payload.uiHint,
                     data: payload.data,
                     toolName: payload.name || m.toolName,
+                    // Write-proposal fields (undefined for read tools)
+                    toolCallId: isProposal ? payload.toolCallId : m.toolCallId,
+                    proposalDescription: payload.proposalDescription,
+                    expiresAt: payload.expiresAt,
                   }
                 : m
             )

@@ -264,7 +264,8 @@ async function run({ user, message, conversationId, sse, abortSignal }) {
           messageId: assistantDoc._id,
         });
 
-        // Emit the rich result to the UI (full data + uiHint)
+        // Emit the rich result to the UI (full data + uiHint).
+        // For write-tool proposals, include the extra fields the ConfirmCard needs.
         sse?.emit("tool_result", {
           id: call.id,
           name: call.name,
@@ -274,12 +275,20 @@ async function run({ user, message, conversationId, sse, abortSignal }) {
           uiHint: result.uiHint,
           data: result.data,
           latencyMs: result.latencyMs,
+          // Write-tool proposal fields (undefined for read tools)
+          status: result.status,                          // 'pending_confirmation' for proposals
+          toolCallId: result.toolCallId,                  // points to the AIToolCall row
+          proposalDescription: result.proposalDescription,
+          expiresAt: result.expiresAt,
         });
 
-        // Build the compact tool message for OpenAI (only summary, not full data)
+        // Build the compact tool message for OpenAI (only summary, not full data).
+        // For write proposals we tell the model the action is pending so it
+        // doesn't claim "Done" in the same turn.
         const llmPayload = JSON.stringify({
           ok: result.ok,
           error: result.error || null,
+          status: result.status || (result.ok ? "ok" : "error"),
           summaryText: result.summaryText,
           summary: result.llmSummary ?? null,
         }).slice(0, 6000);
