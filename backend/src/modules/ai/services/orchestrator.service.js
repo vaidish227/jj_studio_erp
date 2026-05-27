@@ -274,6 +274,10 @@ async function run({ user, message, conversationId, sse, abortSignal }) {
           summaryText: result.summaryText,
           uiHint: result.uiHint,
           data: result.data,
+          // Optional list meta — present on tools that return paginated lists
+          // (used by the UI to render a "View all N" deep link).
+          total: result.total,
+          viewAllUrl: result.viewAllUrl,
           latencyMs: result.latencyMs,
           // Write-tool proposal fields (undefined for read tools)
           status: result.status,                          // 'pending_confirmation' for proposals

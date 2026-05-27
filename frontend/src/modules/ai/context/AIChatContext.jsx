@@ -139,6 +139,9 @@ export const AIChatProvider = ({ children }) => {
                     summaryText: payload.summaryText,
                     uiHint: payload.uiHint,
                     data: payload.data,
+                    // List-meta for "View all N" deep link (undefined for non-list tools).
+                    total: payload.total,
+                    viewAllUrl: payload.viewAllUrl,
                     toolName: payload.name || m.toolName,
                     // Write-proposal fields (undefined for read tools)
                     toolCallId: isProposal ? payload.toolCallId : m.toolCallId,

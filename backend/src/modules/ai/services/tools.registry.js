@@ -12,6 +12,7 @@ const getDesignerDashboard = require("../tools/getDesignerDashboard.tool");
 // V2.1 additions
 const getLeads             = require("../tools/getLeads.tool");
 const getClients           = require("../tools/getClients.tool");
+const getMeetings          = require("../tools/getMeetings.tool");
 const searchProjects       = require("../tools/searchProjects.tool");
 const searchActivity       = require("../tools/searchActivity.tool");
 // V3 write tools (two-phase: dryRun -> user confirm -> apply)
@@ -42,6 +43,7 @@ const TOOLS = [
   getDesignerDashboard,
   getLeads,
   getClients,
+  getMeetings,
   searchProjects,
   searchActivity,
   // Write — task lifecycle
