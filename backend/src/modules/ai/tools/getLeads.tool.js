@@ -105,7 +105,11 @@ module.exports = {
           ? scope === "team" ? "No active leads in the system." : "No leads assigned to you. (Tip: try scope='team' if you can see others'.)"
           : `${items.length} ${scope === "team" ? "" : "of your "}lead${items.length === 1 ? "" : "s"}${scope === "team" ? "" : " (assigned to you)"}`,
       uiHint: "leadList",
+      // Include id + trackingId so the model can pass them to write tools
+      // (updateLeadStatus, addFollowUp, scheduleMeeting, addLeadNote).
       llmSummary: items.slice(0, 10).map((l) => ({
+        id: l.id,
+        trackingId: l.trackingId,
         name: l.name,
         status: l.status,
         projectType: l.projectType,

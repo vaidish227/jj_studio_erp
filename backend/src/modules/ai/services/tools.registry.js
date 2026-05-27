@@ -20,6 +20,17 @@ const toggleChecklistItem  = require("../tools/toggleChecklistItem.tool");
 const reassignTask         = require("../tools/reassignTask.tool");
 const requestTaskRevision  = require("../tools/requestTaskRevision.tool");
 const addTaskNote          = require("../tools/addTaskNote.tool");
+// V3.2 — drawings, CRM, and project write tools
+const approveDrawing        = require("../tools/approveDrawing.tool");
+const rejectDrawing         = require("../tools/rejectDrawing.tool");
+const releaseDrawing        = require("../tools/releaseDrawing.tool");
+const updateLeadStatus      = require("../tools/updateLeadStatus.tool");
+const addFollowUp           = require("../tools/addFollowUp.tool");
+const assignLead            = require("../tools/assignLead.tool");
+const addLeadNote           = require("../tools/addLeadNote.tool");
+const scheduleMeeting       = require("../tools/scheduleMeeting.tool");
+const updateProjectStatus   = require("../tools/updateProjectStatus.tool");
+const updateClientApproval  = require("../tools/updateClientApproval.tool");
 
 const TOOLS = [
   // Read
@@ -33,12 +44,25 @@ const TOOLS = [
   getClients,
   searchProjects,
   searchActivity,
-  // Write — confirmation-gated
+  // Write — task lifecycle
   updateTaskStatus,
   toggleChecklistItem,
   reassignTask,
   requestTaskRevision,
   addTaskNote,
+  // Write — drawings
+  approveDrawing,
+  rejectDrawing,
+  releaseDrawing,
+  // Write — CRM
+  updateLeadStatus,
+  addFollowUp,
+  assignLead,
+  addLeadNote,
+  scheduleMeeting,
+  // Write — project
+  updateProjectStatus,
+  updateClientApproval,
 ];
 
 const byName = new Map(TOOLS.map((t) => [t.name, t]));

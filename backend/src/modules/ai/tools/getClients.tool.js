@@ -78,8 +78,10 @@ module.exports = {
         items.length === 0
           ? "No converted clients found."
           : `${items.length} client${items.length === 1 ? "" : "s"}`,
-      uiHint: "leadList",
+      uiHint: "clientList",
       llmSummary: items.slice(0, 10).map((c) => ({
+        id: c.id,
+        trackingId: c.trackingId,
         name: c.name,
         projectType: c.projectType,
         city: c.city,
