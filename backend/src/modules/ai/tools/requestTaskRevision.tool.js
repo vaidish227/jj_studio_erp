@@ -46,7 +46,12 @@ module.exports = {
     properties: {
       taskId:       { type: "string", pattern: "^[a-fA-F0-9]{24}$" },
       instructions: { type: "string", minLength: 5, maxLength: 2000, description: "Clear instructions for the designer." },
-      deadline:     { type: "string", format: "date-time", description: "Optional ISO datetime for the revision deadline." },
+      deadline: {
+        type: "string",
+        minLength: 8,
+        maxLength: 64,
+        description: "Optional datetime for the revision deadline (any parseable form).",
+      },
     },
     required: ["taskId", "instructions"],
   },

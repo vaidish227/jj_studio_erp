@@ -111,6 +111,7 @@ module.exports = {
           : `${items.length} project${items.length === 1 ? "" : "s"}${args.query ? ` matching "${args.query}"` : ""}`,
       uiHint: "projectList",
       llmSummary: items.slice(0, 10).map((p) => ({
+        id: p.id,
         trackingId: p.trackingId,
         name: p.name,
         status: p.status,

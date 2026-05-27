@@ -24,12 +24,23 @@ const TOOL_META = {
   searchActivity:       { label: 'Recent activity',     Icon: Activity },
   getLeads:             { label: 'Leads',               Icon: Users },
   getClients:           { label: 'Clients',             Icon: Users },
-  // Write tools (V3)
-  updateTaskStatus:     { label: 'Update task status',  Icon: FileText, isWrite: true },
-  toggleChecklistItem:  { label: 'Tick checklist item', Icon: ClipboardList, isWrite: true },
-  reassignTask:         { label: 'Reassign task',       Icon: Users, isWrite: true },
-  requestTaskRevision:  { label: 'Request revision',    Icon: FileText, isWrite: true },
-  addTaskNote:          { label: 'Add task note',       Icon: FileText, isWrite: true },
+  // Write tools — tasks (V3.1)
+  updateTaskStatus:     { label: 'Update task status',     Icon: FileText, isWrite: true },
+  toggleChecklistItem:  { label: 'Tick checklist item',    Icon: ClipboardList, isWrite: true },
+  reassignTask:         { label: 'Reassign task',          Icon: Users, isWrite: true },
+  requestTaskRevision:  { label: 'Request revision',       Icon: FileText, isWrite: true },
+  addTaskNote:          { label: 'Add task note',          Icon: FileText, isWrite: true },
+  // Write tools — drawings, CRM, projects (V3.2)
+  approveDrawing:       { label: 'Approve drawing',        Icon: FileText, isWrite: true },
+  rejectDrawing:        { label: 'Reject drawing',         Icon: FileText, isWrite: true },
+  releaseDrawing:       { label: 'Release drawing',        Icon: FileText, isWrite: true },
+  updateLeadStatus:     { label: 'Update lead status',     Icon: Users, isWrite: true },
+  addFollowUp:          { label: 'Schedule follow-up',     Icon: Clock, isWrite: true },
+  assignLead:           { label: 'Assign lead',            Icon: Users, isWrite: true },
+  addLeadNote:          { label: 'Add lead note',          Icon: FileText, isWrite: true },
+  scheduleMeeting:      { label: 'Schedule meeting',       Icon: Clock, isWrite: true },
+  updateProjectStatus:  { label: 'Update project status',  Icon: FileText, isWrite: true },
+  updateClientApproval: { label: 'Update client approval', Icon: ClipboardList, isWrite: true },
 };
 
 /**
@@ -111,6 +122,7 @@ function EmptyResult({ hint, toolName, summary }) {
     projectSummary:{ headline: 'No data', subline: summary || 'Nothing to summarize for that project.' },
     dashboard:     { headline: 'Empty dashboard', subline: 'No tasks assigned to you yet.' },
     leadList:      { headline: 'No leads', subline: summary || 'Nothing in the funnel right now.' },
+    clientList:    { headline: 'No clients', subline: summary || 'No converted clients found.' },
     projectList:   { headline: 'No projects', subline: summary || 'No projects matched your filters.' },
     activityList:  { headline: 'No activity', subline: summary || 'No actions in that time window.' },
   };
@@ -132,6 +144,7 @@ function RenderByHint({ hint, data }) {
     case 'dashboard':      return <DashboardCard dashboard={data} />;
     case 'checklist':      return <ChecklistCard checklist={data} />;
     case 'leadList':       return <LeadCard items={Array.isArray(data) ? data : []} />;
+    case 'clientList':     return <LeadCard items={Array.isArray(data) ? data : []} />;
     case 'projectList':    return <ProjectListCard items={Array.isArray(data) ? data : []} />;
     case 'activityList':   return <ActivityCard items={Array.isArray(data) ? data : []} />;
     default:               return null;

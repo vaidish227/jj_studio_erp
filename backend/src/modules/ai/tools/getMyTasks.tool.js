@@ -99,14 +99,19 @@ module.exports = {
       };
     });
 
+    // Render "all" as "" so we get "1 task" instead of "1 all task".
+    const label = status === "all" ? "" : `${status} `;
     return {
       data: items,
       summaryText:
         items.length === 0
-          ? `No ${status} tasks found.`
-          : `${items.length} ${status} task${items.length === 1 ? "" : "s"}`,
+          ? status === "all"
+            ? "No tasks matching your filters."
+            : `No ${status} tasks found.`
+          : `${items.length} ${label}task${items.length === 1 ? "" : "s"}`,
       uiHint: "taskList",
-      // The LLM only needs a compact summary back to keep deciding — not every field.
+      // Includes `id` so the model can pass it to write tools
+      // (updateTaskStatus, toggleChecklistItem, addTaskNote, reassignTask, etc.).
       llmSummary: items.slice(0, 10).map((t) => ({
         id: t.id,
         title: t.title,
