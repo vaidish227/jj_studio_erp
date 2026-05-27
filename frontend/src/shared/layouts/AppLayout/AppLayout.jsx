@@ -5,7 +5,16 @@ import Navbar from '../Navbar/Navbar';
 import { useAuth } from '../../context/AuthContext';
 
 const AppLayout = ({ children }) => {
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isMobileOpen,  setIsMobileOpen]  = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(
+    () => localStorage.getItem('sidebar-collapsed') === 'true'
+  );
+
+  const toggleCollapsed = () =>
+    setIsCollapsed((prev) => {
+      localStorage.setItem('sidebar-collapsed', String(!prev));
+      return !prev;
+    });
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -75,6 +84,8 @@ const AppLayout = ({ children }) => {
         isMobileOpen={isMobileOpen}
         onMobileClose={() => setIsMobileOpen(false)}
         user={user}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={toggleCollapsed}
       />
 
       <div className="flex flex-col flex-1 min-w-0">

@@ -36,6 +36,7 @@ const proposalSchema = new mongoose.Schema(
       enum: [
         "draft",
         "pending_approval",
+        "revision_requested",
         "manager_approved",
         "sent",
         "esign_received",
@@ -111,6 +112,14 @@ const proposalSchema = new mongoose.Schema(
       ref: "User",
     },
     rejection_reason: String,
+
+    // Revision request fields (set when manager requests changes before approval)
+    revisionReason: String,
+    revisionRequestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    revisionRequestedAt: Date,
 
     version: {
       type: Number,

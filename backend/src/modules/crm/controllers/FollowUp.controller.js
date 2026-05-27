@@ -220,20 +220,20 @@ const deleteFollowup = async (req, res) => {
 };
 
 const getPendingFollowups = async (req, res) => {
-  try {
-    const pendingFollowups = await Followup.countDocuments({
-      status: "pending",
-    });
+    try {
+        const pendingFollowups = await Followup.countDocuments({
+            status: "pending",
+        });
 
-    res.status(200).json({
-      pendingFollowups,
-    });
+        res.status(200).json({
+            pendingFollowups,
+        });
 
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
+    } catch (error) {
+        res.status(500).json({
+            message: error.message,
+        });
+    }
 };
 
-module.exports = { createFollowup, getAllFollowups, getFollowupsByLead, updateFollowup, updateStatus, deleteFollowup,getPendingFollowups };
+module.exports = { createFollowup, getAllFollowups, getFollowupsByLead, updateFollowup, updateStatus, deleteFollowup, getPendingFollowups };

@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const Role = require("../modules/auth/models/Role.model");
+const User = require("../modules/auth/models/user.model");
 
 // ─── Verify JWT token ───────────────────────────────────────────────────────
 const verifyToken = async (req, res, next) => {
@@ -32,8 +33,12 @@ const loadPermissions = async (req, res, next) => {
     const role = await Role.findOne({ name: req.user.role }).lean();
     const rolePermissions = role ? role.permissions : [];
 
-    // Merge role permissions + user custom permissions (if stored on token)
-    const customPermissions = req.user.customPermissions || [];
+    // Merge role permissions + user custom permissions (loaded from DB — JWT has no customPermissions)
+    const userDoc = await User.findById(req.user.id).select('customPermissions isActive').lean();
+    if (userDoc?.isActive === false) {
+      return res.status(403).json({ message: "Account is inactive." });
+    }
+    const customPermissions = userDoc?.customPermissions || [];
     req.permissions = [...new Set([...rolePermissions, ...customPermissions])];
 
     next();
@@ -59,7 +64,8 @@ const requirePermission = (permission) => async (req, res, next) => {
     try {
       const role = await Role.findOne({ name: req.user?.role }).lean();
       req.permissions = role ? role.permissions : [];
-      const customPermissions = req.user?.customPermissions || [];
+      const userDoc = await User.findById(req.user?.id).select('customPermissions').lean();
+      const customPermissions = userDoc?.customPermissions || [];
       req.permissions = [...new Set([...req.permissions, ...customPermissions])];
     } catch {
       req.permissions = [];

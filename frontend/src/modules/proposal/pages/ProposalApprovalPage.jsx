@@ -16,12 +16,14 @@ import {
   Square,
   MoreVertical,
   Send,
-  RotateCcw
+  RotateCcw,
+  RefreshCw
 } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
 import { crmService } from '../../../shared/services/crmService';
 import ApprovalFormModal from '../components/ApprovalFormModal';
+import ConversionSuccessModal from '../components/ConversionSuccessModal';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader } from '../../../shared/components';
 
@@ -41,6 +43,9 @@ const ProposalApprovalPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalAction, setModalAction] = useState(null);
   const [targetProposal, setTargetProposal] = useState(null);
+
+  // Conversion success modal
+  const [conversionModal, setConversionModal] = useState({ open: false, project: null, clientName: '' });
 
   const openActionModal = (proposal, action) => {
     setTargetProposal(proposal);
@@ -64,12 +69,18 @@ const ProposalApprovalPage = () => {
     }
   };
 
-  const handleActionSubmit = async ({ status, remarks }) => {
+  const handleActionSubmit = async (payload) => {
     try {
       setLoading(true);
-      await crmService.updateProposalStatus(targetProposal._id, { status, remarks });
+      const res = await crmService.updateProposalStatus(targetProposal._id, payload);
       toast.success('Proposal updated successfully');
       fetchProposals();
+
+      // Show conversion modal when a project is auto-created
+      if (res?._autoCreatedProject) {
+        const clientName = targetProposal.clientId?.name || targetProposal.leadId?.name || '';
+        setConversionModal({ open: true, project: res._autoCreatedProject, clientName });
+      }
     } catch (err) {
       toast.error('Failed to update proposal. Please try again.');
     } finally {
@@ -156,9 +167,14 @@ const ProposalApprovalPage = () => {
     const configs = {
       draft: { color: 'bg-gray-100 text-gray-700', label: 'Draft' },
       pending_approval: { color: 'bg-yellow-100 text-yellow-700', label: 'Pending Approval' },
+      revision_requested: { color: 'bg-orange-100 text-orange-700', label: 'Revision Requested' },
       manager_approved: { color: 'bg-green-100 text-green-700', label: 'Approved' },
       rejected: { color: 'bg-red-100 text-red-700', label: 'Rejected' },
       sent: { color: 'bg-blue-100 text-blue-700', label: 'Sent to Client' },
+      esign_received: { color: 'bg-purple-100 text-purple-700', label: 'eSigned' },
+      payment_received: { color: 'bg-teal-100 text-teal-700', label: 'Payment Received' },
+      project_ready: { color: 'bg-emerald-100 text-emerald-700', label: 'Project Ready' },
+      project_started: { color: 'bg-indigo-100 text-indigo-700', label: 'Project Started' },
     };
     const config = configs[status] || configs.draft;
     return <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${config.color}`}>{config.label}</span>;
@@ -431,6 +447,15 @@ const ProposalApprovalPage = () => {
                             <Button
                               variant="outline"
                               size="sm"
+                              className="h-9 w-9 p-0 rounded-xl border-[var(--border)] hover:border-orange-500 hover:text-orange-500 shadow-sm bg-white text-orange-400 transition-all hover:scale-110 active:scale-95"
+                              onClick={() => openActionModal(p, 'revision_requested')}
+                              title="Request Revision"
+                            >
+                              <RefreshCw size={16} />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="h-9 w-9 p-0 rounded-xl border-[var(--border)] hover:border-red-500 hover:text-red-500 shadow-sm bg-white text-red-400 transition-all hover:scale-110 active:scale-95"
                               onClick={() => openActionModal(p, 'rejected')}
                               title="Reject with Reason"
@@ -461,6 +486,19 @@ const ProposalApprovalPage = () => {
                             Send
                           </Button>
                         )}
+
+                        {p.status === 'sent' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 px-4 rounded-xl border-amber-400 text-amber-600 hover:bg-amber-50 text-xs font-black uppercase tracking-wider shadow-sm"
+                            onClick={() => openActionModal(p, 'signed')}
+                            title="Mark eSign Received & Convert to Project"
+                          >
+                            <CheckCircle size={14} className="mr-2" />
+                            eSign
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -477,6 +515,13 @@ const ProposalApprovalPage = () => {
         proposal={targetProposal}
         action={modalAction}
         onSubmit={handleActionSubmit}
+      />
+
+      <ConversionSuccessModal
+        isOpen={conversionModal.open}
+        onClose={() => setConversionModal({ open: false, project: null, clientName: '' })}
+        project={conversionModal.project}
+        clientName={conversionModal.clientName}
       />
     </div>
   );

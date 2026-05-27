@@ -7,6 +7,7 @@ const initialState = {
   email: '',
   password: '',
   role: 'designer',
+  phone: '',
 };
 
 const validateForm = (data) => {
@@ -21,6 +22,12 @@ const validateForm = (data) => {
     errors.password = 'Password is required';
   } else if (data.password.length < 6) {
     errors.password = 'Password must be at least 6 characters';
+  }
+  if (data.phone.trim()) {
+    const digits = data.phone.replace(/\D/g, '');
+    if (digits.length < 11) {
+      errors.phone = 'Must include country code — e.g. +91 9876543210';
+    }
   }
   return errors;
 };

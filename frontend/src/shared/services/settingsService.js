@@ -12,6 +12,9 @@ export const settingsService = {
   getAllPermissions: () => apiClient.get('/roles/permissions/all'),
 
   // ─── Users ──────────────────────────────────────────────────────────────────
-  getUsers: () => apiClient.get('/roles/users/list'),
-  updateUserRole: (userId, data) => apiClient.patch(`/roles/users/${userId}/role`, data),
+  getUsers:          ()             => apiClient.get('/roles/users/list'),
+  updateUserRole:    (userId, data) => apiClient.patch(`/roles/users/${userId}/role`, data),
+  updateUser:              (userId, data) => apiClient.patch(`/roles/users/${userId}`, data),
+  adminResetPassword:      (userId, data) => apiClient.post(`/roles/users/${userId}/reset-password`, data),
+  getEffectivePermissions: (userId)       => apiClient.get(`/roles/users/${userId}/effective-permissions`),
 };

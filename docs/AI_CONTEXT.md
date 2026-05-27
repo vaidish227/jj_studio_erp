@@ -20,11 +20,13 @@ JJ Studio operates a high-touch interior design service business. The ERP manage
 | Dashboard & Analytics | ✅ Active |
 | Meeting Management | ✅ Active |
 | Follow-up Management | ✅ Active |
+| PMS — Project Management System | ✅ Active (full stack) |
+| DDMS — Design & Drawing Library (DLR) | ✅ Active (full stack) |
+| Vendor Directory | ✅ Active (full stack) |
 
-**Planned/Stub Modules (Models exist, no controllers yet):**
+**Planned/Stub Modules (Models exist, limited frontend):**
 | Module | Status |
 |--------|--------|
-| PMS — Project Management System | 🔧 Stub |
 | HRM — Human Resources | 🔧 Stub |
 | Finance Management | 🔧 Stub |
 | Inventory Management | 🔧 Stub |
@@ -83,7 +85,7 @@ ERP/
 │   │   │   ├── auth/           # Authentication & user management
 │   │   │   ├── crm/            # CRM: clients, meetings, follow-ups, proposals
 │   │   │   ├── proposal/       # Proposal system: BOQ, templates, approvals
-│   │   │   ├── pms/            # (Stub) Project Management
+│   │   │   ├── pms/            # Project Management System (full stack, see PMS section)
 │   │   │   ├── hrm/            # (Stub) Human Resources
 │   │   │   ├── finance/        # (Stub) Finance
 │   │   │   └── inventory/      # (Stub) Inventory
@@ -267,12 +269,12 @@ Token stored in `localStorage` as `auth_token`. User object stored as `user` (JS
 | Role | Enum | Key Permissions |
 |------|------|----------------|
 | `admin` | admin | `*` (everything) |
-| `md` | md | read all + approve + reports |
-| `manager` | manager | CRM + proposal.approve + projects |
+| `md` | md | read all + approve + reports + drawings.read + vendor.read |
+| `manager` | manager | CRM + proposal.approve + projects.create + drawings.approve + drawings.release + vendor.manage |
 | `sales` | sales | CRM + KIT + proposal (no approve) |
 | `accounts` | accounts | finance + reports |
-| `designer` | designer | projects + tasks |
-| `supervisor` | supervisor | CRM read + projects + tasks |
+| `designer` | designer | projects + tasks + drawings.upload + site_logs.read |
+| `supervisor` | supervisor | CRM read + projects + tasks + site_logs.create + drawings.read |
 | `vendor` | vendor | vendor portal only |
 | `client` | client | client portal only |
 
@@ -346,16 +348,43 @@ See `docs/RBAC_GUIDE.md` for complete reference.
    - Use `useToast()` hook to trigger toasts
    - Methods: `success()`, `error()`, `info()`, `warning()`
 
+3. **PMSContext** — App-wide (wraps BrowserRouter in App.jsx)
+   - `activeProject` — currently viewed project (set by `useProjectDetail`)
+   - `invalidateProjects()` — bumps a version counter; causes `useProjects` to re-fetch
+   - Access via: `usePMS()` hook
+
 ### Local State
 - Form state: `useState` in custom hook (e.g., `useLogin`, `useEnquiry`)
 - UI state (modals, toggles): `useState` in component
-- List + filter state: custom hooks like `useLeadList`, `useFilters`
+- List + filter state: custom hooks like `useLeadList`, `useFilters`, `useProjects`, `useDrawings`
 
 ### Rules
 - **Never call API directly in JSX** — use custom hooks
 - **Never use Redux** — project uses Context API
 - **Always extract form logic** into a dedicated `useFormName.js` hook
 - **Persist minimal state** — only `activeLead` and auth in localStorage
+
+### React 19 Compiler Rule — useEffect
+`eslint-plugin-react-hooks ^7.1.1` forbids **synchronous `setState` in effect bodies**. Use the version-trigger pattern:
+```js
+const [isLoading, setIsLoading] = useState(true); // initial load
+const [version, setVersion] = useState(0);
+
+useEffect(() => {
+  let cancelled = false;
+  service.fetch()
+    .then(res => { if (!cancelled) setData(res); })
+    .catch(err => { if (!cancelled) setError(err); })
+    .finally(() => { if (!cancelled) setIsLoading(false); });
+  return () => { cancelled = true; };
+}, [version]); // re-runs when version bumps
+
+const refresh = useCallback(() => {
+  setIsLoading(true);   // event-handler context — allowed
+  setVersion(v => v + 1);
+}, []);
+```
+Never put `setIsLoading(true)` at the top of an effect body.
 
 ---
 
@@ -415,6 +444,86 @@ See `docs/RBAC_GUIDE.md` for complete reference.
 7. Track e-sign
 8. Record payment
 9. Mark project-ready
+```
+
+---
+
+### PMS Project Lifecycle (Design Sub-Flow)
+```
+1. Project created (status: design_phase)
+   → Kickstart checklist (6 items: WhatsApp groups, forms, quotation)
+
+2. Designer A leads — sub-designer slots filled (B/C/D/E + Supervisor)
+
+3. Tasks created per designer (taskType maps to sub-flow):
+   ac_coordination, technical_drawing, kitchen_drawing,
+   bathroom_drawing, automation_coordination, 3d_render,
+   concept_making, furniture_layout, site_measurement
+
+4. Each task has checklist items + optional external coordination
+   → Kanban view (by status) or grouped list view (by taskType)
+
+5. Drawings uploaded per task → DLR (Drawing Library Repository)
+   draft → send_for_approval → approved/rejected → released_to_site
+
+6. Client approvals tracked separately (6 types):
+   AC, Automation, Kitchen, Bathroom Material, CP Fittings, Wall & Floor
+   → Approval Dashboard at /pms/approvals for pending response queue
+
+7. Site logs recorded by supervisor
+   → Site Visits also logged (purpose, observations, next visit date)
+
+8. Material selection tracked per project (category, brand, status)
+   Statuses: proposed → selected_by_client → ordered → delivered_at_site
+
+9. Purchase Orders raised per project/vendor with line items
+   PO lifecycle: draft → sent_to_vendor → confirmed → delivered/cancelled
+
+10. Milestones set with due dates and critical flag
+    → All dates aggregate into Project Calendar at /pms/calendar
+
+11. WhatsApp groups per project (main, drawing, supervision, payment)
+    → Linked to whatsapp.service.sendImmediate() for update broadcasts
+
+12. Activity log auto-records all significant actions (fire-and-forget)
+
+13. Project phases: design_phase → execution_phase → handover → completed
+```
+
+### New PMS Backend Entities (added 2026-05-15)
+| Model | Collection | Purpose |
+|-------|-----------|---------|
+| `ProjectMilestone` | `pms_milestones` | Date-keyed project milestones with critical flag |
+| `PMSActivityLog` | `pms_activity_logs` | Audit trail for all PMS actions |
+| `WhatsAppProjectGroup` | `pms_whatsapp_groups` | WA group records linked to project |
+| `PMSApproval` | `pms_approvals` | Cross-project approval requests & responses |
+| `SiteVisit` | `pms_sitevisits` | Site visit logs with purpose/observations |
+| `Material` | `pms_materials` | Material selection tracking per project |
+| `PurchaseOrder` | `pms_purchaseorders` | POs with line items, vendor, payment status |
+
+### New PMS API Routes (added 2026-05-15)
+| Prefix | Purpose |
+|--------|---------|
+| `/api/pms/milestone` | Milestones CRUD |
+| `/api/pms/activity` | Activity log (paginated read) |
+| `/api/pms/whatsapp-group` | WA group CRUD + send update |
+| `/api/pms/calendar` | Aggregated calendar events (read-only) |
+
+### Activity Logger Pattern
+`backend/src/shared/activityLogger.js` — fire-and-forget utility:
+- Import: `const logActivity = require('../shared/activityLogger')`
+- Never throws; wraps DB write in try/catch, logs to console on error
+- Called at end of every significant controller action (create, update, status change)
+
+### Drawing Lifecycle
+```
+draft
+  ↓ sendForApproval (only from draft or rejected)
+sent_for_approval
+  ↓ approveDrawing (with optional remarks)   ↓ rejectDrawing (reason required)
+approved                                      rejected
+  ↓ releaseDrawing (propagates to task)         ↓ reviseDrawing (new version)
+released_to_site                              draft (v+1)
 ```
 
 ---
@@ -479,6 +588,10 @@ VITE_API_URL=http://localhost:5000/api
 | No pagination on most list endpoints | `crm/controllers/` | 🟠 Medium |
 | No soft-delete — DELETE is hard delete | `CRMClient.controller.js` | 🟠 Medium |
 | Token stored in localStorage (XSS risk) | Frontend | 🟡 High |
+| Drawing file upload is URL-based (no real file storage) | `Drawing.controller.js` + `UploadDrawingModal.jsx` | 🟡 High — integrate Cloudinary or S3 |
+| seedRoles.js must be run manually after permissions change | `backend/src/scripts/seedRoles.js` | 🟠 Medium — run after each role permission update |
+| CreateTaskModal assignedTo field uses raw ObjectId | `CreateTaskModal.jsx` | 🟠 Medium — replace with user search/select |
+| CreateProjectModal clientId field uses raw ObjectId | `CreateProjectModal.jsx` | 🟠 Medium — replace with CRM client search |
 
 ---
 

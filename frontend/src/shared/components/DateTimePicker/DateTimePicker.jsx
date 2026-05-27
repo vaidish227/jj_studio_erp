@@ -2,7 +2,7 @@ import React from 'react';
 import { Calendar, Clock } from 'lucide-react';
 import Input from '../Input/Input';
 
-const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChange, error, required }) => {
+const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChange, error, required, minDate, minTime }) => {
   return (
     <div className="space-y-4">
       {label && (
@@ -18,6 +18,7 @@ const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChang
           onChange={(e) => onDateChange(e.target.value)}
           required={required}
           className="w-full"
+          min={minDate}
         />
         <Input
           type="time"
@@ -26,6 +27,7 @@ const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChang
           onChange={(e) => onTimeChange(e.target.value)}
           required={required}
           className="w-full"
+          min={minTime}
         />
       </div>
       {error && <p className="text-xs text-[var(--error)] font-medium mt-1">{error}</p>}

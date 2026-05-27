@@ -39,6 +39,27 @@ const userSchema = new mongoose.Schema(
             default: [],
         },
 
+        isActive: {
+            type: Boolean,
+            default: true,
+        },
+
+        department: {
+            type: String,
+            trim: true,
+        },
+
+        designation: {
+            type: String,
+            trim: true,
+        },
+
+        reportingManager: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null,
+        },
+
 },
     {
         timestamps: true,

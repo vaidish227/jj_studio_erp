@@ -209,14 +209,14 @@ async function migrate() {
       if (isDryRun) {
         console.log(
           `📝 [${i + 1}/${leads.length}] WOULD CREATE: ${unifiedData.name} (${trackingId})` +
-            (matchingClient ? " [+ Client merged]" : "")
+          (matchingClient ? " [+ Client merged]" : "")
         );
       } else {
         try {
           await CRMClient.create(unifiedData);
           console.log(
             `✅ [${i + 1}/${leads.length}] CREATED: ${unifiedData.name} (${trackingId})` +
-              (matchingClient ? " [+ Client merged]" : "")
+            (matchingClient ? " [+ Client merged]" : "")
           );
         } catch (err) {
           console.error(

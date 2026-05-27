@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
   RotateCcw,
-  PlayCircle,
+  ArrowRight,
   Eye,
   CheckCircle2,
   Calendar,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 import { Card, Button, Loader, StatusBadge } from '../../../shared/components';
 import { crmService } from '../../../shared/services/crmService';
@@ -49,17 +49,8 @@ const ApprovedDashboard = () => {
   // Apply reusable filter system
   const filteredProposals = process(proposals);
 
-  const startProject = async (id) => {
-    try {
-      setLoading(true);
-      await crmService.updateProposalStatus(id, { status: 'project_started', remarks: 'Project officially started.' });
-      toast.success('Project started successfully!');
-      fetchProposals();
-    } catch (err) {
-      toast.error('Failed to start project');
-    } finally {
-      setLoading(false);
-    }
+  const initiateProject = (proposalId) => {
+    navigate(`/projects/initiate/${proposalId}`);
   };
 
   return (
@@ -138,9 +129,9 @@ const ApprovedDashboard = () => {
                     variant="primary"
                     size="sm"
                     className="font-bold"
-                    onClick={() => startProject(p._id)}
+                    onClick={() => initiateProject(p._id)}
                   >
-                    <PlayCircle size={14} /> Start Project
+                    <ArrowRight size={14} /> Initiate Project
                   </Button>
                 ) : (
                   <div className="text-[var(--success)] text-[10px] font-bold flex items-center gap-1.5">
