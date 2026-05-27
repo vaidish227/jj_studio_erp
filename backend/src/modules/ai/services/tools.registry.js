@@ -35,6 +35,16 @@ const sendProposal          = require("../tools/sendProposal.tool");
 const createAndSendProposal = require("../tools/createAndSendProposal.tool");
 const updateProjectStatus   = require("../tools/updateProjectStatus.tool");
 const updateClientApproval  = require("../tools/updateClientApproval.tool");
+// Phase 1 — Dashboard read tools
+const getDashboardStats     = require("../tools/getDashboardStats.tool");
+const getSalesPipeline      = require("../tools/getSalesPipeline.tool");
+const getDashboardFollowUps = require("../tools/getDashboardFollowUps.tool");
+// Phase 2A — CRM Leads (read + write)
+const getLeadDetails        = require("../tools/getLeadDetails.tool");
+const createLead            = require("../tools/createLead.tool");
+const updateLead            = require("../tools/updateLead.tool");
+const convertLead           = require("../tools/convertLead.tool");
+const recordAdvancePayment  = require("../tools/recordAdvancePayment.tool");
 
 const TOOLS = [
   // Read
@@ -71,6 +81,17 @@ const TOOLS = [
   // Write — project
   updateProjectStatus,
   updateClientApproval,
+  // Read — Dashboard (Phase 1)
+  getDashboardStats,
+  getSalesPipeline,
+  getDashboardFollowUps,
+  // CRM Leads — read (Phase 2A)
+  getLeadDetails,
+  // CRM Leads — write (Phase 2A)
+  createLead,
+  updateLead,
+  convertLead,
+  recordAdvancePayment,
 ];
 
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
