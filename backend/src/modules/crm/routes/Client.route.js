@@ -10,11 +10,13 @@ const {
   deleteClient,
   appendTimelineEvent,
   getStats,
+  bulkImportClients,
 } = require("../controllers/CRMClient.controller");
 
 // ─── Client Lifecycle Routes ─────────────────────────────────────────
 router.post("/create", createClientEnquiry);              // Enquiry form → create
 router.post("/createclient", createClientEnquiry);        // Backward compat alias
+router.post("/bulk-import", bulkImportClients);           // Bulk CSV/Excel import
 router.get("/get", getClients);                           // List all
 router.get("/get/:id", getClientById);                    // Get by ID
 router.put("/update/:id", updateClientDetails);           // Client info form → enrich

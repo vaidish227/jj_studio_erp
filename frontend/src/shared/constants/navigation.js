@@ -33,7 +33,6 @@ export const NAV_ITEMS = [
     icon: Users,
     permission: 'crm.read',
     children: [
-      { id: 'crm-form',    label: 'Form',        path: '/crm/forms/enquiry', permission: 'crm.create' },
       { id: 'crm-clients', label: 'All Clients', path: '/crm/clients',       permission: 'crm.tab.clients' },
       { id: 'new-leads',   label: 'New Leads',   path: '/crm/new-leads',     permission: 'crm.tab.leads' },
       { id: 'meetings',    label: 'Meetings',    path: '/crm/meetings',       permission: 'crm.tab.meetings' },

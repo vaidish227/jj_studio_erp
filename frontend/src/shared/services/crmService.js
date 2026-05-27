@@ -6,6 +6,9 @@ export const crmService = {
   createLead: (data) => apiClient.post('/clients/create', data),
   createClient: (data) => apiClient.post('/clients/create', data),
 
+  // BULK IMPORT: CSV / Excel — body: { rows: [...] }
+  bulkImportClients: (rows) => apiClient.post('/clients/bulk-import', { rows }),
+
   // READ: List clients (with optional filters)
   getLeads: (params) => {
     const query = new URLSearchParams(params).toString();
