@@ -13,6 +13,7 @@ const getDesignerDashboard = require("../tools/getDesignerDashboard.tool");
 const getLeads             = require("../tools/getLeads.tool");
 const getClients           = require("../tools/getClients.tool");
 const getMeetings          = require("../tools/getMeetings.tool");
+const listProposalTemplates = require("../tools/listProposalTemplates.tool");
 const searchProjects       = require("../tools/searchProjects.tool");
 const searchActivity       = require("../tools/searchActivity.tool");
 // V3 write tools (two-phase: dryRun -> user confirm -> apply)
@@ -30,6 +31,8 @@ const addFollowUp           = require("../tools/addFollowUp.tool");
 const assignLead            = require("../tools/assignLead.tool");
 const addLeadNote           = require("../tools/addLeadNote.tool");
 const scheduleMeeting       = require("../tools/scheduleMeeting.tool");
+const sendProposal          = require("../tools/sendProposal.tool");
+const createAndSendProposal = require("../tools/createAndSendProposal.tool");
 const updateProjectStatus   = require("../tools/updateProjectStatus.tool");
 const updateClientApproval  = require("../tools/updateClientApproval.tool");
 
@@ -44,6 +47,7 @@ const TOOLS = [
   getLeads,
   getClients,
   getMeetings,
+  listProposalTemplates,
   searchProjects,
   searchActivity,
   // Write — task lifecycle
@@ -62,6 +66,8 @@ const TOOLS = [
   assignLead,
   addLeadNote,
   scheduleMeeting,
+  sendProposal,
+  createAndSendProposal,
   // Write — project
   updateProjectStatus,
   updateClientApproval,

@@ -26,6 +26,7 @@ const TOOL_META = {
   getLeads:             { label: 'Leads',               Icon: Users },
   getClients:           { label: 'Clients',             Icon: Users },
   getMeetings:          { label: 'Meetings',            Icon: Calendar },
+  listProposalTemplates:{ label: 'Proposal templates',  Icon: FileText },
   // Write tools — tasks (V3.1)
   updateTaskStatus:     { label: 'Update task status',     Icon: FileText, isWrite: true },
   toggleChecklistItem:  { label: 'Tick checklist item',    Icon: ClipboardList, isWrite: true },
@@ -41,6 +42,8 @@ const TOOL_META = {
   assignLead:           { label: 'Assign lead',            Icon: Users, isWrite: true },
   addLeadNote:          { label: 'Add lead note',          Icon: FileText, isWrite: true },
   scheduleMeeting:      { label: 'Schedule meeting',       Icon: Clock, isWrite: true },
+  sendProposal:         { label: 'Send proposal',          Icon: FileText, isWrite: true },
+  createAndSendProposal:{ label: 'Create + send proposal', Icon: FileText, isWrite: true },
   updateProjectStatus:  { label: 'Update project status',  Icon: FileText, isWrite: true },
   updateClientApproval: { label: 'Update client approval', Icon: ClipboardList, isWrite: true },
 };
