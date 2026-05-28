@@ -1,91 +1,64 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar as CalendarIcon,
+  CalendarDays,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Clock,
-  LayoutGrid,
-  List,
   Loader2,
-  Mail,
   MapPin,
-  MessageSquare,
-  Phone,
   Plus,
-  Users,
   XCircle,
   RotateCcw,
-  FileText,
 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import Card from '../../../shared/components/Card/Card';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../../../shared/components/Button/Button';
-import Badge from '../../../shared/components/Badge/Badge';
 import Modal from '../../../shared/components/Modal/Modal';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Select from '../../../shared/components/Select/Select';
 import { crmService } from '../../../shared/services/crmService';
-import { DashboardCard, ViewToggle, Loader } from '../../../shared/components';
+import { Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 import RecordMOMModal from '../components/RecordMOMModal';
 import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
 import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
-
-const EMPTY_ATTENDEES = { internal: [], client: [] };
-
-const seedClientAttendeesForLead = (lead) => {
-  if (!lead?.name) return [];
-  return [{
-    name: lead.name,
-    phone: lead.phone || '',
-    email: lead.email || '',
-    relation: 'lead',
-    notifyEmail: true,
-    notifyWhatsApp: true,
-  }];
-};
-
-// Convert backend attendees (with populated userId references) → editor format
-const hydrateAttendeesFromMeeting = (meeting) => {
-  if (!meeting?.attendees) return EMPTY_ATTENDEES;
-  const internal = (meeting.attendees.internal || []).map((a) => ({
-    userId: a.userId?._id || a.userId,
-    name: a.name || a.userId?.name || '',
-    email: a.email || a.userId?.email || '',
-    phone: a.phone || a.userId?.phone || '',
-    role: a.role || a.userId?.role || '',
-    notifyEmail: a.notifyEmail !== false,
-    notifyWhatsApp: a.notifyWhatsApp !== false,
-  }));
-  const client = (meeting.attendees.client || []).map((a) => ({
-    name: a.name,
-    phone: a.phone || '',
-    email: a.email || '',
-    relation: a.relation || 'other',
-    notifyEmail: a.notifyEmail !== false,
-    notifyWhatsApp: a.notifyWhatsApp !== false,
-  }));
-  return { internal, client };
-};
+import MeetingCard from '../components/MeetingCard';
+import {
+  EMPTY_ATTENDEES,
+  seedClientAttendeesForLead,
+  hydrateAttendeesFromMeeting,
+} from '../utils/attendees';
 
 const POLL_INTERVAL_MS = 30000;
 
-const statusVariants = {
-  scheduled: 'primary',
-  rescheduled: 'warning',
-  completed: 'success',
-  cancelled: 'error',
-};
+// Compact clickable stat — half the height of DashboardCard, still acts as a
+// quick filter. Designed so a row of 6 fits comfortably on one line at lg+.
+const StatChip = ({ label, value, icon: Icon, iconCls, isActive, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border bg-[var(--surface)] transition-all text-left
+      ${isActive
+        ? 'border-[var(--primary)] shadow-sm shadow-[var(--primary)]/10 ring-1 ring-[var(--primary)]/30'
+        : 'border-[var(--border)] hover:border-[var(--primary)]/40'}
+    `}
+  >
+    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconCls}`}>
+      <Icon size={15} />
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] truncate">{label}</p>
+      <p className="text-lg font-black text-[var(--text-primary)] leading-tight">{value}</p>
+    </div>
+  </button>
+);
 
 const MeetingsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [searchParams] = useSearchParams();
   const navbarQuery = searchParams.get('q') || '';
-  const [viewMode, setViewMode] = useState('calendar');
   const [meetings, setMeetings] = useState([]);
   const [leads, setLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,8 +80,6 @@ const MeetingsPage = () => {
   const [meetingStatus, setMeetingStatus] = useState('scheduled');
   const [attendees, setAttendees] = useState(EMPTY_ATTENDEES);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
   // Stat-card quick filter: 'all' | 'scheduled' | 'rescheduled' | 'completed' | 'cancelled' | 'site'
   const [statCardFilter, setStatCardFilter] = useState('all');
 
@@ -200,40 +171,7 @@ const searchTerm = navbarQuery.toLowerCase();
     site: meetings.filter((meeting) => meeting.type === 'site').length,
   }), [meetings]);
 
-  const daysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-
-  const calendarDays = useMemo(() => {
-    const totalDays = daysInMonth(currentMonth);
-    const firstDay = firstDayOfMonth(currentMonth);
-    const days = [];
-
-    for (let i = 0; i < firstDay; i += 1) {
-      days.push({ day: null, date: null });
-    }
-
-    for (let i = 1; i <= totalDays; i += 1) {
-      const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
-      const dayMeetings = filteredMeetings.filter(
-        (meeting) => new Date(meeting.date).toDateString() === date.toDateString()
-      );
-      days.push({ day: i, date, meetingCount: dayMeetings.length });
-    }
-
-    return days;
-  }, [currentMonth, filteredMeetings]);
-
-  const visibleMeetings = useMemo(() => {
-    // When a stat-card filter is active, the user wants all matching meetings
-    // across every date — so ignore the calendar's selectedDate restriction.
-    if (viewMode === 'calendar' && statCardFilter === 'all') {
-      return filteredMeetings.filter(
-        (meeting) => new Date(meeting.date).toDateString() === selectedDate.toDateString()
-      );
-    }
-
-    return filteredMeetings;
-  }, [filteredMeetings, selectedDate, viewMode, statCardFilter]);
+  const visibleMeetings = filteredMeetings;
 
   const handleCreateMeeting = async (e) => {
     e.preventDefault();
@@ -382,18 +320,21 @@ const searchTerm = navbarQuery.toLowerCase();
   }
 
   return (
-    <div className="space-y-8 pb-10">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+    <div className="space-y-5 pb-10">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Meetings</h1>
           <p className="text-[var(--text-secondary)] font-medium">Schedule and manage client meetings in realtime.</p>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full lg:w-auto">
-          <ViewToggle
-            view={viewMode}
-            onViewChange={setViewMode}
-          />
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
+          <Link
+            to="/crm/meetings/calendar"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--border)] text-sm font-bold text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors w-full md:w-auto justify-center"
+          >
+            <CalendarDays size={16} />
+            Calendar View
+          </Link>
           <Button variant="primary" onClick={() => setIsModalOpen(true)} className="w-full md:w-auto px-6 whitespace-nowrap">
             <Plus size={18} />
             Schedule Meeting
@@ -401,7 +342,7 @@ const searchTerm = navbarQuery.toLowerCase();
         </div>
       </div>
 
-      {/* Advanced Filter System */}
+      {/* Advanced Filter System — inline because only 4 controls fit easily */}
       <AdvancedFilter
         filters={filters}
         filterConfig={filterConfig}
@@ -411,142 +352,81 @@ const searchTerm = navbarQuery.toLowerCase();
         activeFilterCount={activeFilterCount}
         showSearch={true}
         compact={false}
+        inlineSearch
       />
 
-      {/* Stats Cards — clickable quick filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <DashboardCard
-          title="Total Meetings"
+      {/* Stat chips — clickable quick filters (compact one-row tiles) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <StatChip
+          label="Total"
           value={stats.total}
           icon={CalendarIcon}
-          iconBg="bg-[var(--primary)]/10"
-          compact
-          onClick={() => setStatCardFilter('all')}
+          iconCls="bg-[var(--primary)]/10 text-[var(--primary)]"
           isActive={statCardFilter === 'all'}
+          onClick={() => setStatCardFilter('all')}
         />
-        <DashboardCard
-          title="Scheduled"
+        <StatChip
+          label="Scheduled"
           value={stats.scheduled}
           icon={Clock}
-          iconBg="bg-[var(--accent-blue)]/10"
-          compact
-          onClick={() => setStatCardFilter((prev) => (prev === 'scheduled' ? 'all' : 'scheduled'))}
+          iconCls="bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
           isActive={statCardFilter === 'scheduled'}
+          onClick={() => setStatCardFilter((prev) => (prev === 'scheduled' ? 'all' : 'scheduled'))}
         />
-        <DashboardCard
-          title="Rescheduled"
+        <StatChip
+          label="Rescheduled"
           value={stats.rescheduled}
           icon={RotateCcw}
-          iconBg="bg-[var(--warning)]/10"
-          compact
-          onClick={() => setStatCardFilter((prev) => (prev === 'rescheduled' ? 'all' : 'rescheduled'))}
+          iconCls="bg-[var(--warning)]/10 text-[var(--warning)]"
           isActive={statCardFilter === 'rescheduled'}
+          onClick={() => setStatCardFilter((prev) => (prev === 'rescheduled' ? 'all' : 'rescheduled'))}
         />
-        <DashboardCard
-          title="Completed"
+        <StatChip
+          label="Completed"
           value={stats.completed}
           icon={CheckCircle2}
-          iconBg="bg-[var(--success)]/10"
-          compact
-          onClick={() => setStatCardFilter((prev) => (prev === 'completed' ? 'all' : 'completed'))}
+          iconCls="bg-[var(--success)]/10 text-[var(--success)]"
           isActive={statCardFilter === 'completed'}
+          onClick={() => setStatCardFilter((prev) => (prev === 'completed' ? 'all' : 'completed'))}
         />
-        <DashboardCard
-          title="Cancelled"
+        <StatChip
+          label="Cancelled"
           value={stats.cancelled}
           icon={XCircle}
-          iconBg="bg-[var(--error)]/10"
-          compact
-          onClick={() => setStatCardFilter((prev) => (prev === 'cancelled' ? 'all' : 'cancelled'))}
+          iconCls="bg-[var(--error)]/10 text-[var(--error)]"
           isActive={statCardFilter === 'cancelled'}
+          onClick={() => setStatCardFilter((prev) => (prev === 'cancelled' ? 'all' : 'cancelled'))}
         />
-        <DashboardCard
-          title="On-Site"
+        <StatChip
+          label="On-Site"
           value={stats.site}
           icon={MapPin}
-          iconBg="bg-[var(--warning)]/10"
-          compact
-          onClick={() => setStatCardFilter((prev) => (prev === 'site' ? 'all' : 'site'))}
+          iconCls="bg-amber-100 text-amber-700"
           isActive={statCardFilter === 'site'}
+          onClick={() => setStatCardFilter((prev) => (prev === 'site' ? 'all' : 'site'))}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {viewMode === 'calendar' && (
-          <div className="lg:col-span-4">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-[var(--text-primary)]">
-                  {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </h2>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
-                    className="p-1.5 hover:bg-[var(--bg)] rounded-lg transition-colors"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
-                    className="p-1.5 hover:bg-[var(--bg)] rounded-lg transition-colors"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-7 gap-y-2 text-center text-xs font-bold text-[var(--text-muted)] uppercase mb-4">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day}>{day}</div>)}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {calendarDays.map((day, index) => (
-                  <button
-                    key={index}
-                    disabled={!day.day}
-                    onClick={() => day.date && setSelectedDate(day.date)}
-                    className={`
-                      relative h-12 flex flex-col items-center justify-center rounded-xl transition-all
-                      ${!day.day ? 'opacity-0 cursor-default' : 'hover:bg-[var(--primary)]/10'}
-                      ${day.date?.toDateString() === selectedDate.toDateString() ? 'bg-[var(--primary)] text-black font-bold' : 'text-[var(--text-primary)]'}
-                    `}
-                  >
-                    <span>{day.day}</span>
-                    {day.meetingCount > 0 && day.date?.toDateString() !== selectedDate.toDateString() && (
-                      <span className="mt-1 w-5 h-4 bg-[var(--primary)]/20 text-[var(--primary)] text-[10px] rounded flex items-center justify-center font-bold">
-                        {day.meetingCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </Card>
+      <div className="space-y-4">
+        {visibleMeetings.length ? visibleMeetings.map((meeting) => (
+          <MeetingCard
+            key={meeting._id}
+            meeting={meeting}
+            onViewDetails={() => navigate(`/crm/leads/${meeting.leadId?._id}`)}
+            onStatusChange={handleStatusUpdate}
+            onReschedule={handleReschedule}
+            onRecordMOM={handleOpenMOM}
+          />
+        )) : (
+          <div className="py-20 text-center bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-2xl">
+            <div className="w-16 h-16 bg-[var(--bg)] rounded-full flex items-center justify-center mx-auto mb-4">
+              <CalendarIcon size={24} className="text-[var(--text-muted)] opacity-30" />
+            </div>
+            <p className="text-[var(--text-muted)] font-medium">
+              No meetings match the current search.
+            </p>
           </div>
         )}
-
-        <div className={viewMode === 'calendar' ? 'lg:col-span-8' : 'lg:col-span-12'}>
-          <div className="space-y-4">
-            {visibleMeetings.length ? visibleMeetings.map((meeting) => (
-              <MeetingCard
-                key={meeting._id}
-                meeting={meeting}
-                onViewDetails={() => navigate(`/crm/leads/${meeting.leadId?._id}`)}
-                onStatusChange={handleStatusUpdate}
-                onReschedule={handleReschedule}
-                onRecordMOM={handleOpenMOM}
-              />
-            )) : (
-              <div className="py-20 text-center bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-2xl">
-                <div className="w-16 h-16 bg-[var(--bg)] rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CalendarIcon size={24} className="text-[var(--text-muted)] opacity-30" />
-                </div>
-                <p className="text-[var(--text-muted)] font-medium">
-                  No meetings match the current search or date.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Schedule Meeting">
@@ -677,193 +557,4 @@ const searchTerm = navbarQuery.toLowerCase();
     </div>
   );
 };
-
-
-const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule, onRecordMOM }) => {
-  const lead = meeting.leadId || {};
-  const date = new Date(meeting.date);
-  const hasMOM = !!meeting.mom?.recordedAt;
-  const isCompleted = meeting.status === 'completed';
-
-  return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 hover:border-[var(--primary)] hover:shadow-xl hover:shadow-[var(--primary)]/5 transition-all duration-300 group shadow-sm">
-      <div className="flex flex-col md:flex-row gap-6">
-        <div className="w-14 h-14 bg-[var(--primary)]/10 rounded-2xl flex items-center justify-center text-[var(--primary)] shrink-0 group-hover:bg-[var(--primary)] group-hover:text-black transition-all duration-500 group-hover:rotate-6">
-          <CalendarIcon size={28} strokeWidth={2.5} />
-        </div>
-
-        <div className="flex-1 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-xl font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors duration-300 tracking-tight">{lead.name || 'Unknown Lead'}</h3>
-              <p className="text-sm text-[var(--text-muted)] font-semibold mt-0.5">{lead.projectType || 'Interior Project'} • {lead.city || 'Location'}</p>
-            </div>
-            <Badge
-              variant={statusVariants[meeting.status] || 'default'}
-              className="uppercase text-[10px] font-black tracking-[0.1em] px-4 py-1.5 rounded-full border-none shadow-sm"
-            >
-              {meeting.status || 'scheduled'}
-            </Badge>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                <CalendarIcon size={16} />
-              </div>
-              <span>{date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} at {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                <Clock size={16} />
-              </div>
-              <span>{meeting.durationMinutes || 60} min duration</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                <MapPin size={16} />
-              </div>
-              <span>{meeting.type === 'site' ? lead.siteAddress || 'Site Address' : 'JJ Studio - Office'}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                <Phone size={16} />
-              </div>
-              <span>+91 {lead.phone || '0000000000'}</span>
-            </div>
-          </div>
-
-          <div className="p-4 bg-[var(--bg)] rounded-xl border border-[var(--border)] text-sm text-[var(--text-primary)] relative overflow-hidden group-hover:border-[var(--primary)]/30 transition-colors">
-            <div className="absolute top-0 left-0 w-1 h-full bg-[var(--primary)] opacity-20"></div>
-            <span className="font-bold text-[var(--primary)] uppercase text-[10px] tracking-wider block mb-1">Meeting Notes</span>
-            <span className="text-[var(--text-secondary)] leading-relaxed">{meeting.notes || 'Meeting to understand client requirements and site measurements.'}</span>
-          </div>
-
-          <MeetingAttendeesSummary meeting={meeting} />
-
-          {hasMOM && (
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-emerald-700 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
-                  <FileText size={12} /> Minutes of Meeting
-                </span>
-                <span className="text-[10px] text-emerald-700/70 font-medium">
-                  {new Date(meeting.mom.recordedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </span>
-              </div>
-              {meeting.mom.discussionSummary && (
-                <p className="text-[var(--text-secondary)] leading-relaxed line-clamp-2 mb-2">
-                  {meeting.mom.discussionSummary}
-                </p>
-              )}
-              <div className="flex items-center gap-4 text-[11px] font-bold text-emerald-700">
-                <span>{(meeting.mom.attendees?.staff?.length || 0) + (meeting.mom.attendees?.clients?.length || 0)} attendees</span>
-                <span>•</span>
-                <span>{meeting.mom.decisions?.length || 0} decisions</span>
-                <span>•</span>
-                <span>{meeting.mom.actionItems?.length || 0} action items</span>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col lg:flex-row gap-3 pt-2">
-            <Select
-              value={meeting.status || 'scheduled'}
-              onChange={(value) => onStatusChange(meeting._id, value)}
-              options={[
-                { value: 'scheduled', label: 'Scheduled' },
-                { value: 'rescheduled', label: 'Rescheduled' },
-                { value: 'completed', label: 'Completed' },
-                { value: 'cancelled', label: 'Cancelled' },
-              ]}
-              className="lg:w-64"
-            />
-            {meeting.status !== 'completed' && meeting.status !== 'cancelled' && (
-              <Button variant="secondary" className="w-full justify-center py-3.5 text-sm font-bold tracking-tight bg-[var(--bg)] hover:bg-[var(--primary)]/5" onClick={() => onReschedule(meeting)}>
-                <RotateCcw size={16} className="mr-2" />
-                Reschedule
-              </Button>
-            )}
-            {isCompleted && onRecordMOM && (
-              <Button
-                variant={hasMOM ? 'outline' : 'secondary'}
-                className="w-full justify-center py-3.5 text-sm font-bold tracking-tight"
-                onClick={() => onRecordMOM(meeting)}
-              >
-                <FileText size={16} className="mr-2" />
-                {hasMOM ? 'View / Edit MOM' : 'Record MOM'}
-              </Button>
-            )}
-            <Button variant="primary" className="w-full justify-center py-3.5 text-sm font-bold tracking-tight shadow-md hover:shadow-lg" onClick={onViewDetails}>
-              View Lead Details
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const channelIcons = (a) => (
-  <span className="inline-flex items-center gap-1 ml-1">
-    {a.notifyEmail !== false && a.email && <Mail size={10} className="text-[var(--text-muted)]" />}
-    {a.notifyWhatsApp !== false && a.phone && <MessageSquare size={10} className="text-[var(--text-muted)]" />}
-  </span>
-);
-
-const MeetingAttendeesSummary = ({ meeting }) => {
-  const internal = meeting?.attendees?.internal || [];
-  const client = meeting?.attendees?.client || [];
-  const total = internal.length + client.length;
-  if (total === 0) return null;
-
-  return (
-    <details className="group/att rounded-xl border border-[var(--border)] bg-[var(--bg)]/60 px-4 py-2.5 text-sm open:py-3">
-      <summary className="flex items-center justify-between cursor-pointer list-none gap-3">
-        <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-          <div className="w-7 h-7 rounded-lg bg-[var(--surface)] flex items-center justify-center text-[var(--primary)]">
-            <Users size={14} />
-          </div>
-          <span className="text-xs font-bold uppercase tracking-widest">{total} Attendee{total === 1 ? '' : 's'}</span>
-          <span className="text-[10px] text-[var(--text-muted)] font-medium">
-            {client.length} client • {internal.length} team
-          </span>
-        </div>
-        <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest group-open/att:hidden">Show</span>
-        <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest hidden group-open/att:inline">Hide</span>
-      </summary>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-[var(--border)]">
-        {client.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Client Side</p>
-            {client.map((c, i) => (
-              <p key={`c-${i}`} className="text-xs text-[var(--text-primary)] flex items-center">
-                <span className="font-semibold">{c.name}</span>
-                {c.relation && c.relation !== 'lead' && (
-                  <span className="ml-1 text-[10px] text-[var(--text-muted)] capitalize">({c.relation.replace('_', ' ')})</span>
-                )}
-                {channelIcons(c)}
-              </p>
-            ))}
-          </div>
-        )}
-        {internal.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Internal Team</p>
-            {internal.map((a, i) => (
-              <p key={`i-${i}`} className="text-xs text-[var(--text-primary)] flex items-center">
-                <span className="font-semibold">{a.name || a.userId?.name || 'Team member'}</span>
-                {a.role && <span className="ml-1 text-[10px] text-[var(--text-muted)] capitalize">({a.role})</span>}
-                {channelIcons(a)}
-              </p>
-            ))}
-          </div>
-        )}
-      </div>
-    </details>
-  );
-};
-
 export default MeetingsPage;

@@ -35,7 +35,8 @@ export const NAV_ITEMS = [
     children: [
       { id: 'crm-clients', label: 'All Clients', path: '/crm/clients',       permission: 'crm.tab.clients' },
       { id: 'new-leads',   label: 'New Leads',   path: '/crm/new-leads',     permission: 'crm.tab.leads' },
-      { id: 'meetings',    label: 'Meetings',    path: '/crm/meetings',       permission: 'crm.tab.meetings' },
+      { id: 'meetings',           label: 'Meetings',  path: '/crm/meetings',          permission: 'crm.tab.meetings' },
+      { id: 'meetings-calendar',  label: 'Calendar',  path: '/crm/meetings/calendar', permission: 'crm.tab.meetings' },
       { id: 'converted',   label: 'Converted',   path: '/crm/converted',     permission: 'crm.tab.converted' },
       { id: 'lost',        label: 'Lost',        path: '/crm/lost-leads',     permission: 'crm.tab.lost' },
     ],
