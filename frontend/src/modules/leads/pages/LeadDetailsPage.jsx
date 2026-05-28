@@ -18,6 +18,7 @@ import {
   RotateCcw,
   User,
   UserPlus,
+  Users,
   XCircle,
   CheckCircle2,
 } from 'lucide-react';
@@ -38,6 +39,43 @@ import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader } from '../../../shared/components';
 import LeadLifecycleStepper from '../components/LeadLifecycleStepper';
 import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
+import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
+
+const EMPTY_ATTENDEES = { internal: [], client: [] };
+
+const seedClientAttendeesForLead = (lead) => {
+  if (!lead?.name) return [];
+  return [{
+    name: lead.name,
+    phone: lead.phone || '',
+    email: lead.email || '',
+    relation: 'lead',
+    notifyEmail: true,
+    notifyWhatsApp: true,
+  }];
+};
+
+const hydrateAttendeesFromMeeting = (meeting) => {
+  if (!meeting?.attendees) return EMPTY_ATTENDEES;
+  const internal = (meeting.attendees.internal || []).map((a) => ({
+    userId: a.userId?._id || a.userId,
+    name: a.name || a.userId?.name || '',
+    email: a.email || a.userId?.email || '',
+    phone: a.phone || a.userId?.phone || '',
+    role: a.role || a.userId?.role || '',
+    notifyEmail: a.notifyEmail !== false,
+    notifyWhatsApp: a.notifyWhatsApp !== false,
+  }));
+  const client = (meeting.attendees.client || []).map((a) => ({
+    name: a.name,
+    phone: a.phone || '',
+    email: a.email || '',
+    relation: a.relation || 'other',
+    notifyEmail: a.notifyEmail !== false,
+    notifyWhatsApp: a.notifyWhatsApp !== false,
+  }));
+  return { internal, client };
+};
 
 const LIFECYCLE_STEPS = [
   'enquiry',
@@ -103,6 +141,8 @@ const LeadDetailsPage = () => {
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('10:00');
   const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [scheduleAttendees, setScheduleAttendees] = useState(EMPTY_ATTENDEES);
+  const [rescheduleAttendees, setRescheduleAttendees] = useState(EMPTY_ATTENDEES);
 
   const projectAssets = lead?.showProject?.assets || [];
 
@@ -169,6 +209,11 @@ const LeadDetailsPage = () => {
     }) || null;
   };
 
+  const openMeetingModal = () => {
+    setScheduleAttendees({ internal: [], client: seedClientAttendeesForLead(lead) });
+    setIsMeetingModalOpen(true);
+  };
+
   const handleScheduleMeeting = async (e) => {
     e.preventDefault();
 
@@ -189,10 +234,12 @@ const LeadDetailsPage = () => {
         date: isoDate,
         type: meetingType,
         notes: meetingNotes,
+        attendees: scheduleAttendees,
       });
       scheduleAutomations(id, isoDate);
       await transitionStatus(id, LEAD_ACTIONS.SCHEDULE_MEETING);
       setIsMeetingModalOpen(false);
+      setScheduleAttendees(EMPTY_ATTENDEES);
     }, 'Meeting scheduled successfully.');
   };
 
@@ -202,6 +249,11 @@ const LeadDetailsPage = () => {
     setRescheduleDate(d.toISOString().split('T')[0]);
     setRescheduleTime(d.toTimeString().slice(0, 5));
     setRescheduleNotes(meeting.notes || '');
+    const hydrated = hydrateAttendeesFromMeeting(meeting);
+    if (hydrated.client.length === 0 && lead) {
+      hydrated.client = seedClientAttendeesForLead(lead);
+    }
+    setRescheduleAttendees(hydrated);
     setActionError('');
     setIsRescheduleModalOpen(true);
   };
@@ -225,9 +277,12 @@ const LeadDetailsPage = () => {
         date: isoDate,
         status: 'rescheduled',
         notes: rescheduleNotes || rescheduleTargetMeeting.notes,
+        rescheduledFrom: rescheduleTargetMeeting.date,
+        attendees: rescheduleAttendees,
       });
       setIsRescheduleModalOpen(false);
       setRescheduleTargetMeeting(null);
+      setRescheduleAttendees(EMPTY_ATTENDEES);
     }, 'Meeting rescheduled. A confirmation email has been sent to the client.');
   };
 
@@ -384,7 +439,7 @@ const LeadDetailsPage = () => {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => setIsMeetingModalOpen(true)}>
+          <Button variant="primary" onClick={openMeetingModal}>
             <Calendar size={16} />
             Schedule Meeting
           </Button>
@@ -686,7 +741,7 @@ const LeadDetailsPage = () => {
             <div className="flex items-center justify-between">
               <SectionTitle title="Meetings" icon={Calendar} />
               <button
-                onClick={() => setIsMeetingModalOpen(true)}
+                onClick={openMeetingModal}
                 className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
               >
                 <Plus size={12} /> Schedule
@@ -723,6 +778,21 @@ const LeadDetailsPage = () => {
                     With: <span className="font-medium">{meeting.assignedTo.name}</span>
                   </p>
                 )}
+                {(() => {
+                  const internalCount = meeting.attendees?.internal?.length || 0;
+                  const clientCount = meeting.attendees?.client?.length || 0;
+                  const total = internalCount + clientCount;
+                  if (total === 0) return null;
+                  return (
+                    <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5">
+                      <Users size={11} className="text-[var(--text-muted)]" />
+                      {total} attendee{total === 1 ? '' : 's'}
+                      <span className="text-[10px] text-[var(--text-muted)]">
+                        ({clientCount} client • {internalCount} team)
+                      </span>
+                    </p>
+                  );
+                })()}
                 {meeting.outcome && (
                   <p className="text-xs text-[var(--text-muted)] italic">"{meeting.outcome}"</p>
                 )}
@@ -810,6 +880,12 @@ const LeadDetailsPage = () => {
             />
           </div>
 
+          <AttendeesEditor
+            lead={lead}
+            value={scheduleAttendees}
+            onChange={setScheduleAttendees}
+          />
+
           {actionError && (
             <div className="rounded-xl border px-4 py-3 text-sm bg-[var(--error)]/10 border-[var(--error)]/20 text-[var(--error)] font-medium">
               {actionError}
@@ -866,6 +942,12 @@ const LeadDetailsPage = () => {
               rows={3}
             />
           </div>
+
+          <AttendeesEditor
+            lead={lead}
+            value={rescheduleAttendees}
+            onChange={setRescheduleAttendees}
+          />
 
           {actionError && (
             <div className="rounded-xl border px-4 py-3 text-sm bg-[var(--error)]/10 border-[var(--error)]/20 text-[var(--error)] font-medium">

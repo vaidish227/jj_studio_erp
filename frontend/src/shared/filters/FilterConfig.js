@@ -63,6 +63,7 @@ export const CRM_FILTERS = {
     [FILTER_TYPES.STATUS]: {
       options: [
         { value: 'scheduled', label: 'Scheduled', color: 'blue' },
+        { value: 'rescheduled', label: 'Rescheduled', color: 'amber' },
         { value: 'completed', label: 'Completed', color: 'green' },
         { value: 'cancelled', label: 'Cancelled', color: 'red' }
       ]

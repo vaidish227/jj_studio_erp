@@ -16,6 +16,54 @@ const appendInteraction = (client, entry) => {
   client.lastInteractionAt = new Date();
 };
 
+// ─── Helper: normalize + validate attendees payload from req.body ─────
+// Returns { ok: true, value } or { ok: false, message }.
+// Drops malformed rows silently; rejects only on hard schema violations.
+const normalizeAttendees = (raw) => {
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (raw === null) return { ok: true, value: { internal: [], client: [] } };
+  if (typeof raw !== "object") {
+    return { ok: false, message: "attendees must be an object" };
+  }
+
+  const internalIn = Array.isArray(raw.internal) ? raw.internal : [];
+  const clientIn = Array.isArray(raw.client) ? raw.client : [];
+
+  const internal = [];
+  for (const a of internalIn) {
+    if (!a || typeof a !== "object") continue;
+    if (!a.userId || !isValidId(a.userId)) {
+      return { ok: false, message: "Each internal attendee requires a valid userId" };
+    }
+    internal.push({
+      userId: a.userId,
+      name: a.name || "",
+      email: a.email || "",
+      phone: a.phone || "",
+      role: a.role || "",
+      notifyEmail: a.notifyEmail !== false,
+      notifyWhatsApp: a.notifyWhatsApp !== false,
+    });
+  }
+
+  const client = [];
+  for (const a of clientIn) {
+    if (!a || typeof a !== "object") continue;
+    const name = (a.name || "").trim();
+    if (!name) continue;
+    client.push({
+      name,
+      email: a.email || "",
+      phone: a.phone || "",
+      relation: a.relation || "other",
+      notifyEmail: a.notifyEmail !== false,
+      notifyWhatsApp: a.notifyWhatsApp !== false,
+    });
+  }
+
+  return { ok: true, value: { internal, client } };
+};
+
 // =====================================================================
 //  CREATE MEETING
 // =====================================================================
@@ -33,6 +81,11 @@ const createMeeting = async (req, res) => {
 
     if (assignedTo && !isValidId(assignedTo)) {
       return res.status(400).json({ message: "Invalid assignedTo user ID" });
+    }
+
+    const attendeesResult = normalizeAttendees(req.body.attendees);
+    if (!attendeesResult.ok) {
+      return res.status(400).json({ message: attendeesResult.message });
     }
 
     const meetingDateObj = new Date(date);
@@ -64,6 +117,7 @@ const createMeeting = async (req, res) => {
       notes,
       durationMinutes: durationMinutes || 60,
       assignedTo: assignedTo || null,
+      attendees: attendeesResult.value || { internal: [], client: [] },
       createdBy: req.user?._id || null,
     });
 
@@ -85,6 +139,11 @@ const createMeeting = async (req, res) => {
     await lead.save();
 
     // Send confirmation email
+    // TODO(meeting-notifications): replace this single-recipient send with
+    // mailService.enqueue + whatsappService.enqueue, looping
+    // meeting.attendees.internal + meeting.attendees.client and honouring each
+    // attendee's notifyEmail / notifyWhatsApp toggles. Use
+    // relatedTo: { module: "meeting", recordId: meeting._id }.
     if (lead.email) {
       try {
         const d = meetingDateObj;
@@ -102,6 +161,7 @@ const createMeeting = async (req, res) => {
 
     const populated = await Meeting.findById(meeting._id)
       .populate("assignedTo", "name email")
+      .populate("attendees.internal.userId", "name email phone role")
       .populate("createdBy", "name email");
 
     res.status(201).json({ message: "Meeting created successfully", meeting: populated, lead });
@@ -124,6 +184,7 @@ const getMeetingsByLead = async (req, res) => {
 
     const meetings = await Meeting.find({ leadId })
       .populate("assignedTo", "name email")
+      .populate("attendees.internal.userId", "name email phone role")
       .populate("createdBy", "name email")
       .sort({ date: -1 });
 
@@ -169,6 +230,14 @@ const updateMeeting = async (req, res) => {
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) meeting[field] = req.body[field];
     });
+
+    if (req.body.attendees !== undefined) {
+      const attendeesResult = normalizeAttendees(req.body.attendees);
+      if (!attendeesResult.ok) {
+        return res.status(400).json({ message: attendeesResult.message });
+      }
+      meeting.attendees = attendeesResult.value;
+    }
 
     await meeting.save();
 
@@ -261,6 +330,7 @@ const updateMeeting = async (req, res) => {
 
     const populated = await Meeting.findById(meeting._id)
       .populate("assignedTo", "name email")
+      .populate("attendees.internal.userId", "name email phone role")
       .populate("createdBy", "name email");
 
     res.status(200).json({ message: "Meeting updated successfully", meeting: populated });
@@ -276,9 +346,10 @@ const updateMeeting = async (req, res) => {
 const getAllMeetings = async (req, res) => {
   try {
     const meetings = await Meeting.find()
-      .populate("leadId", "name phone city projectType siteAddress email trackingId")
+      .populate("leadId", "name phone city projectType siteAddress email trackingId spouse")
       .populate("assignedTo", "name email")
       .populate("createdBy", "name email")
+      .populate("attendees.internal.userId", "name email phone role")
       .populate("mom.attendees.staff", "name email role")
       .populate("mom.actionItems.assignedTo", "name email role")
       .populate("mom.recordedBy", "name email")

@@ -8,9 +8,12 @@ import {
   LayoutGrid,
   List,
   Loader2,
+  Mail,
   MapPin,
+  MessageSquare,
   Phone,
   Plus,
+  Users,
   XCircle,
   RotateCcw,
   FileText,
@@ -29,11 +32,50 @@ import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 import RecordMOMModal from '../components/RecordMOMModal';
 import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
+import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
+
+const EMPTY_ATTENDEES = { internal: [], client: [] };
+
+const seedClientAttendeesForLead = (lead) => {
+  if (!lead?.name) return [];
+  return [{
+    name: lead.name,
+    phone: lead.phone || '',
+    email: lead.email || '',
+    relation: 'lead',
+    notifyEmail: true,
+    notifyWhatsApp: true,
+  }];
+};
+
+// Convert backend attendees (with populated userId references) → editor format
+const hydrateAttendeesFromMeeting = (meeting) => {
+  if (!meeting?.attendees) return EMPTY_ATTENDEES;
+  const internal = (meeting.attendees.internal || []).map((a) => ({
+    userId: a.userId?._id || a.userId,
+    name: a.name || a.userId?.name || '',
+    email: a.email || a.userId?.email || '',
+    phone: a.phone || a.userId?.phone || '',
+    role: a.role || a.userId?.role || '',
+    notifyEmail: a.notifyEmail !== false,
+    notifyWhatsApp: a.notifyWhatsApp !== false,
+  }));
+  const client = (meeting.attendees.client || []).map((a) => ({
+    name: a.name,
+    phone: a.phone || '',
+    email: a.email || '',
+    relation: a.relation || 'other',
+    notifyEmail: a.notifyEmail !== false,
+    notifyWhatsApp: a.notifyWhatsApp !== false,
+  }));
+  return { internal, client };
+};
 
 const POLL_INTERVAL_MS = 30000;
 
 const statusVariants = {
   scheduled: 'primary',
+  rescheduled: 'warning',
   completed: 'success',
   cancelled: 'error',
 };
@@ -63,10 +105,11 @@ const MeetingsPage = () => {
   const [meetingType, setMeetingType] = useState('office');
   const [meetingNotes, setMeetingNotes] = useState('');
   const [meetingStatus, setMeetingStatus] = useState('scheduled');
+  const [attendees, setAttendees] = useState(EMPTY_ATTENDEES);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  // Stat-card quick filter: 'all' | 'scheduled' | 'completed' | 'cancelled' | 'site'
+  // Stat-card quick filter: 'all' | 'scheduled' | 'rescheduled' | 'completed' | 'cancelled' | 'site'
   const [statCardFilter, setStatCardFilter] = useState('all');
 
   const {
@@ -151,6 +194,7 @@ const searchTerm = navbarQuery.toLowerCase();
   const stats = useMemo(() => ({
     total: meetings.length,
     scheduled: meetings.filter((meeting) => meeting.status === 'scheduled').length,
+    rescheduled: meetings.filter((meeting) => meeting.status === 'rescheduled').length,
     completed: meetings.filter((meeting) => meeting.status === 'completed').length,
     cancelled: meetings.filter((meeting) => meeting.status === 'cancelled').length,
     site: meetings.filter((meeting) => meeting.type === 'site').length,
@@ -212,6 +256,7 @@ const searchTerm = navbarQuery.toLowerCase();
         date: `${meetingDate}T${meetingTime}:00`,
         type: meetingType,
         notes: meetingNotes,
+        attendees,
       });
       toast.success('Meeting scheduled successfully!');
       fetchData();
@@ -219,6 +264,7 @@ const searchTerm = navbarQuery.toLowerCase();
       // Reset form
       setSelectedLead('');
       setMeetingNotes('');
+      setAttendees(EMPTY_ATTENDEES);
     } catch (err) {
       toast.error(err?.message || 'Failed to schedule meeting.');
     } finally {
@@ -277,6 +323,12 @@ const searchTerm = navbarQuery.toLowerCase();
     setMeetingTime(meetingDateObj.toTimeString().slice(0, 5));
     setMeetingType(meeting.type || 'office');
     setMeetingNotes(meeting.notes || '');
+    const hydrated = hydrateAttendeesFromMeeting(meeting);
+    // If a meeting was scheduled before this feature existed, seed the lead row
+    if (hydrated.client.length === 0 && meeting.leadId?.name) {
+      hydrated.client = seedClientAttendeesForLead(meeting.leadId);
+    }
+    setAttendees(hydrated);
     setIsRescheduleModalOpen(true);
   };
 
@@ -300,7 +352,9 @@ const searchTerm = navbarQuery.toLowerCase();
         date: `${meetingDate}T${meetingTime}`,
         type: meetingType,
         notes: meetingNotes,
-        status: 'scheduled',
+        status: 'rescheduled',
+        rescheduledFrom: selectedMeeting.date,
+        attendees,
       });
 
       setSelectedMeeting(null);
@@ -312,6 +366,7 @@ const searchTerm = navbarQuery.toLowerCase();
       });
       setMeetingType('office');
       setMeetingNotes('');
+      setAttendees(EMPTY_ATTENDEES);
       setIsRescheduleModalOpen(false);
       toast.success('Meeting rescheduled successfully!');
       fetchData();
@@ -359,7 +414,7 @@ const searchTerm = navbarQuery.toLowerCase();
       />
 
       {/* Stats Cards — clickable quick filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <DashboardCard
           title="Total Meetings"
           value={stats.total}
@@ -377,6 +432,15 @@ const searchTerm = navbarQuery.toLowerCase();
           compact
           onClick={() => setStatCardFilter((prev) => (prev === 'scheduled' ? 'all' : 'scheduled'))}
           isActive={statCardFilter === 'scheduled'}
+        />
+        <DashboardCard
+          title="Rescheduled"
+          value={stats.rescheduled}
+          icon={RotateCcw}
+          iconBg="bg-[var(--warning)]/10"
+          compact
+          onClick={() => setStatCardFilter((prev) => (prev === 'rescheduled' ? 'all' : 'rescheduled'))}
+          isActive={statCardFilter === 'rescheduled'}
         />
         <DashboardCard
           title="Completed"
@@ -490,7 +554,11 @@ const searchTerm = navbarQuery.toLowerCase();
           <Select
             label="Select Lead"
             value={selectedLead}
-            onChange={setSelectedLead}
+            onChange={(leadId) => {
+              setSelectedLead(leadId);
+              const pickedLead = leads.find((l) => l._id === leadId);
+              setAttendees({ internal: [], client: seedClientAttendeesForLead(pickedLead) });
+            }}
             options={leads.map((lead) => ({ value: lead._id, label: `${lead.name} • ${lead.phone}` }))}
           />
           <DateTimePicker
@@ -527,6 +595,11 @@ const searchTerm = navbarQuery.toLowerCase();
             rows={3}
             placeholder="Meeting notes or agenda"
             className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+          />
+          <AttendeesEditor
+            lead={leads.find((l) => l._id === selectedLead) || null}
+            value={attendees}
+            onChange={setAttendees}
           />
           <div className="flex gap-3 pt-4">
             <Button variant="ghost" type="button" onClick={() => setIsModalOpen(false)} fullWidth>Cancel</Button>
@@ -568,6 +641,11 @@ const searchTerm = navbarQuery.toLowerCase();
             rows={3}
             placeholder="Reason for rescheduling or updated notes"
             className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+          />
+          <AttendeesEditor
+            lead={selectedMeeting?.leadId || null}
+            value={attendees}
+            onChange={setAttendees}
           />
           <div className="flex gap-3 pt-4">
             <Button variant="ghost" type="button" onClick={() => setIsRescheduleModalOpen(false)} fullWidth>Cancel</Button>
@@ -661,6 +739,8 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule, onR
             <span className="text-[var(--text-secondary)] leading-relaxed">{meeting.notes || 'Meeting to understand client requirements and site measurements.'}</span>
           </div>
 
+          <MeetingAttendeesSummary meeting={meeting} />
+
           {hasMOM && (
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
@@ -693,6 +773,7 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule, onR
               onChange={(value) => onStatusChange(meeting._id, value)}
               options={[
                 { value: 'scheduled', label: 'Scheduled' },
+                { value: 'rescheduled', label: 'Rescheduled' },
                 { value: 'completed', label: 'Completed' },
                 { value: 'cancelled', label: 'Cancelled' },
               ]}
@@ -721,6 +802,67 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule, onR
         </div>
       </div>
     </div>
+  );
+};
+
+const channelIcons = (a) => (
+  <span className="inline-flex items-center gap-1 ml-1">
+    {a.notifyEmail !== false && a.email && <Mail size={10} className="text-[var(--text-muted)]" />}
+    {a.notifyWhatsApp !== false && a.phone && <MessageSquare size={10} className="text-[var(--text-muted)]" />}
+  </span>
+);
+
+const MeetingAttendeesSummary = ({ meeting }) => {
+  const internal = meeting?.attendees?.internal || [];
+  const client = meeting?.attendees?.client || [];
+  const total = internal.length + client.length;
+  if (total === 0) return null;
+
+  return (
+    <details className="group/att rounded-xl border border-[var(--border)] bg-[var(--bg)]/60 px-4 py-2.5 text-sm open:py-3">
+      <summary className="flex items-center justify-between cursor-pointer list-none gap-3">
+        <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+          <div className="w-7 h-7 rounded-lg bg-[var(--surface)] flex items-center justify-center text-[var(--primary)]">
+            <Users size={14} />
+          </div>
+          <span className="text-xs font-bold uppercase tracking-widest">{total} Attendee{total === 1 ? '' : 's'}</span>
+          <span className="text-[10px] text-[var(--text-muted)] font-medium">
+            {client.length} client • {internal.length} team
+          </span>
+        </div>
+        <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest group-open/att:hidden">Show</span>
+        <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest hidden group-open/att:inline">Hide</span>
+      </summary>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-[var(--border)]">
+        {client.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Client Side</p>
+            {client.map((c, i) => (
+              <p key={`c-${i}`} className="text-xs text-[var(--text-primary)] flex items-center">
+                <span className="font-semibold">{c.name}</span>
+                {c.relation && c.relation !== 'lead' && (
+                  <span className="ml-1 text-[10px] text-[var(--text-muted)] capitalize">({c.relation.replace('_', ' ')})</span>
+                )}
+                {channelIcons(c)}
+              </p>
+            ))}
+          </div>
+        )}
+        {internal.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Internal Team</p>
+            {internal.map((a, i) => (
+              <p key={`i-${i}`} className="text-xs text-[var(--text-primary)] flex items-center">
+                <span className="font-semibold">{a.name || a.userId?.name || 'Team member'}</span>
+                {a.role && <span className="ml-1 text-[10px] text-[var(--text-muted)] capitalize">({a.role})</span>}
+                {channelIcons(a)}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
   );
 };
 

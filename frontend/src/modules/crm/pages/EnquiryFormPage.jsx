@@ -9,7 +9,6 @@ import {
   IndianRupee,
   Briefcase,
   Users,
-  LayoutGrid,
   Sparkles,
   ArrowRight,
   CheckCircle2,
@@ -86,7 +85,7 @@ const EnquiryFormPage = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-10 py-6 px-4 animate-in fade-in duration-700">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[var(--border)] pb-8">
+      <div className="border-b border-[var(--border)] pb-8">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-[var(--primary)] mb-1">
             <Sparkles size={20} className="animate-pulse" />
@@ -97,18 +96,9 @@ const EnquiryFormPage = () => {
             Register a new prospective client and their initial project requirements.
           </p>
         </div>
-        <div className="flex items-center gap-3 bg-[var(--surface)] p-2 rounded-2xl border border-[var(--border)]">
-          <div className="px-4 py-2 text-right">
-            <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">Form ID</p>
-            <p className="text-sm font-bold text-[var(--text-primary)] tracking-tighter">ENQ-{Date.now().toString().slice(-6)}</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)]">
-            <LayoutGrid size={20} />
-          </div>
-        </div>
       </div>
 
-      <form onSubmit={handleFormSubmit} className="space-y-12 pb-24">
+      <form onSubmit={handleFormSubmit} className="space-y-12">
         {/* Section 1: Client Personal Info */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2">
@@ -331,8 +321,8 @@ const EnquiryFormPage = () => {
         )}
 
         {/* Action Bar */}
-        <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-white/80 backdrop-blur-md border-t border-[var(--border)] px-8 py-4 flex items-center justify-between z-50">
-          <p className="hidden md:block text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">
+        <div className="border-t border-[var(--border)] pt-6 flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-4">
+          <p className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">
             Ensure all required fields (*) are filled
           </p>
           <div className="flex items-center gap-4 w-full md:w-auto">
