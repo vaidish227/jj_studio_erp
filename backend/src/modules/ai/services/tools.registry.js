@@ -12,6 +12,8 @@ const getDesignerDashboard = require("../tools/getDesignerDashboard.tool");
 // V2.1 additions
 const getLeads             = require("../tools/getLeads.tool");
 const getClients           = require("../tools/getClients.tool");
+const getMeetings          = require("../tools/getMeetings.tool");
+const listProposalTemplates = require("../tools/listProposalTemplates.tool");
 const searchProjects       = require("../tools/searchProjects.tool");
 const searchActivity       = require("../tools/searchActivity.tool");
 // V3 write tools (two-phase: dryRun -> user confirm -> apply)
@@ -29,8 +31,20 @@ const addFollowUp           = require("../tools/addFollowUp.tool");
 const assignLead            = require("../tools/assignLead.tool");
 const addLeadNote           = require("../tools/addLeadNote.tool");
 const scheduleMeeting       = require("../tools/scheduleMeeting.tool");
+const sendProposal          = require("../tools/sendProposal.tool");
+const createAndSendProposal = require("../tools/createAndSendProposal.tool");
 const updateProjectStatus   = require("../tools/updateProjectStatus.tool");
 const updateClientApproval  = require("../tools/updateClientApproval.tool");
+// Phase 1 — Dashboard read tools
+const getDashboardStats     = require("../tools/getDashboardStats.tool");
+const getSalesPipeline      = require("../tools/getSalesPipeline.tool");
+const getDashboardFollowUps = require("../tools/getDashboardFollowUps.tool");
+// Phase 2A — CRM Leads (read + write)
+const getLeadDetails        = require("../tools/getLeadDetails.tool");
+const createLead            = require("../tools/createLead.tool");
+const updateLead            = require("../tools/updateLead.tool");
+const convertLead           = require("../tools/convertLead.tool");
+const recordAdvancePayment  = require("../tools/recordAdvancePayment.tool");
 
 const TOOLS = [
   // Read
@@ -42,6 +56,8 @@ const TOOLS = [
   getDesignerDashboard,
   getLeads,
   getClients,
+  getMeetings,
+  listProposalTemplates,
   searchProjects,
   searchActivity,
   // Write — task lifecycle
@@ -60,9 +76,22 @@ const TOOLS = [
   assignLead,
   addLeadNote,
   scheduleMeeting,
+  sendProposal,
+  createAndSendProposal,
   // Write — project
   updateProjectStatus,
   updateClientApproval,
+  // Read — Dashboard (Phase 1)
+  getDashboardStats,
+  getSalesPipeline,
+  getDashboardFollowUps,
+  // CRM Leads — read (Phase 2A)
+  getLeadDetails,
+  // CRM Leads — write (Phase 2A)
+  createLead,
+  updateLead,
+  convertLead,
+  recordAdvancePayment,
 ];
 
 const byName = new Map(TOOLS.map((t) => [t.name, t]));

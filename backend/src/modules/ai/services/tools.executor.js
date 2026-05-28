@@ -159,6 +159,10 @@ async function finalizeReadResult({ result, ctx, conversationId, messageId, tool
     llmSummary,
     summaryText: result?.summaryText || (ok ? "" : "Tool returned an error."),
     uiHint: result?.uiHint || (ok ? null : "error"),
+    // Optional pass-through meta for list-returning tools: real result count
+    // (so the UI can show "View all N") and a deep link to the full page.
+    total: typeof result?.total === "number" ? result.total : undefined,
+    viewAllUrl: typeof result?.viewAllUrl === "string" ? result.viewAllUrl : undefined,
     latencyMs: Date.now() - started,
   };
 

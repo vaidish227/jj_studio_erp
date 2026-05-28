@@ -598,4 +598,4 @@ const sendProposalEmail = async (req, res) => {
   }
 };
 
-module.exports = { createProposal, getProposals, updateProposalStatus, deleteProposal, getProposalById, updateProposal, sendProposalEmail }
+module.exports = { createProposal, getProposals, updateProposalStatus, deleteProposal, getProposalById, updateProposal, sendProposalEmail, triggerSendToClient }

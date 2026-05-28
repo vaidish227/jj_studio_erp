@@ -1,13 +1,14 @@
 import React from 'react';
 import {
   Loader2, AlertCircle, CheckCircle2,
-  ListTodo, Search, FileText, Clock, ClipboardList, LayoutDashboard, Activity, Users,
+  ListTodo, Search, FileText, Clock, ClipboardList, LayoutDashboard, Activity, Users, Calendar,
 } from 'lucide-react';
 import TaskCard from './TaskCard';
 import ProjectCard from './ProjectCard';
 import DashboardCard from './DashboardCard';
 import ChecklistCard from './ChecklistCard';
 import LeadCard from './LeadCard';
+import MeetingCard from './MeetingCard';
 import ProjectListCard from './ProjectListCard';
 import ActivityCard from './ActivityCard';
 import ActionConfirmCard from './ActionConfirmCard';
@@ -24,6 +25,8 @@ const TOOL_META = {
   searchActivity:       { label: 'Recent activity',     Icon: Activity },
   getLeads:             { label: 'Leads',               Icon: Users },
   getClients:           { label: 'Clients',             Icon: Users },
+  getMeetings:          { label: 'Meetings',            Icon: Calendar },
+  listProposalTemplates:{ label: 'Proposal templates',  Icon: FileText },
   // Write tools — tasks (V3.1)
   updateTaskStatus:     { label: 'Update task status',     Icon: FileText, isWrite: true },
   toggleChecklistItem:  { label: 'Tick checklist item',    Icon: ClipboardList, isWrite: true },
@@ -39,6 +42,8 @@ const TOOL_META = {
   assignLead:           { label: 'Assign lead',            Icon: Users, isWrite: true },
   addLeadNote:          { label: 'Add lead note',          Icon: FileText, isWrite: true },
   scheduleMeeting:      { label: 'Schedule meeting',       Icon: Clock, isWrite: true },
+  sendProposal:         { label: 'Send proposal',          Icon: FileText, isWrite: true },
+  createAndSendProposal:{ label: 'Create + send proposal', Icon: FileText, isWrite: true },
   updateProjectStatus:  { label: 'Update project status',  Icon: FileText, isWrite: true },
   updateClientApproval: { label: 'Update client approval', Icon: ClipboardList, isWrite: true },
 };
@@ -108,7 +113,7 @@ const ToolMessage = ({ message }) => {
       {isEmpty ? (
         <EmptyResult hint={message.uiHint} toolName={message.toolName} summary={message.summaryText} />
       ) : (
-        <RenderByHint hint={message.uiHint} data={message.data} />
+        <RenderByHint hint={message.uiHint} data={message.data} message={message} />
       )}
     </div>
   );
@@ -123,6 +128,7 @@ function EmptyResult({ hint, toolName, summary }) {
     dashboard:     { headline: 'Empty dashboard', subline: 'No tasks assigned to you yet.' },
     leadList:      { headline: 'No leads', subline: summary || 'Nothing in the funnel right now.' },
     clientList:    { headline: 'No clients', subline: summary || 'No converted clients found.' },
+    meetingList:   { headline: 'No meetings', subline: summary || 'Nothing on the calendar for that filter.' },
     projectList:   { headline: 'No projects', subline: summary || 'No projects matched your filters.' },
     activityList:  { headline: 'No activity', subline: summary || 'No actions in that time window.' },
   };
@@ -135,7 +141,7 @@ function EmptyResult({ hint, toolName, summary }) {
   );
 }
 
-function RenderByHint({ hint, data }) {
+function RenderByHint({ hint, data, message }) {
   if (!data) return null;
   switch (hint) {
     case 'taskList':       return <TaskCard items={Array.isArray(data) ? data : []} />;
@@ -143,8 +149,9 @@ function RenderByHint({ hint, data }) {
     case 'projectSummary': return <ProjectCard project={data} />;
     case 'dashboard':      return <DashboardCard dashboard={data} />;
     case 'checklist':      return <ChecklistCard checklist={data} />;
-    case 'leadList':       return <LeadCard items={Array.isArray(data) ? data : []} />;
-    case 'clientList':     return <LeadCard items={Array.isArray(data) ? data : []} />;
+    case 'leadList':       return <LeadCard items={Array.isArray(data) ? data : []} total={message?.total} viewAllUrl={message?.viewAllUrl} />;
+    case 'clientList':     return <LeadCard items={Array.isArray(data) ? data : []} total={message?.total} viewAllUrl={message?.viewAllUrl} />;
+    case 'meetingList':    return <MeetingCard items={Array.isArray(data) ? data : []} total={message?.total} viewAllUrl={message?.viewAllUrl} />;
     case 'projectList':    return <ProjectListCard items={Array.isArray(data) ? data : []} />;
     case 'activityList':   return <ActivityCard items={Array.isArray(data) ? data : []} />;
     default:               return null;

@@ -68,11 +68,14 @@ module.exports = {
     }
     if (args.projectType) q.projectType = args.projectType;
 
-    const leads = await CRMClient.find(q)
-      .select("trackingId name phone email projectType area budget city status lifecycleStage priority assignedTo meetingDate updatedAt")
-      .sort({ updatedAt: -1 })
-      .limit(limit)
-      .lean();
+    const [leads, total] = await Promise.all([
+      CRMClient.find(q)
+        .select("trackingId name phone email projectType area budget city status lifecycleStage priority assignedTo meetingDate updatedAt")
+        .sort({ updatedAt: -1 })
+        .limit(limit)
+        .lean(),
+      CRMClient.countDocuments(q),
+    ]);
 
     const assigneeIds = [...new Set(leads.filter((l) => l.assignedTo).map((l) => String(l.assignedTo)))];
     const assignees = assigneeIds.length
@@ -98,25 +101,49 @@ module.exports = {
       url: `/crm/${statusToTabSlug(l.status)}`,
     }));
 
+    const viewAllUrl = args.status && args.status !== "all"
+      ? `/crm/${statusToTabSlug(args.status)}`
+      : `/crm/new-leads`;
+    const truncated = total > items.length;
+    const ownership = scope === "team" ? "" : "your ";
+    const trailing = scope === "team" ? "" : " (assigned to you)";
+
+    let summaryText;
+    if (items.length === 0) {
+      summaryText = scope === "team"
+        ? "No active leads in the system."
+        : "No leads assigned to you. (Tip: try scope='team' if you can see others'.)";
+    } else if (truncated) {
+      summaryText = `Showing ${items.length} of ${total} ${ownership}leads${trailing}`;
+    } else {
+      summaryText = `${total} ${ownership}lead${total === 1 ? "" : "s"}${trailing}`;
+    }
+
     return {
       data: items,
-      summaryText:
-        items.length === 0
-          ? scope === "team" ? "No active leads in the system." : "No leads assigned to you. (Tip: try scope='team' if you can see others'.)"
-          : `${items.length} ${scope === "team" ? "" : "of your "}lead${items.length === 1 ? "" : "s"}${scope === "team" ? "" : " (assigned to you)"}`,
+      total,
+      shown: items.length,
+      viewAllUrl,
+      summaryText,
       uiHint: "leadList",
-      // Include id + trackingId so the model can pass them to write tools
-      // (updateLeadStatus, addFollowUp, scheduleMeeting, addLeadNote).
-      llmSummary: items.slice(0, 10).map((l) => ({
-        id: l.id,
-        trackingId: l.trackingId,
-        name: l.name,
-        status: l.status,
-        projectType: l.projectType,
-        city: l.city,
-        budget: l.budget,
-        assignee: l.assignee?.name || null,
-      })),
+      // The model reads llmSummary to reason about specific leads AND to know the
+      // real total — never claim "Total: N" using items.length alone.
+      llmSummary: {
+        total,
+        shown: items.length,
+        truncated,
+        viewAllUrl,
+        items: items.slice(0, 10).map((l) => ({
+          id: l.id,
+          trackingId: l.trackingId,
+          name: l.name,
+          status: l.status,
+          projectType: l.projectType,
+          city: l.city,
+          budget: l.budget,
+          assignee: l.assignee?.name || null,
+        })),
+      },
     };
   },
 };

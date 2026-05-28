@@ -20,9 +20,10 @@ const fmtBudget = (n) => {
   return String(v);
 };
 
-const LeadCard = ({ items }) => {
+const LeadCard = ({ items, total, viewAllUrl }) => {
   const navigate = useNavigate();
   if (!items?.length) return null;
+  const hasMore = typeof total === 'number' && total > items.length && !!viewAllUrl;
   return (
     <div className="flex flex-col gap-1.5">
       {items.map((l) => {
@@ -68,6 +69,18 @@ const LeadCard = ({ items }) => {
           </button>
         );
       })}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => navigate(viewAllUrl)}
+          className="text-left bg-[var(--bg,#F8F7F3)] border border-dashed border-[var(--border,#e5e5e5)] rounded-lg px-3 py-2 hover:border-[var(--primary,#D4B76C)] hover:bg-white transition-colors group inline-flex items-center justify-between gap-2"
+        >
+          <span className="text-xs font-medium text-[var(--primary,#D4B76C)]">
+            View all {total} leads
+          </span>
+          <ChevronRight className="w-4 h-4 text-[var(--text-muted,#A0A0A0)] group-hover:text-[var(--primary,#D4B76C)] transition-colors" />
+        </button>
+      )}
     </div>
   );
 };
