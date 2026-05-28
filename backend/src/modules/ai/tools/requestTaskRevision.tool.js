@@ -5,6 +5,7 @@
 const mongoose = require("mongoose");
 const Task = require("../../pms/models/Task.model");
 const { logActivity } = require("../../../shared/activityLogger");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 const ALLOWED_FROM = new Set(["pending_review", "pending_client_approval", "approved"]);
 
@@ -100,6 +101,22 @@ module.exports = {
       description: `[AI] Revision requested on ${t.title}: ${args.instructions.slice(0, 200)}`,
       metadata: { from: t.status, deadline: r.deadline, viaAI: true },
     });
+
+    if (t.assignedTo) {
+      notify({
+        type: "task.revision_requested",
+        module: "pms",
+        priority: "high",
+        title: `Revision requested: ${t.title}`,
+        message: `${args.instructions} (via AI assistant).`,
+        link: `/tasks/${t._id}`,
+        recipients: [t.assignedTo],
+        actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+        notifyActor: true,
+        relatedTo: { module: "pms", recordId: t._id },
+        metadata: { taskTitle: t.title, deadline: r.deadline, viaAI: true },
+      });
+    }
 
     return {
       ok: true,

@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const Task = require("../../pms/models/Task.model");
 const Project = require("../../pms/models/Project.model");
 const { logActivity } = require("../../../shared/activityLogger");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 // Allowed transitions per source status. Keep in sync with the Task UI.
 const ALLOWED_TRANSITIONS = {
@@ -134,6 +135,57 @@ module.exports = {
       description: `[AI] ${t.title}: ${t.status} → ${args.status}` + (args.reason ? ` (${args.reason})` : ""),
       metadata: { from: t.status, to: args.status, reason: args.reason || null, viaAI: true },
     });
+
+    // Fire matching in-app notification per status transition
+    let project = null;
+    if (args.status === "pending_review" || args.status === "approved" || args.status === "revision_requested") {
+      project = await Project.findById(t.projectId).select("name supervisor primaryDesigner").lean();
+    }
+    const baseActor = { _id: ctx.userId, name: ctx.userName || "AI Assistant" };
+
+    if (args.status === "pending_review") {
+      notify({
+        type: "task.submitted",
+        module: "pms",
+        priority: "normal",
+        title: `Review needed: ${t.title}`,
+        message: `${project?.name || "Project"} — submitted via AI assistant.`,
+        link: `/tasks/${t._id}`,
+        recipients: [project?.supervisor, project?.primaryDesigner].filter(Boolean),
+        actor: baseActor,
+        notifyActor: true,
+        relatedTo: { module: "pms", recordId: t._id },
+        metadata: { taskTitle: t.title, projectName: project?.name, viaAI: true },
+      });
+    } else if (args.status === "approved" && t.assignedTo) {
+      notify({
+        type: "task.approved",
+        module: "pms",
+        priority: "normal",
+        title: `Task approved: ${t.title}`,
+        message: `${project?.name || "Project"}${args.reason ? ` — ${args.reason}` : ""} (via AI assistant).`,
+        link: `/tasks/${t._id}`,
+        recipients: [t.assignedTo],
+        actor: baseActor,
+        notifyActor: true,
+        relatedTo: { module: "pms", recordId: t._id },
+        metadata: { taskTitle: t.title, projectName: project?.name, viaAI: true },
+      });
+    } else if (args.status === "revision_requested" && t.assignedTo) {
+      notify({
+        type: "task.revision_requested",
+        module: "pms",
+        priority: "high",
+        title: `Revision requested: ${t.title}`,
+        message: args.reason || "Please review the feedback and resubmit.",
+        link: `/tasks/${t._id}`,
+        recipients: [t.assignedTo],
+        actor: baseActor,
+        notifyActor: true,
+        relatedTo: { module: "pms", recordId: t._id },
+        metadata: { taskTitle: t.title, projectName: project?.name, viaAI: true },
+      });
+    }
 
     return {
       ok: true,

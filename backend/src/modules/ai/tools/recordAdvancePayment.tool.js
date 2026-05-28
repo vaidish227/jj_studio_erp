@@ -4,6 +4,7 @@
 
 const CRMClient = require("../../crm/models/CRMClient.model");
 const { resolveLead } = require("../utils/resolveCrm");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 const WIDER_PERMS = ["*", "crm.update"];
 
@@ -115,6 +116,19 @@ module.exports = {
         $currentDate: { lastInteractionAt: true },
       }
     );
+
+    notify({
+      type: "payment.advance_recorded",
+      module: "crm",
+      priority: "high",
+      title: `Advance payment received from ${r.lead.name}`,
+      message: `₹${Number(args.amount || 0).toLocaleString("en-IN")} recorded${args.note ? ` — ${args.note}` : ""} (via AI assistant). Ready for project handoff.`,
+      link: `/crm/leads/${r.lead._id}`,
+      actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+      notifyActor: true,
+      relatedTo: { module: "crm", recordId: r.lead._id },
+      metadata: { leadName: r.lead.name, amount: args.amount, trackingId: r.lead.trackingId, viaAI: true },
+    });
 
     return {
       ok: true,

@@ -6,6 +6,18 @@ const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 const sendEmail = require("../utils/sendEmail");
 const getMeetingTemplate = require("../utils/Template/meetingTemplate");
 const getMeetingRescheduleTemplate = require("../utils/Template/meetingRescheduleTemplate");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
+
+// Resolve the set of user IDs we should notify for a meeting event.
+// Combines assignedTo + every internal attendee's userId.
+const meetingStaffRecipients = (meeting) => {
+  const ids = [];
+  if (meeting.assignedTo) ids.push(meeting.assignedTo);
+  for (const a of meeting.attendees?.internal || []) {
+    if (a.userId) ids.push(a.userId);
+  }
+  return ids;
+};
 
 // ─── Helper: append interaction to CRMClient timeline ─────────────────
 const appendInteraction = (client, entry) => {
@@ -163,6 +175,23 @@ const createMeeting = async (req, res) => {
       .populate("assignedTo", "name email")
       .populate("attendees.internal.userId", "name email phone role")
       .populate("createdBy", "name email");
+
+    // In-app notification for assigned staff + internal attendees
+    const niceDate = meetingDateObj.toLocaleString("en-IN", {
+      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+    notify({
+      type: "meeting.scheduled",
+      module: "meeting",
+      priority: "high",
+      title: `New ${normalizedType} meeting with ${lead.name}`,
+      message: `Scheduled for ${niceDate}${notes ? ` — ${notes}` : ""}`,
+      link: `/crm/leads/${lead._id}`,
+      recipients: meetingStaffRecipients(meeting),
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "meeting", recordId: meeting._id },
+      metadata: { leadName: lead.name, meetingType: normalizedType, when: meetingDateObj },
+    });
 
     res.status(201).json({ message: "Meeting created successfully", meeting: populated, lead });
   } catch (err) {
@@ -332,6 +361,42 @@ const updateMeeting = async (req, res) => {
       .populate("assignedTo", "name email")
       .populate("attendees.internal.userId", "name email phone role")
       .populate("createdBy", "name email");
+
+    // In-app notifications for meaningful status transitions
+    const newStatus = req.body.status;
+    if (newStatus && newStatus !== oldStatus && lead) {
+      const recipients = meetingStaffRecipients(populated);
+      const niceDate = new Date(populated.date).toLocaleString("en-IN", {
+        day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+      });
+      if (newStatus === "rescheduled") {
+        notify({
+          type: "meeting.rescheduled",
+          module: "meeting",
+          priority: "high",
+          title: `Meeting with ${lead.name} rescheduled`,
+          message: `Moved to ${niceDate}.`,
+          link: `/crm/leads/${lead._id}`,
+          recipients,
+          actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+          relatedTo: { module: "meeting", recordId: populated._id },
+          metadata: { leadName: lead.name, oldDate, newDate: populated.date },
+        });
+      } else if (newStatus === "cancelled") {
+        notify({
+          type: "meeting.cancelled",
+          module: "meeting",
+          priority: "normal",
+          title: `Meeting with ${lead.name} cancelled`,
+          message: `The ${populated.type} meeting scheduled for ${niceDate} was cancelled.`,
+          link: `/crm/leads/${lead._id}`,
+          recipients,
+          actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+          relatedTo: { module: "meeting", recordId: populated._id },
+          metadata: { leadName: lead.name },
+        });
+      }
+    }
 
     res.status(200).json({ message: "Meeting updated successfully", meeting: populated });
   } catch (err) {

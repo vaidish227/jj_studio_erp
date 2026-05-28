@@ -5,6 +5,7 @@
 
 const CRMClient = require("../../crm/models/CRMClient.model");
 const { resolveLead } = require("../utils/resolveCrm");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 const WIDER_PERMS = ["*", "crm.update"];
 
@@ -90,6 +91,19 @@ module.exports = {
         $currentDate: { lastInteractionAt: true },
       }
     );
+
+    notify({
+      type: "lead.converted",
+      module: "crm",
+      priority: "high",
+      title: `${r.lead.name} converted`,
+      message: args.note || "Client moved into the converted / project-ready stage (via AI assistant).",
+      link: `/crm/leads/${r.lead._id}`,
+      actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+      notifyActor: true,
+      relatedTo: { module: "crm", recordId: r.lead._id },
+      metadata: { leadName: r.lead.name, trackingId: r.lead.trackingId, viaAI: true },
+    });
 
     return {
       ok: true,

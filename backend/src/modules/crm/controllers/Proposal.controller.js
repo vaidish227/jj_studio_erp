@@ -6,6 +6,7 @@ const whatsappService = require("../../whatsapp/service/whatsapp.service");
 const MailTemplate = require("../../mail/models/MailTemplate.model");
 const WhatsAppTemplate = require("../../whatsapp/models/WhatsAppTemplate.model");
 const { generateProposalPdfBuffer, saveProposalPdf } = require("../utils/proposalPdf");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 require("dotenv").config();
 
 // Normalize a bare 10-digit Indian phone to +91XXXXXXXXXX; pass through if
@@ -335,6 +336,53 @@ const updateProposalStatus = async (req, res) => {
       delivery.emailSent = deliveryResult.email.sent;
       delivery.emailError = deliveryResult.email.error;
       delivery.recipientEmail = deliveryResult.email.recipient;
+    }
+
+    // ─── In-app notifications for the meaningful status transitions ────
+    // Recipients = proposal creator (createdBy) + admins (via fallback)
+    const proposalCreator = updatedProposal.createdBy || null;
+    const leadName = updatedProposal.leadId?.name || "client";
+    const linkToProposal = `/proposal/review/${updatedProposal._id}`;
+
+    if (status === "manager_approved") {
+      notify({
+        type: "proposal.manager_approved",
+        module: "proposal",
+        priority: "high",
+        title: `Proposal approved: ${updatedProposal.title || "(untitled)"}`,
+        message: `Approved & sent to ${leadName}.`,
+        link: linkToProposal,
+        recipients: proposalCreator ? [proposalCreator] : [],
+        actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+        relatedTo: { module: "proposal", recordId: updatedProposal._id },
+        metadata: { leadName, proposalTitle: updatedProposal.title },
+      });
+    } else if (status === "sent") {
+      notify({
+        type: "proposal.sent",
+        module: "proposal",
+        priority: "normal",
+        title: `Proposal sent to ${leadName}`,
+        message: updatedProposal.title ? `"${updatedProposal.title}"` : "Proposal delivered to client.",
+        link: linkToProposal,
+        recipients: proposalCreator ? [proposalCreator] : [],
+        actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+        relatedTo: { module: "proposal", recordId: updatedProposal._id },
+        metadata: { leadName },
+      });
+    } else if (status === "esign_received" || status === "signed") {
+      notify({
+        type: "proposal.esign_received",
+        module: "proposal",
+        priority: "high",
+        title: `eSign received from ${leadName}`,
+        message: updatedProposal.title ? `Signed: "${updatedProposal.title}"` : "Client has signed the proposal.",
+        link: linkToProposal,
+        recipients: proposalCreator ? [proposalCreator] : [],
+        actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+        relatedTo: { module: "proposal", recordId: updatedProposal._id },
+        metadata: { leadName },
+      });
     }
 
     res.json({ ...proposalObj, delivery });

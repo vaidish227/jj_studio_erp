@@ -1,7 +1,8 @@
 import React from 'react';
-import { Bell, ChevronDown, Search, Menu } from 'lucide-react';
+import { ChevronDown, Search, Menu } from 'lucide-react';
 import Avatar from '../../components/Avatar/Avatar';
 import ProfileDropdown from '../../components/ProfileDropdown/ProfileDropdown';
+import NotificationBell from '../../components/NotificationBell/NotificationBell';
 
 const Navbar = ({
   user = { name: 'Sarah Smith', role: 'Admin' },
@@ -9,7 +10,6 @@ const Navbar = ({
   searchValue = '',
   onSearch,
   onMenuToggle,
-  notificationCount = 1,
 }) => {
   return (
     <header className="
@@ -53,12 +53,7 @@ const Navbar = ({
       <div className="flex-1" />
 
       {/* Notification Bell */}
-      <button className="relative p-2 rounded-xl hover:bg-[var(--bg)] transition-colors">
-        <Bell size={20} className="text-[var(--text-secondary)]" />
-        {notificationCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--primary)]" />
-        )}
-      </button>
+      <NotificationBell />
 
       {/* User Profile */}
       <ProfileDropdown user={user} />

@@ -13,6 +13,7 @@ const mongoose = require("mongoose");
 const Proposal = require("../../crm/models/Proposal.model");
 const Template = require("../../proposal/models/Template.model");
 const CRMClient = require("../../crm/models/CRMClient.model");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 const { triggerSendToClient } = require("../../crm/controllers/Proposal.controller");
 const { resolveLead } = require("../utils/resolveCrm");
 
@@ -283,6 +284,19 @@ module.exports = {
 
     // Sync the lead's lifecycleStage (mirrors Proposal.controller.js:232-234).
     await CRMClient.findByIdAndUpdate(r.lead._id, { lifecycleStage: "proposal_sent" });
+
+    notify({
+      type: "proposal.sent",
+      module: "proposal",
+      priority: "normal",
+      title: `Proposal created & sent to ${r.lead.name}`,
+      message: `"${r.title}" — ₹${r.finalAmount.toLocaleString("en-IN")} (via AI assistant).`,
+      link: `/proposal/review/${populated._id}`,
+      actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+      notifyActor: true,
+      relatedTo: { module: "proposal", recordId: populated._id },
+      metadata: { leadName: r.lead.name, finalAmount: r.finalAmount, viaAI: true },
+    });
 
     return {
       ok: true,

@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const Meeting = require("../../crm/models/Metting.model");
 const CRMClient = require("../../crm/models/CRMClient.model");
 const { resolveMeeting } = require("../utils/resolveCrm");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 const WIDER_PERMS = ["*", "crm.update"];
 
@@ -158,6 +159,24 @@ module.exports = {
       });
       lead.lastInteractionAt = new Date();
       await lead.save();
+
+      // Fire lead.interested only when the meeting outcome flips that switch
+      if (args.clientInterested === true) {
+        notify({
+          type: "lead.interested",
+          module: "crm",
+          priority: "high",
+          title: `${lead.name} marked Interested`,
+          message: args.outcome
+            ? `Meeting completed — ${args.outcome}`
+            : "Client expressed interest after the meeting. Ready for proposal creation.",
+          link: `/crm/leads/${lead._id}`,
+          actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+          notifyActor: true,
+          relatedTo: { module: "crm", recordId: lead._id },
+          metadata: { leadName: lead.name, trackingId: lead.trackingId, viaAI: true, meetingId: r.meeting._id },
+        });
+      }
     }
 
     return {

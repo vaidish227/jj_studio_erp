@@ -4,6 +4,7 @@
 // plus the opening interactionHistory event).
 
 const CRMClient = require("../../crm/models/CRMClient.model");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 const WIDER_PERMS = ["*", "crm.create", "crm.update"];
 
@@ -143,6 +144,24 @@ module.exports = {
     }
 
     const lead = await CRMClient.create(doc);
+
+    notify({
+      type: "lead.created",
+      module: "crm",
+      priority: "high",
+      title: `New lead: ${lead.name}`,
+      message: `${lead.projectType || "Interior"} enquiry${lead.city ? ` from ${lead.city}` : ""} — created via AI assistant.`,
+      link: `/crm/leads/${lead._id}`,
+      actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+      notifyActor: true,
+      relatedTo: { module: "crm", recordId: lead._id },
+      metadata: {
+        leadName: lead.name,
+        trackingId: lead.trackingId,
+        source: lead.source,
+        viaAI: true,
+      },
+    });
 
     return {
       ok: true,

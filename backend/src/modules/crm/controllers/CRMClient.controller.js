@@ -5,6 +5,7 @@ const sendEmail = require("../utils/sendEmail");
 const getLeadTemplate = require("../utils/Template/leadTemplate");
 const getReferrerTemplate = require("../utils/Template/referrerTemplate");
 const { sendWhatsAppMessage } = require("../../whatspp/services/whatsapp.service");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 
 // ─── Helper: Append to interaction timeline ──────────────────────────
@@ -136,6 +137,18 @@ const createClientEnquiry = async (req, res) => {
         );
       }
     }
+
+    notify({
+      type: "lead.created",
+      module: "crm",
+      priority: "high",
+      title: `New lead: ${client.name}`,
+      message: `${client.projectType || "Interior"} enquiry${client.city ? ` from ${client.city}` : ""}${client.source ? ` (via ${client.source})` : ""}.`,
+      link: `/crm/leads/${client._id}`,
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "crm", recordId: client._id },
+      metadata: { leadName: client.name, trackingId: client.trackingId, source: client.source },
+    });
 
     return res.status(201).json({
       success: true,
@@ -558,6 +571,18 @@ const recordAdvancePayment = async (req, res) => {
 
     await client.save();
 
+    notify({
+      type: "payment.advance_recorded",
+      module: "crm",
+      priority: "high",
+      title: `Advance payment received from ${client.name}`,
+      message: `₹${Number(amount || 0).toLocaleString("en-IN")} recorded.${note ? ` ${note}` : ""} Ready for project handoff.`,
+      link: `/crm/leads/${client._id}`,
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "crm", recordId: client._id },
+      metadata: { leadName: client.name, amount, trackingId: client.trackingId },
+    });
+
     res.status(200).json({
       message: "Advance payment recorded successfully",
       client,
@@ -594,6 +619,18 @@ const convertClient = async (req, res) => {
     });
 
     await client.save();
+
+    notify({
+      type: "lead.converted",
+      module: "crm",
+      priority: "high",
+      title: `${client.name} converted`,
+      message: "Client moved into the converted / project-ready stage.",
+      link: `/crm/leads/${client._id}`,
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "crm", recordId: client._id },
+      metadata: { leadName: client.name, trackingId: client.trackingId },
+    });
 
     res.json({
       message: "Client converted successfully",
@@ -638,6 +675,18 @@ const markInterested = async (req, res) => {
     });
 
     await client.save();
+
+    notify({
+      type: "lead.interested",
+      module: "crm",
+      priority: "high",
+      title: `${client.name} marked Interested`,
+      message: note || "Client interest confirmed. Ready for proposal creation.",
+      link: `/crm/leads/${client._id}`,
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "crm", recordId: client._id },
+      metadata: { leadName: client.name, trackingId: client.trackingId },
+    });
 
     res.status(200).json({
       message: "Client marked as interested",

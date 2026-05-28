@@ -6,6 +6,7 @@
 const Proposal = require("../../crm/models/Proposal.model");
 const { triggerSendToClient } = require("../../crm/controllers/Proposal.controller");
 const { resolveLead } = require("../utils/resolveCrm");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 const WIDER_PERMS = ["*", "crm.update"];
 
@@ -137,6 +138,20 @@ module.exports = {
       timestamp: new Date(),
     });
     await p.save();
+
+    notify({
+      type: "proposal.sent",
+      module: "proposal",
+      priority: "normal",
+      title: `Proposal sent to ${r.lead.name}`,
+      message: p.title ? `"${p.title}" delivered to ${r.lead.email} (via AI assistant).` : "Proposal delivered to client.",
+      link: `/proposal/review/${p._id}`,
+      recipients: p.createdBy ? [p.createdBy] : [],
+      actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+      notifyActor: true,
+      relatedTo: { module: "proposal", recordId: p._id },
+      metadata: { leadName: r.lead.name, viaAI: true },
+    });
 
     return {
       ok: true,

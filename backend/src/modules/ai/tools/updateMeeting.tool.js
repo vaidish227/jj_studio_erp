@@ -5,7 +5,9 @@
 
 const mongoose = require("mongoose");
 const Meeting = require("../../crm/models/Metting.model");
+const CRMClient = require("../../crm/models/CRMClient.model");
 const { resolveMeeting } = require("../utils/resolveCrm");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 const WIDER_PERMS = ["*", "crm.update"];
 const MEETING_TYPES = ["call", "office", "site"];
@@ -163,6 +165,46 @@ module.exports = {
     }
 
     await Meeting.updateOne({ _id: r.meeting._id }, { $set: set });
+
+    // Fire matching notification: reschedule vs cancellation vs generic edit
+    if (isReschedule || changes.status === "cancelled") {
+      const lead = await CRMClient.findById(r.meeting.leadId).select("name").lean();
+      const recipients = [r.meeting.assignedTo, ...((r.meeting.attendees?.internal || []).map((a) => a.userId))].filter(Boolean);
+      const leadName = lead?.name || "client";
+
+      if (isReschedule) {
+        const niceDate = changes.date.toLocaleString("en-IN", {
+          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+        });
+        notify({
+          type: "meeting.rescheduled",
+          module: "meeting",
+          priority: "high",
+          title: `Meeting with ${leadName} rescheduled`,
+          message: `Moved to ${niceDate} (via AI assistant).`,
+          link: `/crm/leads/${r.meeting.leadId}`,
+          recipients,
+          actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+          notifyActor: true,
+          relatedTo: { module: "meeting", recordId: r.meeting._id },
+          metadata: { leadName, oldDate: r.meeting.date, newDate: changes.date, viaAI: true },
+        });
+      } else if (changes.status === "cancelled") {
+        notify({
+          type: "meeting.cancelled",
+          module: "meeting",
+          priority: "normal",
+          title: `Meeting with ${leadName} cancelled`,
+          message: `The ${r.meeting.type} meeting was cancelled (via AI assistant).`,
+          link: `/crm/leads/${r.meeting.leadId}`,
+          recipients,
+          actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+          notifyActor: true,
+          relatedTo: { module: "meeting", recordId: r.meeting._id },
+          metadata: { leadName, viaAI: true },
+        });
+      }
+    }
 
     return {
       ok: true,

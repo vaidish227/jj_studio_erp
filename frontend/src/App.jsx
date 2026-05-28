@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider } from './shared/context/AuthContext';
 import { ToastProvider } from './shared/notifications/ToastProvider';
+import { NotificationProvider } from './shared/notifications/NotificationContext';
 import LoginPage from './modules/auth/pages/LoginPage';
 import DashboardPage from './modules/dashboard/pages/DashboardPage';
 import { EnquiryFormPage, ClientInfoFormPage, ClientsListPage } from './modules/crm';
@@ -8,6 +9,7 @@ import {
   NewLeadsPage,
   LeadDetailsPage,
   MeetingsPage,
+  MeetingsCalendarPage,
   FollowUpsPage,
   KITPage,
   ConvertedPage,
@@ -48,13 +50,15 @@ import ManagerReviewQueuePage from './modules/pms/pages/ManagerReviewQueuePage';
 import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
 import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
+import NotificationsPage from './modules/notifications/pages/NotificationsPage';
 
 export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <PMSProvider>
-          <BrowserRouter>
+        <NotificationProvider>
+          <PMSProvider>
+            <BrowserRouter>
             <Routes>
               {/* Auth */}
               <Route path="/login" element={<LoginPage />} />
@@ -75,7 +79,8 @@ export default function App() {
 
               {/* App shell — authenticated, renders once, children change inside Outlet */}
               <Route element={<AppLayout />}>
-                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/dashboard"     element={<DashboardPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
 
                 {/* CRM Module */}
                 <Route element={<CRMProvider><Outlet /></CRMProvider>}>
@@ -85,6 +90,7 @@ export default function App() {
                   <Route path="/crm/clients"          element={<ClientsListPage />} />
                   <Route path="/crm/new-leads"        element={<NewLeadsPage />} />
                   <Route path="/crm/meetings"         element={<MeetingsPage />} />
+                  <Route path="/crm/meetings/calendar" element={<MeetingsCalendarPage />} />
                   <Route path="/crm/follow-ups"       element={<FollowUpsPage />} />
                   <Route path="/crm/qualified"        element={<KITPage />} />
                   <Route path="/crm/converted"        element={<ConvertedPage />} />
@@ -152,8 +158,9 @@ export default function App() {
               {/* Global default redirect */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
-          </BrowserRouter>
-        </PMSProvider>
+            </BrowserRouter>
+          </PMSProvider>
+        </NotificationProvider>
       </ToastProvider>
     </AuthProvider>
   );

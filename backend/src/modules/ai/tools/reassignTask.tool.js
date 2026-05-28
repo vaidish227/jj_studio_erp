@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const Task = require("../../pms/models/Task.model");
 const User = require("../../auth/models/user.model");
 const { logActivity } = require("../../../shared/activityLogger");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 async function resolveAssignee(args) {
   if (args.toUserId && mongoose.isValidObjectId(args.toUserId)) {
@@ -108,6 +109,20 @@ module.exports = {
       action: "assigned",
       description: `[AI] ${t.title} reassigned to ${r.toUser.name} — ${args.reason}`,
       metadata: { fromUserId: t.assignedTo, toUserId: r.toUser._id, reason: args.reason, viaAI: true },
+    });
+
+    notify({
+      type: "task.assigned",
+      module: "pms",
+      priority: "high",
+      title: `Task reassigned to you: ${t.title}`,
+      message: args.reason ? `${args.reason} (via AI assistant).` : "Reassigned via AI assistant.",
+      link: `/tasks/${t._id}`,
+      recipients: [r.toUser._id],
+      actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+      notifyActor: true,
+      relatedTo: { module: "pms", recordId: t._id },
+      metadata: { taskTitle: t.title, viaAI: true, fromUserId: t.assignedTo, toUserId: r.toUser._id },
     });
 
     return {

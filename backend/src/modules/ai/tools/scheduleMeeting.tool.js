@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const Meeting = require("../../crm/models/Metting.model");
 const User = require("../../auth/models/user.model");
 const { resolveLead } = require("../utils/resolveCrm");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 const WIDER_PERMS = ["*", "crm.update", "crm.create"];
 
@@ -103,6 +104,23 @@ module.exports = {
       status: "scheduled",
       assignedTo: r.lead.assignedTo || ctx.userId,
       createdBy: ctx.userId,
+    });
+
+    const niceDate = r.date.toLocaleString("en-IN", {
+      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+    notify({
+      type: "meeting.scheduled",
+      module: "meeting",
+      priority: "high",
+      title: `New ${args.type} meeting with ${r.lead.name}`,
+      message: `Scheduled for ${niceDate}${args.notes ? ` — ${args.notes}` : ""} (via AI assistant).`,
+      link: `/crm/leads/${r.lead._id}`,
+      recipients: meeting.assignedTo ? [meeting.assignedTo] : [],
+      actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+      notifyActor: true,
+      relatedTo: { module: "meeting", recordId: meeting._id },
+      metadata: { leadName: r.lead.name, meetingType: args.type, when: r.date, viaAI: true },
     });
 
     return {

@@ -138,6 +138,10 @@ app.use("/api/pms/design-revisions", designRevisionRoutes);
 const rolesRoutes = require("./modules/settings/routes/Roles.route");
 app.use("/api/roles", rolesRoutes);
 
+// ─── Notifications (in-app bell + inbox) ─────────────────────────────────────
+const notificationRoutes = require("./modules/notifications/routes/Notification.route");
+app.use("/api/notifications", notificationRoutes);
+
 // ─── AI Assistant ────────────────────────────────────────────────────────────
 const aiRoutes = require("./modules/ai/routes/ai.route");
 app.use("/api/ai", aiRoutes);

@@ -4,6 +4,7 @@
 const mongoose = require("mongoose");
 const CRMClient = require("../../crm/models/CRMClient.model");
 const { resolveLead } = require("../utils/resolveCrm");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 
 // Funnel forward path. Backwards transitions are usually noise — we allow
 // them only when an admin has crm.update.
@@ -99,6 +100,21 @@ module.exports = {
     if (args.status === "lost")      update.lifecycleStage = "lost";
 
     await CRMClient.updateOne({ _id: lead._id }, { $set: update });
+
+    if (args.status === "converted") {
+      notify({
+        type: "lead.converted",
+        module: "crm",
+        priority: "high",
+        title: `${lead.name} converted`,
+        message: args.note || "Status changed to converted via AI assistant.",
+        link: `/crm/leads/${lead._id}`,
+        actor: { _id: ctx.userId, name: ctx.userName || "AI Assistant" },
+        notifyActor: true,
+        relatedTo: { module: "crm", recordId: lead._id },
+        metadata: { leadName: lead.name, trackingId: lead.trackingId, viaAI: true },
+      });
+    }
 
     return {
       ok: true,

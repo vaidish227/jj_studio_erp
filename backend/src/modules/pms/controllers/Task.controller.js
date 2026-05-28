@@ -13,6 +13,7 @@ const {
 const Drawing = require("../models/Drawing.model");
 const { logActivity } = require("../../../shared/activityLogger");
 const mailService      = require("../../mail/service/mail.service");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 const whatsappService  = require("../../whatsapp/service/whatsapp.service");
 
 // Returns { mail: { sent, reason? }, whatsapp: { sent, reason? } }
@@ -224,6 +225,22 @@ const createTask = async (req, res) => {
           notifyWhatsApp,
         });
       }
+    }
+
+    // In-app notification → the assigned designer
+    if (task.assignedTo) {
+      notify({
+        type: "task.assigned",
+        module: "pms",
+        priority: "high",
+        title: `New task assigned: ${task.title}`,
+        message: `Project: ${project.name}${task.dueDate ? ` · Due ${new Date(task.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}`,
+        link: `/tasks/${task._id}`,
+        recipients: [task.assignedTo],
+        actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+        relatedTo: { module: "pms", recordId: task._id },
+        metadata: { taskTitle: task.title, projectName: project.name, dueDate: task.dueDate },
+      });
     }
 
     res.status(201).json({
@@ -486,6 +503,20 @@ const submitTask = async (req, res) => {
       metadata:    { from: "in_progress", to: "pending_review" },
     });
 
+    // In-app notification → reviewers
+    notify({
+      type: "task.submitted",
+      module: "pms",
+      priority: "normal",
+      title: `Review needed: ${task.title}`,
+      message: `${task.projectId?.name || "Project"}${value.submissionNotes ? ` — ${value.submissionNotes}` : ""}`,
+      link: `/tasks/${task._id}`,
+      recipients: [task.projectId?.supervisor, task.projectId?.primaryDesigner].filter(Boolean),
+      actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+      relatedTo: { module: "pms", recordId: task._id },
+      metadata: { taskTitle: task.title, projectName: task.projectId?.name },
+    });
+
     // Notify reviewers (supervisor + primaryDesigner on the project) — fire-and-forget
     const project = task.projectId;
     const notifyIds = [project?.supervisor, project?.primaryDesigner].filter(Boolean);
@@ -571,6 +602,22 @@ const approveTask = async (req, res) => {
       description: `Task "${task.title}" approved`,
     });
 
+    // In-app notification → the designer whose work was approved
+    if (task.assignedTo) {
+      notify({
+        type: "task.approved",
+        module: "pms",
+        priority: "normal",
+        title: `Task approved: ${task.title}`,
+        message: `${task.projectId?.name || "Project"}${value.remarks ? ` — ${value.remarks}` : ""}`,
+        link: `/tasks/${task._id}`,
+        recipients: [task.assignedTo],
+        actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+        relatedTo: { module: "pms", recordId: task._id },
+        metadata: { taskTitle: task.title, projectName: task.projectId?.name },
+      });
+    }
+
     // Notify designer — fire-and-forget
     if (task.assignedTo) {
       (async () => {
@@ -652,6 +699,26 @@ const requestRevision = async (req, res) => {
       description: `Revision requested on task "${task.title}"`,
       metadata:    { instructions: value.revisionInstructions },
     });
+
+    // In-app notification → the designer who must revise
+    if (task.assignedTo) {
+      notify({
+        type: "task.revision_requested",
+        module: "pms",
+        priority: "high",
+        title: `Revision requested: ${task.title}`,
+        message: value.revisionInstructions || "Please review the feedback and resubmit.",
+        link: `/tasks/${task._id}`,
+        recipients: [task.assignedTo],
+        actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+        relatedTo: { module: "pms", recordId: task._id },
+        metadata: {
+          taskTitle: task.title,
+          projectName: task.projectId?.name,
+          deadline: value.revisionDeadline,
+        },
+      });
+    }
 
     // Notify designer — fire-and-forget
     if (task.assignedTo) {
