@@ -26,6 +26,7 @@ import ApprovalFormModal from '../components/ApprovalFormModal';
 import ConversionSuccessModal from '../components/ConversionSuccessModal';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader } from '../../../shared/components';
+import { showDeliveryToast } from '../utils/deliveryToast';
 
 const ProposalApprovalPage = () => {
   const navigate = useNavigate();
@@ -73,7 +74,15 @@ const ProposalApprovalPage = () => {
     try {
       setLoading(true);
       const res = await crmService.updateProposalStatus(targetProposal._id, payload);
-      toast.success('Proposal updated successfully');
+
+      // For approvals, the backend auto-sends email + WhatsApp via the
+      // mail/whatsapp modules. Surface the per-channel delivery result.
+      if (payload?.status === 'manager_approved') {
+        showDeliveryToast(toast, res?.delivery);
+      } else {
+        toast.success('Proposal updated successfully');
+      }
+
       fetchProposals();
 
       // Show conversion modal when a project is auto-created
