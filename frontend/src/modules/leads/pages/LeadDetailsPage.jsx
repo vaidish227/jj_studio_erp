@@ -13,7 +13,6 @@ import {
   Loader2,
   Mail,
   MapPin,
-  MessageSquare,
   Phone,
   Plus,
   RotateCcw,
@@ -392,13 +391,6 @@ const LeadDetailsPage = () => {
           <Button variant="outline" onClick={handleOpenClientInfo}>
             <UserPlus size={16} />
             Client Info
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => window.open(`https://wa.me/91${lead.phone?.replace(/\D/g, '')}`, '_blank')}
-          >
-            <MessageSquare size={16} />
-            WhatsApp
           </Button>
         </div>
       </div>
