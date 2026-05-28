@@ -283,16 +283,21 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
       ) : (
         <form onSubmit={handleSubmit} className="space-y-10">
 
-          {/* ── Section 1: Primary Client ──────────────────────────── */}
+          {/* ── Section 1: Personal Details (Primary + Spouse + Children) ─── */}
           <section className="space-y-4">
             <div className="flex items-center gap-3 text-[var(--primary)] mb-2">
               <div className="p-2 rounded-lg bg-[var(--primary)]/10">
                 <User size={24} />
               </div>
-              <h2 className="text-xl font-bold uppercase tracking-tight">Primary Client Details</h2>
+              <h2 className="text-xl font-bold uppercase tracking-tight">Personal Details</h2>
             </div>
 
             <Card className={`shadow-sm hover:shadow-md transition-shadow ${!isEditing ? 'bg-[var(--bg)]' : ''}`}>
+              {/* ── Primary Client ── */}
+              <div className="flex items-center gap-2 mb-4">
+                <User size={16} className="text-[var(--primary)]" />
+                <h3 className="text-sm font-black uppercase tracking-wider text-[var(--text-primary)]">Primary Client</h3>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Input
                   label="Full Name"
@@ -381,76 +386,101 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                   </div>
                 </FormField>
               </div>
+
+              {/* ── Spouse / Partner ── */}
+              <div className="border-t border-[var(--border)] mt-8 pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Heart size={16} className="text-[var(--accent-blue)]" />
+                  <h3 className="text-sm font-black uppercase tracking-wider text-[var(--text-primary)]">Spouse / Partner</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <Input
+                    label="Spouse/Partner Name"
+                    name="spouseName"
+                    value={formData.spouseName}
+                    onChange={handleChange}
+                    icon={User}
+                    placeholder="Name"
+                    disabled={!isEditing}
+                    className={inputCls(!isEditing)}
+                  />
+                  <Input
+                    label="Spouse Contact"
+                    name="spouseContact"
+                    value={formData.spouseContact}
+                    onChange={handleChange}
+                    icon={Phone}
+                    placeholder="Mobile"
+                    disabled={!isEditing}
+                    className={inputCls(!isEditing)}
+                  />
+                  <Input
+                    label="Spouse Email"
+                    name="spouseEmail"
+                    type="email"
+                    value={formData.spouseEmail}
+                    onChange={handleChange}
+                    icon={Mail}
+                    placeholder="Email"
+                    disabled={!isEditing}
+                    className={inputCls(!isEditing)}
+                  />
+                  <Input
+                    label="Spouse DOB"
+                    name="spouseDob"
+                    type="date"
+                    value={formData.spouseDob}
+                    onChange={handleChange}
+                    icon={Calendar}
+                    disabled={!isEditing}
+                    className={inputCls(!isEditing)}
+                  />
+                  <Input
+                    label="Anniversary Date"
+                    name="anniversaryDate"
+                    type="date"
+                    value={formData.anniversaryDate}
+                    onChange={handleChange}
+                    icon={Heart}
+                    disabled={!isEditing}
+                    className={inputCls(!isEditing)}
+                  />
+                </div>
+              </div>
+
+              {/* ── Children ── */}
+              <div className="border-t border-[var(--border)] mt-8 pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Baby size={16} className="text-[var(--text-secondary)]" />
+                  <h3 className="text-sm font-black uppercase tracking-wider text-[var(--text-primary)]">Children (if any)</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <Input
+                    label="Number of Children"
+                    name="numChildren"
+                    type="number"
+                    value={formData.numChildren}
+                    onChange={handleChange}
+                    icon={Baby}
+                    placeholder="e.g. 2"
+                    disabled={!isEditing}
+                    className={inputCls(!isEditing)}
+                  />
+                  <Input
+                    label="Age of Children"
+                    name="ageChildren"
+                    value={formData.ageChildren}
+                    onChange={handleChange}
+                    placeholder="e.g. 5 yrs, 8 yrs"
+                    disabled={!isEditing}
+                    className={inputCls(!isEditing)}
+                  />
+                </div>
+              </div>
             </Card>
           </section>
 
-          {/* ── Section 2: Spouse / Partner ───────────────────────── */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-3 text-[var(--accent-blue)] mb-2">
-              <div className="p-2 rounded-lg bg-[var(--accent-blue)]/10">
-                <Heart size={24} />
-              </div>
-              <h2 className="text-xl font-bold uppercase tracking-tight">Spouse/Partner Details</h2>
-            </div>
-
-            <Card className={`shadow-sm border-l-4 border-l-[var(--accent-blue)] ${!isEditing ? 'bg-[var(--bg)]' : ''}`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Input
-                  label="Spouse/Partner Name"
-                  name="spouseName"
-                  value={formData.spouseName}
-                  onChange={handleChange}
-                  icon={User}
-                  placeholder="Name"
-                  disabled={!isEditing}
-                  className={inputCls(!isEditing)}
-                />
-                <Input
-                  label="Spouse Contact"
-                  name="spouseContact"
-                  value={formData.spouseContact}
-                  onChange={handleChange}
-                  icon={Phone}
-                  placeholder="Mobile"
-                  disabled={!isEditing}
-                  className={inputCls(!isEditing)}
-                />
-                <Input
-                  label="Spouse Email"
-                  name="spouseEmail"
-                  type="email"
-                  value={formData.spouseEmail}
-                  onChange={handleChange}
-                  icon={Mail}
-                  placeholder="Email"
-                  disabled={!isEditing}
-                  className={inputCls(!isEditing)}
-                />
-                <Input
-                  label="Spouse DOB"
-                  name="spouseDob"
-                  type="date"
-                  value={formData.spouseDob}
-                  onChange={handleChange}
-                  icon={Calendar}
-                  disabled={!isEditing}
-                  className={inputCls(!isEditing)}
-                />
-                <Input
-                  label="Anniversary Date"
-                  name="anniversaryDate"
-                  type="date"
-                  value={formData.anniversaryDate}
-                  onChange={handleChange}
-                  icon={Heart}
-                  disabled={!isEditing}
-                  className={inputCls(!isEditing)}
-                />
-              </div>
-            </Card>
-          </section>
-
-          {/* ── Section 3: Site / Project Address ─────────────────── */}
+          {/* ── Section 2: Site / Project Address ─────────────────── */}
           <section className="space-y-4">
             <div className="flex items-center gap-3 text-[var(--accent-teal)] mb-2">
               <div className="p-2 rounded-lg bg-[var(--accent-teal)]/10">
@@ -520,41 +550,6 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                     />
                   </FormField>
                 </div>
-              </div>
-            </Card>
-          </section>
-
-          {/* ── Section 4: Children ───────────────────────────────── */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-3 text-[var(--text-secondary)] mb-2">
-              <div className="p-2 rounded-lg bg-[var(--text-secondary)]/10">
-                <Baby size={24} />
-              </div>
-              <h2 className="text-xl font-bold uppercase tracking-tight">Children (if any)</h2>
-            </div>
-
-            <Card className={`shadow-sm ${!isEditing ? 'bg-[var(--bg)]' : ''}`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <Input
-                  label="Number of Children"
-                  name="numChildren"
-                  type="number"
-                  value={formData.numChildren}
-                  onChange={handleChange}
-                  icon={Baby}
-                  placeholder="e.g. 2"
-                  disabled={!isEditing}
-                  className={inputCls(!isEditing)}
-                />
-                <Input
-                  label="Age of Children"
-                  name="ageChildren"
-                  value={formData.ageChildren}
-                  onChange={handleChange}
-                  placeholder="e.g. 5 yrs, 8 yrs"
-                  disabled={!isEditing}
-                  className={inputCls(!isEditing)}
-                />
               </div>
             </Card>
           </section>
