@@ -1,5 +1,6 @@
 const Meeting = require("../models/Metting.model");
 const Lead = require("../models/CRMClient.model");
+const Followup = require("../models/FollowUp.model");
 const mongoose = require("mongoose");
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 const sendEmail = require("../utils/sendEmail");
@@ -278,6 +279,9 @@ const getAllMeetings = async (req, res) => {
       .populate("leadId", "name phone city projectType siteAddress email trackingId")
       .populate("assignedTo", "name email")
       .populate("createdBy", "name email")
+      .populate("mom.attendees.staff", "name email role")
+      .populate("mom.actionItems.assignedTo", "name email role")
+      .populate("mom.recordedBy", "name email")
       .sort({ createdAt: -1 });
 
     res.status(200).json({ message: "Meetings fetched successfully", meetings });
@@ -338,6 +342,179 @@ const getTotalMeetings = async (req, res) => {
   }
 };
 
+// =====================================================================
+//  RECORD / UPDATE MOM (Minutes of Meeting)
+//  Captures attendees, discussion summary, decisions, and action items
+//  for a completed meeting. Each action item with a due date auto-creates
+//  a Followup entry so it lands in the user's task queue.
+// =====================================================================
+const recordMOM = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || !isValidId(id)) {
+      return res.status(400).json({ message: "Valid Meeting ID is required" });
+    }
+
+    const meeting = await Meeting.findById(id);
+    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+
+    if (meeting.status !== "completed") {
+      return res.status(400).json({
+        message: "MOM can only be recorded for completed meetings",
+      });
+    }
+
+    const {
+      attendees = {},
+      discussionSummary = "",
+      decisions = [],
+      actionItems = [],
+    } = req.body;
+
+    // ── Validate attendees ──
+    const staffIds = Array.isArray(attendees.staff) ? attendees.staff : [];
+    for (const sid of staffIds) {
+      if (!isValidId(sid)) {
+        return res.status(400).json({ message: `Invalid staff user ID: ${sid}` });
+      }
+    }
+    const clientAttendees = Array.isArray(attendees.clients)
+      ? attendees.clients.map((s) => String(s).trim()).filter(Boolean)
+      : [];
+
+    // ── Validate decisions ──
+    const cleanDecisions = Array.isArray(decisions)
+      ? decisions.map((d) => String(d).trim()).filter(Boolean)
+      : [];
+
+    // ── Validate action items ──
+    const cleanActionItems = [];
+    for (const [idx, item] of (Array.isArray(actionItems) ? actionItems : []).entries()) {
+      const description = String(item?.description || "").trim();
+      if (!description) continue; // drop empty rows silently
+
+      if (item.assignedTo && !isValidId(item.assignedTo)) {
+        return res
+          .status(400)
+          .json({ message: `Action item #${idx + 1} has an invalid assignee` });
+      }
+
+      cleanActionItems.push({
+        description,
+        assignedTo: item.assignedTo || undefined,
+        dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
+        status: "open",
+      });
+    }
+
+    const isFirstRecord = !meeting.mom?.recordedAt;
+
+    // ── Auto-create Followups for action items that have a due date ──
+    // Re-creating: if MOM is being updated, clean up old auto-created followups first
+    if (!isFirstRecord && Array.isArray(meeting.mom?.actionItems)) {
+      const oldFollowupIds = meeting.mom.actionItems
+        .map((ai) => ai.followUpId)
+        .filter(Boolean);
+      if (oldFollowupIds.length) {
+        // Only delete pending ones — preserve any that were already completed
+        await Followup.deleteMany({
+          _id: { $in: oldFollowupIds },
+          status: "pending",
+        });
+      }
+    }
+
+    for (const ai of cleanActionItems) {
+      if (!ai.dueDate) continue; // skip follow-up creation if no due date
+      try {
+        const fu = await Followup.create({
+          leadId: meeting.leadId,
+          date: ai.dueDate,
+          note: `[MOM Action Item] ${ai.description}`,
+          assignedTo: ai.assignedTo || undefined,
+          status: "pending",
+        });
+        ai.followUpId = fu._id;
+      } catch (fuErr) {
+        console.error("Failed to create followup for action item:", fuErr.message);
+      }
+    }
+
+    meeting.mom = {
+      attendees: { staff: staffIds, clients: clientAttendees },
+      discussionSummary: String(discussionSummary || "").trim(),
+      decisions: cleanDecisions,
+      actionItems: cleanActionItems,
+      recordedBy: req.user?._id || meeting.mom?.recordedBy || undefined,
+      recordedAt: new Date(),
+    };
+
+    // Also mirror summary into the existing `outcome` field for backward compat
+    if (!meeting.outcome && meeting.mom.discussionSummary) {
+      meeting.outcome = meeting.mom.discussionSummary.slice(0, 500);
+    }
+
+    await meeting.save();
+
+    // ── Append timeline event on the parent client ──
+    const lead = await Lead.findById(meeting.leadId);
+    if (lead) {
+      appendInteraction(lead, {
+        type: "meeting",
+        title: isFirstRecord ? "MOM recorded" : "MOM updated",
+        description:
+          (meeting.mom.discussionSummary || "Meeting minutes captured.").slice(0, 280),
+        metadata: {
+          meetingId: meeting._id,
+          decisionsCount: cleanDecisions.length,
+          actionItemsCount: cleanActionItems.length,
+        },
+      });
+      await lead.save();
+    }
+
+    const populated = await Meeting.findById(meeting._id)
+      .populate("leadId", "name phone city projectType email trackingId")
+      .populate("assignedTo", "name email")
+      .populate("createdBy", "name email")
+      .populate("mom.attendees.staff", "name email role")
+      .populate("mom.actionItems.assignedTo", "name email role")
+      .populate("mom.recordedBy", "name email");
+
+    res.status(200).json({
+      message: isFirstRecord ? "MOM recorded successfully" : "MOM updated successfully",
+      meeting: populated,
+    });
+  } catch (err) {
+    console.error("recordMOM error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// =====================================================================
+//  GET MOM for a meeting
+// =====================================================================
+const getMOM = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !isValidId(id)) {
+      return res.status(400).json({ message: "Valid Meeting ID is required" });
+    }
+    const meeting = await Meeting.findById(id)
+      .populate("leadId", "name phone city projectType email trackingId")
+      .populate("mom.attendees.staff", "name email role")
+      .populate("mom.actionItems.assignedTo", "name email role")
+      .populate("mom.recordedBy", "name email");
+
+    if (!meeting) return res.status(404).json({ message: "Meeting not found" });
+    res.status(200).json({ meeting, mom: meeting.mom || null });
+  } catch (err) {
+    console.error("getMOM error:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   createMeeting,
   getMeetingsByLead,
@@ -346,4 +523,6 @@ module.exports = {
   deleteMeeting,
   getTodayMeetings,
   getTotalMeetings,
+  recordMOM,
+  getMOM,
 };

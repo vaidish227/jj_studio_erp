@@ -127,3 +127,6 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Generated proposal PDFs (served from public/, regenerated on each send)
+public/proposals/

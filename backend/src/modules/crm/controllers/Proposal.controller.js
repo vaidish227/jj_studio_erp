@@ -1,8 +1,23 @@
 const Proposal = require("../models/Proposal.model");
 const CRMClient = require("../models/CRMClient.model");
 const Project = require("../../pms/models/Project.model");
-const sendEmail = require("../utils/sendEmail");
+const mailService = require("../../mail/service/mail.service");
+const whatsappService = require("../../whatsapp/service/whatsapp.service");
+const MailTemplate = require("../../mail/models/MailTemplate.model");
+const WhatsAppTemplate = require("../../whatsapp/models/WhatsAppTemplate.model");
+const { generateProposalPdfBuffer, saveProposalPdf } = require("../utils/proposalPdf");
 require("dotenv").config();
+
+// Normalize a bare 10-digit Indian phone to +91XXXXXXXXXX; pass through if
+// already international. Returns null if the input is unusable.
+const toE164India = (raw) => {
+  if (!raw) return null;
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length >= 11) return digits.startsWith("+") ? digits : `+${digits}`;
+  return null;
+};
 
 //  CREATE PROPOSAL
 const createProposal = async (req, res) => {
@@ -137,7 +152,9 @@ const updateProposalStatus = async (req, res) => {
       { new: true }
     ).populate("leadId", "name email phone trackingId");
 
-    // AUTO-FLOW LOGIC
+    // AUTO-FLOW LOGIC — these flags ride back to the frontend so the UI can show
+    // exactly what happened per channel (email + WhatsApp).
+    let deliveryResult = null; // { email: {...}, whatsapp: {...} } when auto-send fired
 
     // 0. eSign + Advance received → convert client, create project, move to project_started
     if (status === "signed") {
@@ -206,14 +223,23 @@ const updateProposalStatus = async (req, res) => {
       return res.json(updatedProposal);
     }
 
-    // 1. If Manager Approved -> Automatically Send to Client
+    // 1. If Manager Approved -> Automatically Send to Client (Email + WhatsApp)
     if (status === "manager_approved") {
-      try {
-        await triggerSendToClient(updatedProposal);
+      deliveryResult = await triggerSendToClient(updatedProposal, {
+        userId: req.user?.id,
+      });
+
+      // Advance status to "sent" if at least one channel succeeded; otherwise
+      // leave at manager_approved so the manager can retry manually.
+      const anyChannelSent = deliveryResult.email.sent || deliveryResult.whatsapp.sent;
+      if (anyChannelSent) {
         updatedProposal.status = "sent";
         await updatedProposal.save();
-      } catch (emailErr) {
-        console.error("Auto-send failed:", emailErr.message);
+      } else {
+        console.error("Auto-send failed on all channels:", {
+          email: deliveryResult.email.error,
+          whatsapp: deliveryResult.whatsapp.error,
+        });
       }
     }
 
@@ -293,45 +319,203 @@ const updateProposalStatus = async (req, res) => {
       }
     }
 
-    res.json(updatedProposal);
+    // Attach delivery telemetry so the UI can show a precise per-channel notification.
+    // Proposal fields are spread at the root for backward compatibility with
+    // existing callers (which read `res.status`, `res._id`, etc. directly).
+    const proposalObj = updatedProposal.toObject ? updatedProposal.toObject() : { ...updatedProposal };
+
+    const delivery = {
+      finalStatus: updatedProposal.status, // may have auto-advanced (manager_approved → sent)
+    };
+    if (deliveryResult) {
+      delivery.email = deliveryResult.email;       // { sent, error, recipient, pdfAttached }
+      delivery.whatsapp = deliveryResult.whatsapp; // { sent, error, recipient, pdfAttached }
+      delivery.pdf = deliveryResult.pdf;           // { generated, error, url }
+      // Flat aliases kept for the toasts we wired earlier (backward compat)
+      delivery.emailSent = deliveryResult.email.sent;
+      delivery.emailError = deliveryResult.email.error;
+      delivery.recipientEmail = deliveryResult.email.recipient;
+    }
+
+    res.json({ ...proposalObj, delivery });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// Helper for Auto-Send
-const triggerSendToClient = async (proposal) => {
-  // In unified model, leadId IS the client
-  const client = proposal.leadId;
-  if (!client?.email) throw new Error("Client email not found");
+// =====================================================================
+//  AUTO-SEND HELPER — routes through mail.service + whatsapp.service.
+//  Fires both channels in parallel. Returns per-channel delivery results
+//  so the controller can build a precise `delivery` payload for the UI.
+//
+//  Template-driven: if a MailTemplate/WhatsAppTemplate named
+//  "proposal_approved" exists, it's used (admin can edit copy from UI).
+//  Otherwise falls back to inline HTML / inline message.
+// =====================================================================
+const triggerSendToClient = async (proposal, opts = {}) => {
+  const { userId } = opts;
+  const client = proposal.leadId; // unified model: leadId IS the client
 
+  // ── Build shared template variables ──
+  const finalAmountStr = (proposal.finalAmount || 0).toLocaleString("en-IN");
+  const variables = {
+    clientName: client?.name || "Client",
+    proposalTitle: proposal.title || "your proposal",
+    finalAmount: finalAmountStr,
+    trackingId: client?.trackingId || "",
+  };
+
+  // ── Generate the PDF once, share across both channels ──
+  // Email gets the raw Buffer (Nodemailer accepts it directly).
+  // WhatsApp providers need a fetchable URL, so we also persist the buffer
+  // under /public/proposals/ and pass the URL as mediaUrl.
+  let pdfBuffer = null;
+  let pdfPublicUrl = null;
+  let pdfError = null;
+  try {
+    pdfBuffer = await generateProposalPdfBuffer(proposal, client);
+    const saved = await saveProposalPdf(pdfBuffer, proposal._id);
+    pdfPublicUrl = saved.publicUrl;
+  } catch (err) {
+    pdfError = err.message || "PDF generation failed";
+    console.error("[triggerSendToClient] PDF generation failed:", pdfError);
+    // Continue without attachment — the body still has the summary HTML.
+  }
+
+  // ── Defensive: if PUBLIC_BASE_URL is unreachable from the public internet
+  //    (localhost / private IP / unset), null out the WhatsApp media URL so
+  //    we send TEXT-ONLY instead of failing the whole WhatsApp send. The PDF
+  //    still goes by email.
+  const isUnreachable = (url) =>
+    !url ||
+    /^https?:\/\/(localhost|127\.|0\.0\.0\.0|192\.168\.|10\.)/i.test(url);
+  let whatsappMediaUrl = pdfPublicUrl;
+  if (isUnreachable(whatsappMediaUrl)) {
+    if (whatsappMediaUrl) {
+      console.warn(
+        `[triggerSendToClient] PUBLIC_BASE_URL appears unreachable (${whatsappMediaUrl}); sending WhatsApp without PDF attachment.`
+      );
+    }
+    whatsappMediaUrl = null;
+  }
+
+  const pdfFilename = `Proposal-${client?.trackingId || proposal._id}.pdf`;
+
+  // ── Build the line-items HTML (used by inline email fallback) ──
   const sections = proposal.content?.sections || [];
   let itemsHtml = "";
-  sections.forEach(section => {
+  sections.forEach((section) => {
     itemsHtml += `<tr><td colspan="4" style="background-color: #f3f4f6; font-weight: bold; padding: 10px;">${section.title}</td></tr>`;
-    section.structure?.rows?.forEach(row => {
+    section.structure?.rows?.forEach((row) => {
       if (!row.isGroupHeader) {
         const cols = section.structure.columns;
-        const name = row.cells[cols.find(c => c.label.toLowerCase().includes('item') || c.label.toLowerCase().includes('work'))?.id] || 'Item';
-        const amount = row.cells[cols.find(c => c.label.toLowerCase().includes('amount') || c.label.toLowerCase().includes('total'))?.id] || '0';
+        const nameCol = cols.find((c) =>
+          c.label.toLowerCase().includes("item") || c.label.toLowerCase().includes("work")
+        );
+        const amtCol = cols.find((c) =>
+          c.label.toLowerCase().includes("amount") || c.label.toLowerCase().includes("total")
+        );
+        const name = row.cells[nameCol?.id] || "Item";
+        const amount = row.cells[amtCol?.id] || "0";
         itemsHtml += `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">${name}</td><td colspan="3" style="text-align: right; padding: 8px;">₹${amount}</td></tr>`;
       }
     });
   });
 
-  await sendEmail({
-    to: client.email,
-    subject: `Proposal Approved: ${proposal.title} - JJ Studio`,
-    html: `<div style="font-family: sans-serif; max-width: 600px;">
-      <h2>Hello ${client.name},</h2>
-      <p>Your proposal for <b>${proposal.title}</b> has been approved by our manager and is ready for your review.</p>
+  // ── Channel: EMAIL via mail.service ──
+  const emailPromise = (async () => {
+    if (!client?.email) {
+      return { sent: false, error: "Client has no email on file", recipient: null };
+    }
+
+    // Try to find an editable template; fall back to inline content if not.
+    const mailTpl = await MailTemplate.findOne({
+      name: "proposal_approved",
+      isActive: true,
+    }).lean().catch(() => null);
+
+    const inlineHtml = `<div style="font-family: sans-serif; max-width: 600px;">
+      <h2>Hello ${variables.clientName},</h2>
+      <p>Your proposal for <b>${variables.proposalTitle}</b> has been approved by our manager and is ready for your review.</p>
       <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">${itemsHtml}</table>
       <div style="background: #f9fafb; padding: 20px; border-radius: 12px;">
-        <p><b>Final Amount: ₹${proposal.finalAmount.toLocaleString('en-IN')}</b></p>
+        <p><b>Final Amount: ₹${variables.finalAmount}</b></p>
       </div>
       <p>Please log in to our portal to complete the eSign and process the advance payment to start the project.</p>
-    </div>`
-  });
+    </div>`;
+
+    try {
+      await mailService.sendImmediate({
+        to: client.email,
+        templateId: mailTpl?._id,
+        templateVariables: variables,
+        subject: mailTpl ? undefined : `Proposal Approved: ${variables.proposalTitle} - JJ Studio`,
+        html: mailTpl ? undefined : inlineHtml,
+        attachments: pdfBuffer
+          ? [{ filename: pdfFilename, content: pdfBuffer, contentType: "application/pdf" }]
+          : undefined,
+        relatedTo: { module: "proposal", recordId: proposal._id },
+        createdBy: userId,
+      });
+      return {
+        sent: true,
+        error: null,
+        recipient: client.email,
+        pdfAttached: !!pdfBuffer,
+      };
+    } catch (err) {
+      return { sent: false, error: err.message || "Email delivery failed", recipient: client.email };
+    }
+  })();
+
+  // ── Channel: WHATSAPP via whatsapp.service ──
+  const whatsappPromise = (async () => {
+    const e164 = toE164India(client?.phone);
+    if (!e164) {
+      return { sent: false, error: "Client has no valid phone on file", recipient: null };
+    }
+
+    const waTpl = await WhatsAppTemplate.findOne({
+      name: "proposal_approved",
+      isActive: true,
+    }).lean().catch(() => null);
+
+    const inlineMessage =
+      `Hi ${variables.clientName}, your proposal *${variables.proposalTitle}* has been approved by JJ Studio.\n\n` +
+      `Final Amount: ₹${variables.finalAmount}\n\n` +
+      `Please check your email (${client.email || "on file"}) for the full quotation, eSign link, and advance payment instructions.\n\n` +
+      `— JJ Studio`;
+
+    try {
+      await whatsappService.sendImmediate({
+        to: e164,
+        templateId: waTpl?._id,
+        templateVariables: variables,
+        message: waTpl ? undefined : inlineMessage,
+        // Attach the PDF only if PUBLIC_BASE_URL is actually reachable from
+        // the public internet (whatsappMediaUrl was nulled out above otherwise).
+        mediaUrl: whatsappMediaUrl || undefined,
+        mediaType: whatsappMediaUrl ? "document" : "none",
+        relatedTo: { module: "proposal", recordId: proposal._id },
+        createdBy: userId,
+      });
+      return {
+        sent: true,
+        error: null,
+        recipient: e164,
+        pdfAttached: !!whatsappMediaUrl,
+      };
+    } catch (err) {
+      return { sent: false, error: err.message || "WhatsApp delivery failed", recipient: e164 };
+    }
+  })();
+
+  const [emailResult, whatsappResult] = await Promise.all([emailPromise, whatsappPromise]);
+  return {
+    email: emailResult,
+    whatsapp: whatsappResult,
+    pdf: { generated: !!pdfBuffer, error: pdfError, url: pdfPublicUrl },
+  };
 };
 
 // GET BY ID
@@ -379,14 +563,36 @@ const deleteProposal = async (req, res) => {
   }
 };
 
-// SEND PROPOSAL EMAIL (Manual trigger)
+// SEND PROPOSAL EMAIL (Manual retry — same email + WhatsApp flow)
 const sendProposalEmail = async (req, res) => {
   try {
-    const proposal = await Proposal.findById(req.params.id).populate("leadId", "name email phone");
-    await triggerSendToClient(proposal);
-    proposal.status = "sent";
-    await proposal.save();
-    res.status(200).json({ message: "Proposal email sent successfully" });
+    const proposal = await Proposal.findById(req.params.id)
+      .populate("leadId", "name email phone trackingId");
+    if (!proposal) return res.status(404).json({ message: "Proposal not found" });
+
+    const deliveryResult = await triggerSendToClient(proposal, {
+      userId: req.user?.id,
+    });
+
+    const anyChannelSent = deliveryResult.email.sent || deliveryResult.whatsapp.sent;
+    if (anyChannelSent) {
+      proposal.status = "sent";
+      await proposal.save();
+    }
+
+    res.status(200).json({
+      message: anyChannelSent
+        ? "Proposal sent to client"
+        : "Send failed on all channels — see delivery for details",
+      delivery: {
+        email: deliveryResult.email,
+        whatsapp: deliveryResult.whatsapp,
+        finalStatus: proposal.status,
+        emailSent: deliveryResult.email.sent,
+        emailError: deliveryResult.email.error,
+        recipientEmail: deliveryResult.email.recipient,
+      },
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

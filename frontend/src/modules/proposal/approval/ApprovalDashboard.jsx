@@ -16,6 +16,7 @@ import ConfirmationModal from '../../../shared/components/ConfirmationModal/Conf
 import { formatDateMedium, formatTimeOnly } from '../../../shared/utils/dateUtils';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+import { showDeliveryToast } from '../utils/deliveryToast';
 
 const ApprovalDashboard = () => {
   const navigate = useNavigate();
@@ -67,11 +68,19 @@ const ApprovalDashboard = () => {
   const handleAction = async (remarks) => {
     try {
       setLoading(true);
-      await crmService.updateProposalStatus(confirmModal.proposal._id, {
+      const res = await crmService.updateProposalStatus(confirmModal.proposal._id, {
         status: confirmModal.status,
         remarks
       });
-      toast.success(`Proposal ${confirmModal.action}d successfully`);
+
+      // For approvals, the backend auto-sends via email + WhatsApp.
+      // Surface the per-channel outcome so the manager knows exactly what hit the client.
+      if (confirmModal.status === 'manager_approved') {
+        showDeliveryToast(toast, res?.delivery);
+      } else {
+        toast.success(`Proposal ${confirmModal.action}d successfully`);
+      }
+
       setConfirmModal({ ...confirmModal, isOpen: false });
       fetchProposals();
     } catch (err) {

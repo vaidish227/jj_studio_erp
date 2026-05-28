@@ -32,6 +32,7 @@ import {
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { formatDateTime } from '../../../shared/utils/dateUtils';
+import { showDeliveryToast } from '../utils/deliveryToast';
 
 const ReviewPage = () => {
   const { id } = useParams();
@@ -79,8 +80,15 @@ const ReviewPage = () => {
   const handleStatusUpdate = async (newStatus, remarks = '') => {
     setIsSubmitting(true);
     try {
-      await crmService.updateProposalStatus(id, { status: newStatus, remarks });
-      toast.success(`Proposal ${newStatus.replace(/_/g, ' ')} successfully!`);
+      const res = await crmService.updateProposalStatus(id, { status: newStatus, remarks });
+
+      // For approvals, surface the per-channel auto-send result (email + WhatsApp).
+      if (newStatus === 'manager_approved') {
+        showDeliveryToast(toast, res?.delivery);
+      } else {
+        toast.success(`Proposal ${newStatus.replace(/_/g, ' ')} successfully!`);
+      }
+
       const response = await crmService.getProposalById(id);
       setProposal(response.proposal);
       setConfirmModal({ ...confirmModal, isOpen: false });

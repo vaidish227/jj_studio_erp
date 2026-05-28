@@ -1,8 +1,10 @@
 import React from 'react';
 import { CheckCircle2, Circle, XCircle } from 'lucide-react';
 
-// Maps detailed internal lifecycleStage values to the 7 visible pipeline steps.
-// Multiple internal stages can map to the same visible step index.
+// Maps detailed internal lifecycleStage values to the 5 visible pipeline steps.
+// Payment/Project/Converted collapse into the final "Converted" step because
+// in this studio's flow, receiving the advance simultaneously converts the
+// client and initiates the project.
 const STAGE_TO_STEP = {
   enquiry: 0,
   client_info_pending: 0,
@@ -15,8 +17,8 @@ const STAGE_TO_STEP = {
   proposal_sent: 3,
   advance_received: 4,
   project_moved: 4,
-  project_started: 5,
-  converted: 6,
+  project_started: 4,
+  converted: 4,
   lost: -1, // special — renders red
 };
 
@@ -25,9 +27,7 @@ const STEPS = [
   { label: 'Meeting',    sublabel: 'Scheduled & conducted' },
   { label: 'Interested', sublabel: 'Client interest confirmed' },
   { label: 'Proposal',   sublabel: 'Sent & under review' },
-  { label: 'Payment',    sublabel: 'Advance received' },
-  { label: 'Project',    sublabel: 'Initiated in PMS' },
-  { label: 'Converted',  sublabel: 'Active client' },
+  { label: 'Converted',  sublabel: 'Advance received • Project initiated' },
 ];
 
 const LeadLifecycleStepper = ({ lifecycleStage, status }) => {

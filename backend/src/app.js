@@ -1,11 +1,17 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const { verifyToken } = require("./middleware/auth.middleware");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// ─── Static public assets (no auth — WhatsApp providers fetch directly) ──────
+// Generated proposal PDFs live under public/proposals/ and are served at
+// /static/proposals/<file>.pdf so Maytapi/Twilio can pull them as media.
+app.use("/static", express.static(path.join(__dirname, "..", "public")));
 
 // ─── Public routes (no auth required) ────────────────────────────────────────
 const authRoutes = require("./modules/auth/routes/auth.routes");

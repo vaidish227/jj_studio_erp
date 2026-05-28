@@ -6,6 +6,9 @@ export const crmService = {
   createLead: (data) => apiClient.post('/clients/create', data),
   createClient: (data) => apiClient.post('/clients/create', data),
 
+  // BULK IMPORT: CSV / Excel — body: { rows: [...] }
+  bulkImportClients: (rows) => apiClient.post('/clients/bulk-import', { rows }),
+
   // READ: List clients (with optional filters)
   getLeads: (params) => {
     const query = new URLSearchParams(params).toString();
@@ -54,6 +57,10 @@ export const crmService = {
   // Capture outcome after a meeting — drives clientInterested → lifecycle transition
   completeMeeting: (id, outcomeData) =>
     apiClient.put(`/metting/update/${id}`, { status: 'completed', ...outcomeData }),
+
+  // ─── Minutes of Meeting (MOM) ─────────────────────────────────────
+  recordMOM: (id, momData) => apiClient.put(`/metting/mom/${id}`, momData),
+  getMOM: (id) => apiClient.get(`/metting/mom/${id}`),
 
   // ─── Follow-ups / KIT ─────────────────────────────────────────────
   createFollowup: (followupData) => apiClient.post('/followup/create', followupData),

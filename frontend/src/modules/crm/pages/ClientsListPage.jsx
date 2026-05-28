@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Users, RefreshCw, Eye, Plus } from 'lucide-react';
+import { Search, Users, RefreshCw, Eye, Plus, Upload } from 'lucide-react';
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
+import ImportClientsModal from '../components/ImportClientsModal';
 
 const STATUS_CONFIG = {
   new:        { label: 'New',        color: 'bg-blue-100 text-blue-700' },
@@ -36,6 +37,7 @@ const ClientsListPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [importOpen, setImportOpen] = useState(false);
 
   const fetchClients = useCallback(async () => {
     setLoading(true);
@@ -96,11 +98,23 @@ const ClientsListPage = () => {
             </p>
           </div>
         </div>
-        <Button variant="primary" onClick={() => navigate('/crm/forms/enquiry')}>
-          <Plus size={16} className="mr-2" />
-          New Enquiry
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload size={16} className="mr-2" />
+            Import
+          </Button>
+          <Button variant="primary" onClick={() => navigate('/crm/forms/enquiry')}>
+            <Plus size={16} className="mr-2" />
+            New Enquiry
+          </Button>
+        </div>
       </div>
+
+      <ImportClientsModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={fetchClients}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
