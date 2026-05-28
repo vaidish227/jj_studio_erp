@@ -426,16 +426,43 @@ const LeadDetailsPage = () => {
               <InfoItem icon={Phone} label="Phone" value={lead.phone} />
               <InfoItem icon={Building2} label="Project Type" value={lead.projectType} />
               <InfoItem icon={IndianRupee} label="Budget" value={lead.budget ? `Rs. ${Number(lead.budget).toLocaleString('en-IN')}` : '—'} />
-              <InfoItem 
-                icon={MapPin} 
-                label="Site Address" 
+              <InfoItem
+                icon={MapPin}
+                label="Site Address"
                 value={
-                  typeof lead.siteAddress === 'object' 
-                    ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || '—' 
+                  typeof lead.siteAddress === 'object'
+                    ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || '—'
                     : lead.siteAddress || '—'
-                } 
+                }
               />
             </div>
+
+            {(lead.siteDetails || lead.notes) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                {lead.siteDetails && (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+                    <div className="flex items-center gap-2">
+                      <MapPin size={14} className="text-[var(--text-muted)]" />
+                      <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Site Details</p>
+                    </div>
+                    <p className="text-sm text-[var(--text-primary)] mt-2 whitespace-pre-wrap leading-relaxed">
+                      {lead.siteDetails}
+                    </p>
+                  </div>
+                )}
+                {lead.notes && (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+                    <div className="flex items-center gap-2">
+                      <FileText size={14} className="text-[var(--text-muted)]" />
+                      <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Additional Notes</p>
+                    </div>
+                    <p className="text-sm text-[var(--text-primary)] mt-2 whitespace-pre-wrap leading-relaxed">
+                      {lead.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           <Card className="space-y-5">
