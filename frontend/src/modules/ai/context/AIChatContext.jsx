@@ -52,6 +52,7 @@ export const AIChatProvider = ({ children }) => {
           uiHint: m.uiHint,
           data: m.uiPayload,
           citations: m.citations || [],
+          suggestions: m.suggestions || [],
           status: 'done',
           createdAt: m.createdAt,
         }));
@@ -107,6 +108,17 @@ export const AIChatProvider = ({ children }) => {
                     ragRan: !!payload?.ragRan,
                     ragHits: payload?.ragHits ?? (payload?.citations?.length || 0),
                   }
+                : m
+            )
+          );
+        } else if (type === 'suggestions') {
+          // Quick-reply chips parsed out of the assistant text. Attach them
+          // to the currently-streaming draft assistant message so the bubble
+          // can render clickable buttons under it.
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === draftAssistantId
+                ? { ...m, suggestions: payload?.items || [] }
                 : m
             )
           );

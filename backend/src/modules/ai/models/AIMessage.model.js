@@ -40,6 +40,16 @@ const aiMessageSchema = new mongoose.Schema(
     completionTokens: { type: Number, default: 0 },
     finishReason:     { type: String, default: null },
 
+    // Quick-reply chips the model offers alongside the message.
+    // Populated by orchestrator from a `<<chips: A | B | C>>` sentinel in the
+    // LLM output. Clicking a chip sends `label` back as a new user message.
+    suggestions: [
+      {
+        label: { type: String, required: true },
+        value: { type: String, default: null }, // text sent on click; defaults to label
+      },
+    ],
+
     // V2 RAG — sources the model was given alongside this message.
     // Each entry corresponds to a [n] citation marker in `content`.
     citations: [
