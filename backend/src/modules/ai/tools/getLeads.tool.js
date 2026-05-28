@@ -17,11 +17,17 @@ module.exports = {
   name: "getLeads",
   permission: "crm.read",
   description:
-    "Get CRM leads — prospective clients still in the sales funnel (not yet converted or lost). Use for 'how many leads', 'how many leads do I have', 'show leads', 'leads in proposal stage'. Default scope auto-widens for managers/admins: if you hold crm.read you see ALL leads by default; otherwise only leads assigned to you. Pass scope explicitly to override.",
+    "Get CRM leads — prospective clients still in the sales funnel (not yet converted or lost). Use for 'how many leads', 'how many leads do I have', 'show leads', 'leads in proposal stage'. Pass `q` to search by name/phone/email fragment (e.g. q='nidhi' finds leads named Nidhi). Default scope auto-widens for managers/admins: if you hold crm.read you see ALL leads by default; otherwise only leads assigned to you. Pass scope explicitly to override.",
   parameters: {
     type: "object",
     additionalProperties: false,
     properties: {
+      q: {
+        type: "string",
+        description: "Case-insensitive search across name, phone, and email. Use for 'find Nidhi', 'show lead with phone 99...', 'search abc@gmail.com'. When set, status/projectType filters still apply but scope defaults to 'team' (so name searches don't miss leads assigned to others).",
+        minLength: 1,
+        maxLength: 80,
+      },
       status: {
         type: "string",
         enum: ["new", "contacted", "meeting_done", "proposal_sent", "all"],
@@ -44,6 +50,7 @@ module.exports = {
   handler: async (args, ctx) => {
     // Default scope: 'team' if caller has wider perms, else 'me'.
     const canSeeTeam = hasWiderView(ctx.permissions);
+    const searchMode = typeof args.q === "string" && args.q.trim().length > 0;
     const scope = args.scope || (canSeeTeam ? "team" : "me");
     const limit = Math.min(args.limit || 20, 50);
 
@@ -67,6 +74,12 @@ module.exports = {
       q.status = { $in: LEAD_STATUSES };
     }
     if (args.projectType) q.projectType = args.projectType;
+
+    if (searchMode) {
+      const needle = args.q.trim();
+      const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      q.$or = [{ name: re }, { phone: re }, { email: re }, { trackingId: re }];
+    }
 
     const [leads, total] = await Promise.all([
       CRMClient.find(q)
@@ -110,9 +123,15 @@ module.exports = {
 
     let summaryText;
     if (items.length === 0) {
-      summaryText = scope === "team"
-        ? "No active leads in the system."
-        : "No leads assigned to you. (Tip: try scope='team' if you can see others'.)";
+      if (searchMode) {
+        summaryText = scope === "team"
+          ? `No active leads match "${args.q}". (They may be converted/lost — pass status='all' to widen.)`
+          : `No leads match "${args.q}" assigned to you. (Tip: try scope='team' if you can see others'.)`;
+      } else {
+        summaryText = scope === "team"
+          ? "No active leads in the system."
+          : "No leads assigned to you. (Tip: try scope='team' if you can see others'.)";
+      }
     } else if (truncated) {
       summaryText = `Showing ${items.length} of ${total} ${ownership}leads${trailing}`;
     } else {
