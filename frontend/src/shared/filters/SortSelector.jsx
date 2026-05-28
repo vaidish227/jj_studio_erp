@@ -46,7 +46,7 @@ const SortSelector = ({
   const hasValue = value !== '';
 
   return (
-    <div className={`relative w-48 ${className}`} ref={dropdownRef}>
+    <div className={`relative w-36 ${className}`} ref={dropdownRef}>
       {/* Trigger Button */}
       <button
         type="button"

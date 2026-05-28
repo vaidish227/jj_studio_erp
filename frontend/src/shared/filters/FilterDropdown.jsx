@@ -116,11 +116,11 @@ const FilterDropdown = ({
         </div>
       </button>
 
-      {/* Dropdown Content */}
+      {/* Dropdown Content — widens beyond the trigger if labels need more room */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] 
-          border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-64 overflow-hidden">
-          
+        <div className="absolute top-full left-0 mt-1 min-w-full w-max max-w-[260px] bg-[var(--surface)]
+          border border-[var(--border)] rounded-lg shadow-lg z-50 overflow-hidden">
+
           {/* Search Input */}
           {searchable && filteredOptions.length > 5 && (
             <div className="p-2 border-b border-[var(--border)]">
@@ -136,11 +136,29 @@ const FilterDropdown = ({
             </div>
           )}
 
+          {/* Multi-select hint + actions */}
+          {multiSelect && filteredOptions.length > 0 && (
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg)]/40">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                Pick one or more
+              </span>
+              {Array.isArray(value) && value.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onChange([]); }}
+                  className="text-[10px] font-bold text-[var(--primary)] hover:underline"
+                >
+                  Clear ({value.length})
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Options List */}
-          <div className="max-h-48 overflow-y-auto">
+          <div className="max-h-56 overflow-y-auto custom-scrollbar">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => {
-                const isSelected = multiSelect 
+                const isSelected = multiSelect
                   ? (Array.isArray(value) && value.includes(option.value))
                   : (value === option.value);
 
@@ -150,25 +168,36 @@ const FilterDropdown = ({
                     type="button"
                     onClick={() => handleSelectOption(option)}
                     className={`
-                      w-full px-3 py-2 text-sm text-left flex items-center justify-between gap-2
+                      w-full px-3 py-2 text-sm text-left flex items-center gap-2.5
                       hover:bg-[var(--bg)] transition-colors duration-150
-                      ${isSelected ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'text-[var(--text-primary)]'}
+                      ${isSelected && !multiSelect ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'text-[var(--text-primary)]'}
                     `}
                   >
-                    <div className="flex items-center gap-2">
-                      {/* Color indicator if provided */}
-                      {option.color && (
-                        <div 
-                          className={`w-2 h-2 rounded-full bg-${option.color}-500`}
-                          style={{ backgroundColor: `var(--${option.color})` }}
+                    {/* Selection indicator — checkbox for multi-select, dot for single-select */}
+                    {multiSelect ? (
+                      <span
+                        className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected
+                            ? 'border-[var(--primary)] bg-[var(--primary)]'
+                            : 'border-[var(--border)] bg-[var(--surface)]'
+                        }`}
+                      >
+                        {isSelected && <Check size={11} strokeWidth={3} className="text-black" />}
+                      </span>
+                    ) : (
+                      option.color && (
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: `var(--${option.color}, currentColor)` }}
                         />
-                      )}
-                      <span className="truncate">{option.label}</span>
-                    </div>
-                    
-                    {/* Selection indicator */}
-                    {isSelected && (
-                      <Check size={14} className="text-[var(--primary)]" />
+                      )
+                    )}
+
+                    <span className="truncate flex-1">{option.label}</span>
+
+                    {/* Check on the right for single-select active option */}
+                    {!multiSelect && isSelected && (
+                      <Check size={14} className="text-[var(--primary)] shrink-0" />
                     )}
                   </button>
                 );

@@ -67,7 +67,7 @@ const DateRangeFilter = ({
   const hasValue = value && (value.start || value.end);
 
   return (
-    <div className={`relative w-64 ${className}`} ref={dropdownRef}>
+    <div className={`relative w-52 ${className}`} ref={dropdownRef}>
       {/* Trigger Button */}
       <button
         type="button"

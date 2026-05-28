@@ -11,7 +11,9 @@ export const FILTER_TYPES = {
   CATEGORY: 'category',
   DATE_RANGE: 'date_range',
   PRIORITY: 'priority',
-  AMOUNT: 'amount'
+  AMOUNT: 'amount',
+  LIFECYCLE_STAGE: 'lifecycle_stage',
+  SOURCE: 'source'
 };
 
 export const SORT_OPTIONS = {
@@ -23,6 +25,70 @@ export const SORT_OPTIONS = {
 
 // CRM Module Filters - Context-aware configurations
 export const CRM_FILTERS = {
+  // All Clients Page - Full client registry, every lifecycle stage
+  clients: {
+    [FILTER_TYPES.SEARCH]: {
+      placeholder: 'Search by name, phone, email, city, tracking ID...',
+      fields: ['name', 'phone', 'email', 'city', 'trackingId', 'projectType']
+    },
+    [FILTER_TYPES.SORT_ALPHABET]: true,
+    [FILTER_TYPES.SORT_DATE]: true,
+    [FILTER_TYPES.STATUS]: {
+      options: [
+        { value: 'new', label: 'New', color: 'blue' },
+        { value: 'contacted', label: 'In Progress', color: 'yellow' },
+        { value: 'meeting_done', label: 'Meeting Done', color: 'purple' },
+        { value: 'proposal_sent', label: 'Proposal Sent', color: 'orange' },
+        { value: 'converted', label: 'Converted', color: 'green' },
+        { value: 'lost', label: 'Lost', color: 'red' }
+      ]
+    },
+    [FILTER_TYPES.CATEGORY]: {
+      label: 'Project Type',
+      options: [
+        { value: 'Residential', label: 'Residential' },
+        { value: 'Commercial', label: 'Commercial' }
+      ]
+    },
+    [FILTER_TYPES.LIFECYCLE_STAGE]: {
+      label: 'Lifecycle Stage',
+      field: 'lifecycleStage',
+      options: [
+        { value: 'enquiry',           label: 'Enquiry' },
+        { value: 'kit',               label: 'KIT' },
+        { value: 'meeting_scheduled', label: 'Meeting Scheduled' },
+        { value: 'interested',        label: 'Interested' },
+        { value: 'followup_due',      label: 'Follow-up Due' },
+        { value: 'proposal_sent',     label: 'Proposal Sent' },
+        { value: 'converted',         label: 'Converted' },
+        { value: 'project_moved',     label: 'Project Moved' },
+        { value: 'lost',              label: 'Lost' }
+      ]
+    },
+    [FILTER_TYPES.SOURCE]: {
+      label: 'Source',
+      field: 'source',
+      options: [
+        { value: 'walk_in',   label: 'Walk-In' },
+        { value: 'referral',  label: 'Referral' },
+        { value: 'instagram', label: 'Instagram' },
+        { value: 'website',   label: 'Website' },
+        { value: 'whatsapp',  label: 'WhatsApp' },
+        { value: 'other',     label: 'Other' }
+      ]
+    },
+    [FILTER_TYPES.PRIORITY]: {
+      options: [
+        { value: 'high',   label: 'High',   color: 'red' },
+        { value: 'medium', label: 'Medium', color: 'yellow' },
+        { value: 'low',    label: 'Low',    color: 'green' }
+      ]
+    },
+    [FILTER_TYPES.DATE_RANGE]: {
+      label: 'Added',
+      field: 'createdAt'
+    }
+  },
   // New Leads Page - Lead focused filters
   leads: {
     [FILTER_TYPES.SEARCH]: {
@@ -455,6 +521,16 @@ export const generateApiQuery = (filters) => {
   // Handle priority
   if (filters.priority) {
     query.priority = filters.priority;
+  }
+
+  // Handle lifecycle stage
+  if (filters.lifecycleStage) {
+    query.lifecycleStage = filters.lifecycleStage;
+  }
+
+  // Handle source
+  if (filters.source) {
+    query.source = filters.source;
   }
   
   // Handle amount range

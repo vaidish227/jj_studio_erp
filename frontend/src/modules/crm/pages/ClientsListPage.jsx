@@ -1,22 +1,39 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Users, RefreshCw, Eye, Plus, Upload } from 'lucide-react';
+import {
+  Users,
+  RefreshCw,
+  Eye,
+  Plus,
+  Upload,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
+import useFilters from '../../../shared/filters/useFilters';
+import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 import ImportClientsModal from '../components/ImportClientsModal';
 
+const PAGE_SIZE = 25;
+
 const STATUS_CONFIG = {
-  new:        { label: 'New',        color: 'bg-blue-100 text-blue-700' },
-  contacted:  { label: 'Contacted',  color: 'bg-violet-100 text-violet-700' },
-  interested: { label: 'Interested', color: 'bg-emerald-100 text-emerald-700' },
-  converted:  { label: 'Converted',  color: 'bg-green-100 text-green-700' },
-  lost:       { label: 'Lost',       color: 'bg-red-100 text-red-700' },
+  new:            { label: 'New',            color: 'bg-blue-100 text-blue-700' },
+  contacted:      { label: 'Contacted',      color: 'bg-violet-100 text-violet-700' },
+  meeting_done:   { label: 'Meeting Done',   color: 'bg-purple-100 text-purple-700' },
+  proposal_sent:  { label: 'Proposal Sent',  color: 'bg-orange-100 text-orange-700' },
+  interested:     { label: 'Interested',     color: 'bg-emerald-100 text-emerald-700' },
+  converted:      { label: 'Converted',      color: 'bg-green-100 text-green-700' },
+  lost:           { label: 'Lost',           color: 'bg-red-100 text-red-700' },
 };
 
 const LIFECYCLE_LABELS = {
+  enquiry:           'Enquiry',
   new_enquiry:       'New Enquiry',
+  kit:               'KIT',
   meeting_scheduled: 'Meeting Scheduled',
   meeting_done:      'Meeting Done',
   followup_due:      'Follow-up Due',
@@ -25,6 +42,7 @@ const LIFECYCLE_LABELS = {
   proposal_approved: 'Proposal Approved',
   negotiation:       'Negotiation',
   converted:         'Converted',
+  project_moved:     'Project Moved',
   project_started:   'Project Started',
   lost:              'Lost',
 };
@@ -32,12 +50,21 @@ const LIFECYCLE_LABELS = {
 const ClientsListPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
+
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
   const [importOpen, setImportOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const {
+    filters,
+    filterConfig,
+    updateFilter,
+    clearAllFilters,
+    hasActiveFilters,
+    activeFilterCount,
+    process,
+  } = useFilters('crm', 'clients');
 
   const fetchClients = useCallback(async () => {
     setLoading(true);
@@ -53,34 +80,20 @@ const ClientsListPage = () => {
 
   useEffect(() => { fetchClients(); }, [fetchClients]);
 
-  const filtered = clients.filter(c => {
-    const q = searchTerm.toLowerCase();
-    const matchesSearch = !searchTerm ||
-      c.name?.toLowerCase().includes(q) ||
-      c.phone?.includes(searchTerm) ||
-      c.city?.toLowerCase().includes(q) ||
-      c.trackingId?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q);
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    const matchesType = typeFilter === 'all' || c.projectType?.toLowerCase() === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  // Run the AdvancedFilter pipeline: search + status[] + category +
+  // lifecycleStage + source + priority + dateRange + sort.
+  const filtered = useMemo(() => process(clients), [process, clients]);
 
-  const stats = {
-    total:     clients.length,
-    new:       clients.filter(c => c.status === 'new').length,
-    active:    clients.filter(c => !['new', 'converted', 'lost'].includes(c.status)).length,
-    converted: clients.filter(c => c.status === 'converted').length,
-    lost:      clients.filter(c => c.status === 'lost').length,
-  };
+  // Reset to page 1 whenever the filter set changes (otherwise the user could
+  // be stranded on, say, page 4 of a list that now only has 2 pages of results).
+  useEffect(() => { setCurrentPage(1); }, [filters]);
 
-  const STATS = [
-    { label: 'Total',     value: stats.total,     textColor: 'text-[var(--primary)]' },
-    { label: 'New',       value: stats.new,        textColor: 'text-blue-600' },
-    { label: 'Active',    value: stats.active,     textColor: 'text-violet-600' },
-    { label: 'Converted', value: stats.converted,  textColor: 'text-green-600' },
-    { label: 'Lost',      value: stats.lost,       textColor: 'text-red-500' },
-  ];
+  // Clamp the page if the filtered count shrinks below the current window
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, filtered.length);
+  const paginated = filtered.slice(pageStart, pageEnd);
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
@@ -99,6 +112,14 @@ const ClientsListPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={fetchClients}
+            title="Refresh"
+            className="p-3 rounded-xl border border-[var(--border)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload size={16} className="mr-2" />
             Import
@@ -116,61 +137,17 @@ const ClientsListPage = () => {
         onImported={fetchClients}
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {STATS.map(s => (
-          <Card key={s.label} className="p-5 border-none shadow-sm">
-            <p className={`text-xs font-black uppercase tracking-widest ${s.textColor}`}>{s.label}</p>
-            <p className="text-3xl font-black text-[var(--text-primary)] mt-1">
-              {loading ? <span className="animate-pulse">—</span> : s.value}
-            </p>
-          </Card>
-        ))}
-      </div>
-
-      {/* Search & Filters */}
-      <Card className="p-4 flex flex-col md:flex-row items-center gap-4 border-none shadow-sm">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
-          <input
-            type="text"
-            placeholder="Search by name, phone, email, city or tracking ID..."
-            className="w-full pl-11 pr-4 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-xl outline-none focus:border-[var(--primary)] transition-all text-sm font-medium"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <select
-            className="flex-1 md:flex-none px-4 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-xl text-sm font-bold outline-none focus:border-[var(--primary)] cursor-pointer"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">All Status</option>
-            <option value="new">New</option>
-            <option value="contacted">Contacted</option>
-            <option value="interested">Interested</option>
-            <option value="converted">Converted</option>
-            <option value="lost">Lost</option>
-          </select>
-          <select
-            className="flex-1 md:flex-none px-4 py-3 bg-[var(--bg)] border border-[var(--border)] rounded-xl text-sm font-bold outline-none focus:border-[var(--primary)] cursor-pointer"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-          >
-            <option value="all">All Types</option>
-            <option value="residential">Residential</option>
-            <option value="commercial">Commercial</option>
-          </select>
-          <button
-            onClick={fetchClients}
-            className="p-3 rounded-xl border border-[var(--border)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </Card>
+      {/* Filters */}
+      <AdvancedFilter
+        filters={filters}
+        filterConfig={filterConfig}
+        updateFilter={updateFilter}
+        clearAllFilters={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        showSearch={true}
+        compact={false}
+      />
 
       {/* Table */}
       <Card className="overflow-hidden border-none shadow-xl shadow-black/5 p-0">
@@ -202,16 +179,25 @@ const ClientsListPage = () => {
                 <tr>
                   <td colSpan="8" className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-4 opacity-40">
-                      <Users size={56} className="text-[var(--text-muted)]" />
+                      <AlertCircle size={48} className="text-[var(--text-muted)]" />
                       <div>
                         <p className="text-xl font-black text-[var(--text-primary)]">No Clients Found</p>
                         <p className="text-[var(--text-muted)] font-medium text-sm">Try adjusting your search or filters.</p>
                       </div>
+                      {hasActiveFilters && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={clearAllFilters}
+                        >
+                          Clear all filters
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ) : (
-                filtered.map(client => {
+                paginated.map((client) => {
                   const sc = STATUS_CONFIG[client.status] || { label: client.status || 'Unknown', color: 'bg-gray-100 text-gray-600' };
                   const stageLabel = LIFECYCLE_LABELS[client.lifecycleStage] || client.lifecycleStage || '—';
                   return (
@@ -258,7 +244,7 @@ const ClientsListPage = () => {
 
                       {/* Status Badge */}
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${sc.color}`}>
+                        <span className={`inline-block whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${sc.color}`}>
                           {sc.label}
                         </span>
                       </td>
@@ -294,16 +280,96 @@ const ClientsListPage = () => {
           </table>
         </div>
 
-        {/* Footer count */}
+        {/* Footer: count + pagination */}
         {!loading && filtered.length > 0 && (
-          <div className="px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]">
+          <div className="px-6 py-3 border-t border-[var(--border)] bg-[var(--bg)] flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs font-bold text-[var(--text-muted)]">
-              Showing <span className="text-[var(--text-primary)]">{filtered.length}</span> of{' '}
-              <span className="text-[var(--text-primary)]">{clients.length}</span> clients
+              Showing{' '}
+              <span className="text-[var(--text-primary)]">{pageStart + 1}</span>
+              {'–'}
+              <span className="text-[var(--text-primary)]">{pageEnd}</span>{' '}
+              of <span className="text-[var(--text-primary)]">{filtered.length}</span>
+              {filtered.length !== clients.length && (
+                <span className="text-[var(--text-muted)]"> (filtered from {clients.length})</span>
+              )}
             </p>
+
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={safePage}
+                totalPages={totalPages}
+                onChange={setCurrentPage}
+              />
+            )}
           </div>
         )}
       </Card>
+    </div>
+  );
+};
+
+// Compact numbered pager with prev/next, ellipsis for long page lists.
+// Window: first, last, current, and ±1 around current — gaps shown as "…".
+const Pagination = ({ currentPage, totalPages, onChange }) => {
+  const goto = (p) => onChange(Math.min(Math.max(1, p), totalPages));
+
+  // Build the visible page list with ellipses
+  const pages = [];
+  const add = (p) => { if (!pages.includes(p)) pages.push(p); };
+  add(1);
+  for (let p = currentPage - 1; p <= currentPage + 1; p += 1) {
+    if (p >= 1 && p <= totalPages) add(p);
+  }
+  add(totalPages);
+  pages.sort((a, b) => a - b);
+
+  const withEllipses = [];
+  pages.forEach((p, i) => {
+    if (i > 0 && p - pages[i - 1] > 1) withEllipses.push('…');
+    withEllipses.push(p);
+  });
+
+  const btn = 'min-w-[32px] h-8 px-2 rounded-lg text-xs font-bold border transition-colors';
+  const inactive = 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]';
+  const active = 'border-[var(--primary)] bg-[var(--primary)] text-black';
+  const disabled = 'opacity-40 cursor-not-allowed';
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => goto(currentPage - 1)}
+        disabled={currentPage === 1}
+        className={`${btn} ${inactive} ${currentPage === 1 ? disabled : ''} flex items-center justify-center`}
+        aria-label="Previous page"
+      >
+        <ChevronLeft size={14} />
+      </button>
+
+      {withEllipses.map((item, i) =>
+        item === '…' ? (
+          <span key={`e-${i}`} className="px-1 text-xs text-[var(--text-muted)]">…</span>
+        ) : (
+          <button
+            key={item}
+            type="button"
+            onClick={() => goto(item)}
+            className={`${btn} ${item === currentPage ? active : inactive}`}
+          >
+            {item}
+          </button>
+        )
+      )}
+
+      <button
+        type="button"
+        onClick={() => goto(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className={`${btn} ${inactive} ${currentPage === totalPages ? disabled : ''} flex items-center justify-center`}
+        aria-label="Next page"
+      >
+        <ChevronRight size={14} />
+      </button>
     </div>
   );
 };
