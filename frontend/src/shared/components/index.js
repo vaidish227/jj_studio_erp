@@ -9,6 +9,7 @@ export { default as Badge } from './Badge/Badge';
 export { default as Modal } from './Modal/Modal';
 export { default as Select } from './Select/Select';
 export { default as DateTimePicker } from './DateTimePicker/DateTimePicker';
+export { default as DatePicker } from './DatePicker/DatePicker';
 export { default as StatusBadge } from './StatusBadge/StatusBadge';
 export { default as DashboardCard } from './DashboardCard/DashboardCard';
 export { default as SearchInput } from './SearchInput/SearchInput';

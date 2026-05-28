@@ -19,6 +19,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import FormField from '../../../shared/components/FormField/FormField';
 import Input from '../../../shared/components/Input/Input';
+import DatePicker from '../../../shared/components/DatePicker/DatePicker';
 import Button from '../../../shared/components/Button/Button';
 import { useCRM } from '../context/CRMContext';
 import useClientInfo from '../../../shared/hooks/useClientInfo';
@@ -238,10 +239,9 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
 
             {/* Date field — only show when editable */}
             {isEditing && (
-              <Input
+              <DatePicker
                 label="Form Date"
                 name="date"
-                type="date"
                 value={formData.date}
                 onChange={handleChange}
                 icon={Calendar}
@@ -336,15 +336,16 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                   disabled={!isEditing}
                   className={inputCls(!isEditing)}
                 />
-                <Input
+                <DatePicker
                   label="Date of Birth"
                   name="dob"
-                  type="date"
                   value={formData.dob}
                   onChange={handleChange}
                   icon={Calendar}
                   disabled={!isEditing}
                   className={inputCls(!isEditing)}
+                  yearRange={{ from: 1920, to: new Date().getFullYear() }}
+                  max={new Date().toISOString().split('T')[0]}
                 />
                 <Input
                   label="Company Name"
@@ -425,25 +426,27 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                     disabled={!isEditing}
                     className={inputCls(!isEditing)}
                   />
-                  <Input
+                  <DatePicker
                     label="Spouse DOB"
                     name="spouseDob"
-                    type="date"
                     value={formData.spouseDob}
                     onChange={handleChange}
                     icon={Calendar}
                     disabled={!isEditing}
                     className={inputCls(!isEditing)}
+                    yearRange={{ from: 1920, to: new Date().getFullYear() }}
+                    max={new Date().toISOString().split('T')[0]}
                   />
-                  <Input
+                  <DatePicker
                     label="Anniversary Date"
                     name="anniversaryDate"
-                    type="date"
                     value={formData.anniversaryDate}
                     onChange={handleChange}
                     icon={Heart}
                     disabled={!isEditing}
                     className={inputCls(!isEditing)}
+                    yearRange={{ from: 1960, to: new Date().getFullYear() }}
+                    max={new Date().toISOString().split('T')[0]}
                   />
                 </div>
               </div>

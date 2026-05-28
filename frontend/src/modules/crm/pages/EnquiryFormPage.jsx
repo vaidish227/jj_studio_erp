@@ -17,6 +17,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import Input from '../../../shared/components/Input/Input';
+import DatePicker from '../../../shared/components/DatePicker/DatePicker';
 import Button from '../../../shared/components/Button/Button';
 import Select from '../../../shared/components/Select/Select';
 import FormField from '../../../shared/components/FormField/FormField';
@@ -229,21 +230,21 @@ const EnquiryFormPage = () => {
 
           <Card className="hover:shadow-md transition-shadow duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              <Input
+              <DatePicker
                 label="Enquiry Date"
                 name="enquiryDate"
-                type="date"
                 value={formData.enquiryDate}
                 onChange={handleChange}
                 icon={Calendar}
+                yearRange={{ from: 2020, to: new Date().getFullYear() + 1 }}
               />
-              <Input
+              <DatePicker
                 label="Preferred Meeting Date"
                 name="preferredMeetingDate"
-                type="date"
                 value={formData.preferredMeetingDate}
                 onChange={handleChange}
                 icon={Calendar}
+                yearRange={{ from: new Date().getFullYear(), to: new Date().getFullYear() + 2 }}
               />
               <Input
                 label="City / Location"
