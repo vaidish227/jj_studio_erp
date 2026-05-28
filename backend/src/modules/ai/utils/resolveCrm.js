@@ -50,4 +50,23 @@ async function resolveLead(input) {
 
 function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
-module.exports = { resolveLead };
+/**
+ * Resolve a meeting by its ObjectId. Meetings don't carry a human-readable
+ * tracking ID, so we only accept ObjectId here — callers should fetch via
+ * getMeetings first to get an id.
+ *
+ * @returns {Promise<{doc?: object, error?: string}>}
+ */
+async function resolveMeeting(input) {
+  if (!input) return { error: "No meeting identifier provided." };
+  const s = String(input).trim();
+  if (!s) return { error: "No meeting identifier provided." };
+  if (!mongoose.isValidObjectId(s) || s.length !== 24) {
+    return { error: `"${s}" is not a valid meeting id. Use getMeetings to find one.` };
+  }
+  const Meeting = require("../../crm/models/Metting.model");
+  const doc = await Meeting.findById(s).lean();
+  return doc ? { doc } : { error: `No meeting with id ${s}.` };
+}
+
+module.exports = { resolveLead, resolveMeeting };

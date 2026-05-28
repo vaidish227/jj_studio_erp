@@ -23,6 +23,7 @@ const { buildMessages, pickModel } = require("./promptBuilder.service");
 const { computeCost } = require("./cost.service");
 const { sanitize, previewForAudit } = require("../utils/sanitize");
 const { count: countTokens } = require("../utils/tokenizer");
+const { extractChips } = require("../utils/extractChips");
 
 const AIMetric = require("../models/AIMetric.model");
 
@@ -212,24 +213,38 @@ async function run({ user, message, conversationId, sse, abortSignal }) {
         args: safeParseJson(tc.argsStr),
       }));
 
+      // Extract quick-reply chips from the assistant text (if any). The
+      // cleaned content (sentinel stripped) is what we persist and what we
+      // feed back into the next OpenAI turn — the chip marker is purely a
+      // signal to the UI.
+      const { content: cleanedAssistantText, suggestions } = extractChips(assistantText);
+
       const assistantDoc = await memory.appendMessage({
         conversationId: conv._id,
         role: "assistant",
-        content: assistantText,
+        content: cleanedAssistantText,
         toolCalls: orderedCalls,
         model,
-        completionTokens: usage?.completion_tokens || countTokens(assistantText),
+        completionTokens: usage?.completion_tokens || countTokens(cleanedAssistantText),
         promptTokens: usage?.prompt_tokens || 0,
         finishReason,
+        suggestions,
       });
       newDocs.push(assistantDoc);
-      lastAssistantContent = assistantText;
+      lastAssistantContent = cleanedAssistantText;
       lastAssistantId = assistantDoc._id;
+
+      if (suggestions.length) {
+        sse?.emit("suggestions", {
+          messageId: String(assistantDoc._id),
+          items: suggestions,
+        });
+      }
 
       // Push the assistant message into the OpenAI conversation array for the next iter.
       const assistantOpenAIMessage = {
         role: "assistant",
-        content: assistantText,
+        content: cleanedAssistantText,
       };
       if (orderedCalls.length) {
         assistantOpenAIMessage.tool_calls = orderedCalls.map((tc) => ({

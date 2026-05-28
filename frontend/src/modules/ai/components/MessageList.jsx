@@ -52,11 +52,17 @@ const MessageList = () => {
         </div>
       )}
 
-      {messages.map((m) => {
+      {messages.map((m, idx) => {
         if (m.role === 'tool' || m.role === 'tool_pending') {
           return <ToolMessage key={m.id} message={m} />;
         }
-        return <MessageBubble key={m.id} message={m} />;
+        return (
+          <MessageBubble
+            key={m.id}
+            message={m}
+            isLast={idx === messages.length - 1}
+          />
+        );
       })}
 
       <div ref={endRef} />

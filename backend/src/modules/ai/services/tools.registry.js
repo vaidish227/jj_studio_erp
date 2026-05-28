@@ -45,6 +45,10 @@ const createLead            = require("../tools/createLead.tool");
 const updateLead            = require("../tools/updateLead.tool");
 const convertLead           = require("../tools/convertLead.tool");
 const recordAdvancePayment  = require("../tools/recordAdvancePayment.tool");
+// Phase 2B — CRM Meetings (write)
+const updateMeeting         = require("../tools/updateMeeting.tool");
+const completeMeeting       = require("../tools/completeMeeting.tool");
+const recordMOM             = require("../tools/recordMOM.tool");
 
 const TOOLS = [
   // Read
@@ -92,6 +96,10 @@ const TOOLS = [
   updateLead,
   convertLead,
   recordAdvancePayment,
+  // CRM Meetings — write (Phase 2B)
+  updateMeeting,
+  completeMeeting,
+  recordMOM,
 ];
 
 const byName = new Map(TOOLS.map((t) => [t.name, t]));

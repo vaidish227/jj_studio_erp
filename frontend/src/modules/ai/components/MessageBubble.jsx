@@ -4,13 +4,32 @@ import MarkdownRenderer from './MarkdownRenderer';
 import FeedbackButtons from './FeedbackButtons';
 import SourcesPanel from './SourcesPanel';
 import RagStatusPill from './RagStatusPill';
+import { useAIChat } from '../context/AIChatContext';
 
-const MessageBubble = ({ message }) => {
+// Strip the `<<chips: ... >>` sentinel from the displayed content. Backend
+// also strips it before persisting; this is defensive so a partial sentinel
+// in mid-stream doesn't flash on screen.
+const CHIP_SENTINEL_RE = /<<\s*chips\s*:[^<>\n]*?>>/i;
+
+const MessageBubble = ({ message, isLast = false }) => {
   const isUser = message.role === 'user';
   const isError = message.status === 'error';
   const sourcesRef = useRef(null);
+  const { send, streaming } = useAIChat();
 
   const onCitationClick = (n) => sourcesRef.current?.highlight?.(n);
+
+  const displayedContent = isUser
+    ? message.content
+    : (message.content || '').replace(CHIP_SENTINEL_RE, '').trimEnd();
+
+  const showChips =
+    !isUser &&
+    isLast &&
+    message.status !== 'streaming' &&
+    !streaming &&
+    Array.isArray(message.suggestions) &&
+    message.suggestions.length > 0;
 
   return (
     <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -51,7 +70,7 @@ const MessageBubble = ({ message }) => {
           ) : (
             <div className="prose-sm">
               <MarkdownRenderer onCitationClick={onCitationClick}>
-                {message.content || (message.status === 'streaming' ? '…' : '')}
+                {displayedContent || (message.status === 'streaming' ? '…' : '')}
               </MarkdownRenderer>
               {message.status === 'streaming' && (
                 <span className="inline-block w-1.5 h-3 ml-0.5 bg-[var(--text,#2E2E2E)] animate-pulse align-middle" />
@@ -59,6 +78,21 @@ const MessageBubble = ({ message }) => {
             </div>
           )}
         </div>
+
+        {showChips && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {message.suggestions.map((chip, i) => (
+              <button
+                key={`${chip.label}-${i}`}
+                type="button"
+                onClick={() => send(chip.value || chip.label)}
+                className="text-xs px-3 py-1.5 rounded-full border border-[var(--primary,#D4B76C)] bg-white hover:bg-[var(--bg,#F8F7F3)] text-[var(--text,#2E2E2E)] transition-colors font-medium"
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {!isUser && message.citations?.length > 0 && (
           <SourcesPanel ref={sourcesRef} citations={message.citations} />
