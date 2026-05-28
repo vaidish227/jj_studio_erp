@@ -58,6 +58,10 @@ export const crmService = {
   completeMeeting: (id, outcomeData) =>
     apiClient.put(`/metting/update/${id}`, { status: 'completed', ...outcomeData }),
 
+  // ─── Minutes of Meeting (MOM) ─────────────────────────────────────
+  recordMOM: (id, momData) => apiClient.put(`/metting/mom/${id}`, momData),
+  getMOM: (id) => apiClient.get(`/metting/mom/${id}`),
+
   // ─── Follow-ups / KIT ─────────────────────────────────────────────
   createFollowup: (followupData) => apiClient.post('/followup/create', followupData),
   getFollowups: () => apiClient.get('/followup/get'),

@@ -13,6 +13,7 @@ import {
   Plus,
   XCircle,
   RotateCcw,
+  FileText,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
@@ -26,6 +27,8 @@ import { DashboardCard, ViewToggle, Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+import RecordMOMModal from '../components/RecordMOMModal';
+import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
 
 const POLL_INTERVAL_MS = 30000;
 
@@ -46,6 +49,9 @@ const MeetingsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [isMOMModalOpen, setIsMOMModalOpen] = useState(false);
+  const [momMeeting, setMomMeeting] = useState(null);
+  const [outcomeModalMeeting, setOutcomeModalMeeting] = useState(null);
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [selectedLead, setSelectedLead] = useState('');
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
@@ -60,6 +66,8 @@ const MeetingsPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  // Stat-card quick filter: 'all' | 'scheduled' | 'completed' | 'cancelled' | 'site'
+  const [statCardFilter, setStatCardFilter] = useState('all');
 
   const {
     filters,
@@ -110,7 +118,7 @@ const searchTerm = navbarQuery.toLowerCase();
   const filteredMeetings = useMemo(() => {
     // Combine navbar search with filter system
     let processedMeetings = process(meetings);
-    
+
     if (searchTerm) {
       processedMeetings = processedMeetings.filter((meeting) => {
         const lead = meeting.leadId || {};
@@ -129,9 +137,16 @@ const searchTerm = navbarQuery.toLowerCase();
         return haystack.includes(searchTerm);
       });
     }
-    
+
+    // Apply stat-card quick filter
+    if (statCardFilter === 'site') {
+      processedMeetings = processedMeetings.filter((m) => m.type === 'site');
+    } else if (statCardFilter !== 'all') {
+      processedMeetings = processedMeetings.filter((m) => m.status === statCardFilter);
+    }
+
     return processedMeetings;
-  }, [meetings, process, searchTerm]);
+  }, [meetings, process, searchTerm, statCardFilter]);
 
   const stats = useMemo(() => ({
     total: meetings.length,
@@ -165,14 +180,16 @@ const searchTerm = navbarQuery.toLowerCase();
   }, [currentMonth, filteredMeetings]);
 
   const visibleMeetings = useMemo(() => {
-    if (viewMode === 'calendar') {
+    // When a stat-card filter is active, the user wants all matching meetings
+    // across every date — so ignore the calendar's selectedDate restriction.
+    if (viewMode === 'calendar' && statCardFilter === 'all') {
       return filteredMeetings.filter(
         (meeting) => new Date(meeting.date).toDateString() === selectedDate.toDateString()
       );
     }
 
     return filteredMeetings;
-  }, [filteredMeetings, selectedDate, viewMode]);
+  }, [filteredMeetings, selectedDate, viewMode, statCardFilter]);
 
   const handleCreateMeeting = async (e) => {
     e.preventDefault();
@@ -210,6 +227,15 @@ const searchTerm = navbarQuery.toLowerCase();
   };
 
   const handleStatusUpdate = async (meetingId, status) => {
+    // When marking complete, capture the outcome via modal instead of silently flipping status
+    if (status === 'completed') {
+      const meeting = meetings.find((m) => m._id === meetingId);
+      if (meeting) {
+        setOutcomeModalMeeting(meeting);
+        return;
+      }
+    }
+
     try {
       await crmService.updateMeeting(meetingId, { status });
       toast.success('Status updated successfully');
@@ -217,6 +243,31 @@ const searchTerm = navbarQuery.toLowerCase();
     } catch {
       toast.error('Failed to update meeting status.');
     }
+  };
+
+  const handleMeetingOutcome = async (meetingId, outcomeData, markLost = false) => {
+    try {
+      await crmService.completeMeeting(meetingId, outcomeData);
+      if (markLost) {
+        const meeting = meetings.find((m) => m._id === meetingId);
+        if (meeting?.leadId?._id) {
+          await crmService.updateClientStatus(meeting.leadId._id, {
+            status: 'lost',
+            lifecycleStage: 'lost',
+          });
+        }
+      }
+      toast.success('Meeting outcome saved');
+      fetchData();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to save outcome.');
+      throw err;
+    }
+  };
+
+  const handleOpenMOM = (meeting) => {
+    setMomMeeting(meeting);
+    setIsMOMModalOpen(true);
   };
 
   const handleReschedule = (meeting) => {
@@ -307,13 +358,53 @@ const searchTerm = navbarQuery.toLowerCase();
         compact={false}
       />
 
-      {/* Stats Cards */}
+      {/* Stats Cards — clickable quick filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <DashboardCard title="Total Meetings" value={stats.total} icon={CalendarIcon} iconBg="bg-[var(--primary)]/10" compact />
-        <DashboardCard title="Scheduled" value={stats.scheduled} icon={Clock} iconBg="bg-[var(--accent-blue)]/10" compact />
-        <DashboardCard title="Completed" value={stats.completed} icon={CheckCircle2} iconBg="bg-[var(--success)]/10" compact />
-        <DashboardCard title="Cancelled" value={stats.cancelled} icon={XCircle} iconBg="bg-[var(--error)]/10" compact />
-        <DashboardCard title="On-Site" value={stats.site} icon={MapPin} iconBg="bg-[var(--warning)]/10" compact />
+        <DashboardCard
+          title="Total Meetings"
+          value={stats.total}
+          icon={CalendarIcon}
+          iconBg="bg-[var(--primary)]/10"
+          compact
+          onClick={() => setStatCardFilter('all')}
+          isActive={statCardFilter === 'all'}
+        />
+        <DashboardCard
+          title="Scheduled"
+          value={stats.scheduled}
+          icon={Clock}
+          iconBg="bg-[var(--accent-blue)]/10"
+          compact
+          onClick={() => setStatCardFilter((prev) => (prev === 'scheduled' ? 'all' : 'scheduled'))}
+          isActive={statCardFilter === 'scheduled'}
+        />
+        <DashboardCard
+          title="Completed"
+          value={stats.completed}
+          icon={CheckCircle2}
+          iconBg="bg-[var(--success)]/10"
+          compact
+          onClick={() => setStatCardFilter((prev) => (prev === 'completed' ? 'all' : 'completed'))}
+          isActive={statCardFilter === 'completed'}
+        />
+        <DashboardCard
+          title="Cancelled"
+          value={stats.cancelled}
+          icon={XCircle}
+          iconBg="bg-[var(--error)]/10"
+          compact
+          onClick={() => setStatCardFilter((prev) => (prev === 'cancelled' ? 'all' : 'cancelled'))}
+          isActive={statCardFilter === 'cancelled'}
+        />
+        <DashboardCard
+          title="On-Site"
+          value={stats.site}
+          icon={MapPin}
+          iconBg="bg-[var(--warning)]/10"
+          compact
+          onClick={() => setStatCardFilter((prev) => (prev === 'site' ? 'all' : 'site'))}
+          isActive={statCardFilter === 'site'}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -378,6 +469,7 @@ const searchTerm = navbarQuery.toLowerCase();
                 onViewDetails={() => navigate(`/crm/leads/${meeting.leadId?._id}`)}
                 onStatusChange={handleStatusUpdate}
                 onReschedule={handleReschedule}
+                onRecordMOM={handleOpenMOM}
               />
             )) : (
               <div className="py-20 text-center bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-2xl">
@@ -483,14 +575,37 @@ const searchTerm = navbarQuery.toLowerCase();
           </div>
         </form>
       </Modal>
+
+      <MeetingOutcomeModal
+        isOpen={Boolean(outcomeModalMeeting)}
+        onClose={() => setOutcomeModalMeeting(null)}
+        meeting={outcomeModalMeeting}
+        onSave={handleMeetingOutcome}
+        onRecordMOM={(meeting) => {
+          // After outcome saved, refetch to get the now-completed meeting (with status=completed)
+          // so RecordMOMModal's completion gate passes.
+          fetchData().then?.(() => {});
+          setMomMeeting({ ...meeting, status: 'completed' });
+          setIsMOMModalOpen(true);
+        }}
+      />
+
+      <RecordMOMModal
+        isOpen={isMOMModalOpen}
+        onClose={() => { setIsMOMModalOpen(false); setMomMeeting(null); }}
+        meeting={momMeeting}
+        onSaved={fetchData}
+      />
     </div>
   );
 };
 
 
-const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule }) => {
+const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule, onRecordMOM }) => {
   const lead = meeting.leadId || {};
   const date = new Date(meeting.date);
+  const hasMOM = !!meeting.mom?.recordedAt;
+  const isCompleted = meeting.status === 'completed';
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 hover:border-[var(--primary)] hover:shadow-xl hover:shadow-[var(--primary)]/5 transition-all duration-300 group shadow-sm">
@@ -546,6 +661,32 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule }) =
             <span className="text-[var(--text-secondary)] leading-relaxed">{meeting.notes || 'Meeting to understand client requirements and site measurements.'}</span>
           </div>
 
+          {hasMOM && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-emerald-700 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                  <FileText size={12} /> Minutes of Meeting
+                </span>
+                <span className="text-[10px] text-emerald-700/70 font-medium">
+                  {new Date(meeting.mom.recordedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+              {meeting.mom.discussionSummary && (
+                <p className="text-[var(--text-secondary)] leading-relaxed line-clamp-2 mb-2">
+                  {meeting.mom.discussionSummary}
+                </p>
+              )}
+              <div className="flex items-center gap-4 text-[11px] font-bold text-emerald-700">
+                <span>{(meeting.mom.attendees?.staff?.length || 0) + (meeting.mom.attendees?.clients?.length || 0)} attendees</span>
+                <span>•</span>
+                <span>{meeting.mom.decisions?.length || 0} decisions</span>
+                <span>•</span>
+                <span>{meeting.mom.actionItems?.length || 0} action items</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col lg:flex-row gap-3 pt-2">
             <Select
               value={meeting.status || 'scheduled'}
@@ -561,6 +702,16 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule }) =
               <Button variant="secondary" className="w-full justify-center py-3.5 text-sm font-bold tracking-tight bg-[var(--bg)] hover:bg-[var(--primary)]/5" onClick={() => onReschedule(meeting)}>
                 <RotateCcw size={16} className="mr-2" />
                 Reschedule
+              </Button>
+            )}
+            {isCompleted && onRecordMOM && (
+              <Button
+                variant={hasMOM ? 'outline' : 'secondary'}
+                className="w-full justify-center py-3.5 text-sm font-bold tracking-tight"
+                onClick={() => onRecordMOM(meeting)}
+              >
+                <FileText size={16} className="mr-2" />
+                {hasMOM ? 'View / Edit MOM' : 'Record MOM'}
               </Button>
             )}
             <Button variant="primary" className="w-full justify-center py-3.5 text-sm font-bold tracking-tight shadow-md hover:shadow-lg" onClick={onViewDetails}>

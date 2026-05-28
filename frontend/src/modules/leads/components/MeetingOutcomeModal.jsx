@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Clock, MessageSquare, Calendar } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CheckCircle2, XCircle, Clock, MessageSquare, Calendar, FileText } from 'lucide-react';
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
 import FormField from '../../../shared/components/FormField/FormField';
@@ -34,16 +34,28 @@ const INTEREST_OPTIONS = [
   },
 ];
 
-const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
+const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave, onRecordMOM }) => {
   const [clientInterested, setClientInterested] = useState(null);
   const [outcome, setOutcome] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
+  const [recordMOMAfter, setRecordMOMAfter] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset state whenever the modal opens fresh
+  useEffect(() => {
+    if (isOpen) {
+      setClientInterested(null);
+      setOutcome('');
+      setFollowUpDate('');
+      setRecordMOMAfter(false);
+    }
+  }, [isOpen]);
 
   const handleClose = () => {
     setClientInterested(null);
     setOutcome('');
     setFollowUpDate('');
+    setRecordMOMAfter(false);
     onClose();
   };
 
@@ -57,6 +69,11 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
         followUpDate: followUpDate || undefined,
       };
       await onSave(meeting._id, payload, clientInterested === 'lost');
+
+      // If MOM chain requested, hand off to the MOM modal before closing
+      if (recordMOMAfter && onRecordMOM) {
+        onRecordMOM(meeting);
+      }
       handleClose();
     } finally {
       setIsSubmitting(false);
@@ -167,6 +184,33 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
           </div>
         )}
 
+        {/* Record MOM toggle — only if parent supports the chain */}
+        {onRecordMOM && (
+          <button
+            type="button"
+            onClick={() => setRecordMOMAfter((v) => !v)}
+            className={[
+              'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-left transition-all',
+              recordMOMAfter
+                ? 'bg-[var(--primary)]/10 border-[var(--primary)] ring-2 ring-[var(--primary)]/20'
+                : 'bg-[var(--bg)] border-[var(--border)] hover:border-[var(--primary)]/50',
+            ].join(' ')}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${recordMOMAfter ? 'bg-[var(--primary)] text-black' : 'bg-[var(--primary)]/10 text-[var(--primary)]'}`}>
+                <FileText size={16} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[var(--text-primary)]">Record Minutes of Meeting</p>
+                <p className="text-xs text-[var(--text-muted)]">Capture attendees, decisions, and action items after saving.</p>
+              </div>
+            </div>
+            <div className={`w-10 h-6 rounded-full p-0.5 transition-colors ${recordMOMAfter ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'}`}>
+              <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${recordMOMAfter ? 'translate-x-4' : ''}`} />
+            </div>
+          </button>
+        )}
+
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 pt-2 border-t border-[var(--border)]">
           <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
@@ -177,7 +221,7 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
             isLoading={isSubmitting}
             disabled={clientInterested === null}
           >
-            Save Outcome
+            {recordMOMAfter ? 'Save & Record MOM' : 'Save Outcome'}
           </Button>
         </div>
       </div>
