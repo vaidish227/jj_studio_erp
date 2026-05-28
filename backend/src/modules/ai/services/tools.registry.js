@@ -49,6 +49,8 @@ const recordAdvancePayment  = require("../tools/recordAdvancePayment.tool");
 const updateMeeting         = require("../tools/updateMeeting.tool");
 const completeMeeting       = require("../tools/completeMeeting.tool");
 const recordMOM             = require("../tools/recordMOM.tool");
+// Phase 2A.1 — CRM Client Info (write, deeper Client Info Form fields)
+const updateClientInfo      = require("../tools/updateClientInfo.tool");
 
 const TOOLS = [
   // Read
@@ -100,6 +102,8 @@ const TOOLS = [
   updateMeeting,
   completeMeeting,
   recordMOM,
+  // CRM Client Info — write (Phase 2A.1)
+  updateClientInfo,
 ];
 
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
