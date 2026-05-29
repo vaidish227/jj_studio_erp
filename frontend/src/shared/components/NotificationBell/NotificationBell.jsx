@@ -64,7 +64,7 @@ const NotificationRow = ({ n, onClick, onDismiss }) => {
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left flex items-start gap-3 px-4 py-3 transition-colors border-b border-[var(--border)] last:border-b-0 ${
+      className={`group w-full text-left flex items-start gap-3 px-4 py-3 transition-colors border-b border-[var(--border)] last:border-b-0 ${
         unread ? 'bg-[var(--primary)]/[0.03] hover:bg-[var(--primary)]/[0.06]' : 'hover:bg-[var(--bg)]'
       }`}
     >
