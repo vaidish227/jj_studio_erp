@@ -9,6 +9,7 @@ import Input from '../../../shared/components/Input/Input';
 import Button from '../../../shared/components/Button/Button';
 import FormField from '../../../shared/components/FormField/FormField';
 import Select from '../../../shared/components/Select/Select';
+import { PhoneInput } from '../../../shared/components';
 import EditUserModal from '../components/EditUserModal';
 import ResetPasswordModal from '../components/ResetPasswordModal';
 import { useUserManagement } from '../hooks/useUserManagement';
@@ -226,10 +227,9 @@ const UserManagementPage = () => {
                   />
                 </FormField>
                 <FormField label="WhatsApp Number (optional)">
-                  <Input
-                    type="tel"
-                    icon={Phone}
-                    placeholder="+91 9876543210"
+                  <PhoneInput
+                    name="phone"
+                    placeholder="9876543210"
                     value={formData.phone}
                     onChange={(e) => handleChange('phone', e.target.value)}
                     error={formErrors.phone}

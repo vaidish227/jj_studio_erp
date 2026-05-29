@@ -17,7 +17,21 @@
  */
 const fs = require("fs/promises");
 const path = require("path");
+const crypto = require("crypto");
 const puppeteer = require("puppeteer");
+
+// ─── Company branding (env-overridable so legal/marketing can change copy
+//     without a code deploy). Falls back to JJ Studio defaults. (#33)
+const BRAND = {
+  name: process.env.COMPANY_NAME || "JJ Studio",
+  tagline: process.env.COMPANY_TAGLINE || "- Reinventing your Interiors",
+  addressLine1: process.env.COMPANY_ADDRESS_LINE1 || "Avani Oxford, Laketown",
+  addressLine2: process.env.COMPANY_ADDRESS_LINE2 || "Kolkata - 700 055",
+  email: process.env.COMPANY_EMAIL || "deepa@jjstudio.in",
+  mobile: process.env.COMPANY_MOBILE || "9830015200",
+  office: process.env.COMPANY_OFFICE || "033 79697900",
+  signoff: process.env.COMPANY_SIGNOFF || "for JJ Studio / Deepa Bagaria",
+};
 
 // ─── Output directory ─────────────────────────────────────────────────────────
 const PDF_DIR = path.join(__dirname, "..", "..", "..", "..", "public", "proposals");
@@ -31,7 +45,6 @@ const ensureDir = async () => {
 };
 
 // ─── Small format helpers ─────────────────────────────────────────────────────
-const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;",
@@ -40,6 +53,21 @@ const esc = (s) =>
     '"': "&quot;",
     "'": "&#39;",
   }[c]));
+
+// parseNum tolerates strings like "5,000", "₹1,200.50" → numeric.
+// Anything fully non-numeric returns null so callers can render the raw text.
+const parseNum = (n) => {
+  if (n === null || n === undefined || n === "") return null;
+  if (typeof n === "number") return Number.isFinite(n) ? n : null;
+  const cleaned = String(n).replace(/[₹,\s]/g, "");
+  const num = Number(cleaned);
+  return Number.isFinite(num) ? num : null;
+};
+
+const inr = (n) => {
+  const num = parseNum(n);
+  return num === null ? esc(String(n ?? "")) : `₹${num.toLocaleString("en-IN")}`;
+};
 
 // ─── HTML template ────────────────────────────────────────────────────────────
 // Self-contained — no external CSS, no external images. Puppeteer can render
@@ -50,48 +78,42 @@ const buildHtml = (proposal, client) => {
   const gst = proposal.gst || 0;
   const finalAmount = proposal.finalAmount || 0;
 
+  // Render each section using whatever columns the template actually has —
+  // no hard-coded Item/Qty/Rate/Amount lookup so dynamic templates render correctly.
   const sectionsHtml = sections
     .map((section) => {
       const cols = section.structure?.columns || [];
-      const nameCol = cols.find(
-        (c) => c.label?.toLowerCase().includes("item") || c.label?.toLowerCase().includes("work")
-      );
-      const amtCol = cols.find(
-        (c) => c.label?.toLowerCase().includes("amount") || c.label?.toLowerCase().includes("total")
-      );
-      const qtyCol = cols.find((c) => c.label?.toLowerCase().includes("qty") || c.label?.toLowerCase().includes("quantity"));
-      const rateCol = cols.find((c) => c.label?.toLowerCase().includes("rate") || c.label?.toLowerCase().includes("price"));
+      const colCount = cols.length || 1;
+
+      // Column types: 'number' cells use INR formatting + right alignment.
+      const headerCells = cols
+        .map((c) => `<th class="${c.type === "number" ? "right" : ""}">${esc(c.label || "")}</th>`)
+        .join("");
 
       const rows = (section.structure?.rows || [])
         .map((row) => {
           if (row.isGroupHeader) {
-            return `<tr><td colspan="4" class="row-group">${esc(row.label || "")}</td></tr>`;
+            const label = cols[0] ? row.cells?.[cols[0].id] : "";
+            return `<tr><td colspan="${colCount}" class="row-group">${esc(label || "")}</td></tr>`;
           }
-          const name = row.cells?.[nameCol?.id] || "Item";
-          const qty = row.cells?.[qtyCol?.id] || "";
-          const rate = row.cells?.[rateCol?.id] || "";
-          const amount = row.cells?.[amtCol?.id] || "0";
-          return `<tr>
-            <td>${esc(name)}</td>
-            <td class="right">${esc(qty)}</td>
-            <td class="right">${esc(rate)}</td>
-            <td class="right">${inr(amount)}</td>
-          </tr>`;
+          const cells = cols
+            .map((c) => {
+              const raw = row.cells?.[c.id];
+              if (c.type === "number") {
+                return `<td class="right">${inr(raw)}</td>`;
+              }
+              return `<td>${esc(raw ?? "")}</td>`;
+            })
+            .join("");
+          return `<tr>${cells}</tr>`;
         })
         .join("");
 
       return `
         <h3 class="section-title">${esc(section.title || "Section")}</h3>
         <table class="items">
-          <thead>
-            <tr>
-              <th>Item / Work</th>
-              <th class="right">Qty</th>
-              <th class="right">Rate</th>
-              <th class="right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
+          <thead><tr>${headerCells}</tr></thead>
+          <tbody>${rows || `<tr><td colspan="${colCount}"><em>No rows.</em></td></tr>`}</tbody>
         </table>`;
     })
     .join("");
@@ -127,15 +149,15 @@ const buildHtml = (proposal, client) => {
 <body>
   <div class="header">
     <div class="brand">
-      <h1>JJ Studio</h1>
-      <div class="tag">- Reinventing your Interiors</div>
-      <div class="addr">Avani Oxford, Laketwon</div>
-      <div class="addr">Kolkata - 700 055</div>
+      <h1>${esc(BRAND.name)}</h1>
+      <div class="tag">${esc(BRAND.tagline)}</div>
+      <div class="addr">${esc(BRAND.addressLine1)}</div>
+      <div class="addr">${esc(BRAND.addressLine2)}</div>
     </div>
     <div class="contact">
-      <div>Email: deepa@jjstudio.in</div>
-      <div>(M): 9830015200</div>
-      <div>(O): 033 79697900</div>
+      <div>Email: ${esc(BRAND.email)}</div>
+      <div>(M): ${esc(BRAND.mobile)}</div>
+      <div>(O): ${esc(BRAND.office)}</div>
     </div>
   </div>
 
@@ -170,32 +192,77 @@ const buildHtml = (proposal, client) => {
 </body></html>`;
 };
 
-// ─── PDF generation ───────────────────────────────────────────────────────────
-const generateProposalPdfBuffer = async (proposal, client) => {
-  const html = buildHtml(proposal, client);
+// ─── Shared Puppeteer browser ─────────────────────────────────────────────────
+// Launching a fresh Chromium per request costs ~3s + ~300MB. We keep one
+// instance alive across requests and re-create it on disconnect. Pages are
+// always closed after use so memory doesn't grow unbounded. (#25)
+let _browserPromise = null;
 
-  const browser = await puppeteer.launch({
+const launchBrowser = () =>
+  puppeteer.launch({
     headless: "new",
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
+
+const getBrowser = async () => {
+  if (!_browserPromise) {
+    _browserPromise = launchBrowser().then((browser) => {
+      // If Chromium crashes or is killed, drop the cached promise so the next
+      // call relaunches instead of hanging on a dead connection.
+      browser.on("disconnected", () => {
+        if (_browserPromise) {
+          _browserPromise = null;
+        }
+      });
+      return browser;
+    }).catch((err) => {
+      _browserPromise = null;
+      throw err;
+    });
+  }
+  return _browserPromise;
+};
+
+const closeBrowser = async () => {
+  if (!_browserPromise) return;
   try {
-    const page = await browser.newPage();
+    const browser = await _browserPromise;
+    _browserPromise = null;
+    await browser.close();
+  } catch {
+    _browserPromise = null;
+  }
+};
+
+// Best-effort shutdown so leftover Chromium processes don't linger.
+process.once("SIGINT", closeBrowser);
+process.once("SIGTERM", closeBrowser);
+
+// ─── PDF generation ───────────────────────────────────────────────────────────
+const generateProposalPdfBuffer = async (proposal, client) => {
+  const html = buildHtml(proposal, client);
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
     await page.setContent(html, { waitUntil: "networkidle0" });
-    const buffer = await page.pdf({
+    return await page.pdf({
       format: "A4",
       printBackground: true,
       margin: { top: "20mm", right: "15mm", bottom: "20mm", left: "15mm" },
     });
-    return buffer;
   } finally {
-    await browser.close();
+    await page.close().catch(() => {});
   }
 };
 
 // ─── Persist to disk + build public URL ──────────────────────────────────────
+// Filenames embed a 128-bit random token so the URL is not enumerable from a
+// known proposalId — WhatsApp/email providers still get a fetchable URL, but
+// nobody can guess `proposal-{id}-{timestamp}.pdf` to download it. (NEW-2)
 const saveProposalPdf = async (buffer, proposalId) => {
   await ensureDir();
-  const filename = `proposal-${proposalId}-${Date.now()}.pdf`;
+  const token = crypto.randomBytes(16).toString("hex");
+  const filename = `proposal-${proposalId}-${token}.pdf`;
   const absolutePath = path.join(PDF_DIR, filename);
   await fs.writeFile(absolutePath, buffer);
 
@@ -205,4 +272,4 @@ const saveProposalPdf = async (buffer, proposalId) => {
   return { absolutePath, publicUrl, filename };
 };
 
-module.exports = { generateProposalPdfBuffer, saveProposalPdf };
+module.exports = { generateProposalPdfBuffer, saveProposalPdf, closeBrowser };

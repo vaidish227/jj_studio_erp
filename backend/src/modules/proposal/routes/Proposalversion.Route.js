@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requirePermission } = require("../../../middleware/auth.middleware");
 
 const {
   createProposalVersion,
@@ -8,8 +9,8 @@ const {
 } = require("../controllers/ProposalVersion.controller");
 
 
-router.post("/create", createProposalVersion);
-router.get("/get/:proposalId", getVersionsByProposal);
-router.get("/single/:id", getVersionById);
+router.get("/get/:proposalId", requirePermission("proposal.read"),   getVersionsByProposal);
+router.get("/single/:id",      requirePermission("proposal.read"),   getVersionById);
+router.post("/create",         requirePermission("proposal.update"), createProposalVersion);
 
 module.exports = router;

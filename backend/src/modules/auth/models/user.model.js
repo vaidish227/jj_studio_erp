@@ -20,6 +20,10 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: true,
             minlength: 6,
+            // Excluded from query results unless explicitly requested via
+            // .select('+password'). Auth flows (loginUser, changePassword)
+            // opt in; nothing else can accidentally leak the hash. (NEW-1)
+            select: false,
         },
 
         phone: {

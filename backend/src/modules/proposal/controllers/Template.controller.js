@@ -1,5 +1,6 @@
 
-const Template = require("../models/Template.model")
+const Template = require("../models/Template.model");
+const Proposal = require("../../crm/models/Proposal.model");
 const createTemplate = async (req, res) => {
   try {
     const { name, type, description, structure } = req.body;
@@ -24,6 +25,7 @@ const createTemplate = async (req, res) => {
       type,
       description,
       structure: structure || { columns: [], rows: [] },
+      createdBy: req.user?.id || null,
     });
 
     res.status(201).json({
@@ -38,25 +40,37 @@ const createTemplate = async (req, res) => {
 
 const getTemplates = async (req, res) => {
   try {
-    const { type } = req.query;
+    const { type, search } = req.query;
 
-    let filter = {};
+    // Pagination — defaults keep current callers (which pass no params) working,
+    // capped at 200 so a future caller can't accidentally request the whole table. (#37)
+    const page  = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const skip  = (page - 1) * limit;
 
+    const filter = {};
     if (type) {
       if (!["residential", "commercial"].includes(type)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid type",
-        });
+        return res.status(400).json({ success: false, message: "Invalid type" });
       }
       filter.type = type;
     }
+    if (search && search.trim()) {
+      // Anchored to start so it stays index-friendly; not a regex DoS surface
+      // because we escape the user input.
+      const safe = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.name = { $regex: safe, $options: "i" };
+    }
 
-    const templates = await Template.find(filter).sort({ createdAt: -1 });
+    const [templates, total] = await Promise.all([
+      Template.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Template.countDocuments(filter),
+    ]);
 
     res.status(200).json({
       success: true,
       data: templates,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
 
   } catch (err) {
@@ -139,6 +153,17 @@ const updateTemplate = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Template not found",
+      });
+    }
+
+    // Refuse to delete if any proposal still references this template — silent
+    // hard-delete would null out templateId on those proposals (#17).
+    const inUse = await Proposal.countDocuments({ templateId: id });
+    if (inUse > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `Template is used by ${inUse} proposal${inUse === 1 ? "" : "s"} and cannot be deleted.`,
+        proposalsUsing: inUse,
       });
     }
 

@@ -397,16 +397,16 @@ export const PROPOSAL_FILTERS = {
   // Proposal Clients Page - Client focused filters
   clients: {
     [FILTER_TYPES.SEARCH]: {
-      placeholder: 'Search by client name, email, phone...',
-      fields: ['name', 'email', 'phone', 'company']
+      placeholder: 'Search by client name, email, phone, city...',
+      fields: ['name', 'email', 'phone', 'city', 'projectType']
     },
     [FILTER_TYPES.SORT_ALPHABET]: true,
     [FILTER_TYPES.SORT_DATE]: true,
     [FILTER_TYPES.CATEGORY]: {
-      label: 'Client Type',
+      label: 'Project Type',
       options: [
-        { value: 'individual', label: 'Individual' },
-        { value: 'corporate', label: 'Corporate' }
+        { value: 'Residential', label: 'Residential' },
+        { value: 'Commercial', label: 'Commercial' }
       ]
     },
     [FILTER_TYPES.STATUS]: {

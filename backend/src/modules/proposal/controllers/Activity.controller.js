@@ -5,7 +5,7 @@ const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 const createActivity = async (req, res) => {
   try {
-    const { proposalId, action, note, createdBy } = req.body;
+    const { proposalId, action, note } = req.body;
 
     if (!proposalId || !action) {
       return res.status(400).json({
@@ -17,11 +17,12 @@ const createActivity = async (req, res) => {
       return res.status(400).json({ message: "Invalid proposalId" });
     }
 
+    // createdBy is always the authenticated user — never trust the body.
     const activity = await Activity.create({
       proposalId,
       action,
       note,
-      createdBy,
+      createdBy: req.user?.id || null,
     });
 
     res.status(201).json({
@@ -43,7 +44,7 @@ const getActivitiesByProposal = async (req, res) => {
     }
 
     const activities = await Activity.find({ proposalId })
-      .populate("createdBy")
+      .populate("createdBy", "name email role")
       .sort({ createdAt: -1 });
 
     res.status(200).json({

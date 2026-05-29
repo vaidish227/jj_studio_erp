@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const { createApproval, updateApprovalStatus, getApprovalsByProposal} = require("../controllers/Approval.controller")
+const { requirePermission } = require("../../../middleware/auth.middleware");
+const { createApproval, updateApprovalStatus, getApprovalsByProposal } = require("../controllers/Approval.controller");
 
-router.post("/create", createApproval);
-router.patch("/update/:id", updateApprovalStatus);
-router.get("/get/:proposalId", getApprovalsByProposal)
-
+router.get("/get/:proposalId", requirePermission("proposal.read"),    getApprovalsByProposal);
+router.post("/create",         requirePermission("proposal.create"),  createApproval);
+router.patch("/update/:id",    requirePermission("proposal.approve"), updateApprovalStatus);
 
 module.exports = router;

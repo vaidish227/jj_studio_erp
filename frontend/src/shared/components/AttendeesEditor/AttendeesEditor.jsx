@@ -166,13 +166,25 @@ const AddParticipantRow = ({ onAdd, onCancel }) => {
             <option key={r.value} value={r.value}>{r.label}</option>
           ))}
         </select>
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="Phone (for WhatsApp)"
-          className="px-2.5 py-2 text-xs rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] outline-none focus:border-[var(--primary)]"
-        />
+        {/* Compact phone input with sticky +91 prefix — keeps the storage value
+            in E.164 form (+919876543210) without inflating the row layout. */}
+        <div className="flex items-stretch rounded-md border border-[var(--border)] bg-[var(--surface)] overflow-hidden focus-within:border-[var(--primary)]">
+          <span className="px-2 flex items-center text-[10px] font-bold text-[var(--text-secondary)] bg-[var(--bg)] border-r border-[var(--border)] select-none">
+            +91
+          </span>
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={(phone || '').replace(/^\+91/, '').replace(/\D/g, '').slice(0, 10)}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+              setPhone(digits ? `+91${digits}` : '');
+            }}
+            placeholder="10-digit mobile (WhatsApp)"
+            maxLength={10}
+            className="flex-1 px-2.5 py-2 text-xs bg-transparent text-[var(--text-primary)] outline-none"
+          />
+        </div>
         <input
           type="email"
           value={email}

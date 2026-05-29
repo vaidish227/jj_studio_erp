@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PlusCircle, Trash2, Mail, MessageSquare, Save, CheckCircle2 } from 'lucide-react';
-import { Modal, Button, FormField, Input, Select } from '../../../shared/components';
+import { Modal, Button, FormField, Input, Select, PhoneInput } from '../../../shared/components';
 import useTaskForm from '../hooks/useTaskForm';
 import { TASK_TYPE_CONFIG } from './TaskTypeIcon';
 import EmployeePicker from './EmployeePicker';
@@ -84,11 +84,10 @@ const ContactFillPanel = ({ assignee, notifyMail, notifyWhatsApp, onSaved }) => 
 
       {needsPhone && (
         <FormField label={`WhatsApp number for ${assignee.name}`}>
-          <Input
-            type="tel"
+          <PhoneInput
             value={phoneInput}
             onChange={(e) => setPhoneInput(e.target.value)}
-            placeholder="+91 98765 43210"
+            placeholder="98765 43210"
             disabled={saved}
           />
         </FormField>

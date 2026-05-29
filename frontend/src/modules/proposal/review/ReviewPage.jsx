@@ -129,11 +129,13 @@ const ReviewPage = () => {
   );
 
   const role = user?.role?.toLowerCase() || '';
-  const isManager = role === 'manager' || role === 'admin';
+  const isManager = role === 'manager' || role === 'admin' || role === 'md';
   const isPending = proposal.status === 'pending_approval';
   const isApproved = proposal.status === 'manager_approved';
   const isDraft = proposal.status === 'draft';
   const isRejected = proposal.status === 'rejected';
+  const isSent = proposal.status === 'sent';
+  const isEsigned = proposal.status === 'esign_received';
   const canEditFields = isEditMode && (isDraft || isRejected || isManager);
 
   return (
@@ -153,7 +155,7 @@ const ReviewPage = () => {
               <StatusBadge status={proposal.status} />
             </div>
             <p className="text-xs text-[var(--text-muted)] font-medium mt-1">
-              REF: #{proposal._id.slice(-8).toUpperCase()} • Created {new Date(proposal.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              REF: #{String(proposal._id || '').slice(-8).toUpperCase()} • Created {new Date(proposal.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             </p>
           </div>
         </div>
@@ -232,6 +234,40 @@ const ReviewPage = () => {
                   <Send size={16} /> Send to Client
                 </Button>
               )}
+
+              {isSent && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-amber-600 hover:bg-amber-700 border-none text-white"
+                  onClick={() => openConfirmModal(
+                    'esign',
+                    'esign_received',
+                    'Mark eSign Received',
+                    'Confirm the client has signed this proposal?'
+                  )}
+                  title="Mark eSign received"
+                >
+                  <CheckCircle size={16} /> eSign Received
+                </Button>
+              )}
+
+              {isEsigned && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 border-none text-white"
+                  onClick={() => openConfirmModal(
+                    'advance',
+                    'payment_received',
+                    'Mark Advance Received',
+                    'Confirm the advance payment has been received?'
+                  )}
+                  title="Mark advance payment received"
+                >
+                  <CheckCircle size={16} /> Advance Received
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -255,7 +291,7 @@ const ReviewPage = () => {
                 { icon: User, label: 'Full Name', value: client?.name },
                 { icon: Phone, label: 'Phone', value: client?.phone },
                 { icon: Mail, label: 'Email', value: client?.email },
-                { icon: MapPin, label: 'Site Address', value: client?.address },
+                { icon: MapPin, label: 'Site Address', value: client?.siteAddress?.fullAddress || client?.address },
               ].map(({ icon: Icon, label, value }) => (
                 <div key={label} className="flex items-start gap-3">
                   <div className="p-2 rounded-lg bg-[var(--bg)] text-[var(--text-muted)] shrink-0">
@@ -408,7 +444,7 @@ const ReviewPage = () => {
         title={confirmModal.title}
         message={confirmModal.message}
         isLoading={isSubmitting}
-        showRemarks={['reject', 'modify'].includes(confirmModal.action)}
+        showRemarks={confirmModal.action === 'reject'}
         isRemarksMandatory={confirmModal.action === 'reject'}
         remarksPlaceholder={confirmModal.action === 'reject' ? 'Reason for rejection (mandatory)...' : 'Add optional remarks...'}
         confirmLabel={confirmModal.title}
