@@ -9,20 +9,62 @@ const mongoose = require("mongoose");
 const Meeting = require("../../crm/models/Metting.model");
 const Followup = require("../../crm/models/FollowUp.model");
 const CRMClient = require("../../crm/models/CRMClient.model");
-const { resolveMeeting } = require("../utils/resolveCrm");
+const { resolveMeeting, resolveLead } = require("../utils/resolveCrm");
 
 const WIDER_PERMS = ["*", "crm.update"];
+
+const IST_DATE_FMT = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric",
+});
+function fmtIstDay(d) {
+  return d ? IST_DATE_FMT.format(new Date(d)) : "";
+}
 
 function isObjectId(s) {
   return mongoose.isValidObjectId(s) && String(s).length === 24;
 }
 
-async function loadAndAuthorize(args, ctx) {
-  const r = await resolveMeeting(args.meetingId);
-  if (r.error) {
-    return { error: { ok: false, error: "not_found", summaryText: r.error, uiHint: "error" } };
+// Resolve the target meeting from EITHER an explicit meetingId OR a lead
+// name/trackingId. Resolving by lead name is the safe path — it avoids the
+// model hand-picking the wrong ObjectId out of a long getMeetings list (which
+// once recorded a MOM on the wrong person). Lead-name resolution is exact:
+// resolveLead refuses ambiguous matches, and we then scope to that lead's
+// COMPLETED meetings, asking the user to disambiguate if there's more than one.
+async function resolveTargetMeeting(args) {
+  if (args.meetingId) {
+    const r = await resolveMeeting(args.meetingId);
+    if (r.error) return { error: { ok: false, error: "not_found", summaryText: r.error, uiHint: "error" } };
+    return { meeting: r.doc };
   }
-  const meeting = r.doc;
+  if (args.leadId) {
+    const lr = await resolveLead(args.leadId);
+    if (lr.error) {
+      return { error: { ok: false, error: lr.candidates ? "ambiguous" : "not_found", summaryText: lr.error, uiHint: "error" } };
+    }
+    const lead = lr.doc;
+    const meetings = await Meeting.find({ leadId: lead._id, status: "completed" })
+      .sort({ date: -1 })
+      .limit(10)
+      .lean();
+    if (meetings.length === 0) {
+      return { error: { ok: false, error: "not_found", uiHint: "error",
+        summaryText: `No completed meeting found for "${lead.name}". A MOM can only be recorded on a completed meeting.` } };
+    }
+    if (meetings.length > 1) {
+      const list = meetings.map((m) => `${m.type} on ${fmtIstDay(m.date)} (id ${m._id})`).join("; ");
+      return { error: { ok: false, error: "ambiguous", uiHint: "error",
+        summaryText: `"${lead.name}" has ${meetings.length} completed meetings: ${list}. Which one? Pass that meetingId.` } };
+    }
+    return { meeting: meetings[0] };
+  }
+  return { error: { ok: false, error: "invalid_args", uiHint: "error",
+    summaryText: "Provide a meetingId or a leadId (lead name) to record the MOM." } };
+}
+
+async function loadAndAuthorize(args, ctx) {
+  const r = await resolveTargetMeeting(args);
+  if (r.error) return r;
+  const meeting = r.meeting;
   const isOwner = String(meeting.assignedTo || "") === String(ctx.userId)
                 || String(meeting.createdBy || "") === String(ctx.userId);
   const elevated = (ctx.permissions || []).some((p) => WIDER_PERMS.includes(p));
@@ -90,14 +132,21 @@ module.exports = {
   description:
     "Record Minutes of Meeting on a completed meeting — attendees, discussion summary, decisions, and action items. Action items with a dueDate auto-create a linked Followup so nothing falls through the cracks. Re-recording on the same meeting replaces previous MOM and cleans up the old pending followups. " +
     "This is the natural follow-up to completeMeeting — after a meeting is marked complete, proactively offer to record the MOM. " +
-    "Use for 'record MOM for meeting M: discussed colours, decided on palette A, action item: send 3D render by Friday'.",
+    "PREFER passing leadId (the lead's name) over meetingId — let the tool find that lead's completed meeting, instead of hand-picking a meeting ObjectId (picking the wrong id from a list has recorded MOMs on the wrong person). " +
+    "Use for 'record MOM for Rajiv: discussed colours, decided on palette A, action item: send 3D render by Friday'.",
   parameters: {
     type: "object",
     additionalProperties: false,
     properties: {
+      leadId: {
+        type: "string",
+        description: "PREFERRED. The lead's name fragment (e.g. 'Rajiv'), trackingId (CLI-YYYY-NNNN), or ObjectId. The tool finds that lead's COMPLETED meeting. If the name is ambiguous or the lead has multiple completed meetings, the tool returns the candidates so you can ask which — then pass that meetingId. Provide either leadId or meetingId.",
+        minLength: 2,
+        maxLength: 100,
+      },
       meetingId: {
         type: "string",
-        description: "Meeting ObjectId (24 hex). Meeting must be in 'completed' status.",
+        description: "Meeting ObjectId (24 hex). Meeting must be in 'completed' status. Use this only when you already have the exact id (e.g. after disambiguating). Otherwise prefer leadId.",
         minLength: 24,
         maxLength: 24,
       },
@@ -146,7 +195,7 @@ module.exports = {
         },
       },
     },
-    required: ["meetingId"],
+    required: [],
   },
 
   async dryRun(args, ctx) {
@@ -175,10 +224,13 @@ module.exports = {
       ok: true,
       proposalDescription:
         `${isUpdate ? "Update" : "Record"} MOM for ${r.meeting.type} meeting with "${lead?.name || "(lead)"}"` +
+        (r.meeting.date ? ` on ${fmtIstDay(r.meeting.date)}` : "") +
         ` — ${mom.decisions.length} decision(s), ${mom.actionItems.length} action item(s)` +
         (autoFollowups > 0 ? ` (${autoFollowups} will auto-create follow-ups)` : "") +
         (isUpdate ? ". Previous pending follow-ups from this MOM will be replaced." : "."),
-      args,
+      // Lock the RESOLVED meeting id into the confirmed args so apply() acts on
+      // exactly the meeting shown on the card — never re-resolves the name.
+      args: { ...args, meetingId: String(r.meeting._id) },
       preview: {
         meetingId: String(r.meeting._id),
         leadName: lead?.name || null,

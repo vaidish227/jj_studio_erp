@@ -156,6 +156,8 @@ module.exports = {
           id: l.id,
           trackingId: l.trackingId,
           name: l.name,
+          phone: l.phone,
+          email: l.email,
           status: l.status,
           projectType: l.projectType,
           city: l.city,

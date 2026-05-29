@@ -201,6 +201,7 @@ module.exports = {
       type: m.type,
       status: m.status,
       durationMinutes: m.durationMinutes,
+      momRecorded: !!m.mom?.recordedAt,
       notes: m.notes || null,
       lead: m.leadId
         ? {
@@ -252,6 +253,7 @@ module.exports = {
           when: fmtIstDateTime(m.date),
           type: m.type,
           status: m.status,
+          momRecorded: m.momRecorded,
           durationMinutes: m.durationMinutes,
           leadName: m.lead?.name || null,
           leadTrackingId: m.lead?.trackingId || null,
