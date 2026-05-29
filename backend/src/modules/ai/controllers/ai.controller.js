@@ -63,6 +63,51 @@ async function streamChat(req, res) {
     });
 }
 
+// One-shot text polish — rewrites raw text into professional English without
+// changing meaning. Non-streaming JSON; reuses openai.chatComplete. Used by the
+// "AI" button on the Record MOM Discussion Summary field.
+const POLISH_MAX_CHARS = 4000;
+const POLISH_SYSTEM_PROMPT =
+  "You are a professional editor for meeting minutes. Rewrite the user's meeting " +
+  "discussion summary in clear, professional English with correct grammar and structure. " +
+  "Preserve every fact, name, number, date, decision, and the original meaning exactly. " +
+  "Do NOT add, invent, infer, or remove any information. Keep roughly the same length and " +
+  "the same language as the input. Return ONLY the rewritten text — no preamble, no quotes, " +
+  "no markdown, no commentary.";
+
+async function polishText(req, res) {
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  if (!text) {
+    return res.status(400).json({ message: "Provide some text to refine." });
+  }
+  if (text.length > POLISH_MAX_CHARS) {
+    return res.status(400).json({ message: `Text is too long (max ${POLISH_MAX_CHARS} characters).` });
+  }
+  if (!aiConfig.openai.apiKey) {
+    return res.status(503).json({ message: "AI is not yet configured. Ask an admin to set OPENAI_API_KEY." });
+  }
+
+  try {
+    const resp = await openai.chatComplete({
+      model: aiConfig.models.default,
+      temperature: 0.2,
+      maxTokens: 1000,
+      messages: [
+        { role: "system", content: POLISH_SYSTEM_PROMPT },
+        { role: "user", content: text },
+      ],
+    });
+    const polishedText = (resp?.choices?.[0]?.message?.content || "").trim();
+    if (!polishedText) {
+      return res.status(502).json({ message: "AI could not refine this text. Please try again." });
+    }
+    return res.json({ ok: true, polishedText });
+  } catch (err) {
+    console.error("[AI][controller][polishText]", err);
+    return res.status(500).json({ message: "Failed to refine text. Please try again." });
+  }
+}
+
 async function health(_req, res) {
   if (!aiConfig.openai.apiKey) {
     return res.json({
@@ -90,4 +135,4 @@ async function health(_req, res) {
   });
 }
 
-module.exports = { streamChat, health };
+module.exports = { streamChat, polishText, health };

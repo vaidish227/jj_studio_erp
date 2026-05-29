@@ -9,12 +9,14 @@ import {
   Trash2,
   Calendar,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
 import EmployeePicker from '../../pms/components/EmployeePicker';
 import useAssignableUsers from '../../pms/hooks/useAssignableUsers';
 import { crmService } from '../../../shared/services/crmService';
+import { polishText } from '../../ai/services/aiService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 
 const emptyAction = () => ({ description: '', assignedTo: null, dueDate: '' });
@@ -41,6 +43,8 @@ const RecordMOMModal = ({ isOpen, onClose, meeting, onSaved }) => {
   const [actionItems, setActionItems] = useState([emptyAction()]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [staffPickerKey, setStaffPickerKey] = useState(0); // reset EmployeePicker after each add
+  const [isPolishing, setIsPolishing] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState(null); // string | null → preview panel visible when non-null
 
   // Hydrate from existing MOM if present
   useEffect(() => {
@@ -71,6 +75,8 @@ const RecordMOMModal = ({ isOpen, onClose, meeting, onSaved }) => {
     }
     setClientAttendeeInput('');
     setDecisionInput('');
+    setIsPolishing(false);
+    setAiSuggestion(null);
   }, [isOpen, meeting]);
 
   const selectedStaff = users.filter((u) => staffIds.includes(u._id));
@@ -104,6 +110,34 @@ const RecordMOMModal = ({ isOpen, onClose, meeting, onSaved }) => {
   const removeActionItem = (idx) => {
     setActionItems((prev) => (prev.length === 1 ? [emptyAction()] : prev.filter((_, i) => i !== idx)));
   };
+
+  const handlePolish = async () => {
+    const text = discussionSummary.trim();
+    if (!text) {
+      toast.error('Write a summary first, then let AI refine it.');
+      return;
+    }
+    setIsPolishing(true);
+    try {
+      const res = await polishText(text);
+      const polished = (res?.polishedText || '').trim();
+      if (!polished) {
+        toast.error('AI could not refine this text.');
+        return;
+      }
+      setAiSuggestion(polished);
+    } catch (err) {
+      toast.error(err?.message || 'AI polish failed.');
+    } finally {
+      setIsPolishing(false);
+    }
+  };
+
+  const acceptSuggestion = () => {
+    setDiscussionSummary(aiSuggestion);
+    setAiSuggestion(null);
+  };
+  const discardSuggestion = () => setAiSuggestion(null);
 
   const handleSubmit = async () => {
     if (!meeting?._id) return;
@@ -250,7 +284,26 @@ const RecordMOMModal = ({ isOpen, onClose, meeting, onSaved }) => {
 
         {/* Discussion Summary */}
         <section>
-          {sectionHeader(FileText, 'Discussion Summary', 'bg-amber-100 text-amber-700')}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-amber-100 text-amber-700">
+                <FileText size={16} />
+              </div>
+              <h3 className="text-sm font-black uppercase tracking-wider text-[var(--text-primary)]">
+                Discussion Summary
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={handlePolish}
+              disabled={isPolishing || !discussionSummary.trim()}
+              title="Rewrite professionally with AI"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-[var(--primary)] bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {isPolishing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              {isPolishing ? 'Refining…' : 'AI'}
+            </button>
+          </div>
           <textarea
             value={discussionSummary}
             onChange={(e) => setDiscussionSummary(e.target.value)}
@@ -258,6 +311,29 @@ const RecordMOMModal = ({ isOpen, onClose, meeting, onSaved }) => {
             placeholder="What was discussed during the meeting…"
             className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:border-[var(--primary)] resize-y"
           />
+
+          {aiSuggestion !== null && (
+            <div className="mt-3 p-3 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5">
+              <div className="flex items-center gap-1.5 mb-2 text-xs font-black uppercase tracking-wider text-[var(--primary)]">
+                <Sparkles size={13} />
+                AI suggestion · editable
+              </div>
+              <textarea
+                value={aiSuggestion}
+                onChange={(e) => setAiSuggestion(e.target.value)}
+                rows={5}
+                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] text-sm focus:outline-none focus:border-[var(--primary)] resize-y"
+              />
+              <div className="flex items-center justify-end gap-2 mt-2">
+                <Button type="button" variant="ghost" onClick={discardSuggestion}>
+                  Discard
+                </Button>
+                <Button type="button" variant="primary" onClick={acceptSuggestion}>
+                  Replace summary
+                </Button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Decisions */}

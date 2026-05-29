@@ -4,7 +4,17 @@
 // standard SSE (event:/data:/blank-line), so the parser here can be replaced
 // with any conformant SSE library later.
 
+import apiClient from '../../../shared/services/apiClient';
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+/**
+ * One-shot text polish. Sends raw text to the backend, returns a professionally
+ * rewritten version (meaning preserved). Resolves to { ok, polishedText }.
+ */
+export function polishText(text) {
+  return apiClient.post('/ai/polish-text', { text });
+}
 
 /**
  * Start a streaming chat request. Returns an object with an `abort` method.
@@ -111,4 +121,4 @@ function mergeSignals(a, b) {
   return ctrl.signal;
 }
 
-export default { streamChat };
+export default { streamChat, polishText };

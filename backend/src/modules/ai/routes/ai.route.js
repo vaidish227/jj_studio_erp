@@ -29,6 +29,11 @@ router.post(
   ai.streamChat
 );
 
+// ─── One-shot text polish ────────────────────────────────────────────────────
+// Non-streaming JSON. Rewrites raw text into professional English (e.g. the
+// "AI" button on the Record MOM Discussion Summary). Rate-limited like chat.
+router.post("/polish-text", requirePermission("ai.chat"), aiRateLimit, ai.polishText);
+
 // ─── Conversations CRUD ───────────────────────────────────────────────────────
 router.get   ("/conversations",          requirePermission("ai.chat"), conversation.list);
 router.get   ("/conversations/:id",      requirePermission("ai.chat"), conversation.getOne);
