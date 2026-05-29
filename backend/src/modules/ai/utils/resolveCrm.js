@@ -51,6 +51,59 @@ async function resolveLead(input) {
 function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
 /**
+ * Resolve a single Proposal. Two entry points:
+ *   - proposalId: a 24-char ObjectId → loaded directly.
+ *   - leadId: any lead identifier resolveLead accepts → finds that lead's
+ *     proposals (optionally filtered by `status`). Exactly one → returns it;
+ *     several → returns an ambiguity with the candidate list so the caller can
+ *     ask which proposalId to use; none → not_found.
+ *
+ * Returns NON-lean Mongoose docs (write tools may .save()). leadId is populated
+ * with name/email/phone/trackingId/assignedTo so callers can authorize + render.
+ *
+ * @returns {Promise<{doc?: object, lead?: object, error?: string, candidates?: object[]}>}
+ */
+async function resolveProposal({ proposalId, leadId } = {}, { status } = {}) {
+  const Proposal = require("../../crm/models/Proposal.model");
+  const LEAD_FIELDS = "name email phone trackingId assignedTo";
+
+  if (proposalId) {
+    const s = String(proposalId).trim();
+    if (!mongoose.isValidObjectId(s) || s.length !== 24) {
+      return { error: `"${s}" is not a valid proposal id.` };
+    }
+    const doc = await Proposal.findById(s).populate("leadId", LEAD_FIELDS);
+    return doc ? { doc, lead: doc.leadId } : { error: `No proposal with id ${s}.` };
+  }
+
+  if (leadId) {
+    const r = await resolveLead(leadId);
+    if (r.error) return { error: r.error, candidates: r.candidates };
+    const q = { leadId: r.doc._id };
+    if (status) q.status = status;
+    const proposals = await Proposal.find(q)
+      .sort({ createdAt: -1 })
+      .populate("leadId", LEAD_FIELDS)
+      .limit(10);
+    const statusNote = status ? ` with status "${status}"` : "";
+    if (proposals.length === 0) {
+      return { error: `No proposal${statusNote} found for "${r.doc.name}".`, lead: r.doc };
+    }
+    if (proposals.length === 1) return { doc: proposals[0], lead: proposals[0].leadId };
+    return {
+      error:
+        `${proposals.length} proposals exist for "${r.doc.name}"${statusNote}: ` +
+        proposals.map((p) => `"${p.title}" (${p.status}, id ${p._id})`).join("; ") +
+        `. Specify which one by proposalId.`,
+      lead: r.doc,
+      candidates: proposals,
+    };
+  }
+
+  return { error: "Provide a proposalId or a leadId." };
+}
+
+/**
  * Resolve a meeting by its ObjectId. Meetings don't carry a human-readable
  * tracking ID, so we only accept ObjectId here — callers should fetch via
  * getMeetings first to get an id.
@@ -69,4 +122,4 @@ async function resolveMeeting(input) {
   return doc ? { doc } : { error: `No meeting with id ${s}.` };
 }
 
-module.exports = { resolveLead, resolveMeeting };
+module.exports = { resolveLead, resolveProposal, resolveMeeting };

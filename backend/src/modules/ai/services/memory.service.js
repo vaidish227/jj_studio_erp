@@ -6,7 +6,7 @@
 const AIConversation = require("../models/AIConversation.model");
 const AIMessage = require("../models/AIMessage.model");
 const aiConfig = require("../config/aiConfig");
-const { fitHistoryToBudget } = require("../utils/tokenizer");
+const { fitHistoryToBudget, sanitizeToolPairs } = require("../utils/tokenizer");
 
 /**
  * Convert a stored AIMessage doc to the OpenAI chat message shape.
@@ -62,7 +62,10 @@ async function loadHistory(conversationId, opts = {}) {
   // Reverse to chronological order
   docs.reverse();
 
-  const messages = docs.map(toOpenAIMessage);
+  // Repair any dangling tool_call/tool-response pairs from interrupted turns
+  // BEFORE trimming, so a poisoned conversation recovers instead of 400-ing
+  // forever. Then trim to budget keeping assistant+tool units atomic.
+  const messages = sanitizeToolPairs(docs.map(toOpenAIMessage));
   return fitHistoryToBudget(messages, budget);
 }
 

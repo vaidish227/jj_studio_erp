@@ -51,6 +51,14 @@ const completeMeeting       = require("../tools/completeMeeting.tool");
 const recordMOM             = require("../tools/recordMOM.tool");
 // Phase 2A.1 — CRM Client Info (write, deeper Client Info Form fields)
 const updateClientInfo      = require("../tools/updateClientInfo.tool");
+// Phase 2D — CRM Proposals (read + lifecycle write)
+const getProposals          = require("../tools/getProposals.tool");
+const getProposalDetails    = require("../tools/getProposalDetails.tool");
+const updateProposal        = require("../tools/updateProposal.tool");
+const updateProposalStatus  = require("../tools/updateProposalStatus.tool");
+// Phase 2D.1 — Proposal Templates (write)
+const createProposalTemplate = require("../tools/createProposalTemplate.tool");
+const addTemplateRows        = require("../tools/addTemplateRows.tool");
 
 const TOOLS = [
   // Read
@@ -104,6 +112,15 @@ const TOOLS = [
   recordMOM,
   // CRM Client Info — write (Phase 2A.1)
   updateClientInfo,
+  // CRM Proposals — read (Phase 2D)
+  getProposals,
+  getProposalDetails,
+  // CRM Proposals — write (Phase 2D)
+  updateProposal,
+  updateProposalStatus,
+  // Proposal Templates — write (Phase 2D.1)
+  createProposalTemplate,
+  addTemplateRows,
 ];
 
 const byName = new Map(TOOLS.map((t) => [t.name, t]));

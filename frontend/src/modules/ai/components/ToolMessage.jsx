@@ -11,6 +11,7 @@ import LeadCard from './LeadCard';
 import MeetingCard from './MeetingCard';
 import ProjectListCard from './ProjectListCard';
 import ActivityCard from './ActivityCard';
+import ProposalCard from './ProposalCard';
 import ActionConfirmCard from './ActionConfirmCard';
 
 // Human-friendly labels + icons for each tool, used by the inline chip.
@@ -27,6 +28,8 @@ const TOOL_META = {
   getClients:           { label: 'Clients',             Icon: Users },
   getMeetings:          { label: 'Meetings',            Icon: Calendar },
   listProposalTemplates:{ label: 'Proposal templates',  Icon: FileText },
+  getProposals:         { label: 'Proposals',           Icon: FileText },
+  getProposalDetails:   { label: 'Proposal details',    Icon: FileText },
   // Write tools — tasks (V3.1)
   updateTaskStatus:     { label: 'Update task status',     Icon: FileText, isWrite: true },
   toggleChecklistItem:  { label: 'Tick checklist item',    Icon: ClipboardList, isWrite: true },
@@ -46,6 +49,10 @@ const TOOL_META = {
   createAndSendProposal:{ label: 'Create + send proposal', Icon: FileText, isWrite: true },
   updateProjectStatus:  { label: 'Update project status',  Icon: FileText, isWrite: true },
   updateClientApproval: { label: 'Update client approval', Icon: ClipboardList, isWrite: true },
+  updateProposal:       { label: 'Edit proposal',          Icon: FileText, isWrite: true },
+  updateProposalStatus: { label: 'Update proposal status', Icon: FileText, isWrite: true },
+  createProposalTemplate:{ label: 'Create template',       Icon: FileText, isWrite: true },
+  addTemplateRows:      { label: 'Add template rows',      Icon: FileText, isWrite: true },
 };
 
 /**
@@ -131,6 +138,8 @@ function EmptyResult({ hint, toolName, summary }) {
     meetingList:   { headline: 'No meetings', subline: summary || 'Nothing on the calendar for that filter.' },
     projectList:   { headline: 'No projects', subline: summary || 'No projects matched your filters.' },
     activityList:  { headline: 'No activity', subline: summary || 'No actions in that time window.' },
+    proposalList:  { headline: 'No proposals', subline: summary || 'No proposals match that filter.' },
+    proposalDetails:{ headline: 'Not found', subline: summary || 'No proposal matched.' },
   };
   const m = messages[hint] || { headline: 'No results', subline: summary || 'The tool returned no data.' };
   return (
@@ -154,6 +163,8 @@ function RenderByHint({ hint, data, message }) {
     case 'meetingList':    return <MeetingCard items={Array.isArray(data) ? data : []} total={message?.total} viewAllUrl={message?.viewAllUrl} />;
     case 'projectList':    return <ProjectListCard items={Array.isArray(data) ? data : []} />;
     case 'activityList':   return <ActivityCard items={Array.isArray(data) ? data : []} />;
+    case 'proposalList':   return <ProposalCard items={Array.isArray(data) ? data : []} total={message?.total} viewAllUrl={message?.viewAllUrl} />;
+    case 'proposalDetails':return <ProposalCard items={[data]} mode="details" />;
     default:               return null;
   }
 }
