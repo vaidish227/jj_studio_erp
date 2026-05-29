@@ -9,7 +9,9 @@ import {
   ThumbsDown,
   AlertCircle,
 } from 'lucide-react';
-import { Button, Loader, StatusBadge } from '../../../shared/components';
+import { Button, Loader, StatusBadge, Pagination } from '../../../shared/components';
+
+const PAGE_SIZE = 25;
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import ConfirmationModal from '../../../shared/components/ConfirmationModal/ConfirmationModal';
@@ -97,6 +99,14 @@ const ApprovalDashboard = () => {
   // Apply reusable filter system
   const filteredProposals = process(proposals);
 
+  // 25/page pagination — page resets to 1 when filters change.
+  const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => { setCurrentPage(1); }, [filters]);
+  const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const paginatedProposals = filteredProposals.slice(pageStart, pageStart + PAGE_SIZE);
+
   const isFinal = (status) => ['sent', 'project_started', 'project_ready', 'esign_received', 'payment_received'].includes(status);
 
   return (
@@ -161,7 +171,7 @@ const ApprovalDashboard = () => {
                   </td>
                 </tr>
               ) : (
-                filteredProposals.map((p) => (
+                paginatedProposals.map((p) => (
                   <tr
                     key={p._id}
                     className="hover:bg-[var(--bg)] transition-colors cursor-pointer group"
@@ -271,6 +281,15 @@ const ApprovalDashboard = () => {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]/20">
+            <p className="text-xs text-[var(--text-muted)] font-medium">
+              Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+            </p>
+            <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
+          </div>
+        )}
       </div>
 
       {/* ── Confirmation Modal ── */}

@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import Input from '../../../shared/components/Input/Input';
 import DatePicker from '../../../shared/components/DatePicker/DatePicker';
+import { PhoneInput } from '../../../shared/components';
 import Button from '../../../shared/components/Button/Button';
 import Select from '../../../shared/components/Select/Select';
 import FormField from '../../../shared/components/FormField/FormField';
@@ -121,13 +122,12 @@ const EnquiryFormPage = () => {
                 placeholder="Ex: Rajesh Kumar"
                 required
               />
-              <Input
+              <PhoneInput
                 label="Contact Number"
                 name="contactMobile"
                 value={formData.contactMobile}
                 onChange={handleChange}
                 error={errors.contactMobile}
-                icon={Phone}
                 placeholder="10-digit mobile"
                 required
               />
@@ -150,12 +150,11 @@ const EnquiryFormPage = () => {
                 icon={Users}
                 placeholder="Optional"
               />
-              <Input
+              <PhoneInput
                 label="Spouse Mobile"
                 name="spouseMobile"
                 value={formData.spouseMobile}
                 onChange={handleChange}
-                icon={Phone}
                 placeholder="Optional"
               />
             </div>
@@ -196,12 +195,11 @@ const EnquiryFormPage = () => {
                 icon={Users}
                 placeholder="Name / Instagram handle"
               />
-              <Input
+              <PhoneInput
                 label="Referrer Phone"
                 name="referredMobile"
                 value={formData.referredMobile}
                 onChange={handleChange}
-                icon={Phone}
                 placeholder="Optional"
               />
               <Select

@@ -19,4 +19,7 @@ const proposalVersionSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+// Prevent two simultaneous creates from picking the same version number (#19).
+proposalVersionSchema.index({ proposalId: 1, version: 1 }, { unique: true });
+
 module.exports = mongoose.model("ProposalVersion", proposalVersionSchema);

@@ -209,17 +209,34 @@ const DynamicTableBuilder = ({ structure, onChange }) => {
                     />
                   </td>
                 ) : (
-                  columns.map(col => (
-                    <td key={col.id} className="px-0 py-0 border-r border-[var(--border)]">
-                      <input
-                        type={col.type === 'number' ? 'number' : 'text'}
-                        value={row.cells[col.id] || ''}
-                        onChange={(e) => updateCell(row.id, col.id, e.target.value)}
-                        placeholder={`...`}
-                        className={`w-full h-full bg-transparent px-4 py-3 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)]/50 focus:bg-[var(--surface)] focus:outline-none transition-colors ${col.type === 'number' ? 'text-right font-medium' : ''}`}
-                      />
-                    </td>
-                  ))
+                  columns.map(col => {
+                    const raw = row.cells[col.id];
+                    // For 'number' cells, mark non-empty values that don't parse as numeric
+                    // so typos don't silently become 0 in subtotal calc. (#40)
+                    const isInvalidNumber =
+                      col.type === 'number' &&
+                      raw !== '' && raw != null &&
+                      !Number.isFinite(Number(String(raw).replace(/[₹,\s]/g, '')));
+                    return (
+                      <td key={col.id} className="px-0 py-0 border-r border-[var(--border)]">
+                        <input
+                          type="text"
+                          inputMode={col.type === 'number' ? 'decimal' : 'text'}
+                          value={raw || ''}
+                          onChange={(e) => updateCell(row.id, col.id, e.target.value)}
+                          placeholder={`...`}
+                          title={isInvalidNumber ? 'Not a number — this row will be skipped in totals' : undefined}
+                          className={`w-full h-full bg-transparent px-4 py-3 text-sm focus:outline-none transition-colors ${
+                            col.type === 'number' ? 'text-right font-medium' : ''
+                          } ${
+                            isInvalidNumber
+                              ? 'text-[var(--error)] bg-[var(--error)]/5 focus:bg-[var(--error)]/10'
+                              : 'text-[var(--text-secondary)] placeholder:text-[var(--text-muted)]/50 focus:bg-[var(--surface)]'
+                          }`}
+                        />
+                      </td>
+                    );
+                  })
                 )}
                 
                 {/* Row Actions */}

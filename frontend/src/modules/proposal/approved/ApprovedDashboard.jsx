@@ -9,7 +9,9 @@ import {
   Calendar,
   AlertCircle,
 } from 'lucide-react';
-import { Card, Button, Loader, StatusBadge } from '../../../shared/components';
+import { Card, Button, Loader, StatusBadge, Pagination } from '../../../shared/components';
+
+const PAGE_SIZE = 25;
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { formatDateMedium } from '../../../shared/utils/dateUtils';
@@ -48,6 +50,14 @@ const ApprovedDashboard = () => {
 
   // Apply reusable filter system
   const filteredProposals = process(proposals);
+
+  // 25/page pagination — page resets to 1 when filters change.
+  const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => { setCurrentPage(1); }, [filters]);
+  const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const paginatedProposals = filteredProposals.slice(pageStart, pageStart + PAGE_SIZE);
 
   const initiateProject = (proposalId) => {
     navigate(`/projects/initiate/${proposalId}`);
@@ -89,8 +99,9 @@ const ApprovedDashboard = () => {
           <p className="text-sm text-[var(--text-muted)]">No proposals are ready to start a project yet.</p>
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProposals.map((p) => (
+          {paginatedProposals.map((p) => (
             <Card key={p._id} padding="p-6" className="hover:border-[var(--primary)]/30 transition-all">
               <div className="flex justify-between items-start mb-5">
                 <div className="w-12 h-12 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)] font-black text-xs">
@@ -152,6 +163,16 @@ const ApprovedDashboard = () => {
             </Card>
           ))}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-3 pt-4">
+            <p className="text-xs text-[var(--text-muted)] font-medium">
+              Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+            </p>
+            <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
+          </div>
+        )}
+        </>
       )}
     </div>
   );

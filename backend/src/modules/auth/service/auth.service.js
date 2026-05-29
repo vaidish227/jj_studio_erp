@@ -6,8 +6,8 @@ const Role = require("../models/Role.model");
 const loginUser = async (data) => {
   const { email, password } = data;
 
-  // 1. Find user
-  const user = await User.findOne({ email });
+  // 1. Find user — password is select:false at the schema level, opt in here.
+  const user = await User.findOne({ email }).select("+password");
   if (!user) throw new Error("User not found");
 
   // 2. Check active status
@@ -47,7 +47,7 @@ const loginUser = async (data) => {
 const changePassword = async (userId, data) => {
   const { oldPassword, newPassword } = data;
 
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).select("+password");
   if (!user) throw new Error("User not found");
 
   const isMatch = await bcrypt.compare(oldPassword, user.password);

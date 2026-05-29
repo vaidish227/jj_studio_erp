@@ -66,9 +66,15 @@ const updatePaymentStatus = async (req, res) => {
     if (status === "received") {
       payment.receivedAt = new Date();
 
-      //  OPTIONAL: update proposal status (if needed)
       await Proposal.findByIdAndUpdate(payment.proposalId, {
-        status: "client_approved",
+        status: "payment_received",
+        payments: {
+          status: "received",
+          amount: payment.amount,
+          received_at: payment.receivedAt,
+          method: payment.method || "cash",
+          transactionRef: payment.transactionRef || "N/A",
+        },
       });
     }
 

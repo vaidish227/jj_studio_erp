@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Mail, Phone, Briefcase, Tag, ToggleLeft, ToggleRight } from 'lucide-react';
-import { Modal, Button } from '../../../shared/components';
+import { Modal, Button, PhoneInput } from '../../../shared/components';
 import Input from '../../../shared/components/Input/Input';
 import FormField from '../../../shared/components/FormField/FormField';
 import Select from '../../../shared/components/Select/Select';
@@ -83,13 +83,12 @@ const EditUserModal = ({ isOpen, onClose, user, onSave, isSaving }) => {
         {/* Phone + Role */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="WhatsApp Number">
-            <Input
-              type="tel"
-              icon={Phone}
+            <PhoneInput
+              name="phone"
               value={form.phone || ''}
               onChange={(e) => change('phone', e.target.value)}
               error={errors.phone}
-              placeholder="+91 9876543210"
+              placeholder="9876543210"
             />
           </FormField>
           <FormField label="Role">

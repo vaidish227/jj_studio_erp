@@ -19,3 +19,6 @@ export { default as Loader } from './Loader/Loader';
 export { default as ConfirmationModal } from './ConfirmationModal/ConfirmationModal';
 export { default as SectionCard } from './SectionCard/SectionCard';
 export { default as ActionBar } from './ActionBar/ActionBar';
+export { default as Pagination } from './Pagination/Pagination';
+export { default as MultiPicker } from './MultiPicker/MultiPicker';
+export { default as PhoneInput } from './PhoneInput/PhoneInput';

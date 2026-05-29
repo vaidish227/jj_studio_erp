@@ -18,9 +18,11 @@ const paymentSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Kept in sync with ApprovalFormModal options. "bank" preserved for
+    // backwards-compat with any rows already in the DB.
     method: {
       type: String,
-      enum: ["cash", "upi", "bank"],
+      enum: ["cash", "upi", "bank", "bank_transfer", "cheque", "online"],
     },
 
     status: {

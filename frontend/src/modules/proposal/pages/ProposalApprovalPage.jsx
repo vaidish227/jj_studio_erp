@@ -25,8 +25,10 @@ import { crmService } from '../../../shared/services/crmService';
 import ApprovalFormModal from '../components/ApprovalFormModal';
 import ConversionSuccessModal from '../components/ConversionSuccessModal';
 import { useToast } from '../../../shared/notifications/ToastProvider';
-import { Loader } from '../../../shared/components';
+import { Loader, ConfirmationModal, Pagination } from '../../../shared/components';
 import { showDeliveryToast } from '../utils/deliveryToast';
+
+const PAGE_SIZE = 25;
 
 const ProposalApprovalPage = () => {
   const navigate = useNavigate();
@@ -47,6 +49,9 @@ const ProposalApprovalPage = () => {
 
   // Conversion success modal
   const [conversionModal, setConversionModal] = useState({ open: false, project: null, clientName: '' });
+
+  // Bulk-action confirmation modal (#35 — was window.confirm)
+  const [bulkConfirm, setBulkConfirm] = useState({ open: false, action: null });
 
   const openActionModal = (proposal, action) => {
     setTargetProposal(proposal);
@@ -127,22 +132,46 @@ const ProposalApprovalPage = () => {
       return 0;
     });
 
-  const handleBulkAction = async (action) => {
-    if (!window.confirm(`Are you sure you want to ${action} ${selectedIds.length} proposals?`)) return;
+  // 25/page pagination — page resets to 1 when any filter / sort changes.
+  const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter, categoryFilter, sortBy, sortOrder]);
+  const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const paginatedProposals = filteredProposals.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const handleBulkAction = (action) => {
+    // Open the confirmation modal — actual API calls fire from onConfirm.
+    setBulkConfirm({ open: true, action });
+  };
+
+  const runBulkAction = async () => {
+    const action = bulkConfirm.action;
+    setBulkConfirm({ open: false, action: null });
 
     let status = action;
     if (action === 'approve') status = 'manager_approved';
     if (action === 'reject') status = 'rejected';
-    if (action === 'send') status = 'sent';
 
     try {
       setLoading(true);
-      await Promise.all(selectedIds.map(id => crmService.updateProposalStatus(id, status)));
+      // Pass { status } so backend's req.body.status resolves — and use allSettled
+      // so a single failed row doesn't silently swallow the rest.
+      const results = await Promise.allSettled(
+        selectedIds.map(id => crmService.updateProposalStatus(id, { status }))
+      );
+      const failed = results.filter(r => r.status === 'rejected').length;
+      const ok = results.length - failed;
+      if (failed > 0) {
+        toast.error(`${ok} updated, ${failed} failed. Try the failed rows individually.`);
+      } else {
+        toast.success(`${ok} proposal${ok === 1 ? '' : 's'} updated.`);
+      }
       setSelectedIds([]);
       fetchProposals();
     } catch (err) {
       console.error('Bulk action failed:', err);
-      alert('Some actions failed. Please check the list.');
+      toast.error('Bulk action failed.');
     } finally {
       setLoading(false);
     }
@@ -224,7 +253,10 @@ const ProposalApprovalPage = () => {
             <div>
               <p className="text-xs font-bold text-green-600 uppercase tracking-widest mb-1">Approved</p>
               <h3 className="text-3xl font-black text-[var(--text-primary)]">
-                {proposals.filter(p => p.status === 'manager_approved').length}
+                {proposals.filter(p =>
+                  p.approved_by ||
+                  ['manager_approved', 'sent', 'esign_received', 'payment_received', 'project_ready', 'project_started'].includes(p.status)
+                ).length}
               </h3>
             </div>
             <div className="p-3 bg-green-500/20 rounded-xl text-green-600">
@@ -337,9 +369,6 @@ const ProposalApprovalPage = () => {
             <Button variant="outline" size="sm" className="bg-white/20 border-black/10 hover:bg-white/30 text-black font-bold" onClick={() => handleBulkAction('reject')}>
               <ThumbsDown size={16} className="mr-2" /> Reject All
             </Button>
-            <Button variant="outline" size="sm" className="bg-white/20 border-black/10 hover:bg-white/30 text-black font-bold" onClick={() => handleBulkAction('send')}>
-              <Send size={16} className="mr-2" /> Send to Clients
-            </Button>
             <div className="w-px h-6 bg-black/10 mx-2" />
             <button onClick={() => setSelectedIds([])} className="p-2 hover:bg-black/10 rounded-lg transition-colors">
               <XCircle size={20} />
@@ -373,7 +402,7 @@ const ProposalApprovalPage = () => {
             <tbody className="divide-y divide-[var(--border)] bg-[var(--surface)]">
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-20 text-center">
+                  <td colSpan="6" className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-10 h-10 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin"></div>
                       <p className="text-[var(--text-muted)] font-bold animate-pulse">Loading proposals...</p>
@@ -382,7 +411,7 @@ const ProposalApprovalPage = () => {
                 </tr>
               ) : filteredProposals.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-20 text-center">
+                  <td colSpan="6" className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-4 opacity-40">
                       <FileText size={64} className="text-[var(--text-muted)]" />
                       <div>
@@ -393,7 +422,7 @@ const ProposalApprovalPage = () => {
                   </td>
                 </tr>
               ) : (
-                filteredProposals.map((p) => (
+                paginatedProposals.map((p) => (
                   <tr key={p._id} className={`hover:bg-[var(--bg)] transition-colors group ${selectedIds.includes(p._id) ? 'bg-[var(--primary)]/5' : ''}`}>
                     <td className="px-6 py-5">
                       <button onClick={() => toggleSelect(p._id)} className={selectedIds.includes(p._id) ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}>
@@ -516,6 +545,15 @@ const ProposalApprovalPage = () => {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]/20">
+            <p className="text-xs text-[var(--text-muted)] font-medium">
+              Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+            </p>
+            <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
+          </div>
+        )}
       </Card>
 
       <ApprovalFormModal
@@ -531,6 +569,17 @@ const ProposalApprovalPage = () => {
         onClose={() => setConversionModal({ open: false, project: null, clientName: '' })}
         project={conversionModal.project}
         clientName={conversionModal.clientName}
+      />
+
+      <ConfirmationModal
+        isOpen={bulkConfirm.open}
+        onClose={() => setBulkConfirm({ open: false, action: null })}
+        onConfirm={runBulkAction}
+        title={`Bulk ${bulkConfirm.action || ''}`}
+        message={`This will ${bulkConfirm.action || ''} ${selectedIds.length} selected proposal${selectedIds.length === 1 ? '' : 's'}. Continue?`}
+        confirmLabel={bulkConfirm.action === 'reject' ? 'Reject all' : 'Approve all'}
+        variant={bulkConfirm.action === 'reject' ? 'danger' : 'primary'}
+        isLoading={loading}
       />
     </div>
   );

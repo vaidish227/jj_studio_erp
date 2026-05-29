@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, Loader2, FileText, Eye } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
@@ -15,6 +15,7 @@ const TemplateEditorPage = () => {
   const { id } = useParams();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
 
   const [loading, setLoading] = useState(isEditing);
@@ -22,12 +23,22 @@ const TemplateEditorPage = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [error, setError] = useState('');
 
-  const [formData, setFormData] = useState({
-    name: '',
-    type: 'residential',
-    description: '',
-    structure: { columns: [], rows: [] },
+  const [formData, setFormData] = useState(() => {
+    const imported = !isEditing ? location.state?.imported : null;
+    return {
+      name: imported?.suggestedName || '',
+      type: 'residential',
+      description: '',
+      structure: imported?.structure || { columns: [], rows: [] },
+    };
   });
+
+  useEffect(() => {
+    if (!isEditing && location.state?.imported) {
+      window.history.replaceState({}, '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (isEditing) {

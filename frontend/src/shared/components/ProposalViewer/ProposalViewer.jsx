@@ -15,7 +15,7 @@ const ProposalViewer = ({ proposal, client }) => {
         <div>
           <h1 className="text-4xl font-serif text-red-600 font-bold italic mb-1">JJ Studio</h1>
           <p className="text-lg italic font-semibold mb-2">-Reinventing your Interiors</p>
-          <p className="text-sm font-medium">Avani Oxford, Laketwon</p>
+          <p className="text-sm font-medium">Avani Oxford, Laketown</p>
           <p className="text-sm font-medium">Kolkata - 700 055</p>
         </div>
         <div className="text-right text-sm font-medium">

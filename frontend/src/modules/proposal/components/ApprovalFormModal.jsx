@@ -1,7 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
 import { CheckCircle, XCircle, Send, AlertCircle, User, Calendar, FileText, Info, RefreshCw } from 'lucide-react';
+
+// Parse the cached user once per modal lifetime, not on every render — and
+// tolerate malformed JSON without crashing the modal (#41).
+const readCachedUserName = () => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return 'Manager';
+    const parsed = JSON.parse(raw);
+    return parsed?.name || 'Manager';
+  } catch {
+    return 'Manager';
+  }
+};
 
 const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
   const [remarks, setRemarks] = useState('');
@@ -13,13 +26,25 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
   const isSend = action === 'sent';
   const isSign = action === 'signed';
 
-  // Advance Payment State
+  // Advance Payment State — keyed off the currently-targeted proposal so it
+  // resets when the modal is opened for a different one (was stale before).
   const [advance, setAdvance] = useState({
-    amount: proposal?.finalAmount ? Math.round(proposal.finalAmount * 0.1) : 0, // 10% default
-    paidBy: proposal?.clientId?.name || proposal?.leadId?.name || '',
+    amount: 0,
+    paidBy: '',
     method: 'bank_transfer',
     remarks: ''
   });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setAdvance({
+      amount: proposal?.finalAmount ? Math.round(proposal.finalAmount * 0.1) : 0,
+      paidBy: proposal?.clientId?.name || proposal?.leadId?.name || '',
+      method: 'bank_transfer',
+      remarks: ''
+    });
+    setRemarks('');
+  }, [isOpen, proposal?._id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,8 +61,10 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
       };
 
       if (isSign) {
+        const { method, ...rest } = advance;
         payload.advancePayment = {
-          ...advance,
+          ...rest,
+          paymentMethod: method, // schema field is paymentMethod, not method
           paymentDate: new Date()
         };
       }
@@ -51,10 +78,7 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
     }
   };
 
-  const getUserName = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    return user?.name || 'Manager';
-  };
+  const userName = useMemo(readCachedUserName, []);
 
   return (
     <Modal 
@@ -79,7 +103,7 @@ const ApprovalFormModal = ({ isOpen, onClose, proposal, action, onSubmit }) => {
               <User size={14} className="text-[var(--text-muted)]" />
               <span className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">Performed By</span>
             </div>
-            <p className="text-sm font-bold text-[var(--text-primary)]">{getUserName()}</p>
+            <p className="text-sm font-bold text-[var(--text-primary)]">{userName}</p>
           </div>
           <div className="p-4 bg-[var(--bg)] rounded-xl border border-[var(--border)]">
             <div className="flex items-center gap-2 mb-1">

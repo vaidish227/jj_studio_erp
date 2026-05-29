@@ -20,6 +20,7 @@ import Card from '../../../shared/components/Card/Card';
 import FormField from '../../../shared/components/FormField/FormField';
 import Input from '../../../shared/components/Input/Input';
 import DatePicker from '../../../shared/components/DatePicker/DatePicker';
+import { PhoneInput } from '../../../shared/components';
 import Button from '../../../shared/components/Button/Button';
 import { useCRM } from '../context/CRMContext';
 import useClientInfo from '../../../shared/hooks/useClientInfo';
@@ -311,17 +312,15 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                   disabled={!isEditing}
                   className={inputCls(!isEditing)}
                 />
-                <Input
+                <PhoneInput
                   label="Contact Number"
                   name="contactNumber"
                   value={formData.contactNumber}
                   onChange={handleChange}
                   error={errors.contactNumber}
-                  icon={Phone}
                   placeholder="Required"
                   required
                   disabled={!isEditing}
-                  className={inputCls(!isEditing)}
                 />
                 <Input
                   label="Email Address"
@@ -405,15 +404,13 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                     disabled={!isEditing}
                     className={inputCls(!isEditing)}
                   />
-                  <Input
+                  <PhoneInput
                     label="Spouse Contact"
                     name="spouseContact"
                     value={formData.spouseContact}
                     onChange={handleChange}
-                    icon={Phone}
                     placeholder="Mobile"
                     disabled={!isEditing}
-                    className={inputCls(!isEditing)}
                   />
                   <Input
                     label="Spouse Email"

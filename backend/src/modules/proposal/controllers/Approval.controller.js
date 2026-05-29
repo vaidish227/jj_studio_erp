@@ -50,37 +50,34 @@ const updateApprovalStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const approval = await Approval.findById(id);
+    if (!isValidId(id)) {
+      return res.status(400).json({ message: "Invalid approval id" });
+    }
 
+    if (!["pending", "approved", "rejected"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    const approval = await Approval.findById(id);
     if (!approval) {
       return res.status(404).json({ message: "Approval not found" });
     }
 
     approval.status = status;
+    if (status === "approved" && req.user?.id) {
+      approval.approvedBy = req.user.id;
+    }
     await approval.save();
 
-    //  SAFE UPDATE (NO VALIDATION ERROR)
-    if (status === "approved") {
-      if (approval.type === "internal") {
-        await Proposal.findByIdAndUpdate(
-          approval.proposalId,
-          { status: "internal_approved" }
-        );
-      }
-
-      if (approval.type === "manager") {
-        await Proposal.findByIdAndUpdate(
-          approval.proposalId,
-          { status: "manager_approved" }
-        );
-      }
+    // Only the "manager" approval flow drives the proposal lifecycle.
+    // An "internal" approval is recorded but does not change proposal status —
+    // there is no matching enum value on the Proposal schema.
+    if (status === "approved" && approval.type === "manager") {
+      await Proposal.findByIdAndUpdate(approval.proposalId, { status: "manager_approved" });
     }
 
     if (status === "rejected") {
-      await Proposal.findByIdAndUpdate(
-        approval.proposalId,
-        { status: "rejected" }
-      );
+      await Proposal.findByIdAndUpdate(approval.proposalId, { status: "rejected" });
     }
 
     res.json({
@@ -102,7 +99,7 @@ const getApprovalsByProposal = async (req, res) => {
     }
 
     const approvals = await Approval.find({ proposalId })
-      .populate("approvedBy")
+      .populate("approvedBy", "name email role")
       .sort({ createdAt: -1 });
 
     res.status(200).json({

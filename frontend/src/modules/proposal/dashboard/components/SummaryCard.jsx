@@ -23,13 +23,11 @@ const SummaryCard = ({ title, value, icon: Icon, color, path }) => {
       padding="p-4"
     >
       <div className="flex flex-col h-full" onClick={() => path && navigate(path)}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className={`p-2 rounded-xl ${themeClasses} flex-shrink-0 transition-transform duration-200 group-hover:scale-105`}>
-            <Icon size={18} />
-          </div>
-          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider leading-tight line-clamp-2">{title}</p>
+        <div className={`p-2 rounded-xl ${themeClasses} w-fit mb-3 transition-transform duration-200 group-hover:scale-105`}>
+          <Icon size={18} />
         </div>
-        <h3 className="text-2xl font-bold text-[var(--text-primary)]">{value}</h3>
+        <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wide leading-tight break-words mb-2">{title}</p>
+        <h3 className="text-2xl font-bold text-[var(--text-primary)] mt-auto">{value}</h3>
       </div>
     </Card>
   );
