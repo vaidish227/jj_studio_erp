@@ -48,9 +48,17 @@ export const AIChatProvider = ({ children }) => {
           role: m.role,
           content: m.content || '',
           toolCalls: m.toolCalls,
-          toolCallId: m.toolCallId,
+          // For write proposals, use the real AIToolCall id (confirmable). Old
+          // pre-fix proposals have no actionToolCallId → null, which makes the
+          // card render as expired instead of showing dead Confirm/Cancel buttons
+          // (the OpenAI call id can't be confirmed). Non-proposal tool messages
+          // keep their OpenAI call id unchanged.
+          toolCallId: m.uiHint === 'actionProposal' ? (m.actionToolCallId || null) : m.toolCallId,
           uiHint: m.uiHint,
           data: m.uiPayload,
+          // Re-hydrate the Confirm/Cancel card's resolved state (done/cancelled/…).
+          actionStatus: m.actionStatus,
+          actionResultText: m.actionResultText,
           citations: m.citations || [],
           suggestions: m.suggestions || [],
           status: 'done',

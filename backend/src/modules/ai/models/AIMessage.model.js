@@ -35,6 +35,14 @@ const aiMessageSchema = new mongoose.Schema(
     uiPayload: { type: mongoose.Schema.Types.Mixed, default: null },
     uiHint:    { type: String, default: null },
 
+    // V3 write-proposal re-hydration. For tool messages that render a
+    // Confirm/Cancel card (uiHint='actionProposal'), these mirror the linked
+    // AIToolCall's lifecycle so the card restores its resolved state on reload
+    // instead of re-showing stale Confirm/Cancel buttons.
+    actionToolCallId: { type: mongoose.Schema.Types.ObjectId, ref: "AIToolCall", default: null },
+    actionStatus:     { type: String, default: null }, // pending_confirmation | confirmed_ok | confirmed_error | denied | cancelled | expired
+    actionResultText: { type: String, default: null }, // apply() summary, shown in the "Done"/error state after reload
+
     model:            { type: String, default: null },
     promptTokens:     { type: Number, default: 0 },
     completionTokens: { type: Number, default: 0 },

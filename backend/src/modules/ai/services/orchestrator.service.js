@@ -312,7 +312,11 @@ async function run({ user, message, conversationId, sse, abortSignal }) {
           summary: result.llmSummary ?? null,
         }).slice(0, 6000);
 
-        // Persist the tool message
+        // Persist the tool message. For write proposals, also store the link
+        // to the AIToolCall row + its initial status so the Confirm/Cancel card
+        // can be re-hydrated after a reload (otherwise it re-renders pending
+        // buttons even though the action was already confirmed/cancelled).
+        const isProposal = result.status === "pending_confirmation";
         const toolDoc = await memory.appendMessage({
           conversationId: conv._id,
           role: "tool",
@@ -320,6 +324,8 @@ async function run({ user, message, conversationId, sse, abortSignal }) {
           content: llmPayload,
           uiPayload: result.data,
           uiHint: result.uiHint,
+          actionToolCallId: isProposal ? result.toolCallId : null,
+          actionStatus: isProposal ? "pending_confirmation" : null,
         });
         newDocs.push(toolDoc);
 

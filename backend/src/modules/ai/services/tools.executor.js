@@ -27,6 +27,20 @@ const registry = require("./tools.registry");
 const aiConfig = require("../config/aiConfig");
 const { sanitize, previewForAudit } = require("../utils/sanitize");
 const AIToolCall = require("../models/AIToolCall.model");
+const AIMessage = require("../models/AIMessage.model");
+
+// Back-patch the proposal's chat message so the Confirm/Cancel card restores its
+// resolved state on reload (linked via AIMessage.actionToolCallId === doc._id).
+async function patchProposalMessage(toolCallDocId, { actionStatus, actionResultText }) {
+  if (!toolCallDocId) return;
+  const set = { actionStatus };
+  if (actionResultText !== undefined) set.actionResultText = String(actionResultText).slice(0, 2000);
+  try {
+    await AIMessage.updateOne({ actionToolCallId: toolCallDocId }, { $set: set });
+  } catch (err) {
+    console.error("[AI][patchProposalMessage]", err.message);
+  }
+}
 
 const ajv = new Ajv({
   allErrors: true,
@@ -287,6 +301,7 @@ async function confirmAction({ toolCallId, ctx }) {
     doc.status = "cancelled";
     doc.cancelledAt = new Date();
     await doc.save().catch(() => null);
+    await patchProposalMessage(doc._id, { actionStatus: "expired" });
     return { ok: false, error: "expired", summaryText: "The proposal expired. Ask the assistant again." };
   }
 
@@ -300,7 +315,9 @@ async function confirmAction({ toolCallId, ctx }) {
     doc.status = "denied";
     doc.errorCode = "permission_denied";
     await doc.save().catch(() => null);
-    return { ok: false, error: "denied", summaryText: `Permission denied (requires ${tool.permission}).` };
+    const deniedText = `Permission denied (requires ${tool.permission}).`;
+    await patchProposalMessage(doc._id, { actionStatus: "denied", actionResultText: deniedText });
+    return { ok: false, error: "denied", summaryText: deniedText };
   }
 
   const started = Date.now();
@@ -314,7 +331,9 @@ async function confirmAction({ toolCallId, ctx }) {
     doc.confirmedAt = new Date();
     doc.latencyMs = Date.now() - started;
     await doc.save().catch(() => null);
-    return { ok: false, error: doc.errorCode, summaryText: doc.resultPreview || "The action failed." };
+    const failText = doc.resultPreview || "The action failed.";
+    await patchProposalMessage(doc._id, { actionStatus: "confirmed_error", actionResultText: failText });
+    return { ok: false, error: doc.errorCode, summaryText: failText };
   }
 
   const ok = applied?.ok !== false;
@@ -325,10 +344,13 @@ async function confirmAction({ toolCallId, ctx }) {
   doc.resultPreview = previewForAudit(applied?.data ?? applied?.summaryText, 2000);
   await doc.save().catch(() => null);
 
+  const summaryText = applied?.summaryText || (ok ? "Done." : "Action failed.");
+  await patchProposalMessage(doc._id, { actionStatus: doc.status, actionResultText: summaryText });
+
   return {
     ok,
     error: applied?.error || null,
-    summaryText: applied?.summaryText || (ok ? "Done." : "Action failed."),
+    summaryText,
     uiHint: applied?.uiHint || null,
     data: sanitize(applied?.data, { stringCap: 4000, maxDepth: 8 }),
     latencyMs: doc.latencyMs,
@@ -345,6 +367,7 @@ async function cancelAction({ toolCallId, ctx }) {
   doc.status = "cancelled";
   doc.cancelledAt = new Date();
   await doc.save().catch(() => null);
+  await patchProposalMessage(doc._id, { actionStatus: "cancelled" });
   return { ok: true, status: "cancelled" };
 }
 

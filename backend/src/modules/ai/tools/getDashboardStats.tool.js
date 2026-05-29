@@ -17,7 +17,7 @@ module.exports = {
   name: "getDashboardStats",
   permission: "crm.read",
   description:
-    "Get the headline CRM dashboard counters: totalLeads (active funnel), converted, lostLeads, pending followups, inProgress (contacted + meeting_done), interested (proposal_sent). Use for 'show dashboard', 'dashboard stats', 'overview', 'how is sales going', 'how many converted this period'. Default scope auto-widens for managers/admins.",
+    "PRIMARY dashboard tool. Get the headline CRM/sales dashboard counters shown on the main Dashboard page: totalLeads (active funnel), converted, lostLeads, pending followups, inProgress (contacted + meeting_done), interested (proposal_sent). This is THE default 'dashboard' — use it for any unqualified 'show dashboard', 'dashboard details', 'dashboard stats', 'show all dashboard details', 'overview', 'how is sales going', 'how many converted this period'. For a COMPLETE dashboard view, ALSO call getSalesPipeline and getDashboardFollowUps in the same turn. (NOT for personal task workload — that is getDesignerDashboard.) Default scope auto-widens for managers/admins.",
   parameters: {
     type: "object",
     additionalProperties: false,

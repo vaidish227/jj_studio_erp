@@ -14,7 +14,7 @@ module.exports = {
   name: "getDesignerDashboard",
   permission: "tasks.read",
   description:
-    "Get a personal dashboard for the calling user: tasks by status, overdue count, upcoming deadlines (next 14 days), active projects, and recent work. Use for 'show me my dashboard', 'today summary', 'overview', 'kya chal raha hai mera'.",
+    "Personal TASK workload view for the calling user (PMS — NOT the CRM/sales dashboard): the user's own tasks by status, overdue task count, upcoming task deadlines (next 14 days), and their active projects. Use ONLY when the user explicitly asks about THEIR OWN tasks/work, e.g. 'my tasks', \"what's on my plate\", 'my workload', 'my pending tasks', 'mere kaam/tasks kya hain'. Do NOT use this for an unqualified 'dashboard', 'dashboard details', or 'overview' — that is the CRM dashboard (use getDashboardStats).",
   parameters: {
     type: "object",
     additionalProperties: false,

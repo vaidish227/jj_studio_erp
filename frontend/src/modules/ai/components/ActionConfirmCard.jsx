@@ -17,15 +17,43 @@ import apiClient from '../../../shared/services/apiClient';
  * transitions are local to this card — when the user confirms, the next chat
  * turn will see the outcome via natural conversation.
  */
+// Persisted AIToolCall lifecycle → local card phase, used to restore the card
+// after a conversation reload instead of defaulting back to pending buttons.
+const STATUS_TO_PHASE = {
+  pending_confirmation: 'pending',
+  confirmed_ok: 'done',
+  confirmed_error: 'error',
+  denied: 'error',
+  cancelled: 'cancelled',
+  expired: 'expired',
+};
+
+function deriveInitialPhase(message) {
+  if (message.confirmPhase) return message.confirmPhase;
+  const mapped = message.actionStatus && STATUS_TO_PHASE[message.actionStatus];
+  if (mapped) return mapped;
+  // No resolved status: a live proposal has a usable toolCallId (actionable).
+  // A reloaded pre-fix proposal has no real action id → can't act, show expired.
+  if (!message.toolCallId) return 'expired';
+  return 'pending';
+}
+
 const ActionConfirmCard = ({ message }) => {
   // V3 write-tool proposal contract — set by orchestrator/executor.
   const toolCallId = message.toolCallId;
   const description = message.proposalDescription || message.summaryText || 'Proposed action';
   const expiresAt = message.expiresAt ? new Date(message.expiresAt) : null;
 
-  const [phase, setPhase] = useState(message.confirmPhase || 'pending');
-  const [result, setResult] = useState(message.confirmResult || null);
-  const [error, setError]   = useState(message.confirmError  || null);
+  const [phase, setPhase] = useState(() => deriveInitialPhase(message));
+  const [result, setResult] = useState(
+    message.confirmResult || (message.actionResultText ? { summaryText: message.actionResultText } : null)
+  );
+  const [error, setError] = useState(
+    message.confirmError ||
+    ((message.actionStatus === 'confirmed_error' || message.actionStatus === 'denied')
+      ? message.actionResultText
+      : null)
+  );
   const [remainingMs, setRemainingMs] = useState(() => expiresAt ? Math.max(0, expiresAt - new Date()) : null);
   const tickerRef = useRef(null);
 
