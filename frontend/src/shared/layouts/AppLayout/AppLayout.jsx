@@ -79,6 +79,10 @@ const AppLayout = ({ children }) => {
   if (!isAuthenticated) return null;
 
   return (
+    // AIChatProvider wraps the entire authenticated app (not just the launcher)
+    // so contextual "Ask AI" buttons on any page/form can call useAIChat().
+    // The floating launcher itself stays gated by the `ai.chat` permission below.
+    <AIChatProvider>
     <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
       <Sidebar
         activeItem={activeItem}
@@ -109,12 +113,9 @@ const AppLayout = ({ children }) => {
         </footer>
       </div>
 
-      {hasPermission('ai.chat') && (
-        <AIChatProvider>
-          <ChatLauncher />
-        </AIChatProvider>
-      )}
+      {hasPermission('ai.chat') && <ChatLauncher />}
     </div>
+    </AIChatProvider>
   );
 };
 

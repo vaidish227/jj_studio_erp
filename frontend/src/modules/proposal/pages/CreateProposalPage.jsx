@@ -8,6 +8,9 @@ import { crmService } from '../../../shared/services/crmService';
 // import ProposalPreviewModal from '../components/ProposalPreviewModal';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader, MultiPicker } from '../../../shared/components';
+import AskAIButton from '../../ai/components/AskAIButton';
+import AIHintBanner from '../../ai/components/AIHintBanner';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 
 const GST_RATE = 0.18; // 18% GST
 
@@ -279,6 +282,11 @@ const CreateProposalPage = () => {
     }
   };
 
+  const ai = resolveEntry('proposalCreate', {
+    leadName: selectedLeads[0]?.name,
+    trackingId: selectedLeads[0]?.trackingId,
+  });
+
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
       {/* Header */}
@@ -297,6 +305,7 @@ const CreateProposalPage = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {!isEditing && <AskAIButton label="Draft with AI" variant="soft" actions={ai.actions} />}
           <Button
             variant="outline"
             onClick={() => handleSave('draft')}
@@ -319,6 +328,10 @@ const CreateProposalPage = () => {
           </Button>
         </div>
       </div>
+
+      {!isEditing && (
+        <AIHintBanner id="proposal-create" title={ai.hint?.title} examples={ai.hint?.examples} />
+      )}
 
       {loading && <Loader fullPage label="Syncing leads & templates..." />}
 

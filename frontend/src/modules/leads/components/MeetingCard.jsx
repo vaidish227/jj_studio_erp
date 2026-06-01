@@ -120,7 +120,11 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule, onR
             </div>
             <div className="flex items-center gap-2 text-[var(--text-secondary)] font-medium min-w-0">
               <MapPin size={13} className="text-[var(--text-muted)] shrink-0" />
-              <span className="truncate">{meeting.type === 'site' ? lead.siteAddress || 'Site Address' : 'JJ Studio - Office'}</span>
+              <span className="truncate">{meeting.type === 'site'
+                ? (typeof lead.siteAddress === 'object'
+                    ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || 'Site Address'
+                    : lead.siteAddress || 'Site Address')
+                : 'JJ Studio - Office'}</span>
             </div>
             <div className="flex items-center gap-2 text-[var(--text-secondary)] font-medium">
               <Phone size={13} className="text-[var(--text-muted)] shrink-0" />

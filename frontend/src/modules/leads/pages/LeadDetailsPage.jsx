@@ -40,6 +40,8 @@ import { Loader } from '../../../shared/components';
 import LeadLifecycleStepper from '../components/LeadLifecycleStepper';
 import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
 import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 
 const EMPTY_ATTENDEES = { internal: [], client: [] };
 
@@ -438,7 +440,12 @@ const LeadDetailsPage = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <AskAIButton
+            label="Ask AI"
+            variant="soft"
+            actions={resolveEntry('leadDetails', { leadName: lead.name, trackingId: lead.trackingId }).actions}
+          />
           <Button variant="primary" onClick={openMeetingModal}>
             <Calendar size={16} />
             Schedule Meeting

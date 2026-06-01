@@ -6,6 +6,9 @@ import FollowUpsPanel from '../components/FollowUpsPanel';
 import useDashboardData from '../hooks/useDashboardData';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+import AskAIButton from '../../ai/components/AskAIButton';
+import AIHintBanner from '../../ai/components/AIHintBanner';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 const DashboardPage = () => {
@@ -59,14 +62,22 @@ const DashboardPage = () => {
     },
   ];
 
+  const ai = resolveEntry('dashboard');
+
   return (
     <div className="space-y-6">
 
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Dashboard</h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1">Welcome back! Here's your realtime sales overview.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Dashboard</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Welcome back! Here's your realtime sales overview.</p>
+        </div>
+        <AskAIButton label="Ask AI" variant="soft" actions={ai.actions} />
       </div>
+
+      {/* AI discoverability hint */}
+      <AIHintBanner id="dashboard" title={ai.hint?.title} examples={ai.hint?.examples} />
 
       {/* Dashboard Filters */}
       <AdvancedFilter
