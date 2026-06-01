@@ -38,6 +38,12 @@ module.exports = {
         enum: ["Residential", "Commercial", "none"],
         description: "Filter by project type. 'none' = leads with no project type saved (missing/empty). Use for 'leads without a project type', 'jinke project type nahi hai'.",
       },
+      city: {
+        type: "string",
+        description: "Filter by city. Case-insensitive exact match. Use for 'leads from Mumbai', 'Indore ke leads'. Combine with projectType for 'residential leads from Mumbai'.",
+        minLength: 1,
+        maxLength: 80,
+      },
       scope: {
         type: "string",
         enum: ["me", "team"],
@@ -79,6 +85,12 @@ module.exports = {
       q.projectType = { $in: [null, ""] };
     } else if (args.projectType) {
       q.projectType = args.projectType;
+    }
+
+    if (typeof args.city === "string" && args.city.trim().length > 0) {
+      const cityNeedle = args.city.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // Case-insensitive exact match — data has mixed casing (Indore/indore, Bhopal/bhople).
+      q.city = new RegExp(`^${cityNeedle}$`, "i");
     }
 
     if (searchMode) {
@@ -134,9 +146,13 @@ module.exports = {
           ? `No active leads match "${args.q}". (They may be converted/lost — pass status='all' to widen.)`
           : `No leads match "${args.q}" assigned to you. (Tip: try scope='team' if you can see others'.)`;
       } else {
+        const filterBits = [];
+        if (args.projectType && args.projectType !== "none") filterBits.push(args.projectType);
+        if (args.city && args.city.trim()) filterBits.push(`in ${args.city.trim()}`);
+        const filterDesc = filterBits.length ? ` ${filterBits.join(" ")}` : "";
         summaryText = scope === "team"
-          ? "No active leads in the system."
-          : "No leads assigned to you. (Tip: try scope='team' if you can see others'.)";
+          ? `No active${filterDesc} leads in the system.`
+          : `No${filterDesc} leads assigned to you. (Tip: try scope='team' if you can see others'.)`;
       }
     } else if (truncated) {
       summaryText = `Showing ${items.length} of ${total} ${ownership}leads${trailing}`;
