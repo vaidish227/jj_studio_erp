@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Button, FormField, Input } from '../../../shared/components';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import AIInlinePolish from '../../ai/components/AIInlinePolish';
 
 const ReviseDrawingModal = ({ isOpen, onClose, drawing, onRevised }) => {
   const toast = useToast();
@@ -77,6 +78,15 @@ const ReviseDrawingModal = ({ isOpen, onClose, drawing, onRevised }) => {
                        focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30
                        focus:border-[var(--primary)] resize-none transition-colors"
           />
+          <div className="mt-2">
+            <AIInlinePolish
+              value={revisionNotes}
+              onAccept={(t) => setRevisionNotes(t)}
+              acceptLabel="Use this"
+              emptyMessage="Write the notes first, then let AI refine them."
+              rows={3}
+            />
+          </div>
         </FormField>
 
         <div className="flex items-center justify-end gap-3 pt-2 border-t border-[var(--border)]">

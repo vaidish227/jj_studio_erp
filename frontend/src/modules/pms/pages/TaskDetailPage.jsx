@@ -21,6 +21,8 @@ import SubmitForReviewModal from '../components/SubmitForReviewModal';
 import RequestRevisionModal from '../components/RequestRevisionModal';
 import ReassignTaskModal from '../components/ReassignTaskModal';
 import UploadDrawingModal from '../components/UploadDrawingModal';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -287,7 +289,16 @@ const TaskDetailPage = () => {
         </div>
 
         {/* ── Action bar ──────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-[var(--border)]">
+        <div className="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-[var(--border)]">
+          <AskAIButton
+            label="Ask AI"
+            variant="soft"
+            size="sm"
+            actions={resolveEntry('taskDetail', {
+              taskTitle: task.title,
+              trackingId: task.projectId?.trackingId,
+            }).actions}
+          />
           {/* Designer actions */}
           {canStartTask && (
             <Button size="sm" onClick={handleStartTask} disabled={actioning}>

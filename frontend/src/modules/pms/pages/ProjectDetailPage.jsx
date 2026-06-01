@@ -20,6 +20,8 @@ import MaterialsTab       from '../components/tabs/MaterialsTab';
 import PurchaseOrdersTab  from '../components/tabs/PurchaseOrdersTab';
 import WhatsAppTab        from '../components/tabs/WhatsAppTab';
 import ActivityTab        from '../components/tabs/ActivityTab';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -104,10 +106,21 @@ const ProjectDetailPage = () => {
               <span className="text-xs text-[var(--text-muted)] mt-0.5 block">{project.projectType}</span>
             )}
           </div>
-          <Button variant="ghost" onClick={refresh} className="shrink-0">
-            <RefreshCw size={14} className="mr-1.5" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3 shrink-0">
+            <AskAIButton
+              label="Summarize"
+              variant="soft"
+              size="sm"
+              actions={resolveEntry('projectOverview', {
+                projectName: project.name,
+                trackingId: project.trackingId,
+              }).actions}
+            />
+            <Button variant="ghost" onClick={refresh}>
+              <RefreshCw size={14} className="mr-1.5" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Meta grid */}

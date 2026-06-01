@@ -3,6 +3,7 @@ import { GitBranch, X, UserCheck } from 'lucide-react';
 import { Button } from '../../../shared/components';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import AIInlinePolish from '../../ai/components/AIInlinePolish';
 
 const RequestRevisionModal = ({ task, isOpen, onClose, onRevisionRequested }) => {
   const toast = useToast();
@@ -92,6 +93,13 @@ const RequestRevisionModal = ({ task, isOpen, onClose, onRevisionRequested }) =>
             {errors.instructions && (
               <p className="text-[11px] text-[var(--error)]">{errors.instructions}</p>
             )}
+            <AIInlinePolish
+              value={instructions}
+              onAccept={(t) => { setInstructions(t); setErrors((p) => ({ ...p, instructions: '' })); }}
+              acceptLabel="Use this"
+              emptyMessage="Write the instructions first, then let AI refine them."
+              rows={4}
+            />
           </div>
 
           {/* Revision deadline */}

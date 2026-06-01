@@ -56,6 +56,55 @@ export const AI_ENTRY_POINTS = {
     ],
   },
 
+  // ── New leads list ───────────────────────────────────────────────────────────
+  newLeads: {
+    actions: [
+      {
+        label: 'Create a lead from a message',
+        prompt: 'I want to create a new lead. I’ll paste the enquiry message — pull out the name, phone, city and requirement and create it.',
+      },
+      { label: 'Find a lead', prompt: 'Help me find a lead. Ask me for a name, phone or city to search by.' },
+    ],
+  },
+
+  // ── Meetings list ────────────────────────────────────────────────────────────
+  meetings: {
+    actions: [
+      { label: "Today's meetings", prompt: 'What meetings do I have scheduled today?' },
+      { label: 'Schedule a meeting', prompt: 'Schedule a meeting with a lead. Ask me who it is for and when.' },
+    ],
+  },
+
+  // ── My tasks (PMS) ───────────────────────────────────────────────────────────
+  myTasks: {
+    actions: [
+      { label: 'What should I work on?', prompt: 'Look at my tasks and tell me what I should work on next, prioritising overdue and high-priority items.' },
+      { label: 'My overdue tasks', prompt: 'Which of my tasks are overdue?' },
+    ],
+  },
+
+  // ── Task detail (PMS) ────────────────────────────────────────────────────────
+  taskDetail: {
+    actions: [
+      {
+        label: 'Ask AI about this task',
+        prompt: (ctx) =>
+          `Give me a summary of the task "${ctx?.taskTitle || ''}"${ctx?.trackingId ? ` on project ${ctx.trackingId}` : ''} — status, checklist progress and what's left to do.`,
+      },
+    ],
+  },
+
+  // ── Project overview (PMS) ───────────────────────────────────────────────────
+  projectOverview: {
+    actions: [
+      {
+        label: 'Summarize this project',
+        prompt: (ctx) =>
+          `Give me a summary of project ${ctx?.projectName || ''}${ctx?.trackingId ? ` (${ctx.trackingId})` : ''} — status, task progress, overdue items and client approvals.`,
+      },
+    ],
+  },
+
   // ── Dashboard ────────────────────────────────────────────────────────────────
   dashboard: {
     hint: {

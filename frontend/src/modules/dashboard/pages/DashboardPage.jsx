@@ -7,7 +7,6 @@ import useDashboardData from '../hooks/useDashboardData';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 import AskAIButton from '../../ai/components/AskAIButton';
-import AIHintBanner from '../../ai/components/AIHintBanner';
 import { resolveEntry } from '../../ai/aiEntryPoints';
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
@@ -75,9 +74,6 @@ const DashboardPage = () => {
         </div>
         <AskAIButton label="Ask AI" variant="soft" actions={ai.actions} />
       </div>
-
-      {/* AI discoverability hint */}
-      <AIHintBanner id="dashboard" title={ai.hint?.title} examples={ai.hint?.examples} />
 
       {/* Dashboard Filters */}
       <AdvancedFilter

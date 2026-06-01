@@ -3,6 +3,8 @@ import LeadListView from '../components/LeadListView';
 import useLeadList from '../hooks/useLeadList';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 
 const NewLeadsPage = () => {
   const { 
@@ -48,6 +50,7 @@ const NewLeadsPage = () => {
         emptyMessage="No new leads yet. Create your first enquiry to get started."
         accentColor="var(--primary)"
         refresh={refresh}
+        headerExtra={<AskAIButton label="Ask AI" variant="soft" actions={resolveEntry('newLeads').actions} />}
       />
     </div>
   );

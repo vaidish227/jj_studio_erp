@@ -13,6 +13,8 @@ import PriorityBadge from '../components/PriorityBadge';
 import TaskTypeIcon, { TASK_TYPE_CONFIG } from '../components/TaskTypeIcon';
 import SubmitForReviewModal from '../components/SubmitForReviewModal';
 import TaskStatusUpdateModal from '../components/TaskStatusUpdateModal';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 
 const fmt = (d) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
@@ -316,13 +318,16 @@ const MyTasksPage = () => {
             {tasks.length} task{tasks.length !== 1 ? 's' : ''} assigned to you
           </p>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          className="ml-auto text-xs text-[var(--text-muted)] hover:text-[var(--primary)] font-semibold transition-colors"
-        >
-          Refresh
-        </button>
+        <div className="ml-auto flex items-center gap-3">
+          <AskAIButton label="Ask AI" variant="soft" size="sm" actions={resolveEntry('myTasks').actions} />
+          <button
+            type="button"
+            onClick={refresh}
+            className="text-xs text-[var(--text-muted)] hover:text-[var(--primary)] font-semibold transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stat pills */}

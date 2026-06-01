@@ -20,6 +20,8 @@ import { Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 import RecordMOMModal from '../components/RecordMOMModal';
 import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
 import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
@@ -328,6 +330,7 @@ const searchTerm = navbarQuery.toLowerCase();
         </div>
 
         <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
+          <AskAIButton label="Ask AI" variant="soft" actions={resolveEntry('meetings').actions} />
           <Link
             to="/crm/meetings/calendar"
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--border)] text-sm font-bold text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors w-full md:w-auto justify-center"

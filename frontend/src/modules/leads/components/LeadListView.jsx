@@ -86,7 +86,8 @@ const LeadListView = ({
   showAddButton = false,
   emptyMessage = 'No leads found.',
   accentColor = 'var(--primary)',
-  refresh
+  refresh,
+  headerExtra = null,
 }) => {
   const navigate = useNavigate();
 
@@ -116,16 +117,19 @@ const LeadListView = ({
             {subtitle && <span className="ml-2 text-[var(--text-muted)]">• {subtitle}</span>}
           </p>
         </div>
-        {showAddButton && (
-          <Button
-            variant="primary"
-            className="w-full sm:w-auto"
-            onClick={() => navigate('/crm/forms/enquiry')}
-          >
-            <Plus size={18} />
-            Add New Enquiry
-          </Button>
-        )}
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {headerExtra}
+          {showAddButton && (
+            <Button
+              variant="primary"
+              className="w-full sm:w-auto"
+              onClick={() => navigate('/crm/forms/enquiry')}
+            >
+              <Plus size={18} />
+              Add New Enquiry
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* List */}
