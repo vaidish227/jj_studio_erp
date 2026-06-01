@@ -59,6 +59,8 @@ const updateProposalStatus  = require("../tools/updateProposalStatus.tool");
 // Phase 2D.1 — Proposal Templates (write)
 const createProposalTemplate = require("../tools/createProposalTemplate.tool");
 const addTemplateRows        = require("../tools/addTemplateRows.tool");
+// Phase 2D.2 — CRM Proposals: draft authoring (write)
+const createProposalDraft    = require("../tools/createProposalDraft.tool");
 
 const TOOLS = [
   // Read
@@ -116,6 +118,7 @@ const TOOLS = [
   getProposals,
   getProposalDetails,
   // CRM Proposals — write (Phase 2D)
+  createProposalDraft,
   updateProposal,
   updateProposalStatus,
   // Proposal Templates — write (Phase 2D.1)

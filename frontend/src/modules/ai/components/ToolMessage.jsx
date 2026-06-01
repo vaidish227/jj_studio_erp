@@ -47,6 +47,7 @@ const TOOL_META = {
   scheduleMeeting:      { label: 'Schedule meeting',       Icon: Clock, isWrite: true },
   sendProposal:         { label: 'Send proposal',          Icon: FileText, isWrite: true },
   createAndSendProposal:{ label: 'Create + send proposal', Icon: FileText, isWrite: true },
+  createProposalDraft:  { label: 'Draft proposal',         Icon: FileText, isWrite: true },
   updateProjectStatus:  { label: 'Update project status',  Icon: FileText, isWrite: true },
   updateClientApproval: { label: 'Update client approval', Icon: ClipboardList, isWrite: true },
   updateProposal:       { label: 'Edit proposal',          Icon: FileText, isWrite: true },

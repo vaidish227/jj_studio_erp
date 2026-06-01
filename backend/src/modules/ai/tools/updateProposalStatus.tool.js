@@ -110,7 +110,9 @@ async function runStatusChange(proposalId, body, actor) {
       updateObj.$set.advancePayment = {
         amount: ap.amount || 0,
         paidBy: ap.paidBy || "",
-        method: ap.method || "bank_transfer",
+        // Schema field is `paymentMethod` — writing `method` is silently dropped
+        // by strict mode (matches Proposal.controller.js's `paymentMethod`).
+        paymentMethod: ap.paymentMethod || ap.method || "bank_transfer",
         remarks: ap.remarks || "",
         paymentDate: ap.paymentDate ? new Date(ap.paymentDate) : new Date(),
       };

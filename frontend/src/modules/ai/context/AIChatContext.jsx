@@ -35,6 +35,27 @@ export const AIChatProvider = ({ children }) => {
     setError(null);
   }, []);
 
+  // Persist a write-action's resolved state onto its message in context, so the
+  // Confirm/Cancel card keeps its outcome (done/cancelled/error) if it unmounts
+  // and remounts — e.g. the user closes and reopens the chat panel without a
+  // full DB reload. Without this the card falls back to 'pending' and re-shows
+  // the buttons for an action that was already applied. `phase` matches
+  // ActionConfirmCard's local phases; extra carries { result, error }.
+  const resolveAction = useCallback((messageId, phase, extra = {}) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId
+          ? {
+              ...m,
+              confirmPhase: phase,
+              ...(extra.result !== undefined ? { confirmResult: extra.result } : {}),
+              ...(extra.error !== undefined ? { confirmError: extra.error } : {}),
+            }
+          : m
+      )
+    );
+  }, []);
+
   const loadConversation = useCallback(async (id) => {
     if (abortRef.current) abortRef.current.abort();
     setError(null);
@@ -241,8 +262,9 @@ export const AIChatProvider = ({ children }) => {
       startNewConversation,
       loadConversation,
       refreshConversations,
+      resolveAction,
     }),
-    [isOpen, open, close, toggle, conversationId, conversations, messages, streaming, error, send, stop, startNewConversation, loadConversation, refreshConversations]
+    [isOpen, open, close, toggle, conversationId, conversations, messages, streaming, error, send, stop, startNewConversation, loadConversation, refreshConversations, resolveAction]
   );
 
   return <AIChatContext.Provider value={value}>{children}</AIChatContext.Provider>;

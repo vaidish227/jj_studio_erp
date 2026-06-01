@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, X, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import apiClient from '../../../shared/services/apiClient';
+import { useAIChat } from '../context/AIChatContext';
 
 /**
  * Renders an inline "Confirm or Cancel" card for a write-tool proposal.
@@ -57,13 +58,21 @@ const ActionConfirmCard = ({ message }) => {
   const [remainingMs, setRemainingMs] = useState(() => expiresAt ? Math.max(0, expiresAt - new Date()) : null);
   const tickerRef = useRef(null);
 
+  // Persist the resolved outcome onto the message in context so the card keeps
+  // its state across unmount/remount (e.g. closing & reopening the chat panel)
+  // without a full DB reload. deriveInitialPhase reads message.confirmPhase first.
+  const { resolveAction } = useAIChat();
+  const persist = (nextPhase, extra) => {
+    if (message?.id) resolveAction(message.id, nextPhase, extra || {});
+  };
+
   // Live countdown until expiry
   useEffect(() => {
     if (phase !== 'pending' || !expiresAt) return undefined;
     tickerRef.current = setInterval(() => {
       const left = Math.max(0, expiresAt - new Date());
       setRemainingMs(left);
-      if (left <= 0) setPhase('expired');
+      if (left <= 0) { setPhase('expired'); persist('expired'); }
     }, 1000);
     return () => clearInterval(tickerRef.current);
   }, [phase, expiresAt]);
@@ -73,12 +82,21 @@ const ActionConfirmCard = ({ message }) => {
     setPhase('confirming'); setError(null);
     try {
       const res = await apiClient.post(`/ai/actions/${toolCallId}/confirm`);
+      const failed = res?.ok === false;
       setResult(res);
-      setPhase(res?.ok === false ? 'error' : 'done');
-      if (res?.ok === false) setError(res?.summaryText || res?.error || 'Action failed.');
+      setPhase(failed ? 'error' : 'done');
+      if (failed) {
+        const errText = res?.summaryText || res?.error || 'Action failed.';
+        setError(errText);
+        persist('error', { error: errText });
+      } else {
+        persist('done', { result: res });
+      }
     } catch (e) {
-      setError(e?.message || e?.summaryText || 'Action failed.');
+      const errText = e?.message || e?.summaryText || 'Action failed.';
+      setError(errText);
       setPhase('error');
+      persist('error', { error: errText });
     }
   };
 
@@ -88,6 +106,7 @@ const ActionConfirmCard = ({ message }) => {
     try {
       await apiClient.post(`/ai/actions/${toolCallId}/cancel`);
       setPhase('cancelled');
+      persist('cancelled');
     } catch (_e) {
       // Worst case: leave it pending so user can retry; backend will auto-expire.
       setPhase('pending');
@@ -149,7 +168,7 @@ const ActionConfirmCard = ({ message }) => {
           </button>
           <button
             type="button"
-            onClick={() => { setPhase('pending'); setError(null); }}
+            onClick={() => { setPhase('pending'); setError(null); persist('pending', { error: null }); }}
             className="text-[11px] px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
           >
             Retry
