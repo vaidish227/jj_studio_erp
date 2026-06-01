@@ -20,7 +20,11 @@ module.exports = {
     additionalProperties: false,
     properties: {
       city: { type: "string", description: "Case-insensitive city filter." },
-      projectType: { type: "string", enum: ["Residential", "Commercial"] },
+      projectType: {
+        type: "string",
+        enum: ["Residential", "Commercial", "none"],
+        description: "Filter by project type. 'none' = clients with no project type saved (missing/empty).",
+      },
       scope: {
         type: "string",
         enum: ["me", "team"],
@@ -51,7 +55,12 @@ module.exports = {
     }
 
     if (args.city) q.city = { $regex: String(args.city).slice(0, 60), $options: "i" };
-    if (args.projectType) q.projectType = args.projectType;
+    if (args.projectType === "none") {
+      // Matches null, empty string, AND documents where the field is absent.
+      q.projectType = { $in: [null, ""] };
+    } else if (args.projectType) {
+      q.projectType = args.projectType;
+    }
 
     const clients = await CRMClient.find(q)
       .select("trackingId name phone email projectType area budget city updatedAt")

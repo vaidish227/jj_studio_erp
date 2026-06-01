@@ -35,7 +35,8 @@ module.exports = {
       },
       projectType: {
         type: "string",
-        enum: ["Residential", "Commercial"],
+        enum: ["Residential", "Commercial", "none"],
+        description: "Filter by project type. 'none' = leads with no project type saved (missing/empty). Use for 'leads without a project type', 'jinke project type nahi hai'.",
       },
       scope: {
         type: "string",
@@ -73,7 +74,12 @@ module.exports = {
     } else {
       q.status = { $in: LEAD_STATUSES };
     }
-    if (args.projectType) q.projectType = args.projectType;
+    if (args.projectType === "none") {
+      // Matches null, empty string, AND documents where the field is absent.
+      q.projectType = { $in: [null, ""] };
+    } else if (args.projectType) {
+      q.projectType = args.projectType;
+    }
 
     if (searchMode) {
       const needle = args.q.trim();
