@@ -4,6 +4,7 @@ import { ToastProvider } from './shared/notifications/ToastProvider';
 import { NotificationProvider } from './shared/notifications/NotificationContext';
 import LoginPage from './modules/auth/pages/LoginPage';
 import DashboardPage from './modules/dashboard/pages/DashboardPage';
+import CRMDashboardPage from './modules/dashboard/pages/CRMDashboardPage';
 import { EnquiryFormPage, ClientInfoFormPage, ClientsListPage } from './modules/crm';
 import {
   NewLeadsPage,
@@ -84,6 +85,7 @@ export default function App() {
 
                 {/* CRM Module */}
                 <Route element={<CRMProvider><Outlet /></CRMProvider>}>
+                  <Route path="/crm/dashboard"        element={<CRMDashboardPage />} />
                   <Route path="/crm/forms/enquiry"   element={<EnquiryFormPage />} />
                   <Route path="/crm/forms/client-info" element={<ClientInfoFormPage />} />
                   <Route path="/crm/leads/:id"        element={<LeadDetailsPage />} />

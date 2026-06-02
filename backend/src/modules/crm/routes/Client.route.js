@@ -13,6 +13,8 @@ const {
   bulkImportClients,
 } = require("../controllers/CRMClient.controller");
 
+const { getCRMDashboard } = require("../controllers/CRMDashboard.controller");
+
 // ─── Client Lifecycle Routes ─────────────────────────────────────────
 router.post("/create", createClientEnquiry);              // Enquiry form → create
 router.post("/createclient", createClientEnquiry);        // Backward compat alias
@@ -24,5 +26,6 @@ router.patch("/status/:id", updateClientStatus);          // Status + lifecycle 
 router.delete("/delete/:id", deleteClient);               // Delete
 router.post("/timeline/:id", appendTimelineEvent);        // Append timeline event
 router.get("/totalclient", getStats);                     // Stats endpoint
+router.get("/dashboard", getCRMDashboard);                // CRM analytics dashboard
 
 module.exports = router;

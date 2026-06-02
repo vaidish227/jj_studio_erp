@@ -9,6 +9,9 @@ export const crmService = {
   // BULK IMPORT: CSV / Excel — body: { rows: [...] }
   bulkImportClients: (rows) => apiClient.post('/clients/bulk-import', { rows }),
 
+  // CRM DASHBOARD: aggregated analytics for the dedicated CRM dashboard page
+  getCRMDashboard: (range = '30d') => apiClient.get(`/clients/dashboard?range=${range}`),
+
   // READ: List clients (with optional filters)
   getLeads: (params) => {
     const query = new URLSearchParams(params).toString();

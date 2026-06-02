@@ -37,6 +37,8 @@ const AppLayout = ({ children }) => {
       activeItem = pathParts.length === 1 ? 'proposal-list' : `proposal-${pathParts[1]}`;
     } else if (pathParts[0] === 'settings' && pathParts[1]) {
       activeItem = `settings-${pathParts[1]}`;
+    } else if (pathParts[0] === 'crm' && pathParts[1] === 'dashboard') {
+      activeItem = 'crm-dashboard';
     } else {
       activeItem = pathParts[pathParts.length - 1];
     }
