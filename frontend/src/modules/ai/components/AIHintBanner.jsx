@@ -25,6 +25,8 @@ const AIHintBanner = ({ id, title, examples = [], action = null, className = '' 
     try { return localStorage.getItem(storageKey) === 'true'; } catch { return false; }
   });
 
+  // Demo feature flag — hides the "AI can help here" banner.
+  if (import.meta.env.VITE_ENABLE_AI !== 'true') return null;
   if (!hasPermission('ai.chat') || dismissed) return null;
 
   const dismiss = () => {
