@@ -251,7 +251,7 @@ const MeetingsCalendarPage = () => {
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Calendar</h1>
           <p className="text-[var(--text-secondary)] font-medium">
-            Month view of every scheduled meeting. Click a day to see its agenda.
+            Track and manage your scheduled meetings.
           </p>
         </div>
 
@@ -272,14 +272,20 @@ const MeetingsCalendarPage = () => {
 
       {/* Full-width calendar */}
       <Card className="p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <h2 className="text-lg font-bold text-[var(--text-primary)]">
             {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
           </h2>
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
+              onClick={() => {
+                const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+                const lastDay = new Date(newMonth.getFullYear(), newMonth.getMonth() + 1, 0).getDate();
+                const clampedDay = Math.min(selectedDate.getDate(), lastDay);
+                setCurrentMonth(newMonth);
+                setSelectedDate(new Date(newMonth.getFullYear(), newMonth.getMonth(), clampedDay));
+              }}
               className="p-1.5 hover:bg-[var(--bg)] rounded-lg transition-colors"
               aria-label="Previous month"
             >
@@ -288,13 +294,26 @@ const MeetingsCalendarPage = () => {
             <button
               type="button"
               onClick={() => { const t = new Date(); setCurrentMonth(t); setSelectedDate(t); }}
-              className="px-2.5 py-1 text-xs font-bold rounded-lg hover:bg-[var(--bg)] text-[var(--text-secondary)] transition-colors"
+              title={sameDay(selectedDate, new Date()) ? 'Today' : 'Jump to today'}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-colors whitespace-nowrap ${
+                sameDay(selectedDate, new Date())
+                  ? 'text-[var(--text-secondary)] hover:bg-[var(--bg)]'
+                  : 'text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/30 hover:bg-[var(--primary)]/15'
+              }`}
             >
-              Today
+              {sameDay(selectedDate, new Date())
+                ? 'Today'
+                : selectedDate.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
             </button>
             <button
               type="button"
-              onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
+              onClick={() => {
+                const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+                const lastDay = new Date(newMonth.getFullYear(), newMonth.getMonth() + 1, 0).getDate();
+                const clampedDay = Math.min(selectedDate.getDate(), lastDay);
+                setCurrentMonth(newMonth);
+                setSelectedDate(new Date(newMonth.getFullYear(), newMonth.getMonth(), clampedDay));
+              }}
               className="p-1.5 hover:bg-[var(--bg)] rounded-lg transition-colors"
               aria-label="Next month"
             >

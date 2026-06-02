@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Plus, Loader2, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import LeadCard from './LeadCard';
 import Button from '../../../shared/components/Button/Button';
+import { formatDateFull } from '../../../shared/utils/dateUtils';
 
 const PAGE_SIZE = 25;
 
@@ -149,7 +150,7 @@ const LeadListView = ({
               lead={{
                 ...lead,
                 project: lead.projectType,
-                date: lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—',
+                date: formatDateFull(lead.createdAt),
               }}
             />
           ))

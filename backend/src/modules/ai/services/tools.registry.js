@@ -48,6 +48,7 @@ const recordAdvancePayment  = require("../tools/recordAdvancePayment.tool");
 // Phase 2B — CRM Meetings (write)
 const updateMeeting         = require("../tools/updateMeeting.tool");
 const completeMeeting       = require("../tools/completeMeeting.tool");
+const cancelMeeting         = require("../tools/cancelMeeting.tool");
 const recordMOM             = require("../tools/recordMOM.tool");
 // Phase 2A.1 — CRM Client Info (write, deeper Client Info Form fields)
 const updateClientInfo      = require("../tools/updateClientInfo.tool");
@@ -111,6 +112,7 @@ const TOOLS = [
   // CRM Meetings — write (Phase 2B)
   updateMeeting,
   completeMeeting,
+  cancelMeeting,
   recordMOM,
   // CRM Client Info — write (Phase 2A.1)
   updateClientInfo,
