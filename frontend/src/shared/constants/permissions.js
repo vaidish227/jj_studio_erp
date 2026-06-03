@@ -53,13 +53,15 @@ export const PERMISSIONS = {
   PROJECTS_TAB_REVIEW: 'projects.tab.review',
 
   // Tasks
-  TASKS_READ:     'tasks.read',
-  TASKS_CREATE:   'tasks.create',
-  TASKS_UPDATE:   'tasks.update',
-  TASKS_DELETE:   'tasks.delete',
-  TASKS_SUBMIT:   'tasks.submit',
-  TASKS_APPROVE:  'tasks.approve',
-  TASKS_REASSIGN: 'tasks.reassign',
+  TASKS_READ:          'tasks.read',
+  TASKS_CREATE:        'tasks.create',
+  TASKS_UPDATE:        'tasks.update',
+  TASKS_DELETE:        'tasks.delete',
+  TASKS_SUBMIT:        'tasks.submit',
+  TASKS_APPROVE:       'tasks.approve',
+  TASKS_REASSIGN:      'tasks.reassign',
+  // Phase 1 — Workflow Engine
+  TASKS_OVERRIDE_GATE: 'tasks.override_gate',
 
   // PMS project-detail tabs
   PMS_TAB_TASKS:    'pms.tab.tasks',
@@ -149,8 +151,14 @@ export const PERMISSIONS = {
   USERS_DELETE:    'users.delete',
   USERS_MANAGE:    'users.manage',
   // Settings tabs
-  SETTINGS_TAB_USERS: 'settings.tab.users',
-  SETTINGS_TAB_ROLES: 'settings.tab.roles',
+  SETTINGS_TAB_USERS:      'settings.tab.users',
+  SETTINGS_TAB_ROLES:      'settings.tab.roles',
+  // Phase 1 — Workflow / Checklist template administration (UI lands in Phase 3)
+  SETTINGS_CHECKLISTS_MANAGE: 'settings.checklists.manage',
+  SETTINGS_WORKFLOWS_MANAGE:  'settings.workflows.manage',
+
+  // Phase 1 — Principal Designer review pathway
+  PD_REVIEW_RESPOND: 'pd.review.respond',
 };
 
 // ─── Module groupings for Roles & Permissions UI ──────────────────────────────

@@ -26,6 +26,21 @@ const taskSchema = new mongoose.Schema(
         "furniture_layout",
         "site_measurement",
         "civil_drawing",
+        // Phase 1 — Workflow Engine additions (PDF-accurate task graph)
+        "mep_collection",
+        "concept_first_meeting",
+        "concept_feedback_meeting",
+        "handover_signoff",
+        // Phase 2 — Kitchen routing children (in_house branch)
+        "kitchen_detail_elevation",
+        "kitchen_3d",
+        "kitchen_technical_drawings",
+        "kitchen_release_ready",
+        // Phase 2 — Kitchen routing children (outsourced branch)
+        "kitchen_vendor_purchase",
+        "kitchen_tentative_quote",
+        "kitchen_client_meeting",
+        "kitchen_vendor_finalization",
       ],
       required: true,
     },
@@ -47,6 +62,7 @@ const taskSchema = new mongoose.Schema(
       type: String,
       enum: [
         "not_started",
+        "blocked",                  // Phase 1 — Workflow Engine: prerequisite not met
         "in_progress",
         "pending_review",           // designer submitted to PM/PC/MD for internal review
         "revision_requested",       // PM/PC/MD sent back with change instructions
@@ -57,6 +73,30 @@ const taskSchema = new mongoose.Schema(
         "on_hold",
       ],
       default: "not_started",
+    },
+
+    // --- Workflow Engine (Phase 1) ---
+    // Cached list of TaskDependency.fromTaskId entries. Engine seeds these
+    // at workflow-template instantiation; gateEnforcement reads them to decide
+    // 409 BLOCKED_BY_DEPENDENCY.
+    dependsOn: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Task",
+      },
+    ],
+    // Computed at write-time by engine; "open" = at least one gate blocks this task.
+    gateStatus: {
+      type: String,
+      enum: ["none", "open", "closed", "overridden"],
+      default: "none",
+    },
+    dayOffsetFromProjectStart: { type: Number, default: 0 },
+    // For kitchen_drawing branch: "in_house" | "outsourced" | null (not decided)
+    routing: {
+      type: String,
+      enum: ["in_house", "outsourced", null],
+      default: null,
     },
 
     // --- Checklist (Dynamic based on flow chart) ---

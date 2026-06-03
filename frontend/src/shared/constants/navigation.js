@@ -104,8 +104,10 @@ export const NAV_ITEMS = [
     id: 'reports',
     label: 'Reports',
     icon: BarChart2,
-    path: '/reports',
     permission: 'reports.read',
+    children: [
+      { id: 'pms-analytics', label: 'PMS Analytics', path: '/pms/analytics', permission: 'reports.read' },
+    ],
   },
   {
     id: 'settings',
@@ -115,6 +117,9 @@ export const NAV_ITEMS = [
     children: [
       { id: 'users',             label: 'User Management',     path: '/settings/users',             permission: 'settings.tab.users' },
       { id: 'roles-permissions', label: 'Roles & Permissions', path: '/settings/roles-permissions', permission: 'settings.tab.roles' },
+      // Phase 3b — Template admin
+      { id: 'checklist-templates', label: 'Checklist Templates', path: '/settings/checklist-templates', permission: 'settings.checklists.manage' },
+      { id: 'workflow-templates',  label: 'Workflow Templates',  path: '/settings/workflow-templates',  permission: 'settings.workflows.manage' },
     ],
   },
 ];

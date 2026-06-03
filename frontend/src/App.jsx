@@ -37,6 +37,11 @@ import ProfilePage from './modules/profile/pages/ProfilePage';
 import SettingsPage from './modules/settings/pages/SettingsPage';
 import UserManagementPage from './modules/settings/pages/UserManagementPage';
 import RolesPermissionsPage from './modules/settings/pages/RolesPermissionsPage';
+// Phase 3b — Template admin
+import ChecklistTemplatesPage from './modules/pms/pages/ChecklistTemplatesPage';
+import WorkflowTemplatesPage from './modules/pms/pages/WorkflowTemplatesPage';
+// Phase 4 — Analytics
+import AnalyticsPage from './modules/pms/pages/AnalyticsPage';
 import ProjectsPage from './modules/pms/pages/ProjectsPage';
 import ProjectDetailPage from './modules/pms/pages/ProjectDetailPage';
 import ProjectInitiationPage from './modules/pms/pages/ProjectInitiationPage';
@@ -155,6 +160,10 @@ export default function App() {
                 <Route path="/settings"                    element={<SettingsPage />} />
                 <Route path="/settings/users"              element={<UserManagementPage />} />
                 <Route path="/settings/roles-permissions"  element={<RolesPermissionsPage />} />
+                <Route path="/settings/checklist-templates" element={<ChecklistTemplatesPage />} />
+                <Route path="/settings/workflow-templates"  element={<WorkflowTemplatesPage />} />
+                {/* Phase 4 — Analytics */}
+                <Route path="/pms/analytics" element={<AnalyticsPage />} />
               </Route>
 
               {/* Global default redirect */}

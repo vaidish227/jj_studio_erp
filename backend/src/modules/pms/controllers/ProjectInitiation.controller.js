@@ -3,6 +3,10 @@ const Project  = require("../models/Project.model");
 const Proposal = require("../../crm/models/Proposal.model");
 const CRMClient = require("../../crm/models/CRMClient.model");
 const { logActivity } = require("../../../shared/activityLogger");
+const workflowEngine = require("../services/workflowEngine");
+
+const WORKFLOW_ENGINE_V1 =
+  String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
 
 const TEAM_POPULATE = [
   { path: "primaryDesigner", select: "name email" },
@@ -152,6 +156,21 @@ const initiateFromProposal = async (req, res) => {
       metadata:    { proposalId: proposal._id, clientId: client._id },
     });
 
+    // 7b. Workflow Engine — auto-seed the PDF-accurate task graph (Phase 1)
+    // Behind WORKFLOW_ENGINE_V1 env flag for safe rollout. Best-effort: failures
+    // are logged but do not block project creation.
+    let workflowSummary = null;
+    if (WORKFLOW_ENGINE_V1) {
+      try {
+        workflowSummary = await workflowEngine.seedProject(project._id, {
+          actorId: req.user._id,
+        });
+      } catch (engineErr) {
+        console.error("[ProjectInitiation:workflowEngine] seed failed:", engineErr);
+        // Do not throw — project is created even if engine fails.
+      }
+    }
+
     // 8. Populate and return
     const populated = await Project.findById(project._id)
       .populate("clientId",   "name phone email trackingId")
@@ -161,6 +180,7 @@ const initiateFromProposal = async (req, res) => {
     res.status(201).json({
       message: "Project initiated successfully",
       project: populated,
+      workflow: workflowSummary,
     });
   } catch (err) {
     console.error("[initiateFromProposal]", err);

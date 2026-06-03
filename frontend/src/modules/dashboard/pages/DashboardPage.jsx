@@ -3,6 +3,7 @@ import { Users, TrendingUp, FileText, TrendingDown, Activity } from 'lucide-reac
 import { DashboardCard } from '../../../shared/components';
 import SalesPipeline from '../components/SalesPipeline';
 import FollowUpsPanel from '../components/FollowUpsPanel';
+import MyDayWidget from '../../pms/components/MyDayWidget';
 import useDashboardData from '../hooks/useDashboardData';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
@@ -92,6 +93,9 @@ const DashboardPage = () => {
           {error}
         </div>
       )}
+
+      {/* Phase 3a — MyDay: personal action queue. Renders nothing for users with empty buckets. */}
+      <MyDayWidget />
 
       {/* Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

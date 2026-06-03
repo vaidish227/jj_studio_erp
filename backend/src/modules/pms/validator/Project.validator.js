@@ -6,7 +6,13 @@ const PROJECT_STATUSES = [
   'design_phase', 'execution_phase', 'handover', 'completed', 'on_hold', 'cancelled',
 ];
 
+const PROJECT_PHASES = [
+  'kickoff', 'layout', 'design', 'procurement', 'release', 'execution', 'handover',
+];
+
 const CLIENT_APPROVAL_TYPES = [
+  // furniture_layout added in Phase 1 — gates the parallel design tracks
+  'furniture_layout',
   'ac', 'automation', 'kitchen', 'bathroom_material', 'cp_fittings', 'wall_floor_material',
 ];
 
@@ -94,4 +100,7 @@ module.exports = {
   kickstartSchema,
   teamSchema,
   clientApprovalSchema,
+  PROJECT_STATUSES,
+  PROJECT_PHASES,
+  CLIENT_APPROVAL_TYPES,
 };

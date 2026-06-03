@@ -3,8 +3,9 @@ import { CheckSquare, FileText, Users, BarChart2 } from 'lucide-react';
 import { DashboardCard } from '../../../../shared/components';
 import KickstartChecklist from '../KickstartChecklist';
 import ClientApprovalTracker from '../ClientApprovalTracker';
+import WhatsBlockingWidget from '../WhatsBlockingWidget';
 
-const OverviewTab = ({ project, tasks, drawings, onProjectUpdated }) => {
+const OverviewTab = ({ project, tasks, drawings, onProjectUpdated, onSwitchToTab }) => {
   if (!project) return null;
 
   const taskCounts = {
@@ -22,6 +23,12 @@ const OverviewTab = ({ project, tasks, drawings, onProjectUpdated }) => {
 
   return (
     <div className="space-y-6">
+      {/* Phase 3a — "What's Blocking" at the top of Overview so PMs see it without tab-switching */}
+      <WhatsBlockingWidget
+        project={project}
+        onSwitchToGates={onSwitchToTab ? () => onSwitchToTab('gates') : undefined}
+      />
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <DashboardCard
@@ -62,6 +69,7 @@ const OverviewTab = ({ project, tasks, drawings, onProjectUpdated }) => {
           onUpdated={onProjectUpdated}
         />
         <ClientApprovalTracker
+          project={project}
           projectId={project._id}
           approvals={project.clientApprovals || []}
           onUpdated={onProjectUpdated}

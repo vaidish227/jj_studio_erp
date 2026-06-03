@@ -11,6 +11,7 @@ import useProjects from '../hooks/useProjects';
 import useProjectForm from '../hooks/useProjectForm';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import CreateProjectModal from '../components/CreateProjectModal';
+import ProgressRing from '../components/ProgressRing';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmt = (dateStr) => {
@@ -52,7 +53,13 @@ const ProjectCard = ({ project, onClick }) => {
             {project.name}
           </h3>
         </div>
-        <ProjectStatusBadge status={project.status} />
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Phase 3a — progress at a glance (only for engine-seeded projects) */}
+          {project.workflowTemplateId && (
+            <ProgressRing value={project.progressPercent || 0} size={36} stroke={3.5} />
+          )}
+          <ProjectStatusBadge status={project.status} />
+        </div>
       </div>
 
       {/* Client & Type */}

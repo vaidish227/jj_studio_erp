@@ -7,6 +7,7 @@ const ClientApprovalsTab = ({ project, onUpdated }) => {
   return (
     <div className="max-w-xl">
       <ClientApprovalTracker
+        project={project}
         projectId={project._id}
         approvals={project.clientApprovals || []}
         onUpdated={onUpdated}

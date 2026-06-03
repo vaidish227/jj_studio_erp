@@ -12,6 +12,9 @@ const INITIAL = {
   dueDate:     '',
   notes:       '',
   checklist:   [],
+  // Phase 1 — Workflow Engine: kitchen In-House vs Outsourced.
+  // Sub-task branching is Phase 2; for now we just persist the decision.
+  routing:     '',
   externalCoordination: {
     isNeeded:          false,
     vendorId:          '',
@@ -83,6 +86,11 @@ const useTaskForm = (initialProjectId = '', onSuccess) => {
         ...form,
         ...extraFields,
         projectId: resolvedProjectId,
+        // Only send routing when relevant (kitchen_drawing) and a real choice was made.
+        routing:
+          form.taskType === 'kitchen_drawing' && form.routing
+            ? form.routing
+            : undefined,
         externalCoordination: form.externalCoordination.isNeeded
           ? {
               ...form.externalCoordination,

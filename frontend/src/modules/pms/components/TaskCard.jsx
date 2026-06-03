@@ -9,6 +9,7 @@ import PriorityBadge from './PriorityBadge';
 import TaskTypeIcon, { TASK_TYPE_CONFIG } from './TaskTypeIcon';
 import ChecklistPanel from './ChecklistPanel';
 import SubmitForReviewModal from './SubmitForReviewModal';
+import BlockedByChip from './BlockedByChip';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
@@ -29,7 +30,8 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
   const isOverdue  = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
 
   const isMyTask     = String(task.assignedTo?._id || task.assignedTo) === String(user?._id);
-  const canStart     = isMyTask && task.status === 'not_started';
+  const isBlocked    = task.status === 'blocked';
+  const canStart     = isMyTask && task.status === 'not_started' && !isBlocked;
   const canRevision  = isMyTask && task.status === 'revision_requested';
   const canSubmit    = isMyTask && hasPermission('tasks.submit') && ['in_progress', 'revision_requested'].includes(task.status);
 
@@ -85,6 +87,14 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
             </p>
           </div>
         )}
+
+        {/* Workflow Engine — blocked-by indicator (Phase 1) */}
+        <BlockedByChip
+          task={task}
+          blockingTasks={task.blockingTasks || []}
+          blockingGates={task.blockingGates || []}
+          onOverridden={onUpdated}
+        />
 
         {/* Meta row */}
         <div className="flex items-center gap-3 mt-3 flex-wrap">

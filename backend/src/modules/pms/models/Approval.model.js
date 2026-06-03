@@ -26,7 +26,7 @@ const approvalSchema = new mongoose.Schema(
     // --- Stakeholders ---
     approverType: {
       type: String,
-      enum: ["client", "manager", "principal_designer"],
+      enum: ["client", "manager", "principal_designer", "principal_and_client"],
       required: true,
     },
     approverId: {
@@ -42,8 +42,16 @@ const approvalSchema = new mongoose.Schema(
     },
     comments: String,
     attachments: [String], // Proof of approval (e.g., screenshot of WhatsApp/Email)
-    
+
     respondedAt: Date,
+
+    // --- Workflow Engine link (Phase 1) ---
+    gateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ApprovalGate",
+    },
+    // Phase 1: 3D render PD-review revision cycles (PDF "If Not Approved → loop")
+    loopCount: { type: Number, default: 0 },
   },
   {
     timestamps: true,

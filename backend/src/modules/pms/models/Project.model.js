@@ -57,6 +57,32 @@ const projectSchema = new mongoose.Schema(
       default: "design_phase",
     },
 
+    // --- Workflow Engine (Phase 1) ---
+    // `phase` is the engine's view of where the project sits in the workflow graph.
+    // Decoupled from `status` (lifecycle) so the two can evolve independently.
+    // Standardised to exactly 7 phases — handover is the terminal phase.
+    phase: {
+      type: String,
+      enum: [
+        "kickoff",
+        "layout",
+        "design",
+        "procurement",
+        "release",
+        "execution",
+        "handover",
+      ],
+      default: "kickoff",
+    },
+    workflowTemplateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "WorkflowTemplate",
+    },
+    progressPercent: { type: Number, default: 0, min: 0, max: 100 },
+    currentGateIds: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "ApprovalGate" },
+    ],
+
     // --- Core Team ---
     primaryDesigner: {
       type: mongoose.Schema.Types.ObjectId,
@@ -103,12 +129,14 @@ const projectSchema = new mongoose.Schema(
       labourQuotationSent:     { type: Boolean, default: false },
     },
 
-    // --- Client Approvals Tracking (6 mandatory sign-offs per flow) ---
+    // --- Client Approvals Tracking (PDF mandatory sign-offs) ---
+    // furniture_layout added in Phase 1 — gates the entire parallel design tracks
     clientApprovals: [
       {
         type: {
           type: String,
           enum: [
+            "furniture_layout",
             "ac",
             "automation",
             "kitchen",

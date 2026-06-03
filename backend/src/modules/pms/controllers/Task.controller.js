@@ -1,6 +1,10 @@
 const Task = require("../models/Task.model");
 const Project = require("../models/Project.model");
 const User = require("../../auth/models/user.model");
+const workflowEngine = require("../services/workflowEngine");
+
+const WORKFLOW_ENGINE_V1 =
+  String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
 const {
   createTaskSchema,
   updateTaskSchema,
@@ -11,10 +15,86 @@ const {
   reassignTaskSchema,
 } = require("../validator/Task.validator");
 const Drawing = require("../models/Drawing.model");
+const ApprovalGate = require("../models/ApprovalGate.model");
 const { logActivity } = require("../../../shared/activityLogger");
 const mailService      = require("../../mail/service/mail.service");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 const whatsappService  = require("../../whatsapp/service/whatsapp.service");
+
+/**
+ * Decorate a single task or an array of tasks with `blockingTasks[]` and
+ * `blockingGates[]` so the frontend BlockedByChip can show real blocker names.
+ *
+ * Optimised for cost:
+ *   - tasks with no dependsOn AND not blocked/open-gated → decorated with empty arrays only.
+ *   - all dependent Task ids batched into one find.
+ *   - all gates blocking these tasks batched into one find.
+ *
+ * Returns the same shape it was given (single doc or array).
+ */
+async function decorateWithBlockers(input) {
+  const isArray = Array.isArray(input);
+  const tasks = isArray ? input : [input];
+  if (!tasks.length) return input;
+
+  // Normalise to plain objects so we can attach fields without touching Mongoose internals
+  const plain = tasks.map((t) => (t && typeof t.toObject === "function" ? t.toObject() : t));
+
+  // Collect prerequisite Task ids
+  const prereqIds = new Set();
+  for (const t of plain) {
+    (t.dependsOn || []).forEach((id) => prereqIds.add(String(id)));
+  }
+
+  // Collect candidate task ids for gate lookup (only those that might be gated)
+  const gateCandidateIds = plain
+    .filter((t) => t && (t.status === "blocked" || t.gateStatus === "open"))
+    .map((t) => t._id);
+
+  const [prereqDocs, gateDocs] = await Promise.all([
+    prereqIds.size
+      ? Task.find({ _id: { $in: [...prereqIds] } })
+          .select("_id title status taskType")
+          .lean()
+      : Promise.resolve([]),
+    gateCandidateIds.length
+      ? ApprovalGate.find({
+          blockedTaskIds: { $in: gateCandidateIds },
+          status: "open",
+        })
+          .select("_id key label gateType approverType listensTo blockedTaskIds")
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const prereqById = new Map(prereqDocs.map((d) => [String(d._id), d]));
+
+  // Index gates by which task they block
+  const gatesByTask = new Map();
+  for (const g of gateDocs) {
+    for (const tid of g.blockedTaskIds || []) {
+      const k = String(tid);
+      if (!gatesByTask.has(k)) gatesByTask.set(k, []);
+      gatesByTask.get(k).push({
+        _id: g._id,
+        key: g.key,
+        label: g.label,
+        gateType: g.gateType,
+        approverType: g.approverType,
+        listensTo: g.listensTo,
+      });
+    }
+  }
+
+  for (const t of plain) {
+    t.blockingTasks = (t.dependsOn || [])
+      .map((id) => prereqById.get(String(id)))
+      .filter((d) => d && d.status !== "approved");
+    t.blockingGates = gatesByTask.get(String(t._id)) || [];
+  }
+
+  return isArray ? plain : plain[0];
+}
 
 // Returns { mail: { sent, reason? }, whatsapp: { sent, reason? } }
 const dispatchTaskNotifications = async ({ task, project, assignedUser, actorId, notifyMail, notifyWhatsApp }) => {
@@ -265,7 +345,8 @@ const getMyTasks = async (req, res) => {
       .populate("assignedTo", "name email")
       .sort({ dueDate: 1, createdAt: -1 });
 
-    res.status(200).json({ count: tasks.length, tasks });
+    const decorated = await decorateWithBlockers(tasks);
+    res.status(200).json({ count: decorated.length, tasks: decorated });
   } catch (error) {
     console.error("[getMyTasks]", error);
     res.status(500).json({ message: error.message });
@@ -282,7 +363,8 @@ const getTasksByProject = async (req, res) => {
       .populate("externalCoordination.vendorId", "name phone")
       .sort({ createdAt: 1 });
 
-    res.status(200).json({ count: tasks.length, tasks });
+    const decorated = await decorateWithBlockers(tasks);
+    res.status(200).json({ count: decorated.length, tasks: decorated });
   } catch (error) {
     console.error("[getTasksByProject]", error);
     res.status(500).json({ message: error.message });
@@ -303,7 +385,8 @@ const getTaskById = async (req, res) => {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    res.status(200).json({ task });
+    const decorated = await decorateWithBlockers(task);
+    res.status(200).json({ task: decorated });
   } catch (error) {
     console.error("[getTaskById]", error);
     res.status(500).json({ message: error.message });
@@ -327,6 +410,9 @@ const updateTask = async (req, res) => {
       value.completedAt = new Date();
     }
 
+    // Capture pre-update state so we can detect changes that trigger workflow side-effects.
+    const before = await Task.findById(req.params.id).select("taskType routing").lean();
+
     const task = await Task.findByIdAndUpdate(
       req.params.id,
       { $set: value },
@@ -337,6 +423,27 @@ const updateTask = async (req, res) => {
 
     if (!task) {
       return res.status(404).json({ message: "Task not found" });
+    }
+
+    // Phase 2 — Kitchen routing branch: when a kitchen_drawing task's routing
+    // is set/changed, spawn the matching child tasks (in_house or outsourced).
+    // Idempotent — won't re-spawn if children already exist.
+    let kitchenSpawn = null;
+    if (
+      WORKFLOW_ENGINE_V1 &&
+      task.taskType === "kitchen_drawing" &&
+      value.routing &&
+      value.routing !== before?.routing
+    ) {
+      try {
+        kitchenSpawn = await workflowEngine.spawnKitchenChildren(
+          task._id,
+          value.routing,
+          { actorId: req.user._id }
+        );
+      } catch (engineErr) {
+        console.error("[updateTask:spawnKitchenChildren]", engineErr);
+      }
     }
 
     const action = value.status ? "status_changed" : "updated";
@@ -354,7 +461,7 @@ const updateTask = async (req, res) => {
       metadata:    value.status ? { to: value.status } : undefined,
     });
 
-    res.status(200).json({ message: "Task updated successfully", task });
+    res.status(200).json({ message: "Task updated successfully", task, kitchenSpawn });
   } catch (error) {
     console.error("[updateTask]", error);
     res.status(500).json({ message: error.message });
@@ -593,6 +700,16 @@ const approveTask = async (req, res) => {
       { $set: { status: "approved", approvedBy: req.user._id, approvalDate: new Date() } }
     );
 
+    // Phase 2 — Workflow Engine cascade: unblock dependent tasks (e.g. kitchen children)
+    let cascade = null;
+    if (WORKFLOW_ENGINE_V1) {
+      try {
+        cascade = await workflowEngine.onTaskApproved(task._id, { actorId: req.user._id });
+      } catch (engineErr) {
+        console.error("[approveTask:onTaskApproved]", engineErr);
+      }
+    }
+
     logActivity({
       projectId:   task.projectId._id || task.projectId,
       actorId:     req.user._id,
@@ -600,6 +717,7 @@ const approveTask = async (req, res) => {
       entityId:    task._id,
       action:      "approved",
       description: `Task "${task.title}" approved`,
+      metadata:    { unblocked: cascade?.unblocked ?? 0 },
     });
 
     // In-app notification → the designer whose work was approved
@@ -795,7 +913,8 @@ const getAllTasks = async (req, res) => {
       Task.countDocuments(query),
     ]);
 
-    return res.json({ message: "Tasks fetched", tasks, total, page: Number(page) });
+    const decorated = await decorateWithBlockers(tasks);
+    return res.json({ message: "Tasks fetched", tasks: decorated, total, page: Number(page) });
   } catch (error) {
     console.error("[getAllTasks]", error);
     return res.status(500).json({ message: error.message });

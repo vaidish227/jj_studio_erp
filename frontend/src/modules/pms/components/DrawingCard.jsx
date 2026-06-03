@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
-import { FileText, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle, MessageCircle, GitBranch } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileText, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle, MessageCircle, GitBranch, Eye, CheckCircle2 } from 'lucide-react';
 import { Button } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import DrawingStatusBadge from './DrawingStatusBadge';
 import DrawingVersionHistory from './DrawingVersionHistory';
 import DesignCommentThread from './DesignCommentThread';
 import RevisionRequestPanel from './RevisionRequestPanel';
+import PDReviewModal from './PDReviewModal';
+import { useAuth } from '../../../shared/context/AuthContext';
+import { pmsService } from '../../../shared/services/pmsService';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
@@ -29,11 +32,31 @@ export const DRAWING_TYPE_LABELS = {
   other:             'Other',
 };
 
-const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevise }) => {
+const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevise, onUpdated }) => {
   const [showHistory,   setShowHistory]   = useState(false);
   const [showComments,  setShowComments]  = useState(false);
   const [showRevisions, setShowRevisions] = useState(false);
   const hasHistory = drawing.revisionHistory?.length > 0;
+
+  // Phase 2 — Principal Designer review status (only fetched for 3D drawings)
+  const { hasPermission } = useAuth();
+  const [pdReview, setPDReview] = useState(null);
+  const [pdMode, setPDMode] = useState(null); // 'request' | 'respond' | null
+  const isThreeD = drawing.drawingType === '3d_render';
+
+  useEffect(() => {
+    if (!isThreeD || !drawing?._id) {
+      setPDReview(null);
+      return;
+    }
+    pmsService.getDrawingPDReview(drawing._id)
+      .then((res) => setPDReview(res?.approval || null))
+      .catch(() => setPDReview(null));
+  }, [drawing?._id, isThreeD, drawing?.updatedAt]);
+
+  const canRequestPD = isThreeD && hasPermission('approvals.create') && (!pdReview || pdReview.status !== 'pending');
+  const canRespondPD = isThreeD && hasPermission('pd.review.respond') && pdReview?.status === 'pending';
+  const pdApproved = pdReview?.status === 'approved';
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3
@@ -134,6 +157,30 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
               </Button>
             </PermissionGate>
           )}
+
+          {/* Phase 2 — PD review on 3D drawings */}
+          {canRequestPD && (
+            <Button size="sm" variant="outline" onClick={() => setPDMode('request')}>
+              <Eye size={11} className="mr-1" /> Send to PD
+            </Button>
+          )}
+          {canRespondPD && (
+            <Button size="sm" onClick={() => setPDMode('respond')}>
+              <Eye size={11} className="mr-1" /> PD Review
+            </Button>
+          )}
+          {pdApproved && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider
+                             text-[var(--success)] bg-[var(--success)]/10 px-2 py-1 rounded-md">
+              <CheckCircle2 size={10} /> PD Approved
+            </span>
+          )}
+          {pdReview?.status === 'pending' && !canRespondPD && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider
+                             text-[var(--warning)] bg-[var(--warning)]/10 px-2 py-1 rounded-md">
+              <Clock size={10} /> Awaiting PD
+            </span>
+          )}
         </div>
 
         {/* Collaboration toggles */}
@@ -204,6 +251,17 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
         <div className="border-t border-[var(--border)] pt-3">
           <RevisionRequestPanel drawingId={drawing._id} />
         </div>
+      )}
+
+      {/* Phase 2 — PD Review modal */}
+      {pdMode && (
+        <PDReviewModal
+          drawing={drawing}
+          mode={pdMode}
+          isOpen={!!pdMode}
+          onClose={() => setPDMode(null)}
+          onDone={() => { onUpdated?.(); setPDMode(null); }}
+        />
       )}
     </div>
   );

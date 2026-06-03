@@ -11,6 +11,38 @@ const {
 const { logActivity }    = require("../../../shared/activityLogger");
 const mailService        = require("../../mail/service/mail.service");
 const whatsappService    = require("../../whatsapp/service/whatsapp.service");
+// Phase 2 — Drawing release acknowledgement log
+const { writeReleaseLog } = require("./DrawingReleaseLog.controller");
+// Phase 4 — Per-drawing PD review enforcement on 3D renders
+const Approval = require("../models/Approval.model");
+
+const WORKFLOW_ENGINE_V1 =
+  String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
+
+/**
+ * Returns null if the drawing isn't a 3D render OR has an approved PD review.
+ * Otherwise returns a 409-shape rejection payload the caller can send to res.
+ */
+async function checkPDReviewIfThreeD(drawing) {
+  if (!WORKFLOW_ENGINE_V1) return null;
+  if (drawing.drawingType !== "3d_render") return null;
+
+  const approved = await Approval.findOne({
+    targetType: "drawing",
+    targetId: drawing._id,
+    approverType: "principal_designer",
+    status: "approved",
+  }).select("_id").lean();
+
+  if (approved) return null;
+
+  return {
+    code: "PD_REVIEW_REQUIRED",
+    message:
+      "This 3D drawing has not been cleared by Principal Designer. " +
+      "Use 'Send to PD' before approving or releasing.",
+  };
+}
 
 const POPULATE_UPLOADER = { path: "uploadedBy", select: "name email" };
 const POPULATE_APPROVER  = { path: "approvedBy",  select: "name email" };
@@ -315,6 +347,14 @@ const approveDrawing = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
+    // Phase 4 — Per-drawing PD review gate: 3D drawings must have an approved
+    // PD review before they can be approved for client/release.
+    const pre = await Drawing.findById(req.params.id).select("drawingType").lean();
+    if (pre) {
+      const blocker = await checkPDReviewIfThreeD(pre);
+      if (blocker) return res.status(409).json(blocker);
+    }
+
     const approvedBy = req.user._id;
 
     const drawing = await Drawing.findByIdAndUpdate(
@@ -491,6 +531,10 @@ const releaseDrawing = async (req, res) => {
       });
     }
 
+    // Phase 4 — Per-drawing PD review enforcement at the release boundary too.
+    const blocker = await checkPDReviewIfThreeD(drawing);
+    if (blocker) return res.status(409).json(blocker);
+
     const releasedBy = req.user._id;
 
     // Only inject site release checklist if checklistSnapshot is empty
@@ -532,6 +576,9 @@ const releaseDrawing = async (req, res) => {
       drawing: updated,
       actorName: req.user.name || "A reviewer",
     }).catch(() => {});
+
+    // Phase 2 — Write release log for acknowledgement tracking (best-effort).
+    writeReleaseLog({ drawing: updated, releasedBy }).catch(() => {});
 
     res.status(200).json({ message: "Drawing released to site", drawing: updated });
   } catch (error) {

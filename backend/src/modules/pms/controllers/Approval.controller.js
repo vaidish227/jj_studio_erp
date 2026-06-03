@@ -1,5 +1,9 @@
 const Approval = require("../models/Approval.model");
 const { requestApprovalSchema, respondToApprovalSchema } = require("../validator/Approval.validator");
+const workflowEngine = require("../services/workflowEngine");
+
+const WORKFLOW_ENGINE_V1 =
+  String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
 
 /**
  * @route POST /api/pms/approval/request
@@ -77,7 +81,29 @@ const respondToApproval = async (req, res) => {
       return res.status(404).json({ message: "Approval request not found" });
     }
 
-    res.status(200).json({ message: `Request marked as ${value.status}`, approval });
+    // Phase 2 — Workflow Engine cascade.
+    // When a principal_designer approval (with a linked gateId) is approved,
+    // trigger gate closure. Hybrid gates (principal_and_client) also flow through here.
+    let cascade = null;
+    if (
+      WORKFLOW_ENGINE_V1 &&
+      value.status === "approved" &&
+      approval.approverType === "principal_designer" &&
+      approval.gateId
+    ) {
+      try {
+        cascade = await workflowEngine.onPrincipalDesignerResponse({
+          projectId: approval.projectId,
+          gateId: approval.gateId,
+          approvalStatus: "approved",
+          actorId: req.user?._id,
+        });
+      } catch (engineErr) {
+        console.error("[respondToApproval:engine]", engineErr);
+      }
+    }
+
+    res.status(200).json({ message: `Request marked as ${value.status}`, approval, cascade });
   } catch (error) {
     console.error("[respondToApproval]", error);
     res.status(500).json({ message: error.message });

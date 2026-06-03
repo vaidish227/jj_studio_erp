@@ -103,6 +103,66 @@ export const pmsService = {
   reassignTask:     (id, data)  => apiClient.patch(`/pms/task/reassign/${id}`, data),
   getReviewQueue:   (params)    => apiClient.get('/pms/task/review-queue', { params }),
 
+  // ─── Workflow Engine (Phase 1) ────────────────────────────────────────────
+  // Override every gate currently blocking a task; flips task.status blocked → not_started.
+  overrideTaskGate:    (taskId, data) =>
+    apiClient.post(`/pms/task/${taskId}/override`, data),
+  // Override a single project-level gate by id. Used by ProjectGatesTab.
+  overrideProjectGate: (projectId, gateId, data) =>
+    apiClient.post(`/pms/project/${projectId}/gates/${gateId}/override`, data),
+
+  // ─── Workflow Engine (Phase 2) ────────────────────────────────────────────
+  getProjectGates:     (projectId) => apiClient.get(`/pms/project/${projectId}/gates`),
+
+  // ─── Principal Designer review (Phase 2) ──────────────────────────────────
+  getDrawingPDReview:  (drawingId)        => apiClient.get(`/pms/drawing/${drawingId}/pd-review`),
+  requestPDReview:     (drawingId, data)  => apiClient.post(`/pms/drawing/${drawingId}/pd-review/request`, data || {}),
+  respondPDReview:     (drawingId, data)  => apiClient.post(`/pms/drawing/${drawingId}/pd-review/respond`, data),
+
+  // ─── Vendor Engagement (Phase 2) ──────────────────────────────────────────
+  createVendorEngagement:    (data)            => apiClient.post('/pms/vendor-engagement/create', data),
+  getVendorEngagements:      (projectId)       => apiClient.get(`/pms/vendor-engagement/project/${projectId}`),
+  getVendorEngagementById:   (id)              => apiClient.get(`/pms/vendor-engagement/${id}`),
+  recordVendorQuote:         (id, data)        => apiClient.patch(`/pms/vendor-engagement/${id}/quote`, data),
+  recordVendorClientApproval:(id, data)        => apiClient.patch(`/pms/vendor-engagement/${id}/client-approval`, data || {}),
+  emitVendorPO:              (id, data)        => apiClient.post(`/pms/vendor-engagement/${id}/emit-po`, data),
+  markVendorDelivered:       (id, data)        => apiClient.patch(`/pms/vendor-engagement/${id}/delivered`, data || {}),
+  markVendorSiteReceived:    (id, data)        => apiClient.patch(`/pms/vendor-engagement/${id}/site-received`, data || {}),
+  cancelVendorEngagement:    (id, data)        => apiClient.patch(`/pms/vendor-engagement/${id}/cancel`, data),
+
+  // ─── Drawing Release Log (Phase 2) ────────────────────────────────────────
+  getDrawingReleaseLog:      (drawingId)       => apiClient.get(`/pms/drawing/${drawingId}/release-log`),
+  ackDrawingRelease:         (logId, data)     => apiClient.post(`/pms/drawing/release-log/${logId}/ack`, data || {}),
+
+  // ─── MyDay (Phase 3a) ──────────────────────────────────────────────────────
+  getMyDay:                  ()                => apiClient.get('/pms/myday'),
+
+  // ─── Handover (Phase 3b) ───────────────────────────────────────────────────
+  getHandover:               (projectId)               => apiClient.get(`/pms/handover/project/${projectId}`),
+  requestHandover:           (projectId, data)         => apiClient.post(`/pms/handover/project/${projectId}/request`, data || {}),
+  updateHandoverDrawing:     (id, itemId, data)        => apiClient.patch(`/pms/handover/${id}/drawings/${itemId}`, data),
+  addHandoverPunch:          (id, data)                => apiClient.post(`/pms/handover/${id}/punch`, data),
+  resolveHandoverPunch:      (id, punchId, data)       => apiClient.patch(`/pms/handover/${id}/punch/${punchId}`, data),
+  signHandover:              (id, data)                => apiClient.post(`/pms/handover/${id}/sign`, data || {}),
+  acceptHandover:            (id, data)                => apiClient.post(`/pms/handover/${id}/accept`, data || {}),
+  rejectHandover:            (id, data)                => apiClient.post(`/pms/handover/${id}/reject`, data),
+
+  // ─── Templates admin (Phase 3b) ────────────────────────────────────────────
+  listChecklistTemplates:    (params)                  => apiClient.get('/pms/templates/checklist', { params }),
+  getChecklistTemplate:      (id)                      => apiClient.get(`/pms/templates/checklist/${id}`),
+  createChecklistTemplate:   (data)                    => apiClient.post('/pms/templates/checklist', data),
+  updateChecklistTemplate:   (id, data)                => apiClient.patch(`/pms/templates/checklist/${id}`, data),
+  deleteChecklistTemplate:   (id)                      => apiClient.delete(`/pms/templates/checklist/${id}`),
+  listWorkflowTemplates:     ()                        => apiClient.get('/pms/templates/workflow'),
+  getWorkflowTemplate:       (id)                      => apiClient.get(`/pms/templates/workflow/${id}`),
+
+  // ─── Analytics (Phase 4) ───────────────────────────────────────────────────
+  getGateAging:              ()                        => apiClient.get('/pms/analytics/gate-aging'),
+  getDrawingReleaseSLA:      (params)                  => apiClient.get('/pms/analytics/drawing-release-sla', { params }),
+  getDesignerUtilisation:    ()                        => apiClient.get('/pms/analytics/designer-utilisation'),
+  getVendorPerformance:      ()                        => apiClient.get('/pms/analytics/vendor-performance'),
+  getProjectProfitability:   ()                        => apiClient.get('/pms/analytics/project-profitability'),
+
   // ─── Designer-scoped project list ─────────────────────────────────────────
   getMyProjects:    (params)    => apiClient.get('/pms/project/my-projects', { params }),
 

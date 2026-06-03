@@ -124,6 +124,25 @@ app.use("/api/pms/whatsapp-group", pmsWhatsAppGroupRoutes);
 const pmsCalendarRoutes = require("./modules/pms/routes/Calendar.route");
 app.use("/api/pms/calendar", pmsCalendarRoutes);
 
+// Phase 2 — Vendor Engagement state machine
+const pmsVendorEngagementRoutes = require("./modules/pms/routes/VendorEngagement.route");
+app.use("/api/pms/vendor-engagement", pmsVendorEngagementRoutes);
+
+// Phase 3a — MyDay personal action feed
+const pmsMyDayRoutes = require("./modules/pms/routes/MyDay.route");
+app.use("/api/pms/myday", pmsMyDayRoutes);
+
+// Phase 3b — Handover module + Template admin
+const pmsHandoverRoutes = require("./modules/pms/routes/Handover.route");
+app.use("/api/pms/handover", pmsHandoverRoutes);
+
+const pmsTemplateAdminRoutes = require("./modules/pms/routes/TemplateAdmin.route");
+app.use("/api/pms/templates", pmsTemplateAdminRoutes);
+
+// Phase 4 — Analytics dashboards
+const pmsAnalyticsRoutes = require("./modules/pms/routes/Analytics.route");
+app.use("/api/pms/analytics", pmsAnalyticsRoutes);
+
 // ─── DDMS — Design & Drawing Management ──────────────────────────────────────
 const designerDashboardRoutes = require("./modules/pms/routes/DesignerDashboard.route");
 app.use("/api/pms/designer", designerDashboardRoutes);

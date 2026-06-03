@@ -7,6 +7,10 @@ const {
   clientApprovalSchema,
 } = require("../validator/Project.validator");
 const { logActivity } = require("../../../shared/activityLogger");
+const workflowEngine = require("../services/workflowEngine");
+
+const WORKFLOW_ENGINE_V1 =
+  String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
 
 const TEAM_POPULATE = [
   { path: "primaryDesigner", select: "name email role" },
@@ -275,6 +279,7 @@ const updateClientApproval = async (req, res) => {
     }
 
     const idx = project.clientApprovals.findIndex((a) => a.type === type);
+    const prevStatus = idx > -1 ? project.clientApprovals[idx].status : null;
     if (idx > -1) {
       if (status     !== undefined) project.clientApprovals[idx].status     = status;
       if (obtainedAt !== undefined) project.clientApprovals[idx].obtainedAt = obtainedAt;
@@ -285,9 +290,43 @@ const updateClientApproval = async (req, res) => {
 
     await project.save();
 
+    // Activity log
+    try {
+      await logActivity({
+        projectId:   project._id,
+        actorId:     req.user?._id,
+        entityType:  "approval",
+        entityId:    project._id,
+        action:      "status_changed",
+        description: `Client approval "${type}" set to "${status || prevStatus || "pending"}"`,
+        metadata:    { type, status, previousStatus: prevStatus },
+      });
+    } catch (e) {
+      // best-effort
+    }
+
+    // Workflow Engine cascade — close matching gates and unblock downstream tasks
+    let cascadeSummary = null;
+    if (WORKFLOW_ENGINE_V1 && status === "obtained") {
+      try {
+        cascadeSummary = await workflowEngine.onClientApprovalObtained({
+          projectId:   project._id,
+          approvalType: type,
+          actorId:     req.user?._id,
+        });
+        await workflowEngine.recomputeProjectPhase(project._id);
+        // Phase 3a — keep progress % fresh
+        await workflowEngine.recomputeProjectProgress(project._id);
+      } catch (engineErr) {
+        console.error("[updateClientApproval:workflowEngine]", engineErr);
+        // Do not fail the user request if the engine misbehaves.
+      }
+    }
+
     res.status(200).json({
       message: "Client approval updated",
       clientApprovals: project.clientApprovals,
+      workflow: cascadeSummary,
     });
   } catch (error) {
     console.error("[updateClientApproval]", error);
@@ -337,6 +376,22 @@ const getMyProjects = async (req, res) => {
   }
 };
 
+/**
+ * @route GET /api/pms/project/:id/gates
+ * Phase 2 — surfaces the Workflow Engine's open/closed/overridden gates with
+ * decorated blocking tasks, aging, and linked approvals so the ProjectGatesTab
+ * can render "what is blocking us".
+ */
+const getProjectGates = async (req, res) => {
+  try {
+    const gates = await workflowEngine.listGatesForProject(req.params.id);
+    res.status(200).json({ count: gates.length, gates });
+  } catch (err) {
+    console.error("[getProjectGates]", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   createProject,
   getAllProjects,
@@ -347,4 +402,5 @@ module.exports = {
   updateKickstart,
   updateTeam,
   updateClientApproval,
+  getProjectGates,
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, CheckSquare, Calendar, User, AlertTriangle,
@@ -21,6 +21,7 @@ import SubmitForReviewModal from '../components/SubmitForReviewModal';
 import RequestRevisionModal from '../components/RequestRevisionModal';
 import ReassignTaskModal from '../components/ReassignTaskModal';
 import UploadDrawingModal from '../components/UploadDrawingModal';
+import KitchenRoutingPanel from '../components/KitchenRoutingPanel';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
 
@@ -125,6 +126,21 @@ const TaskDetailPage = () => {
   const [showReassign, setShowReassign] = useState(false);
   const [showUpload,   setShowUpload]   = useState(false);
   const [actioning,    setActioning]    = useState(false);
+
+  // Phase 2 — Kitchen routing children: load sibling tasks so the branch timeline
+  // can render. Only fetches when the current task is kitchen_drawing.
+  const [siblingTasks, setSiblingTasks] = useState([]);
+  useEffect(() => {
+    if (!task || task.taskType !== 'kitchen_drawing') {
+      setSiblingTasks([]);
+      return;
+    }
+    const projectId = task.projectId?._id || task.projectId;
+    if (!projectId) return;
+    pmsService.getTasksByProject(projectId)
+      .then((res) => setSiblingTasks(res.tasks || []))
+      .catch(() => setSiblingTasks([]));
+  }, [task?.taskType, task?.projectId?._id || task?.projectId, task?.routing]);
 
   if (isLoading) {
     return (
@@ -369,6 +385,11 @@ const TaskDetailPage = () => {
 
       {/* ── Submission panel ─────────────────────────────────────────────── */}
       <SubmissionPanel task={task} />
+
+      {/* ── Kitchen routing branch (Phase 2) ─────────────────────────────── */}
+      {task.taskType === 'kitchen_drawing' && (
+        <KitchenRoutingPanel task={task} childTasks={siblingTasks} onUpdated={refresh} />
+      )}
 
       {/* ── Two-column body ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
