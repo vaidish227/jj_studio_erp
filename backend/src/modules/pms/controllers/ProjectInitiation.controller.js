@@ -39,7 +39,9 @@ const initiateFromProposal = async (req, res) => {
       proposalId,
       name,
       notes,
+      startDate,
       estimatedCompletionDate,
+      budget,
       // Optional team pre-assignments from the initiation form
       primaryDesigner,
       supervisor,
@@ -52,6 +54,14 @@ const initiateFromProposal = async (req, res) => {
 
     if (!proposalId || !mongoose.Types.ObjectId.isValid(proposalId)) {
       return res.status(400).json({ message: "Valid proposalId is required" });
+    }
+
+    if (startDate && estimatedCompletionDate) {
+      const s = new Date(startDate);
+      const e = new Date(estimatedCompletionDate);
+      if (!isNaN(s) && !isNaN(e) && e <= s) {
+        return res.status(400).json({ message: "End date must be after start date" });
+      }
     }
 
     // 1. Fetch proposal + client
@@ -105,10 +115,12 @@ const initiateFromProposal = async (req, res) => {
       projectType: client.projectType || "Residential",
       siteAddress,
       area:        client.area || undefined,
-      budget:      proposal.finalAmount || proposal.totalAmount || client.budget || undefined,
+      budget:      Number(budget) > 0
+        ? Number(budget)
+        : (proposal.finalAmount || proposal.totalAmount || client.budget || undefined),
       notes:       notes || "",
       estimatedCompletionDate: estimatedCompletionDate || undefined,
-      startDate:   new Date(),
+      startDate:   startDate ? new Date(startDate) : new Date(),
     };
 
     // Optional team pre-assignments

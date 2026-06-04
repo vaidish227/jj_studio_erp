@@ -6,7 +6,9 @@ const {
   getProjectDashboard,
   getUserDashboard,
 } = require("../controllers/PMSDashboard.controller");
+const { getOverview } = require("../controllers/DashboardOverview.controller");
 
+router.get("/overview",              requirePermission("projects.read"),  getOverview);
 router.get("/global-stats",          requirePermission("dashboard.read"), getGlobalStats);
 router.get("/project/:projectId",    requirePermission("projects.read"),  getProjectDashboard);
 router.get("/user",                  requirePermission("projects.read"),  getUserDashboard);

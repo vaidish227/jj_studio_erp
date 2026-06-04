@@ -82,6 +82,7 @@ export const NAV_ITEMS = [
     icon: Briefcase,
     permission: 'projects.read',
     children: [
+      { id: 'dashboard',         label: 'Dashboard',                path: '/pms/dashboard',         permission: 'projects.read' },
       { id: 'projects',          label: 'All Projects',             path: '/projects' },
       { id: 'assign-task',       label: 'Assign Task',              path: '/pms/assign-task',       permission: 'projects.tab.assign' },
       { id: 'review-design',     label: 'Approval / Review Design', path: '/pms/review-design',     permission: 'projects.tab.review' },

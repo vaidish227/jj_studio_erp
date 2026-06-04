@@ -42,9 +42,9 @@ import ChecklistTemplatesPage from './modules/pms/pages/ChecklistTemplatesPage';
 import WorkflowTemplatesPage from './modules/pms/pages/WorkflowTemplatesPage';
 // Phase 4 — Analytics
 import AnalyticsPage from './modules/pms/pages/AnalyticsPage';
+import PMSDashboardPage from './modules/pms/pages/PMSDashboardPage';
 import ProjectsPage from './modules/pms/pages/ProjectsPage';
 import ProjectDetailPage from './modules/pms/pages/ProjectDetailPage';
-import ProjectInitiationPage from './modules/pms/pages/ProjectInitiationPage';
 import MyTasksPage from './modules/pms/pages/MyTasksPage';
 import TaskDetailPage from './modules/pms/pages/TaskDetailPage';
 import DrawingLibraryPage from './modules/pms/pages/DrawingLibraryPage';
@@ -125,9 +125,9 @@ export default function App() {
                 </Route>
 
                 {/* PMS — Project Management */}
+                <Route path="/pms/dashboard"                   element={<PMSDashboardPage />} />
                 <Route path="/projects"                        element={<ProjectsPage />} />
                 <Route path="/projects/create"                 element={<ProjectsPage />} />
-                <Route path="/projects/initiate/:proposalId"   element={<ProjectInitiationPage />} />
                 <Route path="/projects/:id"                    element={<ProjectDetailPage />} />
                 {/* /tasks/:id must come BEFORE /tasks to prevent route shadowing */}
                 <Route path="/tasks/:id"                       element={<TaskDetailPage />} />

@@ -174,6 +174,9 @@ export const pmsService = {
   getProposalPreview:    (proposalId)        => apiClient.get(`/pms/project-initiation/proposal-preview/${proposalId}`),
   initiateFromProposal:  (data)              => apiClient.post('/pms/project-initiation/from-proposal', data),
 
+  // ─── PMS Dashboard (operational landing page) ─────────────────────────────
+  getDashboardOverview:  (period = 'month')  => apiClient.get(`/pms/dashboard/overview?period=${period}`),
+
   // ─── DLR Sheet ─────────────────────────────────────────────────────────────
   getDLRSheet:           (projectId)         => apiClient.get(`/pms/drawing/dlr/${projectId}`),
 

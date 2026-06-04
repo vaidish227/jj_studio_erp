@@ -1,10 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Calendar as CalendarIcon,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+
+const POPOVER_WIDTH = 300;
+const POPOVER_HEIGHT_ESTIMATE = 360;
+const POPOVER_GAP = 6;
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -89,10 +94,13 @@ const DatePicker = ({
   }, [value]);
 
   // ─── Close on outside click + Escape ──────────────────────────────────
+  const popoverRef = useRef(null);
   useEffect(() => {
     if (!open) return undefined;
     const onMouseDown = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      const insideTrigger = wrapperRef.current && wrapperRef.current.contains(e.target);
+      const insidePopover = popoverRef.current && popoverRef.current.contains(e.target);
+      if (!insideTrigger && !insidePopover) {
         setOpen(false);
       }
     };
@@ -178,13 +186,50 @@ const DatePicker = ({
 
   const today = new Date();
 
-  // Smart alignment: if the trigger sits in the right half of the viewport,
-  // anchor the popover to the right so it doesn't overflow off-screen.
-  const [alignRight, setAlignRight] = useState(false);
-  useEffect(() => {
-    if (!open || !wrapperRef.current) return;
+  // Viewport-aware popover position (rendered via portal with position:fixed
+  // so it escapes any ancestor overflow — e.g. a modal body's overflow-y-auto).
+  const [popoverStyle, setPopoverStyle] = useState(null);
+
+  const recomputePosition = () => {
+    if (!wrapperRef.current) return;
     const rect = wrapperRef.current.getBoundingClientRect();
-    setAlignRight(rect.left + 320 > window.innerWidth);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Horizontal: right-anchor if there's not enough room on the right.
+    const wantsRight = rect.left + POPOVER_WIDTH > vw - 8;
+    const left = wantsRight
+      ? Math.max(8, rect.right - POPOVER_WIDTH)
+      : Math.max(8, rect.left);
+
+    // Vertical: flip above the trigger if there's not enough room below.
+    const spaceBelow = vh - rect.bottom;
+    const spaceAbove = rect.top;
+    const flipUp = spaceBelow < POPOVER_HEIGHT_ESTIMATE + POPOVER_GAP
+      && spaceAbove > spaceBelow;
+    const top = flipUp
+      ? Math.max(8, rect.top - POPOVER_GAP - POPOVER_HEIGHT_ESTIMATE)
+      : rect.bottom + POPOVER_GAP;
+
+    setPopoverStyle({
+      position: 'fixed',
+      top,
+      left,
+      width: POPOVER_WIDTH,
+      zIndex: 1000,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) { setPopoverStyle(null); return undefined; }
+    recomputePosition();
+    const onScrollOrResize = () => recomputePosition();
+    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onScrollOrResize);
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize, true);
+      window.removeEventListener('resize', onScrollOrResize);
+    };
   }, [open]);
 
   // ─── Trigger styling matches <Input> ──────────────────────────────────
@@ -231,14 +276,13 @@ const DatePicker = ({
           />
         </button>
 
-        {/* Popover calendar */}
-        {open && !disabled && (
+        {/* Popover calendar (portal + fixed positioning so it escapes any
+            ancestor overflow / clipping context, e.g. a modal body). */}
+        {open && !disabled && popoverStyle && createPortal(
           <div
-            className={`
-              absolute z-50 top-full mt-1.5 w-[300px] bg-[var(--surface)]
-              border border-[var(--border)] rounded-xl shadow-2xl shadow-black/15 p-3
-              ${alignRight ? 'right-0' : 'left-0'}
-            `}
+            ref={popoverRef}
+            style={popoverStyle}
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl shadow-black/15 p-3"
           >
             {/* Header: month + year dropdowns + nav */}
             <div className="flex items-center gap-1.5 mb-3">
@@ -342,7 +386,8 @@ const DatePicker = ({
                 </button>
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
 

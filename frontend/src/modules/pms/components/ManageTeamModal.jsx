@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Star, Ruler, Settings2, Droplets, Layers,
-  HardHat, Wrench, Users, Check,
+  HardHat, Wrench, Check,
 } from 'lucide-react';
 import { Modal, Button } from '../../../shared/components';
 import EmployeePicker from './EmployeePicker';
@@ -16,8 +16,7 @@ const SLOTS = [
     desc: 'Primary designer & client contact',
     roles: ['designer', 'manager', 'admin', 'md'],
     icon: Star,
-    color: 'bg-[var(--primary)]/10 text-[var(--primary)]',
-    accent: 'border-l-[var(--primary)]',
+    color: 'text-[var(--primary)]',
   },
   {
     field: 'designerB',
@@ -25,17 +24,15 @@ const SLOTS = [
     desc: 'Site measurements & furniture layout',
     roles: ['designer'],
     icon: Ruler,
-    color: 'bg-blue-100 text-blue-600',
-    accent: 'border-l-blue-400',
+    color: 'text-blue-600',
   },
   {
     field: 'designerC',
     label: 'Technical Drawings',
-    desc: 'AC coordination, technical & automation',
+    desc: 'AC, technical & automation',
     roles: ['designer'],
     icon: Settings2,
-    color: 'bg-indigo-100 text-indigo-600',
-    accent: 'border-l-indigo-400',
+    color: 'text-indigo-600',
   },
   {
     field: 'designerD',
@@ -43,35 +40,31 @@ const SLOTS = [
     desc: 'Bathroom & kitchen drawings',
     roles: ['designer'],
     icon: Droplets,
-    color: 'bg-cyan-100 text-cyan-600',
-    accent: 'border-l-cyan-400',
+    color: 'text-cyan-600',
   },
   {
     field: 'designerE',
     label: 'Concept & 3D',
-    desc: 'Concept making & 3D renders',
+    desc: 'Concept & 3D renders',
     roles: ['designer'],
     icon: Layers,
-    color: 'bg-purple-100 text-purple-600',
-    accent: 'border-l-purple-400',
+    color: 'text-purple-600',
   },
   {
     field: 'supervisor',
     label: 'Site Supervisor',
-    desc: 'On-site supervision & execution oversight',
+    desc: 'On-site supervision',
     roles: ['supervisor', 'manager'],
     icon: HardHat,
-    color: 'bg-amber-100 text-amber-600',
-    accent: 'border-l-amber-400',
+    color: 'text-amber-600',
   },
   {
     field: 'contractor',
     label: 'Contractor',
-    desc: 'Execution contractor on site',
+    desc: 'Execution contractor',
     roles: ['designer', 'supervisor', 'manager', 'admin', 'md'],
     icon: Wrench,
-    color: 'bg-slate-100 text-slate-600',
-    accent: 'border-l-slate-400',
+    color: 'text-slate-600',
   },
 ];
 
@@ -108,30 +101,29 @@ const ManageTeamModal = ({ isOpen, onClose, project, onSaved }) => {
     }
   };
 
+  const allFilled = filledCount === SLOTS.length;
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title="Manage Project Team"
-      className="max-w-3xl"
+      className="max-w-2xl"
     >
-      {/* Progress bar */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Users size={15} className="text-[var(--text-muted)]" />
-            <span className="text-sm text-[var(--text-muted)]">
-              <span className="font-bold text-[var(--text-primary)]">{filledCount}</span>
-              {' '}of {SLOTS.length} slots filled
-            </span>
-          </div>
-          {filledCount === SLOTS.length && (
+      {/* Progress */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-2 text-sm">
+          <span className="text-[var(--text-muted)]">
+            <span className="font-bold text-[var(--text-primary)]">{filledCount}</span>
+            {' '}of {SLOTS.length} roles assigned
+          </span>
+          {allFilled && (
             <span className="flex items-center gap-1 text-xs font-bold text-[var(--success)]">
-              <Check size={13} /> Full team assigned
+              <Check size={13} /> Team complete
             </span>
           )}
         </div>
-        <div className="h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
+        <div className="h-1 rounded-full bg-[var(--border)] overflow-hidden">
           <div
             className="h-full rounded-full bg-[var(--primary)] transition-all duration-500"
             style={{ width: `${(filledCount / SLOTS.length) * 100}%` }}
@@ -139,48 +131,45 @@ const ManageTeamModal = ({ isOpen, onClose, project, onSaved }) => {
         </div>
       </div>
 
-      {/* Slot grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {SLOTS.map(({ field, label, desc, roles, icon: Icon, color, accent }) => (
+      {/* Role list */}
+      <div className="divide-y divide-[var(--border)] border-y border-[var(--border)]">
+        {SLOTS.map(({ field, label, desc, roles, icon: Icon, color }) => (
           <div
             key={field}
-            className={`border border-[var(--border)] border-l-4 ${accent} rounded-xl p-4 space-y-3 bg-[var(--bg)]`}
+            className="flex flex-col sm:flex-row sm:items-center gap-3 py-3"
           >
-            {/* Slot header */}
-            <div className="flex items-start gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-                <Icon size={16} strokeWidth={2} />
-              </div>
+            <div className="flex items-start gap-3 sm:w-1/2 min-w-0">
+              <Icon size={18} strokeWidth={2} className={`${color} shrink-0 mt-0.5`} />
               <div className="min-w-0">
-                <p className="text-sm font-bold text-[var(--text-primary)] leading-tight">{label}</p>
-                <p className="text-[11px] text-[var(--text-muted)] mt-0.5 leading-relaxed">{desc}</p>
+                <p className="text-sm font-semibold text-[var(--text-primary)] leading-tight">
+                  {label}
+                </p>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5 leading-snug">
+                  {desc}
+                </p>
               </div>
             </div>
 
-            {/* Picker */}
-            <EmployeePicker
-              value={draft[field] || null}
-              onChange={(user) => setDraft((prev) => ({ ...prev, [field]: user }))}
-              placeholder={`Select ${label}...`}
-              filterRoles={roles}
-            />
+            <div className="sm:flex-1 sm:max-w-[260px] sm:ml-auto w-full">
+              <EmployeePicker
+                value={draft[field] || null}
+                onChange={(user) => setDraft((prev) => ({ ...prev, [field]: user }))}
+                placeholder="Assign person..."
+                filterRoles={roles}
+              />
+            </div>
           </div>
         ))}
       </div>
 
       {/* Footer actions */}
-      <div className="flex items-center justify-between pt-5 mt-5 border-t border-[var(--border)]">
-        <p className="text-xs text-[var(--text-muted)]">
-          Changes apply only when you click Save.
-        </p>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} isLoading={saving}>
-            <Check size={14} className="mr-1.5" /> Save Team
-          </Button>
-        </div>
+      <div className="flex items-center justify-end gap-3 pt-5 mt-5 border-t border-[var(--border)]">
+        <Button variant="ghost" onClick={onClose} disabled={saving}>
+          Cancel
+        </Button>
+        <Button onClick={handleSave} isLoading={saving}>
+          <Check size={14} className="mr-1.5" /> Save Team
+        </Button>
       </div>
     </Modal>
   );
