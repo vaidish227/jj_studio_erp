@@ -12,6 +12,7 @@ import {
   IndianRupee,
   Loader2,
   Mail,
+  MessageCircle,
   MapPin,
   Phone,
   Plus,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
+import { CommunicationTimeline } from '../../kit';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Modal from '../../../shared/components/Modal/Modal';
 import Select from '../../../shared/components/Select/Select';
@@ -842,6 +844,11 @@ const LeadDetailsPage = () => {
                 <EmptyState text="Timeline entries will appear as the lead moves through the CRM flow." />
               )}
             </div>
+          </Card>
+
+          <Card className="space-y-4">
+            <SectionTitle title="Communications" icon={MessageCircle} />
+            <CommunicationTimeline entityType="lead" entityId={id} />
           </Card>
         </div>
       </div>

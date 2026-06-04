@@ -15,6 +15,8 @@ const {
   getTriggerCatalog,
   createWorkflow, getWorkflows, getWorkflowById, updateWorkflow, toggleWorkflow, deleteWorkflow,
 } = require("../controllers/workflow.controller");
+const { getTimeline, getMessages } = require("../controllers/timeline.controller");
+const { getOverview, getCampaignAnalytics, getTemplateAnalytics } = require("../controllers/analytics.controller");
 
 // ─── Templates ────────────────────────────────────────────────────────────────
 // Static routes first so they aren't captured by /templates/:id.
@@ -46,6 +48,15 @@ router.delete("/campaigns/:id/steps/:stepId",  requirePermission("kit.update"), 
 
 // Enroll entities into a campaign
 router.post("/campaigns/:id/enroll", requirePermission("kit.update"), enroll);
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+router.get("/analytics/overview",  requirePermission("kit.read"), getOverview);
+router.get("/analytics/campaigns", requirePermission("kit.read"), getCampaignAnalytics);
+router.get("/analytics/templates", requirePermission("kit.read"), getTemplateAnalytics);
+
+// ─── Timeline + message logs ──────────────────────────────────────────────────
+router.get("/messages", requirePermission("kit.read"), getMessages);
+router.get("/timeline/:entityType/:entityId", requirePermission("kit.read"), getTimeline);
 
 // ─── Workflows (automation) ───────────────────────────────────────────────────
 router.get("/triggers/catalog", requirePermission("kit.read"), getTriggerCatalog);

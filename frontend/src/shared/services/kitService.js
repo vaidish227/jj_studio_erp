@@ -59,6 +59,20 @@ export const kitService = {
   // ─── Communication settings (quiet-hours window + rate limit per channel) ─────
   getCommSettings:    (channel)       => apiClient.get(`/communication/settings/${channel}`),
   updateCommSettings: (channel, data) => apiClient.patch(`/communication/settings/${channel}`, data),
+
+  // ─── Analytics ────────────────────────────────────────────────────────────────
+  getAnalyticsOverview:  () => apiClient.get('/kit/analytics/overview'),
+  getCampaignAnalytics:  () => apiClient.get('/kit/analytics/campaigns'),
+  getTemplateAnalytics:  () => apiClient.get('/kit/analytics/templates'),
+
+  // ─── Timeline + message logs ──────────────────────────────────────────────────
+  getTimeline: (entityType, entityId) => apiClient.get(`/kit/timeline/${entityType}/${entityId}`),
+  getMessages: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+    ).toString();
+    return apiClient.get(`/kit/messages${query ? `?${query}` : ''}`);
+  },
 };
 
 export default kitService;

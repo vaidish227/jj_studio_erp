@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { CommunicationTimeline } from '../../kit';
 import {
   ChevronRight, RefreshCw, Calendar, MapPin,
   Briefcase, User, DollarSign,
@@ -285,6 +286,12 @@ const ProjectDetailPage = () => {
             onProjectUpdated={refresh}
             onSwitchToTab={setActiveTab}
           />
+        )}
+        {activeTab === 'overview'  && (
+          <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <h3 className="font-black text-sm uppercase tracking-wider text-[var(--text-primary)] mb-3">Communications</h3>
+            <CommunicationTimeline entityType="project" entityId={id} />
+          </div>
         )}
         {activeTab === 'tasks'     && (
           <TasksTab

@@ -66,6 +66,7 @@ import {
   AutomationsPage as KitAutomationsPage,
   AutomationBuilderPage as KitAutomationBuilderPage,
   KitSettingsPage,
+  AnalyticsPage as KitAnalyticsPage,
 } from './modules/kit';
 
 export default function App() {
@@ -155,6 +156,7 @@ export default function App() {
                       <Route path="create"   element={<KitTemplateEditorPage />} />
                       <Route path="edit/:id" element={<KitTemplateEditorPage />} />
                     </Route>
+                    <Route path="analytics"  element={<KitAnalyticsPage />} />
                     <Route path="settings"   element={<KitSettingsPage />} />
                   </Route>
                 </Route>

@@ -51,6 +51,7 @@ export const NAV_ITEMS = [
       { id: 'kit-follow-ups', label: 'Follow Ups',         path: '/kit/follow-ups' },
       { id: 'kit-campaigns',  label: 'Campaigns',          path: '/kit/campaigns',  permission: 'kit.read' },
       { id: 'kit-automations',label: 'Automations',        path: '/kit/automations',permission: 'kit.manage' },
+      { id: 'kit-analytics',  label: 'Analytics',          path: '/kit/analytics',  permission: 'kit.read' },
       { id: 'kit-whatsapp',   label: 'WhatsApp Templates', path: '/kit/whatsapp',   permission: 'kit.tab.templates' },
       { id: 'kit-mail',       label: 'Mail Templates',     path: '/kit/mail',       permission: 'kit.tab.templates' },
       { id: 'kit-settings',   label: 'Timeline Settings',  path: '/kit/settings',   permission: 'kit.manage' },
