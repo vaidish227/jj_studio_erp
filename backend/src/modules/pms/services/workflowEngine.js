@@ -24,6 +24,7 @@ const WorkflowTemplate = require("../models/WorkflowTemplate.model");
 const ChecklistTemplate = require("../models/ChecklistTemplate.model");
 const Approval = require("../models/Approval.model");
 const { KITCHEN_CHILDREN } = require("../validator/Task.validator");
+const teamResolver = require("./teamResolver");
 
 const { logActivity } = require("../../../shared/activityLogger");
 
@@ -65,13 +66,18 @@ async function resolveDefaultTemplate(projectType) {
 }
 
 /**
- * Build the assignee ObjectId for a given teamSlot, falling back to null.
- * teamSlot values: primaryDesigner, designerB, designerC, designerD, designerE, supervisor, contractor.
+ * Build the assignee ObjectId for a given responsibilitySlug, falling back
+ * to null. Per the v1 multi-user decision, picks the FIRST user assigned to
+ * the responsibility. Manager can reassign manually if needed.
+ *
+ * Project must be populated with assignmentsPopulate() before calling.
  */
-function resolveAssignee(project, teamSlot) {
-  if (!teamSlot) return null;
-  const v = project[teamSlot];
-  return v && mongoose.Types.ObjectId.isValid(v) ? v : null;
+async function resolveAssignee(project, responsibilitySlug) {
+  if (!responsibilitySlug) return null;
+  const user = await teamResolver.resolveFirstBySlug(project, responsibilitySlug);
+  if (!user) return null;
+  const id = user._id || user;
+  return mongoose.Types.ObjectId.isValid(id) ? id : null;
 }
 
 function computeDueDate(projectStartDate, dayOffset) {
@@ -115,7 +121,9 @@ async function snapshotChecklist(checklistTemplateName, taskType) {
  * @returns {Promise<{ tasksCreated:number, gatesCreated:number, depsCreated:number, templateId:ObjectId }>}
  */
 async function seedProject(projectId, opts = {}) {
-  const project = await Project.findById(projectId);
+  const project = await Project.findById(projectId).populate(
+    teamResolver.assignmentsPopulate()
+  );
   if (!project) throw new Error(`Project ${projectId} not found`);
 
   // Idempotency: skip if already seeded
@@ -164,7 +172,9 @@ async function seedProject(projectId, opts = {}) {
   // 2. Create tasks (no dependencies wired yet)
   const taskKeyToDoc = new Map();
   for (const t of template.tasks || []) {
-    const assignedTo = resolveAssignee(project, t.teamSlot);
+    // Accepts legacy `teamSlot` and the new `responsibilitySlug` field.
+    const slug = t.responsibilitySlug || t.teamSlot;
+    const assignedTo = await resolveAssignee(project, slug);
     const dueDate = computeDueDate(project.startDate, t.dayOffsetFromProjectStart);
 
     const checklist = await snapshotChecklist(t.checklistTemplateName, t.taskType);

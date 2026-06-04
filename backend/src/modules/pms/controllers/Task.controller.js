@@ -2,6 +2,7 @@ const Task = require("../models/Task.model");
 const Project = require("../models/Project.model");
 const User = require("../../auth/models/user.model");
 const workflowEngine = require("../services/workflowEngine");
+const teamResolver = require("../services/teamResolver");
 
 const WORKFLOW_ENGINE_V1 =
   String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
@@ -574,7 +575,14 @@ const submitTask = async (req, res) => {
       return res.status(400).json({ message: error.details.map((d) => d.message).join("; ") });
     }
 
-    const task = await Task.findById(req.params.id).populate("projectId", "name trackingId supervisor primaryDesigner");
+    const task = await Task.findById(req.params.id).populate({
+      path: "projectId",
+      select: "name trackingId assignments",
+      populate: [
+        { path: "assignments.responsibilityId", select: "slug name" },
+        { path: "assignments.users", select: "name email phone" },
+      ],
+    });
     if (!task) return res.status(404).json({ message: "Task not found" });
 
     // Only the assigned designer can submit
@@ -610,6 +618,18 @@ const submitTask = async (req, res) => {
       metadata:    { from: "in_progress", to: "pending_review" },
     });
 
+    // Resolve reviewers — supervisor + lead designer (dedup'd) from the
+    // project's dynamic assignments via teamResolver.
+    const project = task.projectId;
+    const supervisors  = await teamResolver.resolveBySlug(project, "supervisor");
+    const leadDesigners = await teamResolver.resolveBySlug(project, "lead_designer");
+    const reviewerMap  = new Map();
+    for (const u of [...supervisors, ...leadDesigners]) {
+      if (u && u._id) reviewerMap.set(String(u._id), u);
+    }
+    const reviewers   = Array.from(reviewerMap.values());
+    const reviewerIds = reviewers.map((u) => u._id);
+
     // In-app notification → reviewers
     notify({
       type: "task.submitted",
@@ -618,18 +638,16 @@ const submitTask = async (req, res) => {
       title: `Review needed: ${task.title}`,
       message: `${task.projectId?.name || "Project"}${value.submissionNotes ? ` — ${value.submissionNotes}` : ""}`,
       link: `/tasks/${task._id}`,
-      recipients: [task.projectId?.supervisor, task.projectId?.primaryDesigner].filter(Boolean),
+      recipients: reviewerIds,
       actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
       relatedTo: { module: "pms", recordId: task._id },
       metadata: { taskTitle: task.title, projectName: task.projectId?.name },
     });
 
-    // Notify reviewers (supervisor + primaryDesigner on the project) — fire-and-forget
-    const project = task.projectId;
-    const notifyIds = [project?.supervisor, project?.primaryDesigner].filter(Boolean);
-    if (notifyIds.length > 0) {
+    // Notify reviewers via email/WhatsApp — fire-and-forget
+    if (reviewers.length > 0) {
       (async () => {
-        const reviewers = await User.find({ _id: { $in: notifyIds } }).select("name email phone").lean();
+        // Reviewers from teamResolver already have name/email/phone populated.
         const submitter = await User.findById(req.user._id).select("name").lean();
         for (const reviewer of reviewers) {
           const subject = `Review Required: ${task.title}`;

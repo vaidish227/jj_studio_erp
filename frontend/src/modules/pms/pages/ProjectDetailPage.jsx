@@ -9,6 +9,7 @@ import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import ProjectPhaseStepper from '../components/ProjectPhaseStepper';
 import ProgressRing from '../components/ProgressRing';
 import useProjectDetail from '../hooks/useProjectDetail';
+import { getLeadDesigner } from '../utils/teamHelpers';
 import OverviewTab        from '../components/tabs/OverviewTab';
 import TasksTab           from '../components/tabs/TasksTab';
 import DrawingsTab        from '../components/tabs/DrawingsTab';
@@ -222,8 +223,8 @@ const ProjectDetailPage = () => {
           <div className="flex items-start gap-2">
             <User size={14} className="text-[var(--text-muted)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Primary Designer</p>
-              <p className="text-sm text-[var(--text-primary)]">{project.primaryDesigner?.name || '—'}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Lead Designer</p>
+              <p className="text-sm text-[var(--text-primary)]">{getLeadDesigner(project)?.name || '—'}</p>
             </div>
           </div>
         </div>

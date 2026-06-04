@@ -15,6 +15,7 @@ const whatsappService    = require("../../whatsapp/service/whatsapp.service");
 const { writeReleaseLog } = require("./DrawingReleaseLog.controller");
 // Phase 4 — Per-drawing PD review enforcement on 3D renders
 const Approval = require("../models/Approval.model");
+const teamResolver = require("../services/teamResolver");
 
 const WORKFLOW_ENGINE_V1 =
   String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
@@ -451,58 +452,64 @@ const rejectDrawing = async (req, res) => {
   }
 };
 
-// Notify the project supervisor when a drawing is released to site.
+// Notify every supervisor on the project's dynamic assignments when a
+// drawing is released to site.
 const notifySupervisorOnRelease = async ({ drawing, actorName }) => {
   if (!drawing.projectId) return;
 
   const project = await Project.findById(drawing.projectId)
-    .select("name trackingId supervisor")
-    .populate("supervisor", "name email phone")
+    .select("name trackingId assignments")
+    .populate("assignments.responsibilityId", "slug")
+    .populate("assignments.users", "name email phone")
     .lean();
 
-  if (!project?.supervisor) return;
+  if (!project) return;
 
-  const supervisor = project.supervisor;
-  const subject    = `Drawing Released to Site — ${drawing.title}`;
-  const waMessage  =
+  const supervisors = await teamResolver.resolveBySlug(project, "supervisor");
+  if (!supervisors.length) return;
+
+  const subject   = `Drawing Released to Site — ${drawing.title}`;
+  const waMessage =
     `*Drawing Released to Site — JJ Studio ERP*\n\n` +
     `*Drawing:* ${drawing.title} (v${drawing.version})\n` +
     `*Project:* ${project.name} (${project.trackingId})\n` +
     `*Released by:* ${actorName}\n\n` +
     `Please proceed with site distribution as per the release checklist.`;
 
-  if (supervisor.email) {
-    try {
-      await mailService.sendImmediate({
-        to:      supervisor.email,
-        subject,
-        html: `
-          <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-            <h2 style="color:#1a1a2e">Drawing Released to Site</h2>
-            <table style="width:100%;border-collapse:collapse">
-              <tr><td style="padding:8px;font-weight:bold;color:#555">Drawing</td><td style="padding:8px">${drawing.title} (v${drawing.version})</td></tr>
-              <tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Project</td><td style="padding:8px">${project.name} (${project.trackingId})</td></tr>
-              <tr><td style="padding:8px;font-weight:bold;color:#555">Released By</td><td style="padding:8px">${actorName}</td></tr>
-            </table>
-            <p style="margin-top:16px;color:#333;font-size:13px">Please proceed with site distribution as per the release checklist.</p>
-            <p style="color:#888;font-size:12px;margin-top:24px">JJ Studio ERP</p>
-          </div>
-        `,
-        relatedTo: { module: "pms", recordId: drawing._id },
-        createdBy: null,
-      });
-    } catch (e) { console.error("[supervisorNotify:mail]", e.message); }
-  }
+  for (const supervisor of supervisors) {
+    if (supervisor.email) {
+      try {
+        await mailService.sendImmediate({
+          to:      supervisor.email,
+          subject,
+          html: `
+            <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+              <h2 style="color:#1a1a2e">Drawing Released to Site</h2>
+              <table style="width:100%;border-collapse:collapse">
+                <tr><td style="padding:8px;font-weight:bold;color:#555">Drawing</td><td style="padding:8px">${drawing.title} (v${drawing.version})</td></tr>
+                <tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Project</td><td style="padding:8px">${project.name} (${project.trackingId})</td></tr>
+                <tr><td style="padding:8px;font-weight:bold;color:#555">Released By</td><td style="padding:8px">${actorName}</td></tr>
+              </table>
+              <p style="margin-top:16px;color:#333;font-size:13px">Please proceed with site distribution as per the release checklist.</p>
+              <p style="color:#888;font-size:12px;margin-top:24px">JJ Studio ERP</p>
+            </div>
+          `,
+          relatedTo: { module: "pms", recordId: drawing._id },
+          createdBy: null,
+        });
+      } catch (e) { console.error("[supervisorNotify:mail]", e.message); }
+    }
 
-  if (supervisor.phone) {
-    try {
-      await whatsappService.sendImmediate({
-        to:        supervisor.phone,
-        message:   waMessage,
-        relatedTo: { module: "pms", recordId: drawing._id },
-        createdBy: null,
-      });
-    } catch (e) { console.error("[supervisorNotify:whatsapp]", e.message); }
+    if (supervisor.phone) {
+      try {
+        await whatsappService.sendImmediate({
+          to:        supervisor.phone,
+          message:   waMessage,
+          relatedTo: { module: "pms", recordId: drawing._id },
+          createdBy: null,
+        });
+      } catch (e) { console.error("[supervisorNotify:whatsapp]", e.message); }
+    }
   }
 };
 

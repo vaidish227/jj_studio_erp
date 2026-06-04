@@ -191,4 +191,10 @@ export const pmsService = {
   createRevisionRequest:         (data)      => apiClient.post('/pms/design-revisions', data),
   getRevisionRequestsByDrawing:  (drawingId) => apiClient.get(`/pms/design-revisions/drawing/${drawingId}`),
   resolveRevisionRequest:        (id)        => apiClient.patch(`/pms/design-revisions/${id}/resolve`),
+
+  // ─── Responsibilities (dynamic team master list) ──────────────────────────
+  listResponsibilities:    (params)         => apiClient.get('/pms/responsibility/all', { params }),
+  createResponsibility:    (data)           => apiClient.post('/pms/responsibility/create', data),
+  updateResponsibility:    (id, data)       => apiClient.patch(`/pms/responsibility/update/${id}`, data),
+  deleteResponsibility:    (id, opts = {})  => apiClient.delete(`/pms/responsibility/delete/${id}`, { params: opts }),
 };

@@ -19,6 +19,7 @@
 const cron = require("node-cron");
 const Task = require("../models/Task.model");
 const ApprovalGate = require("../models/ApprovalGate.model");
+const teamResolver = require("../services/teamResolver");
 
 let notify = () => {};
 try {
@@ -90,17 +91,23 @@ async function runIdleGateNudge() {
     status: "open",
     createdAt: { $lt: cutoff },
   })
-    .populate("projectId", "name trackingId primaryDesigner supervisor")
+    .populate({
+      path: "projectId",
+      select: "name trackingId assignments",
+      populate: [
+        { path: "assignments.responsibilityId", select: "slug" },
+        { path: "assignments.users", select: "_id" },
+      ],
+    })
     .select("label gateType approverType createdAt projectId")
     .lean();
 
   let dispatched = 0;
   for (const g of idleGates) {
     try {
-      const recipients = [
-        g.projectId?.primaryDesigner,
-        g.projectId?.supervisor,
-      ].filter(Boolean);
+      const lead = await teamResolver.resolveFirstBySlug(g.projectId, "lead_designer");
+      const supervisor = await teamResolver.resolveFirstBySlug(g.projectId, "supervisor");
+      const recipients = [lead?._id, supervisor?._id].filter(Boolean);
       if (recipients.length === 0) continue;
 
       const age = Math.floor((Date.now() - new Date(g.createdAt).getTime()) / 86400000);

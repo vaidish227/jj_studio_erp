@@ -1,22 +1,16 @@
 const mongoose = require("mongoose");
 const Project  = require("../models/Project.model");
+const Responsibility = require("../models/Responsibility.model");
 const Proposal = require("../../crm/models/Proposal.model");
 const CRMClient = require("../../crm/models/CRMClient.model");
 const { logActivity } = require("../../../shared/activityLogger");
 const workflowEngine = require("../services/workflowEngine");
+const teamResolver = require("../services/teamResolver");
 
 const WORKFLOW_ENGINE_V1 =
   String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
 
-const TEAM_POPULATE = [
-  { path: "primaryDesigner", select: "name email" },
-  { path: "supervisor",      select: "name email" },
-  { path: "designerB",       select: "name email" },
-  { path: "designerC",       select: "name email" },
-  { path: "designerD",       select: "name email" },
-  { path: "designerE",       select: "name email" },
-  { path: "contractor",      select: "name email" },
-];
+const TEAM_POPULATE = teamResolver.assignmentsPopulate();
 
 const ALLOWED_PROPOSAL_STATUSES = [
   "manager_approved",
@@ -42,14 +36,13 @@ const initiateFromProposal = async (req, res) => {
       startDate,
       estimatedCompletionDate,
       budget,
-      // Optional team pre-assignments from the initiation form
-      primaryDesigner,
-      supervisor,
-      designerB,
-      designerC,
-      designerD,
-      designerE,
-      contractor,
+      // Optional team pre-assignments from the initiation form.
+      // Either provide the new shape: assignments: [{ responsibilityId, userIds: [] }]
+      // or the legacy shape: leadDesignerId / supervisorId (for back-compat with
+      // the existing proposal modal until it migrates).
+      assignments,
+      leadDesignerId,
+      supervisorId,
     } = req.body;
 
     if (!proposalId || !mongoose.Types.ObjectId.isValid(proposalId)) {
@@ -123,13 +116,37 @@ const initiateFromProposal = async (req, res) => {
       startDate:   startDate ? new Date(startDate) : new Date(),
     };
 
-    // Optional team pre-assignments
-    const teamFields = { primaryDesigner, supervisor, designerB, designerC, designerD, designerE, contractor };
-    for (const [key, val] of Object.entries(teamFields)) {
-      if (val && mongoose.Types.ObjectId.isValid(val)) {
-        projectPayload[key] = val;
+    // Optional team pre-assignments — prefer the new shape if provided,
+    // else translate the legacy lead/supervisor IDs via slug lookup.
+    let resolvedAssignments = [];
+    if (Array.isArray(assignments) && assignments.length) {
+      resolvedAssignments = assignments
+        .filter((a) => mongoose.Types.ObjectId.isValid(a.responsibilityId))
+        .map((a) => ({
+          responsibilityId: a.responsibilityId,
+          users: Array.isArray(a.userIds)
+            ? a.userIds.filter((u) => mongoose.Types.ObjectId.isValid(u))
+            : [],
+        }));
+    } else if (leadDesignerId || supervisorId) {
+      const seedSlugs = [];
+      if (leadDesignerId && mongoose.Types.ObjectId.isValid(leadDesignerId))
+        seedSlugs.push({ slug: "lead_designer", userId: leadDesignerId });
+      if (supervisorId && mongoose.Types.ObjectId.isValid(supervisorId))
+        seedSlugs.push({ slug: "supervisor", userId: supervisorId });
+
+      if (seedSlugs.length) {
+        const respDocs = await Responsibility.find({
+          slug: { $in: seedSlugs.map((s) => s.slug) },
+        }).select("_id slug").lean();
+        const bySlug = new Map(respDocs.map((r) => [r.slug, r._id]));
+        for (const s of seedSlugs) {
+          const respId = bySlug.get(s.slug);
+          if (respId) resolvedAssignments.push({ responsibilityId: respId, users: [s.userId] });
+        }
       }
     }
+    if (resolvedAssignments.length) projectPayload.assignments = resolvedAssignments;
 
     // 4. Create project
     const project = await Project.create(projectPayload);

@@ -11,6 +11,7 @@ const Drawing = require("../models/Drawing.model");
 const Project = require("../models/Project.model");
 const WhatsAppProjectGroup = require("../models/WhatsAppProjectGroup.model");
 const { logActivity } = require("../../../shared/activityLogger");
+const teamResolver = require("../services/teamResolver");
 
 /**
  * @route GET /api/pms/drawing/:id/release-log
@@ -87,8 +88,9 @@ const ackReleaseLog = async (req, res) => {
 async function writeReleaseLog({ drawing, releasedBy, extraRecipients = [] }) {
   try {
     const project = await Project.findById(drawing.projectId)
-      .select("supervisor")
-      .populate("supervisor", "name email phone")
+      .select("assignments")
+      .populate("assignments.responsibilityId", "slug")
+      .populate("assignments.users", "name email phone")
       .lean();
 
     const drawingGroup = await WhatsAppProjectGroup.findOne({
@@ -99,12 +101,15 @@ async function writeReleaseLog({ drawing, releasedBy, extraRecipients = [] }) {
       .lean();
 
     const recipients = [];
-    if (project?.supervisor) {
+    const supervisors = project
+      ? await teamResolver.resolveBySlug(project, "supervisor")
+      : [];
+    for (const supervisor of supervisors) {
       recipients.push({
-        userId: project.supervisor._id,
-        name: project.supervisor.name,
-        email: project.supervisor.email,
-        phone: project.supervisor.phone,
+        userId:  supervisor._id,
+        name:    supervisor.name,
+        email:   supervisor.email,
+        phone:   supervisor.phone,
         channel: "in_app",
       });
     }

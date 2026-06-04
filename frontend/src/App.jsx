@@ -40,6 +40,7 @@ import RolesPermissionsPage from './modules/settings/pages/RolesPermissionsPage'
 // Phase 3b — Template admin
 import ChecklistTemplatesPage from './modules/pms/pages/ChecklistTemplatesPage';
 import WorkflowTemplatesPage from './modules/pms/pages/WorkflowTemplatesPage';
+import ResponsibilitiesPage from './modules/pms/pages/ResponsibilitiesPage';
 // Phase 4 — Analytics
 import AnalyticsPage from './modules/pms/pages/AnalyticsPage';
 import PMSDashboardPage from './modules/pms/pages/PMSDashboardPage';
@@ -162,6 +163,7 @@ export default function App() {
                 <Route path="/settings/roles-permissions"  element={<RolesPermissionsPage />} />
                 <Route path="/settings/checklist-templates" element={<ChecklistTemplatesPage />} />
                 <Route path="/settings/workflow-templates"  element={<WorkflowTemplatesPage />} />
+                <Route path="/settings/responsibilities"    element={<ResponsibilitiesPage />} />
                 {/* Phase 4 — Analytics */}
                 <Route path="/pms/analytics" element={<AnalyticsPage />} />
               </Route>

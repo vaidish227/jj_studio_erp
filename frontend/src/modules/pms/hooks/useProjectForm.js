@@ -18,8 +18,6 @@ const INITIAL = {
   },
   area:                    '',
   budget:                  '',
-  primaryDesigner:         '',
-  supervisor:              '',
   estimatedCompletionDate: '',
 };
 

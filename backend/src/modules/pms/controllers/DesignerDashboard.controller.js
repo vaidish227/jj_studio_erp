@@ -73,19 +73,15 @@ const getDesignerDashboard = async (req, res) => {
         .sort({ createdAt: -1 })
         .lean(),
 
-      // Active projects where I'm part of the design team
+      // Active projects where I'm part of the team (any responsibility)
       Project.find({
-        $or: [
-          { primaryDesigner: userId },
-          { designerB: userId },
-          { designerC: userId },
-          { designerD: userId },
-          { designerE: userId },
-        ],
+        "assignments.users": userId,
         status: { $in: ["design_phase", "execution_phase"] },
       })
-        .select("name trackingId status estimatedCompletionDate clientId primaryDesigner designerB designerC designerD designerE")
+        .select("name trackingId status estimatedCompletionDate clientId assignments")
         .populate("clientId", "name")
+        .populate("assignments.responsibilityId", "name slug icon color")
+        .populate("assignments.users", "name role")
         .lean(),
     ]);
 

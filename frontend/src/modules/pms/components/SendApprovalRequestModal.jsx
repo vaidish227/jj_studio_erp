@@ -3,6 +3,7 @@ import { Send, MessageCircle, Mail, Copy, Check } from 'lucide-react';
 import { Modal, Button, FormField, Input } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { pmsService } from '../../../shared/services/pmsService';
+import { getLeadDesigner } from '../utils/teamHelpers';
 
 /**
  * SendApprovalRequestModal — Phase 3a.
@@ -35,7 +36,7 @@ const buildMessage = ({ project, type, client }) => {
   const projectName = project?.name || 'your project';
   const trackingId = project?.trackingId || '';
   const clientName = client?.name || 'Sir/Ma\'am';
-  const designer = project?.primaryDesigner?.name || 'our team';
+  const designer = getLeadDesigner(project)?.name || 'our team';
 
   return {
     subject: `Approval needed: ${label} — ${projectName}`,

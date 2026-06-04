@@ -82,19 +82,8 @@ const getMyDay = async (req, res) => {
       .limit(10)
       .lean();
 
-    // 5. Gates blocking projects where I'm the primary owner/PM/principal designer.
-    // Use any team-slot membership as the membership signal — keeps it general.
-    const myProjects = await Project.find({
-      $or: [
-        { primaryDesigner: userId },
-        { supervisor: userId },
-        { designerB: userId },
-        { designerC: userId },
-        { designerD: userId },
-        { designerE: userId },
-        { contractor: userId },
-      ],
-    })
+    // 5. Gates blocking projects where I'm any assigned team member.
+    const myProjects = await Project.find({ "assignments.users": userId })
       .select("_id")
       .lean();
 

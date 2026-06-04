@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import * as LucideIcons from 'lucide-react';
 import { Users, UserPlus, Mail } from 'lucide-react';
 import { Button } from '../../../../shared/components';
 import { useAuth } from '../../../../shared/context/AuthContext';
-import ManageTeamModal, { SLOTS } from '../ManageTeamModal';
+import ManageTeamModal from '../ManageTeamModal';
+import { groupAssignmentsByUser } from '../../utils/teamHelpers';
 
 const ROLE_BADGE = {
   admin:      { label: 'Admin',      cls: 'bg-red-100 text-red-700' },
@@ -10,6 +12,12 @@ const ROLE_BADGE = {
   manager:    { label: 'Manager',    cls: 'bg-indigo-100 text-indigo-700' },
   designer:   { label: 'Designer',   cls: 'bg-[var(--primary)]/10 text-[var(--primary)]' },
   supervisor: { label: 'Supervisor', cls: 'bg-amber-100 text-amber-700' },
+};
+
+const FallbackIcon = LucideIcons.Users;
+const ResponsibilityIcon = ({ name, className, size = 13 }) => {
+  const Comp = (name && LucideIcons[name]) || FallbackIcon;
+  return <Comp size={size} className={className} />;
 };
 
 const Avatar = ({ name, size = 'md' }) => {
@@ -24,49 +32,35 @@ const Avatar = ({ name, size = 'md' }) => {
   );
 };
 
-const EmptySlotCard = ({ slot }) => {
-  const Icon = slot.icon;
+const PersonCard = ({ user, responsibilities }) => {
+  const badge = ROLE_BADGE[user.role];
   return (
-    <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-[var(--border)] opacity-40">
-      <div className="w-10 h-10 rounded-xl bg-[var(--border)] flex items-center justify-center shrink-0">
-        <Icon size={15} className="text-[var(--text-muted)]" />
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-[var(--text-muted)]">{slot.label}</p>
-        <p className="text-xs text-[var(--text-muted)]">Not assigned</p>
-      </div>
-    </div>
-  );
-};
-
-const MemberCard = ({ slot, member }) => {
-  const Icon  = slot.icon;
-  const badge = ROLE_BADGE[member.role];
-  return (
-    <div className={`group flex items-center gap-4 p-4 rounded-xl border border-[var(--border)] border-l-4 ${slot.accent} bg-[var(--surface)] transition-shadow hover:shadow-md`}>
-      {/* Avatar */}
-      <Avatar name={member.name} />
-
-      {/* Info */}
+    <div className="flex items-start gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+      <Avatar name={user.name} size="lg" />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-          <p className="text-sm font-bold text-[var(--text-primary)] truncate">{member.name}</p>
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <p className="text-sm font-bold text-[var(--text-primary)] truncate">{user.name}</p>
           {badge && (
             <span className={`text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full ${badge.cls}`}>
               {badge.label}
             </span>
           )}
         </div>
-        <p className="text-xs text-[var(--text-muted)] truncate flex items-center gap-1">
-          <Mail size={10} /> {member.email}
-        </p>
-      </div>
-
-      {/* Slot badge */}
-      <div className="shrink-0 text-right hidden sm:block">
-        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${slot.color}`}>
-          <Icon size={11} />
-          {slot.label}
+        {user.email && (
+          <p className="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-1">
+            <Mail size={10} /> {user.email}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          {responsibilities.map((r) => (
+            <span
+              key={r._id}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[var(--bg)] border border-[var(--border)] ${r.color || ''}`}
+            >
+              <ResponsibilityIcon name={r.icon} size={10} />
+              {r.name}
+            </span>
+          ))}
         </div>
       </div>
     </div>
@@ -75,20 +69,24 @@ const MemberCard = ({ slot, member }) => {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const TeamTab = ({ project, onUpdated }) => {
-  const { user }           = useAuth();
+  const { user } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
 
   if (!project) return null;
 
-  const canManage   = ['admin', 'md', 'manager'].includes(user?.role);
-  const filledSlots = SLOTS.filter(({ field }) => project[field]);
-  const emptySlots  = SLOTS.filter(({ field }) => !project[field]);
-  const filledCount = filledSlots.length;
+  const canManage = ['admin', 'md', 'manager'].includes(user?.role);
+  // Each assignment is either a saved responsibility OR a per-project
+  // custom work item; both count here.
+  const assignments = (project.assignments || []).filter(
+    (a) => (a.responsibilityId || a.customName) && (a.users || []).length > 0
+  );
+  const totalAssignments = assignments.length;
+  const peopleRows = groupAssignmentsByUser(project);
 
   return (
     <>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
             <Users size={15} className="text-[var(--primary)]" />
@@ -96,21 +94,23 @@ const TeamTab = ({ project, onUpdated }) => {
           <div>
             <p className="text-sm font-bold text-[var(--text-primary)]">Project Team</p>
             <p className="text-xs text-[var(--text-muted)]">
-              {filledCount} of {SLOTS.length} slots filled
+              {totalAssignments} responsibilit{totalAssignments === 1 ? 'y' : 'ies'}, {peopleRows.length} {peopleRows.length === 1 ? 'person' : 'people'}
             </p>
           </div>
         </div>
 
-        {canManage && (
-          <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>
-            <UserPlus size={13} className="mr-1.5" />
-            {filledCount === 0 ? 'Build Team' : 'Manage Team'}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canManage && (
+            <Button variant="outline" size="sm" onClick={() => setModalOpen(true)}>
+              <UserPlus size={13} className="mr-1.5" />
+              {totalAssignments === 0 ? 'Build Team' : 'Manage Team'}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* ── Empty state ── */}
-      {filledCount === 0 && (
+      {totalAssignments === 0 && (
         <div className="flex flex-col items-center justify-center py-14 border-2 border-dashed border-[var(--border)] rounded-2xl gap-4">
           <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center">
             <Users size={24} className="text-[var(--primary)]" />
@@ -119,7 +119,7 @@ const TeamTab = ({ project, onUpdated }) => {
             <p className="text-sm font-bold text-[var(--text-primary)]">No team assigned yet</p>
             <p className="text-xs text-[var(--text-muted)] mt-1 max-w-xs">
               {canManage
-                ? 'Assign designers, supervisors, and contractors to get started.'
+                ? 'Pick the responsibilities this project needs and assign people to each.'
                 : 'The project manager will assign team members soon.'}
             </p>
           </div>
@@ -131,29 +131,12 @@ const TeamTab = ({ project, onUpdated }) => {
         </div>
       )}
 
-      {/* ── Member cards ── */}
-      {filledCount > 0 && (
-        <div className="space-y-3">
-          {/* Assigned */}
-          <div className="space-y-2.5">
-            {filledSlots.map(({ field, ...slot }) => (
-              <MemberCard key={field} slot={slot} member={project[field]} />
-            ))}
-          </div>
-
-          {/* Empty slots — compact */}
-          {emptySlots.length > 0 && (
-            <>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)] pt-3 pb-1">
-                Unassigned slots
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {emptySlots.map(({ field, ...slot }) => (
-                  <EmptySlotCard key={field} slot={slot} />
-                ))}
-              </div>
-            </>
-          )}
+      {/* ── By Person — one card per user with chips of their responsibilities ── */}
+      {totalAssignments > 0 && (
+        <div className="space-y-2.5">
+          {peopleRows.map(({ user: u, responsibilities }) => (
+            <PersonCard key={u._id} user={u} responsibilities={responsibilities} />
+          ))}
         </div>
       )}
 

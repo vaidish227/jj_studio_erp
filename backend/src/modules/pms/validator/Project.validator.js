@@ -46,9 +46,6 @@ const createProjectSchema = Joi.object({
   area:   Joi.number().positive().optional(),
   budget: Joi.number().positive().optional(),
 
-  primaryDesigner: OID.allow('', null).optional(),
-  supervisor:      OID.allow('', null).optional(),
-
   estimatedCompletionDate: Joi.date().optional(),
   notes: Joi.string().allow('').optional(),
   tags:  Joi.array().items(Joi.string()).optional(),
@@ -77,15 +74,53 @@ const kickstartSchema = Joi.object({
   labourQuotationSent:     Joi.boolean().optional(),
 }).min(1).messages({ 'object.min': 'At least one kickstart field must be provided' });
 
+// Dynamic team assignments. Each row is either a master responsibility
+// (responsibilityId) or a per-project custom work item (customName).
+// At least one of the two must be present per row.
 const teamSchema = Joi.object({
-  primaryDesigner: OID.allow('', null).optional(),
-  supervisor:      OID.allow('', null).optional(),
-  designerB:       OID.allow('', null).optional(),
-  designerC:       OID.allow('', null).optional(),
-  designerD:       OID.allow('', null).optional(),
-  designerE:       OID.allow('', null).optional(),
-  contractor:      OID.allow('', null).optional(),
-}).min(1).messages({ 'object.min': 'At least one team member field must be provided' });
+  assignments: Joi.array()
+    .items(
+      Joi.object({
+        responsibilityId: OID.allow('', null).optional(),
+        customName: Joi.string().trim().min(1).max(100).optional(),
+        userIds: Joi.array().items(OID).default([]),
+      }).custom((row, helpers) => {
+        if (!row.responsibilityId && !row.customName) {
+          return helpers.error('any.invalid', {
+            message: 'Each assignment needs a responsibility or a custom name',
+          });
+        }
+        return row;
+      }, 'row identity')
+    )
+    .required()
+    .custom((value, helpers) => {
+      // Uniqueness — by responsibilityId for master rows, by lowercased
+      // customName for custom rows. Both kinds cannot collide because they
+      // live in different keyspaces.
+      const seenIds = new Set();
+      const seenNames = new Set();
+      for (const row of value) {
+        if (row.responsibilityId) {
+          if (seenIds.has(row.responsibilityId)) {
+            return helpers.error('any.invalid', {
+              message: 'Each responsibility may only appear once per project',
+            });
+          }
+          seenIds.add(row.responsibilityId);
+        } else if (row.customName) {
+          const key = row.customName.trim().toLowerCase();
+          if (seenNames.has(key)) {
+            return helpers.error('any.invalid', {
+              message: `Custom work item "${row.customName}" appears more than once`,
+            });
+          }
+          seenNames.add(key);
+        }
+      }
+      return value;
+    }, 'unique rows'),
+});
 
 const clientApprovalSchema = Joi.object({
   type:       Joi.string().valid(...CLIENT_APPROVAL_TYPES).required(),

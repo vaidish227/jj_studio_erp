@@ -12,6 +12,7 @@ import useProjectForm from '../hooks/useProjectForm';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
 import CreateProjectModal from '../components/CreateProjectModal';
 import ProgressRing from '../components/ProgressRing';
+import { getLeadDesigner } from '../utils/teamHelpers';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmt = (dateStr) => {
@@ -82,15 +83,19 @@ const ProjectCard = ({ project, onClick }) => {
         )}
       </div>
 
-      {/* Designer */}
-      {project.primaryDesigner && (
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-[var(--primary)]/15 flex items-center justify-center text-[9px] font-black text-[var(--primary)] uppercase">
-            {project.primaryDesigner.name?.[0] || 'D'}
+      {/* Lead Designer */}
+      {(() => {
+        const lead = getLeadDesigner(project);
+        if (!lead) return null;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-[var(--primary)]/15 flex items-center justify-center text-[9px] font-black text-[var(--primary)] uppercase">
+              {lead.name?.[0] || 'D'}
+            </div>
+            <span className="text-xs text-[var(--text-secondary)]">{lead.name}</span>
           </div>
-          <span className="text-xs text-[var(--text-secondary)]">{project.primaryDesigner.name}</span>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Due date */}
       <div className="flex items-center justify-between pt-1 border-t border-[var(--border)]">
@@ -130,7 +135,7 @@ const ProjectRow = ({ project, onClick }) => (
       <ProjectStatusBadge status={project.status} />
     </td>
     <td className="px-4 py-3 text-sm text-[var(--text-secondary)] whitespace-nowrap">
-      {project.primaryDesigner?.name || '—'}
+      {getLeadDesigner(project)?.name || '—'}
     </td>
     <td className="px-4 py-3 text-sm text-[var(--text-secondary)] whitespace-nowrap">
       {fmt(project.estimatedCompletionDate)}

@@ -79,6 +79,9 @@ app.use("/api/communication/settings", commSettingsRoutes);
 const pmsProjectRoutes = require("./modules/pms/routes/Project.route");
 app.use("/api/pms/project", pmsProjectRoutes);
 
+const pmsResponsibilityRoutes = require("./modules/pms/routes/Responsibility.route");
+app.use("/api/pms/responsibility", pmsResponsibilityRoutes);
+
 const pmsProjectInitiationRoutes = require("./modules/pms/routes/ProjectInitiation.route");
 app.use("/api/pms/project-initiation", pmsProjectInitiationRoutes);
 

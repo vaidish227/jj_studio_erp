@@ -83,36 +83,45 @@ const projectSchema = new mongoose.Schema(
       { type: mongoose.Schema.Types.ObjectId, ref: "ApprovalGate" },
     ],
 
-    // --- Core Team ---
-    primaryDesigner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    supervisor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
+    // --- Dynamic Team Assignments ---
+    // Each row is a unit of work on this project + the users assigned to it.
+    // A row carries EITHER a responsibilityId (reuse from master list — used
+    // by notification routing via slug) OR a customName (per-project work
+    // item typed by the manager — not reusable elsewhere). At least one of
+    // the two must be set; both is allowed but customName wins for display.
+    assignments: [
+      {
+        responsibilityId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Responsibility",
+        },
+        customName: {
+          type: String,
+          trim: true,
+          maxlength: 100,
+        },
+        users: [
+          {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+        ],
+      },
+    ],
 
-    // --- Sub-Designer Assignments (per Design Sub-Flow) ---
-    designerB: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    designerC: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    designerD: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    designerE: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    contractor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+    // --- Migration Backup (D3) ---
+    // Snapshot of the original 7-field team taken by
+    // scripts/migrateProjectTeams.js. Used by --rollback. Do NOT read in
+    // application code.
+    _legacyTeam: {
+      primaryDesigner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      supervisor:      { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      designerB:       { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      designerC:       { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      designerD:       { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      designerE:       { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      contractor:      { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      migratedAt:      Date,
     },
 
     // --- Kickstart Process Tracking ---
@@ -177,8 +186,8 @@ projectSchema.index({ trackingId: 1 });
 projectSchema.index({ status: 1 });
 projectSchema.index({ clientId: 1 });
 projectSchema.index({ proposalId: 1 });
-projectSchema.index({ primaryDesigner: 1 });
-projectSchema.index({ supervisor: 1 });
+projectSchema.index({ "assignments.users": 1 });
+projectSchema.index({ "assignments.responsibilityId": 1 });
 
 projectSchema.pre("validate", async function () {
   if (this.isNew && !this.trackingId) {

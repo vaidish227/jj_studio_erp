@@ -71,7 +71,9 @@ const getOverview = async (req, res) => {
 
     // ── 1. Active projects + phase distribution + health classification ──────
     const activeProjectsRaw = await Project.find({ status: { $in: ACTIVE_STATUSES } })
-      .select("name trackingId phase status progressPercent startDate estimatedCompletionDate updatedAt primaryDesigner")
+      .select("name trackingId phase status progressPercent startDate estimatedCompletionDate updatedAt assignments")
+      .populate("assignments.responsibilityId", "slug")
+      .populate("assignments.users", "name")
       .lean();
 
     const allOpenGates = await ApprovalGate.find({ status: "open" })

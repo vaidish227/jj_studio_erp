@@ -121,6 +121,7 @@ export const NAV_ITEMS = [
       // Phase 3b — Template admin
       { id: 'checklist-templates', label: 'Checklist Templates', path: '/settings/checklist-templates', permission: 'settings.checklists.manage' },
       { id: 'workflow-templates',  label: 'Workflow Templates',  path: '/settings/workflow-templates',  permission: 'settings.workflows.manage' },
+      { id: 'responsibilities',    label: 'Responsibilities',    path: '/settings/responsibilities',    roles: ['admin', 'md'] },
     ],
   },
 ];
