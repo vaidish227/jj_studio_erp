@@ -9,6 +9,7 @@ const { startWhatsAppQueueProcessor } = require("./modules/whatsapp/cron/whatsap
 const { startUserFactsSummarizer }    = require("./modules/ai/cron/userFactsSummarizer");
 const { startPMSReminders }           = require("./modules/pms/cron/pmsReminders");
 const { startCampaignScheduler }      = require("./modules/kit/cron/campaignScheduler");
+const { startKitMaintenance }         = require("./modules/kit/cron/kitMaintenance");
 const { logStartupBanner: logVectorIndexBanner } = require("./modules/ai/services/vectorIndex.service");
 
 connectDb();
@@ -25,6 +26,9 @@ startPMSReminders();
 
 // KIT — campaign scheduler: fires due campaign steps every minute
 startCampaignScheduler();
+
+// KIT — daily retention purge of terminal scheduled jobs + old trigger events
+startKitMaintenance();
 
 // One-shot AI vector-index probe (after a short delay so the Mongo connection
 // has settled). Logs a clear warning if the index is missing — V2 RAG depends
