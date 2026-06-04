@@ -1,13 +1,12 @@
 import React from 'react';
 
 const OPTIONS = [
-  { value: '7d',  label: '7D' },
-  { value: '30d', label: '30D' },
-  { value: '90d', label: '90D' },
-  { value: '1y',  label: '1Y' },
+  { value: '3m', label: '3M' },
+  { value: '6m', label: '6M' },
+  { value: '1y', label: '1Y' },
 ];
 
-const RangeSwitcher = ({ value = '30d', onChange, className = '' }) => {
+const RangeSwitcher = ({ value = '3m', onChange, className = '' }) => {
   return (
     <div
       role="tablist"

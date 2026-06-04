@@ -10,7 +10,6 @@ import {
   NewLeadsPage,
   LeadDetailsPage,
   MeetingsPage,
-  MeetingsCalendarPage,
   FollowUpsPage,
   KITPage,
   ConvertedPage,
@@ -97,7 +96,8 @@ export default function App() {
                   <Route path="/crm/clients"          element={<ClientsListPage />} />
                   <Route path="/crm/new-leads"        element={<NewLeadsPage />} />
                   <Route path="/crm/meetings"         element={<MeetingsPage />} />
-                  <Route path="/crm/meetings/calendar" element={<MeetingsCalendarPage />} />
+                  {/* Calendar merged into the Meetings tab — redirect old bookmarks */}
+                  <Route path="/crm/meetings/calendar" element={<Navigate to="/crm/meetings" replace />} />
                   <Route path="/crm/follow-ups"       element={<FollowUpsPage />} />
                   <Route path="/crm/qualified"        element={<KITPage />} />
                   <Route path="/crm/converted"        element={<ConvertedPage />} />

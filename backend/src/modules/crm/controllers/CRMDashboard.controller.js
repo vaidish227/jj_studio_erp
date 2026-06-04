@@ -1,18 +1,17 @@
 const mongoose = require("mongoose");
 const CRMClient = require("../models/CRMClient.model");
 
-// Map range token → number of days
+// Map range token → number of days. Months are mapped to fixed day counts
+// (3M = 90, 6M = 180) so the day-by-day trend/sparkline logic stays unchanged.
 const rangeToDays = (range) => {
   switch (String(range || "").toLowerCase()) {
-    case "7d":
-      return 7;
-    case "90d":
-      return 90;
+    case "6m":
+      return 180;
     case "1y":
       return 365;
-    case "30d":
+    case "3m":
     default:
-      return 30;
+      return 90;
   }
 };
 
@@ -181,6 +180,30 @@ const getCRMDashboard = async (req, res) => {
             },
           ],
 
+          // ── Lead conversion stage breakdown (mutually-exclusive buckets)
+          // converted/lost are driven by status; the rest by lifecycleStage.
+          stageBreakdown: [
+            {
+              $group: {
+                _id: {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ["$status", "converted"] }, then: "converted" },
+                      { case: { $eq: ["$status", "lost"] }, then: "lost" },
+                      { case: { $eq: ["$lifecycleStage", "followup_due"] }, then: "followup" },
+                      {
+                        case: { $in: ["$lifecycleStage", ["interested", "show_project"]] },
+                        then: "interested",
+                      },
+                    ],
+                    default: "in_progress",
+                  },
+                },
+                count: { $sum: 1 },
+              },
+            },
+          ],
+
           // ── Project type mix
           projectTypeMix: [
             { $match: { projectType: { $in: ["Residential", "Commercial"] } } },
@@ -332,6 +355,16 @@ const getCRMDashboard = async (req, res) => {
       lastInteractionAt: l.lastInteractionAt || l.updatedAt,
     }));
 
+    // Lead conversion stage counts (current-state snapshot, all-time)
+    const stageMap = new Map((f.stageBreakdown || []).map((b) => [b._id, b.count]));
+    const leadStages = {
+      inProgress: stageMap.get("in_progress") || 0,
+      interested: stageMap.get("interested") || 0,
+      followup: stageMap.get("followup") || 0,
+      converted: stageMap.get("converted") || 0,
+      lost: stageMap.get("lost") || 0,
+    };
+
     const conversionRate = safePct(inRange.converted, inRange.total);
     const lostRate = safePct(inRange.lost, inRange.total);
     const prevConversionRate = safePct(prevRange.converted, prevRange.total);
@@ -366,10 +399,11 @@ const getCRMDashboard = async (req, res) => {
     return res.status(200).json({
       message: "CRM dashboard fetched successfully",
       data: {
-        range: req.query.range || "30d",
+        range: req.query.range || "3m",
         rangeStart,
         rangeEnd: now,
         kpis,
+        leadStages,
         trends: {
           acquisition: acquisitionTrend,
           converted: convertedTrend,

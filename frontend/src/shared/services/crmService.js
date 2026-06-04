@@ -10,7 +10,7 @@ export const crmService = {
   bulkImportClients: (rows) => apiClient.post('/clients/bulk-import', { rows }),
 
   // CRM DASHBOARD: aggregated analytics for the dedicated CRM dashboard page
-  getCRMDashboard: (range = '30d') => apiClient.get(`/clients/dashboard?range=${range}`),
+  getCRMDashboard: (range = '3m') => apiClient.get(`/clients/dashboard?range=${range}`),
 
   // READ: List clients (with optional filters)
   getLeads: (params) => {

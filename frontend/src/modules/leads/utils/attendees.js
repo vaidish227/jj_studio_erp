@@ -1,6 +1,6 @@
 // Shared helpers for the AttendeesEditor on Schedule / Reschedule modals.
-// Used by both MeetingsPage and MeetingsCalendarPage so the modal seeding
-// behaviour stays identical across surfaces.
+// Used by the MeetingsPage modals so the modal seeding behaviour stays
+// identical across the List and Calendar views.
 
 export const EMPTY_ATTENDEES = { internal: [], client: [] };
 
