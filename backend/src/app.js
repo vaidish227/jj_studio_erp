@@ -75,6 +75,10 @@ app.use("/api/whatsapp", whatsappRoutes);
 const commSettingsRoutes = require("./modules/communication/routes/CommSettings.route");
 app.use("/api/communication/settings", commSettingsRoutes);
 
+// ─── KIT (Keep In Touch — communication automation engine) ────────────────────
+const kitRoutes = require("./modules/kit/routes/kit.route");
+app.use("/api/kit", kitRoutes);
+
 // ─── PMS (Project Management System) ─────────────────────────────────────────
 const pmsProjectRoutes = require("./modules/pms/routes/Project.route");
 app.use("/api/pms/project", pmsProjectRoutes);

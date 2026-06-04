@@ -56,6 +56,12 @@ import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
 import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
 import NotificationsPage from './modules/notifications/pages/NotificationsPage';
+// KIT — Keep In Touch (communication automation). Aliased to avoid clashing with
+// the proposal module's TemplateEditorPage import above.
+import {
+  TemplateLibraryPage as KitTemplateLibraryPage,
+  TemplateEditorPage as KitTemplateEditorPage,
+} from './modules/kit';
 
 export default function App() {
   return (
@@ -121,6 +127,19 @@ export default function App() {
                     <Route path="sent/:id"         element={<SentProposalReviewPage />} />
                     <Route path="approved"         element={<ApprovedDashboard />} />
                     <Route path="review/:id"       element={<ProposalReviewPage />} />
+                  </Route>
+                </Route>
+
+                {/* KIT — Keep In Touch (communication automation engine) */}
+                <Route element={<CRMProvider><Outlet /></CRMProvider>}>
+                  <Route path="/kit">
+                    <Route path="follow-ups" element={<FollowUpsPage />} />
+                    <Route path="whatsapp"   element={<KitTemplateLibraryPage channel="whatsapp" />} />
+                    <Route path="mail"       element={<KitTemplateLibraryPage channel="email" />} />
+                    <Route path="templates">
+                      <Route path="create"   element={<KitTemplateEditorPage />} />
+                      <Route path="edit/:id" element={<KitTemplateEditorPage />} />
+                    </Route>
                   </Route>
                 </Route>
 

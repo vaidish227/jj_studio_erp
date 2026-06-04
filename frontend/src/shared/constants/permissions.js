@@ -24,6 +24,7 @@ export const PERMISSIONS = {
   KIT_CREATE: 'kit.create',
   KIT_UPDATE: 'kit.update',
   KIT_DELETE: 'kit.delete',
+  KIT_MANAGE: 'kit.manage',
   // KIT tabs
   KIT_TAB_TEMPLATES: 'kit.tab.templates',
 
@@ -194,9 +195,9 @@ export const PERMISSION_MODULES = [
   {
     key:         'kit',
     label:       'KIT (Keep In Touch)',
-    description: 'Scheduled follow-ups and communication templates',
+    description: 'Communication automation — follow-ups, templates, campaigns, and workflows',
     group:       'Sales',
-    actions:     ['read', 'create', 'update', 'delete'],
+    actions:     ['read', 'create', 'update', 'delete', 'manage'],
     tabs: [
       { key: 'templates', label: 'Templates (WA + Mail)', permission: 'kit.tab.templates' },
     ],
