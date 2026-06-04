@@ -34,25 +34,26 @@ export const NAV_ITEMS = [
     permission: 'crm.read',
     children: [
       { id: 'crm-dashboard', label: 'CRM Dashboard', path: '/crm/dashboard',    permission: 'crm.read' },
-      { id: 'new-leads',   label: 'New Leads',   path: '/crm/new-leads',     permission: 'crm.tab.leads' },
+      // { id: 'new-leads',   label: 'Create New Lead',   path: '/crm/new-leads',     permission: 'crm.tab.leads' },
+      { id: 'new-leads',   label: 'Create New Lead',   path: '/crm/forms/enquiry',     permission: 'crm.tab.leads' },
       { id: 'meetings',           label: 'Meetings',  path: '/crm/meetings',          permission: 'crm.tab.meetings' },
       { id: 'converted',   label: 'Converted',   path: '/crm/converted',     permission: 'crm.tab.converted' },
       { id: 'lost',        label: 'Lost',        path: '/crm/lost-leads',     permission: 'crm.tab.lost' },
       { id: 'crm-clients', label: 'All Leads', path: '/crm/clients',       permission: 'crm.tab.clients' },
     ],
   },
-  {
-    id: 'kit',
-    label: 'KIT',
-    icon: MessageCircle,
-    permission: 'kit.read',
-    children: [
-      { id: 'kit-follow-ups', label: 'Follow Ups',         path: '/kit/follow-ups' },
-      { id: 'kit-whatsapp',   label: 'WhatsApp Templates', path: '/kit/whatsapp',   permission: 'kit.tab.templates' },
-      { id: 'kit-mail',       label: 'Mail Templates',     path: '/kit/mail',       permission: 'kit.tab.templates' },
-      { id: 'kit-settings',   label: 'Timeline Settings',  path: '/kit/settings',   permission: 'kit.manage' },
-    ],
-  },
+  // {
+  //   id: 'kit',
+  //   label: 'KIT',
+  //   icon: MessageCircle,
+  //   permission: 'kit.read',
+  //   children: [
+  //     { id: 'kit-follow-ups', label: 'Follow Ups',         path: '/kit/follow-ups' },
+  //     { id: 'kit-whatsapp',   label: 'WhatsApp Templates', path: '/kit/whatsapp',   permission: 'kit.tab.templates' },
+  //     { id: 'kit-mail',       label: 'Mail Templates',     path: '/kit/mail',       permission: 'kit.tab.templates' },
+  //     { id: 'kit-settings',   label: 'Timeline Settings',  path: '/kit/settings',   permission: 'kit.manage' },
+  //   ],
+  // },
   {
     id: 'proposal-system',
     label: 'Proposal & Quotation System',
@@ -61,7 +62,7 @@ export const NAV_ITEMS = [
     children: [
       { id: 'proposal-list',      label: 'Proposal Dashboard', path: '/proposal' },
       { id: 'proposal-create',    label: 'Create Proposal',    path: '/proposal/create',   permission: 'proposal.create' },
-      { id: 'proposal-clients',   label: 'Client List',        path: '/proposal/clients' },
+      { id: 'proposal-clients',   label: 'Draft Proposals',    path: '/proposal/clients' },
       { id: 'proposal-templates', label: 'Quotation Template', path: '/proposal/templates', permission: 'proposal.tab.templates' },
       { id: 'proposal-approval',  label: 'Manager Approval',   path: '/proposal/approval',  permission: 'proposal.tab.approval' },
       { id: 'proposal-sent',      label: 'Sent & eSign Track', path: '/proposal/sent' },

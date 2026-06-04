@@ -40,8 +40,8 @@ const NewLeadsPage = () => {
       />
       
       <LeadListView
-        title="New Leads"
-        subtitle="Fresh enquiries awaiting action"
+        title="Create New Lead"
+        subtitle="Add and manage new enquiries from prospects"
         leads={filteredLeads}
         isLoading={isLoading}
         error={error}

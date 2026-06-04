@@ -90,7 +90,7 @@ const ProposalClientsPage = () => {
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="space-y-1">
-          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">Proposal Client List</h1>
+          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">Draft Proposals</h1>
           <p className="text-[var(--text-muted)] font-medium flex items-center gap-2">
             CRM Leads synced with Proposal Module
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />

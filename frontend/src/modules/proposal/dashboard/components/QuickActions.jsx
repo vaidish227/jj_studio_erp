@@ -46,7 +46,7 @@ const QuickActions = ({ pendingCount = 0, esignCount = 0 }) => {
       bg: 'bg-[var(--accent-teal)]/10',
     },
     {
-      label: 'Client List',
+      label: 'Draft Proposals',
       description: 'Leads ready for a proposal',
       icon: Users,
       path: '/proposal/clients',
