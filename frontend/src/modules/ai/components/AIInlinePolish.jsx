@@ -36,6 +36,8 @@ const AIInlinePolish = ({
   const [isPolishing, setIsPolishing] = useState(false);
   const [suggestion, setSuggestion] = useState(null); // string | null → preview visible when non-null
 
+  // Demo feature flag — hides the AI polish button inside revision modals.
+  if (import.meta.env.VITE_ENABLE_AI !== 'true') return null;
   if (!hasPermission('ai.chat')) return null;
 
   const handlePolish = async () => {

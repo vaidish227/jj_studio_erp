@@ -10,20 +10,25 @@ import {
   PieChart,
   Filter as FunnelIcon,
   Building2,
-  MapPin,
   RefreshCw,
   Sparkles,
+  Hourglass,
+  Star,
+  PhoneCall,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 
 import useCRMDashboard from '../hooks/useCRMDashboard';
+import useFollowups from '../hooks/useFollowups';
 import KPIStatCard from '../components/crm/KPIStatCard';
 import RangeSwitcher from '../components/crm/RangeSwitcher';
 import SectionPanel from '../components/crm/SectionPanel';
 import HotLeadsPanel from '../components/crm/HotLeadsPanel';
+import FollowUpsPanel from '../components/FollowUpsPanel';
 import AreaLineChart from '../components/charts/AreaLineChart';
 import DonutChart from '../components/charts/DonutChart';
 import FunnelChart from '../components/charts/FunnelChart';
-import HorizontalBarChart from '../components/charts/HorizontalBarChart';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
 
@@ -59,18 +64,18 @@ const formatINR = (value) => {
 };
 
 const RANGE_LABELS = {
-  '7d': 'last 7 days',
-  '30d': 'last 30 days',
-  '90d': 'last 90 days',
-  '1y':  'last 12 months',
+  '3m': 'last 3 months',
+  '6m': 'last 6 months',
+  '1y': 'last 12 months',
 };
 
 const CRMDashboardPage = () => {
   const navigate = useNavigate();
-  const [range, setRange] = useState('30d');
+  const [range, setRange] = useState('3m');
   const { data, isLoading, error, refresh } = useCRMDashboard(range);
 
   const ai = resolveEntry('dashboard');
+  const followups = useFollowups(5);
 
   // Derive chart-ready datasets from server response
   const sourceData = useMemo(
@@ -103,13 +108,57 @@ const CRMDashboardPage = () => {
     [data]
   );
 
-  const topCitiesData = data?.topCities || [];
   const acquisitionTrend = data?.trends?.acquisition || [];
   const convertedTrend = data?.trends?.converted || [];
   const lostTrend = data?.trends?.lost || [];
   const activeTrend = data?.trends?.active || [];
 
   const totalLeadsInRange = data?.kpis?.totalLeads?.rangeValue ?? 0;
+
+  // Lead conversion stage counts (current-state snapshot)
+  const leadStages = data?.leadStages || {};
+  const STAGE_CARDS = [
+    {
+      title: 'In Progress',
+      value: leadStages.inProgress ?? 0,
+      icon: Hourglass,
+      iconBg: 'bg-[var(--accent-blue)]/10',
+      iconColor: 'text-[var(--accent-blue)]',
+      to: '/crm/new-leads',
+    },
+    {
+      title: 'Interested',
+      value: leadStages.interested ?? 0,
+      icon: Star,
+      iconBg: 'bg-[var(--primary)]/10',
+      iconColor: 'text-[var(--primary)]',
+      to: '/crm/new-leads',
+    },
+    {
+      title: 'Follow-ups',
+      value: leadStages.followup ?? 0,
+      icon: PhoneCall,
+      iconBg: 'bg-[var(--accent-teal)]/10',
+      iconColor: 'text-[var(--accent-teal)]',
+      to: '/crm/follow-ups',
+    },
+    {
+      title: 'Converted',
+      value: leadStages.converted ?? 0,
+      icon: CheckCircle2,
+      iconBg: 'bg-[var(--success)]/10',
+      iconColor: 'text-[var(--success)]',
+      to: '/crm/converted',
+    },
+    {
+      title: 'Lost Leads',
+      value: leadStages.lost ?? 0,
+      icon: XCircle,
+      iconBg: 'bg-[var(--error)]/10',
+      iconColor: 'text-[var(--error)]',
+      to: '/crm/lost-leads',
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -225,6 +274,32 @@ const CRMDashboardPage = () => {
         />
       </div>
 
+      {/* ── Zone 1b — Lead Conversion Stages ───────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+            Lead Conversion Stages
+          </h2>
+          <span className="text-xs font-medium text-[var(--text-muted)]">
+            Current pipeline distribution
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          {STAGE_CARDS.map((card) => (
+            <KPIStatCard
+              key={card.title}
+              title={card.title}
+              value={card.value}
+              icon={card.icon}
+              iconBg={card.iconBg}
+              iconColor={card.iconColor}
+              onClick={() => navigate(card.to)}
+              isLoading={isLoading && !data}
+            />
+          ))}
+        </div>
+      </div>
+
       {/* ── Zone 2 — Acquisition Trend + Source Mix ────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
@@ -327,26 +402,10 @@ const CRMDashboardPage = () => {
         </SectionPanel>
       </div>
 
-      {/* ── Zone 4 — Top Cities + Hot Leads ────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionPanel
-          title="Top Cities"
-          subtitle="Highest lead concentration"
-          icon={MapPin}
-          iconBg="bg-[var(--accent-blue)]/10"
-          iconColor="text-[var(--accent-blue)]"
-        >
-          <HorizontalBarChart
-            data={topCitiesData}
-            color="var(--accent-blue)"
-            onItemClick={(item) =>
-              navigate(`/crm/clients?city=${encodeURIComponent(item.label)}`)
-            }
-            emptyMessage="No city data yet."
-          />
-        </SectionPanel>
-
+      {/* ── Zone 4 — Hot Leads + Follow-ups (action lists) ─────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
         <HotLeadsPanel leads={data?.hotLeads || []} />
+        <FollowUpsPanel followUps={followups} />
       </div>
 
       {/* ── Footer / sync status ───────────────────────────────────────── */}

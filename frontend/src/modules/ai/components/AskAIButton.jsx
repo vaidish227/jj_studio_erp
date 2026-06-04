@@ -55,6 +55,9 @@ const AskAIButton = ({
     };
   }, [menuOpen]);
 
+  // Demo feature flag — hides every "Ask AI" / "Draft with AI" / "Summarize"
+  // entry-point button across the app.
+  if (import.meta.env.VITE_ENABLE_AI !== 'true') return null;
   if (!hasPermission('ai.chat')) return null;
 
   const fire = (text) => {

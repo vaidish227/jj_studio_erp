@@ -22,6 +22,10 @@ const ChatLauncher = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, close]);
 
+  // Demo feature flag — hides the floating AI button entirely.
+  // Placed after hooks to satisfy rules-of-hooks.
+  if (import.meta.env.VITE_ENABLE_AI !== 'true') return null;
+
   return (
     <>
       <button

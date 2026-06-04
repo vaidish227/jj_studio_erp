@@ -38,7 +38,7 @@ const ConvertedPage = () => {
       />
       
       <LeadListView
-        title="Converted / Won"
+        title="Converted"
         subtitle="Successfully converted leads"
         leads={filteredLeads}
         isLoading={isLoading}

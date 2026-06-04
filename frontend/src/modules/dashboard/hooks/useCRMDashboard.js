@@ -3,7 +3,7 @@ import { crmService } from '../../../shared/services/crmService';
 
 const POLL_INTERVAL_MS = 30000;
 
-const useCRMDashboard = (range = '30d') => {
+const useCRMDashboard = (range = '3m') => {
   const [state, setState] = useState({
     data: null,
     isLoading: true,
