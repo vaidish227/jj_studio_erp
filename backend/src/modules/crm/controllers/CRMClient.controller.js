@@ -6,6 +6,7 @@ const getLeadTemplate = require("../utils/Template/leadTemplate");
 const getReferrerTemplate = require("../utils/Template/referrerTemplate");
 const { sendWhatsAppMessage } = require("../../whatspp/services/whatsapp.service");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
+const kitEvents = require("../../kit/services/kitEvents");
 
 
 // ─── Helper: Append to interaction timeline ──────────────────────────
@@ -148,6 +149,15 @@ const createClientEnquiry = async (req, res) => {
       actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
       relatedTo: { module: "crm", recordId: client._id },
       metadata: { leadName: client.name, trackingId: client.trackingId, source: client.source },
+    });
+
+    // KIT automation trigger (fire-and-forget).
+    kitEvents.emit("lead.created", {
+      sourceModule: "crm",
+      entityType: "lead",
+      entityId: client._id,
+      payload: { status: client.status, projectType: client.projectType, source: client.source },
+      actor: req.user,
     });
 
     return res.status(201).json({
@@ -370,6 +380,25 @@ const updateClientStatus = async (req, res) => {
     await client.save();
 
     console.log("Client status updated:", client._id, client.status);
+
+    // KIT automation triggers (fire-and-forget).
+    if (status && status !== oldStatus) {
+      kitEvents.emit("lead.status_changed", {
+        sourceModule: "crm", entityType: "lead", entityId: client._id,
+        payload: { status: client.status, oldStatus, lifecycleStage: client.lifecycleStage }, actor: req.user,
+      });
+      if (client.status === "converted") {
+        kitEvents.emit("lead.won", {
+          sourceModule: "crm", entityType: "lead", entityId: client._id,
+          payload: { status: client.status, oldStatus }, actor: req.user,
+        });
+      } else if (client.status === "lost") {
+        kitEvents.emit("lead.lost", {
+          sourceModule: "crm", entityType: "lead", entityId: client._id,
+          payload: { status: client.status, oldStatus }, actor: req.user,
+        });
+      }
+    }
 
     res.status(200).json({
       message: "Client status updated successfully",

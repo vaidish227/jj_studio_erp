@@ -61,6 +61,11 @@ import NotificationsPage from './modules/notifications/pages/NotificationsPage';
 import {
   TemplateLibraryPage as KitTemplateLibraryPage,
   TemplateEditorPage as KitTemplateEditorPage,
+  CampaignsPage as KitCampaignsPage,
+  CampaignBuilderPage as KitCampaignBuilderPage,
+  AutomationsPage as KitAutomationsPage,
+  AutomationBuilderPage as KitAutomationBuilderPage,
+  KitSettingsPage,
 } from './modules/kit';
 
 export default function App() {
@@ -134,12 +139,23 @@ export default function App() {
                 <Route element={<CRMProvider><Outlet /></CRMProvider>}>
                   <Route path="/kit">
                     <Route path="follow-ups" element={<FollowUpsPage />} />
+                    <Route path="campaigns">
+                      <Route index           element={<KitCampaignsPage />} />
+                      <Route path="create"   element={<KitCampaignBuilderPage />} />
+                      <Route path=":id"      element={<KitCampaignBuilderPage />} />
+                    </Route>
+                    <Route path="automations">
+                      <Route index           element={<KitAutomationsPage />} />
+                      <Route path="create"   element={<KitAutomationBuilderPage />} />
+                      <Route path=":id"      element={<KitAutomationBuilderPage />} />
+                    </Route>
                     <Route path="whatsapp"   element={<KitTemplateLibraryPage channel="whatsapp" />} />
                     <Route path="mail"       element={<KitTemplateLibraryPage channel="email" />} />
                     <Route path="templates">
                       <Route path="create"   element={<KitTemplateEditorPage />} />
                       <Route path="edit/:id" element={<KitTemplateEditorPage />} />
                     </Route>
+                    <Route path="settings"   element={<KitSettingsPage />} />
                   </Route>
                 </Route>
 

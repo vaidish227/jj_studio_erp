@@ -14,6 +14,7 @@ const MailTemplate = require("../../mail/models/MailTemplate.model");
 const WhatsAppTemplate = require("../../whatsapp/models/WhatsAppTemplate.model");
 const { generateProposalPdfBuffer, saveProposalPdf } = require("../utils/proposalPdf");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
+const kitEvents = require("../../kit/services/kitEvents");
 require("dotenv").config();
 
 const mongoose = require("mongoose");
@@ -402,6 +403,14 @@ const updateProposalStatus = async (req, res) => {
         actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
         relatedTo: { module: "proposal", recordId: updatedProposal._id },
         metadata: { leadName },
+      });
+      // KIT automation trigger (fire-and-forget).
+      kitEvents.emit("proposal.sent", {
+        sourceModule: "proposal",
+        entityType: "proposal",
+        entityId: updatedProposal._id,
+        payload: { status: "sent", leadName },
+        actor: req.user,
       });
     } else if (status === "esign_received" || status === "signed") {
       notify({

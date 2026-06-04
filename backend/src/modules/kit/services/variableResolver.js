@@ -159,6 +159,42 @@ const resolve = async (entityType, entityId) => {
 };
 
 /**
+ * resolveContact — raw delivery coordinates for an entity (no formatting).
+ * Used by dispatchService to address WhatsApp (phone) / Email (email).
+ * Returns { phone?, email? }.
+ */
+const resolveContact = async (entityType, entityId) => {
+  if (!entityId) return {};
+  try {
+    if (entityType === "lead") {
+      const CRMClient = require("../../crm/models/CRMClient.model");
+      const d = await CRMClient.findById(entityId).select("phone email").lean();
+      return d ? { phone: d.phone, email: d.email } : {};
+    }
+    if (entityType === "client") {
+      const Client = require("../../crm/models/Client.model");
+      const d = await Client.findById(entityId).select("phone email").lean();
+      return d ? { phone: d.phone, email: d.email } : {};
+    }
+    if (entityType === "proposal") {
+      const Proposal = require("../../crm/models/Proposal.model");
+      const d = await Proposal.findById(entityId).populate("leadId", "phone email").lean();
+      const lead = d?.leadId && typeof d.leadId === "object" ? d.leadId : null;
+      return lead ? { phone: lead.phone, email: lead.email } : {};
+    }
+    if (entityType === "project") {
+      const Project = require("../../pms/models/Project.model");
+      const d = await Project.findById(entityId).populate("clientId", "phone email").lean();
+      const client = d?.clientId && typeof d.clientId === "object" ? d.clientId : null;
+      return client ? { phone: client.phone, email: client.email } : {};
+    }
+  } catch (err) {
+    console.error(`[kit.resolveContact] ${entityType}/${entityId}:`, err.message);
+  }
+  return {};
+};
+
+/**
  * sampleValues — illustrative defaults so the editor preview always renders.
  */
 const sampleValues = () => ({
@@ -181,4 +217,4 @@ const sampleValues = () => ({
   company_name:     "JJ Studio",
 });
 
-module.exports = { resolve, sampleValues, render: renderTemplate };
+module.exports = { resolve, resolveContact, sampleValues, render: renderTemplate };

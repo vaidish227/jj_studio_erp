@@ -8,6 +8,7 @@ const { startMailQueueProcessor }     = require("./modules/mail/cron/mailQueuePr
 const { startWhatsAppQueueProcessor } = require("./modules/whatsapp/cron/whatsappQueueProcessor");
 const { startUserFactsSummarizer }    = require("./modules/ai/cron/userFactsSummarizer");
 const { startPMSReminders }           = require("./modules/pms/cron/pmsReminders");
+const { startCampaignScheduler }      = require("./modules/kit/cron/campaignScheduler");
 const { logStartupBanner: logVectorIndexBanner } = require("./modules/ai/services/vectorIndex.service");
 
 connectDb();
@@ -21,6 +22,9 @@ startUserFactsSummarizer();
 
 // Phase 3b — Daily PMS overdue digest + idle gate nudges (06:30 server-local)
 startPMSReminders();
+
+// KIT — campaign scheduler: fires due campaign steps every minute
+startCampaignScheduler();
 
 // One-shot AI vector-index probe (after a short delay so the Mongo connection
 // has settled). Logs a clear warning if the index is missing — V2 RAG depends
