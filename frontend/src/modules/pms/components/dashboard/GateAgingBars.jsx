@@ -23,7 +23,7 @@ const GateTooltip = ({ active, payload }) => {
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-lg text-xs">
       <p className="font-bold text-[var(--text-primary)]">{p.label}</p>
       <p className="text-[var(--text-muted)]">
-        {p.count} open gate{p.count === 1 ? '' : 's'}
+        {p.count} pending sign-off{p.count === 1 ? '' : 's'}
       </p>
     </div>
   );
@@ -38,7 +38,7 @@ const GateAgingBars = ({ data }) => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Lock size={16} className="text-[var(--accent-blue)]" />
-          <h3 className="text-sm font-bold text-[var(--text-primary)]">Gate Aging</h3>
+          <h3 className="text-sm font-bold text-[var(--text-primary)]">Pending Sign-offs</h3>
         </div>
         <Link
           to="/pms/analytics"
@@ -50,7 +50,7 @@ const GateAgingBars = ({ data }) => {
 
       {total === 0 ? (
         <div className="flex-1 py-10 text-center text-sm text-[var(--text-muted)]">
-          🎉 All gates clear.
+          🎉 All sign-offs complete.
         </div>
       ) : (
         <>
@@ -80,7 +80,7 @@ const GateAgingBars = ({ data }) => {
             </ResponsiveContainer>
           </div>
           <p className="text-[10px] text-[var(--text-muted)] mt-2 text-center">
-            {total} open gate{total === 1 ? '' : 's'} across all projects
+            {total} pending sign-off{total === 1 ? '' : 's'} across all projects
           </p>
         </>
       )}

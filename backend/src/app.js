@@ -156,6 +156,10 @@ app.use("/api/pms/design-comments", designCommentRoutes);
 const designRevisionRoutes = require("./modules/pms/routes/DesignRevisionRequest.route");
 app.use("/api/pms/design-revisions", designRevisionRoutes);
 
+// ─── Project Planner / Master Plan ───────────────────────────────────────────
+const pmsPlannerRoutes = require("./modules/pms/routes/Planner.route");
+app.use("/api/pms/planner", pmsPlannerRoutes);
+
 // ─── Settings & RBAC (admin only — guarded inside the route file) ─────────────
 const rolesRoutes = require("./modules/settings/routes/Roles.route");
 app.use("/api/roles", rolesRoutes);

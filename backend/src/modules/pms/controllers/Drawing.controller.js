@@ -4,6 +4,7 @@ const Project = require("../models/Project.model");
 const User    = require("../../auth/models/user.model");
 const {
   uploadDrawingSchema,
+  uploadDrawingFormSchema,
   reviseDrawingSchema,
   approveDrawingSchema,
   rejectDrawingSchema,
@@ -16,6 +17,17 @@ const { writeReleaseLog } = require("./DrawingReleaseLog.controller");
 // Phase 4 — Per-drawing PD review enforcement on 3D renders
 const Approval = require("../models/Approval.model");
 const teamResolver = require("../services/teamResolver");
+// Phase 5 — S3-backed drawing storage
+const s3Storage = require("../services/s3Storage");
+
+// Accepted MIME types for direct file upload — must match frontend validator.
+const ALLOWED_DRAWING_MIME = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+]);
+const MAX_DRAWING_BYTES = 20 * 1024 * 1024; // 20 MB
 
 const WORKFLOW_ENGINE_V1 =
   String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
@@ -106,26 +118,163 @@ const notifyDrawingEvent = async ({ drawing, event, notes, actorName }) => {
 };
 
 /**
+ * Compute the next version for (projectId, zoneName, title).
+ * Used by both the upload controller AND the /next-version endpoint.
+ */
+async function nextVersion({ projectId, zoneName, title }) {
+  const filter = {
+    projectId,
+    title: (title || "").trim(),
+  };
+  // zoneName may be empty for legacy uploads — match on empty/null equally.
+  const z = (zoneName || "").trim();
+  if (z) filter.zoneName = z;
+  else   filter.$or = [{ zoneName: "" }, { zoneName: { $exists: false } }];
+
+  const latest = await Drawing.findOne(filter).sort({ version: -1 }).select("version").lean();
+  return latest ? (Number(latest.version) || 0) + 1 : 1;
+}
+
+/**
+ * @route GET /api/pms/drawing/next-version?projectId=&zoneName=&title=
+ * Tiny helper for the upload modal — drives the auto-revision badge.
+ */
+const getNextVersion = async (req, res) => {
+  try {
+    const { projectId, zoneName, title } = req.query;
+    if (!projectId || !title) {
+      return res.status(400).json({ message: "projectId and title are required" });
+    }
+    const version = await nextVersion({ projectId, zoneName, title });
+    res.json({ projectId, zoneName: zoneName || "", title, version });
+  } catch (err) {
+    console.error("[getNextVersion]", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/**
  * @route POST /api/pms/drawing/upload
+ *
+ * Two modes:
+ *  1) multipart/form-data with a `file` part → multer captures it in memory,
+ *     we validate type/size, stream to S3, then persist the Drawing doc.
+ *  2) application/json with `fileUrl` → legacy URL-paste flow (still works
+ *     if S3 isn't configured or someone is pointing at Drive / external).
  */
 const uploadDrawing = async (req, res) => {
   try {
+    // ── Mode 1: multipart with file
+    if (req.file) {
+      // Multer rejected the file? It'd be in fileFilterError on the request.
+      if (req.fileFilterError) {
+        return res.status(400).json({ message: req.fileFilterError });
+      }
+
+      const { error, value } = uploadDrawingFormSchema.validate(req.body, { abortEarly: false });
+      if (error) {
+        return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
+      }
+
+      // Mime + size guards (multer already does size, but double-check)
+      if (!ALLOWED_DRAWING_MIME.has(req.file.mimetype)) {
+        return res.status(400).json({
+          message: `Unsupported file type "${req.file.mimetype}". Allowed: PDF, JPEG, PNG.`,
+        });
+      }
+      if (req.file.size > MAX_DRAWING_BYTES) {
+        return res.status(400).json({
+          message: `File too large (${(req.file.size / 1048576).toFixed(2)} MB). Max 20 MB.`,
+        });
+      }
+
+      // Resolve the project so we can use its trackingId in the S3 key.
+      const project = await Project.findById(value.projectId).select("trackingId").lean();
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      const version = await nextVersion({
+        projectId: value.projectId,
+        zoneName:  value.zoneName,
+        title:     value.title,
+      });
+
+      if (!s3Storage.isConfigured()) {
+        return res.status(503).json({
+          message:
+            "Drawing storage is not configured. Set AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and S3_BUCKET in backend/.env, then restart the server.",
+        });
+      }
+
+      const s3Key = s3Storage.buildDrawingKey({
+        projectTrackingId: project.trackingId || String(project._id),
+        zoneName:          value.zoneName || "general",
+        designName:        value.title,
+        version,
+        originalFilename:  req.file.originalname,
+      });
+
+      const put = await s3Storage.putObject({
+        key:         s3Key,
+        body:        req.file.buffer,
+        contentType: req.file.mimetype,
+      });
+
+      const docPayload = {
+        projectId:     value.projectId,
+        taskId:        value.taskId || undefined,
+        title:         value.title,
+        zoneName:      (value.zoneName || "").trim(),
+        description:   (value.description || "").trim(),
+        drawingType:   value.drawingType || "plan",
+        fileUrl:       put.url,
+        fileName:      req.file.originalname,
+        fileType:      req.file.mimetype,
+        fileSize:      req.file.size,
+        s3Bucket:      put.bucket,
+        s3Key:         put.key,
+        version,
+        revisionNotes: (value.revisionNotes || "").trim(),
+        notes:         (value.notes || "").trim(),
+        uploadedBy:    req.user._id,
+        status:        "draft",
+      };
+      const drawing = await Drawing.create(docPayload);
+
+      logActivity({
+        projectId:   drawing.projectId,
+        actorId:     req.user._id,
+        entityType:  "drawing",
+        entityId:    drawing._id,
+        action:      "created",
+        description: `Drawing "${drawing.title}" v${version} uploaded`,
+      });
+
+      return res.status(201).json({
+        message: version > 1 ? `Drawing version v${version} uploaded` : "Drawing uploaded successfully",
+        drawing,
+      });
+    }
+
+    // ── Mode 2: JSON body with fileUrl (legacy / external links)
     const { error, value } = uploadDrawingSchema.validate(req.body, { abortEarly: false });
     if (error) {
       return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
     }
-
     if (!value.taskId) delete value.taskId;
 
-    const uploadedBy = req.user._id;
-
-    // Version auto-increment: find highest version for same title+project
-    const latest = await Drawing.findOne({ projectId: value.projectId, title: value.title })
-      .sort({ version: -1 })
-      .lean();
-    const version = latest ? latest.version + 1 : 1;
-
-    const drawing = await Drawing.create({ ...value, version, uploadedBy, status: "draft" });
+    const version = await nextVersion({
+      projectId: value.projectId,
+      zoneName:  value.zoneName,
+      title:     value.title,
+    });
+    const drawing = await Drawing.create({
+      ...value,
+      zoneName:    (value.zoneName || "").trim(),
+      description: (value.description || "").trim(),
+      version,
+      uploadedBy: req.user._id,
+      status: "draft",
+    });
 
     logActivity({
       projectId:   drawing.projectId,
@@ -145,6 +294,109 @@ const uploadDrawing = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+/**
+ * @route GET /api/pms/drawing/:id/download
+ * @route GET /api/pms/drawing/:id/preview
+ *
+ * Returns a pre-signed S3 URL valid for 1 hour. The `disposition` controls
+ * whether the browser previews inline (PDF / image) or forces a download.
+ */
+async function signedUrlHandler(req, res, disposition) {
+  try {
+    const drawing = await Drawing.findById(req.params.id)
+      .select("s3Bucket s3Key fileName fileUrl title version revisionHistory")
+      .lean();
+    if (!drawing) return res.status(404).json({ message: "Drawing not found" });
+
+    // Optional ?historyVersion=N → sign a past revision instead of the current
+    // file. Useful for revision-history viewers in the UI.
+    const historyVersionRaw = req.query.historyVersion;
+    const historyVersion    = historyVersionRaw != null ? Number(historyVersionRaw) : null;
+
+    let sourceFileUrl  = drawing.fileUrl;
+    let sourceFileName = drawing.fileName;
+    let sourceVersion  = drawing.version;
+    let sourceS3Bucket = drawing.s3Bucket;
+    let sourceS3Key    = drawing.s3Key;
+
+    if (historyVersion != null && Number.isFinite(historyVersion)) {
+      // Current version requested via historyVersion → fall through to the
+      // normal path (no special handling needed).
+      if (historyVersion !== drawing.version) {
+        const entry = (drawing.revisionHistory || [])
+          .find((e) => Number(e.version) === historyVersion);
+        if (!entry || !entry.fileUrl) {
+          return res.status(404).json({ message: `No file stored for version v${historyVersion}` });
+        }
+        sourceFileUrl  = entry.fileUrl;
+        sourceFileName = entry.fileName || sourceFileName;
+        sourceVersion  = entry.version;
+        // Historical entries pre-date the s3Key field — always resolve via URL.
+        sourceS3Bucket = undefined;
+        sourceS3Key    = undefined;
+      }
+    }
+
+    if (!sourceFileUrl && !sourceS3Key) {
+      return res.status(404).json({ message: "Drawing has no stored file" });
+    }
+
+    // Resolve { bucket, key } in this order:
+    //   1. Use s3Key on the doc if present (fast path, current version only).
+    //   2. Otherwise parse the fileUrl — covers drawings that were uploaded
+    //      before the s3Key/s3Bucket fields were added to the schema, AND
+    //      every historical revisionHistory entry.
+    //   3. Fall back to returning fileUrl as-is (legacy external links —
+    //      e.g. someone pasted a Google Drive URL).
+    let bucket = sourceS3Bucket;
+    let key    = sourceS3Key;
+
+    if (!key) {
+      const parsed = s3Storage.parseS3Url(sourceFileUrl);
+      if (parsed) {
+        bucket = parsed.bucket;
+        key    = parsed.key;
+        // Backfill the document so subsequent requests skip the parse step.
+        // Only safe to backfill when serving the CURRENT file — never write
+        // a historical key onto the doc.
+        if (historyVersion == null || historyVersion === drawing.version) {
+          Drawing.updateOne(
+            { _id: drawing._id },
+            { $set: { s3Bucket: parsed.bucket, s3Key: parsed.key } }
+          ).catch((err) => console.error("[signedUrlHandler:backfill]", err.message));
+        }
+      }
+    }
+
+    if (!key) {
+      // Not an S3 URL — hand back the original fileUrl (Drive / external link).
+      return res.json({ url: sourceFileUrl, source: "legacy" });
+    }
+
+    if (!s3Storage.isConfigured()) {
+      return res.status(503).json({ message: "Drawing storage is not configured" });
+    }
+
+    const friendlyName = sourceFileName ||
+      `${(drawing.title || "drawing").replace(/[^a-zA-Z0-9_-]+/g, "_")}-v${sourceVersion || 1}`;
+
+    const url = await s3Storage.getSignedDownloadUrl({
+      key,
+      disposition,
+      filename:  friendlyName,
+      expiresIn: 3600,
+    });
+
+    res.json({ url, source: "s3", bucket, key, expiresIn: 3600 });
+  } catch (err) {
+    console.error("[signedUrlHandler]", err);
+    res.status(500).json({ message: err.message });
+  }
+}
+
+const downloadDrawing = (req, res) => signedUrlHandler(req, res, "attachment");
+const previewDrawing  = (req, res) => signedUrlHandler(req, res, "inline");
 
 /**
  * Upload a new version of an existing drawing (archives current into revisionHistory).
@@ -688,4 +940,7 @@ module.exports = {
   releaseDrawing,
   deleteDrawing,
   getDLRSheet,
+  getNextVersion,
+  downloadDrawing,
+  previewDrawing,
 };

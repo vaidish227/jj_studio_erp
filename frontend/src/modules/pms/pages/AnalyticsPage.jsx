@@ -17,7 +17,7 @@ import { useToast } from '../../../shared/notifications/ToastProvider';
  */
 
 const TABS = [
-  { id: 'gates',       label: 'Gate Aging',           icon: Lock },
+  { id: 'gates',       label: 'Pending Sign-offs',    icon: Lock },
   { id: 'sla',         label: 'Release SLA',          icon: Clock },
   { id: 'designers',   label: 'Designer Utilisation', icon: Users },
   { id: 'vendors',     label: 'Vendor Performance',   icon: ShoppingBag },
@@ -55,12 +55,12 @@ const GateAgingPanel = () => {
   }, []);
 
   if (loading) return <PanelLoader />;
-  if (!data || data.total === 0) return <EmptyPanel icon={<Lock size={28} />} msg="No open gates across projects." />;
+  if (!data || data.total === 0) return <EmptyPanel icon={<Lock size={28} />} msg="No pending sign-offs across projects." />;
 
   return (
     <div className="space-y-5">
       <SummaryRow>
-        <Stat label="Open gates" value={data.total} />
+        <Stat label="Pending sign-offs" value={data.total} />
         <Stat label="0–3 days" value={data.buckets['0-3']} tone="success" />
         <Stat label="4–7 days" value={data.buckets['4-7']} tone="accent" />
         <Stat label="8–14 days" value={data.buckets['8-14']} tone="warning" />
@@ -72,7 +72,7 @@ const GateAgingPanel = () => {
           <thead className="bg-[var(--bg)] text-[var(--text-muted)]">
             <tr>
               <Th>Project</Th>
-              <Th>Gate</Th>
+              <Th>Sign-off</Th>
               <Th>Approver</Th>
               <Th right>Age</Th>
               <Th right>Action</Th>

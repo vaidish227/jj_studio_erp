@@ -37,6 +37,12 @@ const createProject = async (req, res) => {
       });
     }
 
+    // Pull the chosen workflow template (if any) before persisting — the
+    // engine accepts it via `templateId`, but the Project document also
+    // stores `workflowTemplateId` for downstream populate.
+    const requestedTemplateId = value.workflowTemplateId;
+    if (!requestedTemplateId) delete value.workflowTemplateId;
+
     const project = await Project.create(value);
 
     logActivity({
@@ -48,9 +54,31 @@ const createProject = async (req, res) => {
       description: `Project "${project.name}" created`,
     });
 
+    // Workflow Engine — seed the task graph from the chosen template.
+    // Best-effort: failures are logged but do not block project creation.
+    let workflowSummary = null;
+    if (WORKFLOW_ENGINE_V1) {
+      try {
+        workflowSummary = await workflowEngine.seedProject(project._id, {
+          templateId: requestedTemplateId || undefined,
+          actorId:    req.user._id,
+        });
+      } catch (engineErr) {
+        console.error("[createProject:workflowEngine] seed failed:", engineErr);
+      }
+    }
+
+    // Return the project with the populated template so the stepper renders
+    // the right phases immediately on redirect.
+    const populated = await Project.findById(project._id)
+      .populate("clientId",         "name phone email trackingId")
+      .populate("workflowTemplateId", "name phases projectType")
+      .populate(TEAM_POPULATE);
+
     res.status(201).json({
-      message: "Project created successfully",
-      project,
+      message:  "Project created successfully",
+      project:  populated || project,
+      workflow: workflowSummary,
     });
   } catch (error) {
     console.error("[createProject]", error);
@@ -101,6 +129,7 @@ const getProjectById = async (req, res) => {
     const project = await Project.findById(req.params.id)
       .populate("clientId")
       .populate("proposalId")
+      .populate("workflowTemplateId", "name phases projectType")
       .populate(TEAM_POPULATE);
 
     if (!project) {

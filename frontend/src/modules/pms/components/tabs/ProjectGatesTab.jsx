@@ -18,9 +18,9 @@ import useProjectGates from '../../hooks/useProjectGates';
  */
 
 const STATUS_BADGE = {
-  open:       { label: 'OPEN',       cls: 'bg-[var(--warning)]/15 text-[var(--warning)]' },
-  closed:     { label: 'CLOSED',     cls: 'bg-[var(--success)]/15 text-[var(--success)]' },
-  overridden: { label: 'OVERRIDDEN', cls: 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]' },
+  open:       { label: 'AWAITING APPROVAL', cls: 'bg-[var(--warning)]/15 text-[var(--warning)]' },
+  closed:     { label: 'APPROVED',          cls: 'bg-[var(--success)]/15 text-[var(--success)]' },
+  overridden: { label: 'CONFIRMED VERBALLY', cls: 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]' },
 };
 
 const APPROVER_LABEL = {
@@ -52,7 +52,7 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
 
   const handleMarkObtained = async () => {
     if (!gate.listensTo) {
-      toast.error('This gate is not linked to a client-approval field.');
+      toast.error('This sign-off is not linked to a client approval.');
       return;
     }
     setSubmitting(true);
@@ -62,7 +62,7 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
         status: 'obtained',
         obtainedAt: new Date().toISOString(),
       });
-      toast.success(`Approval "${gate.listensTo}" marked obtained`);
+      toast.success(`"${gate.listensTo}" marked as approved`);
       onRefresh?.();
     } catch (err) {
       toast.error(err?.message || 'Failed to update approval');
@@ -81,12 +81,12 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
       const res = await pmsService.overrideProjectGate(projectId, gate._id, {
         overrideReason: reason.trim(),
       });
-      toast.success(`Gate overridden — ${res?.tasksUnblocked ?? 0} task(s) unblocked`);
+      toast.success(`Confirmed verbally — ${res?.tasksUnblocked ?? 0} task(s) can now start`);
       setOverrideOpen(false);
       setReason('');
       onRefresh?.();
     } catch (err) {
-      toast.error(err?.message || 'Override failed');
+      toast.error(err?.message || 'Could not confirm');
     } finally {
       setSubmitting(false);
     }
@@ -115,7 +115,7 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
           </div>
           <div className="flex items-center gap-1 text-xs text-[var(--text-muted)] shrink-0">
             <Clock size={12} />
-            <span>Open for {fmtAge(gate.ageingDays)}</span>
+            <span>Pending for {fmtAge(gate.ageingDays)}</span>
           </div>
         </div>
 
@@ -147,11 +147,11 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
           </div>
         )}
 
-        {/* Blocking tasks */}
+        {/* Tasks waiting on this sign-off */}
         {gate.blockingTasks?.length > 0 && (
           <div>
             <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
-              Blocking {gate.blockingTasks.length} task{gate.blockingTasks.length === 1 ? '' : 's'}
+              {gate.blockingTasks.length} task{gate.blockingTasks.length === 1 ? '' : 's'} waiting to start
             </p>
             <div className="flex flex-wrap gap-1.5">
               {gate.blockingTasks.slice(0, 6).map((t) => (
@@ -172,24 +172,19 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
           </div>
         )}
 
-        {/* Blocking activities */}
+        {/* Next steps unlocked when approved */}
         {gate.blockedActivities?.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {gate.blockedActivities.map((a) => (
-              <span
-                key={a}
-                className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--warning)]/10 text-[var(--warning)] font-bold"
-              >
-                Blocks: {a}
-              </span>
-            ))}
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--warning)]/10 text-[var(--warning)] font-bold">
+              Next steps unlock after approval
+            </span>
           </div>
         )}
 
-        {/* Override note */}
+        {/* Verbal confirmation note */}
         {gate.status === 'overridden' && (
           <div className="bg-[var(--accent-blue)]/8 border border-[var(--accent-blue)]/20 rounded-lg p-3 text-xs">
-            <p className="font-bold text-[var(--accent-blue)] mb-1">Overridden</p>
+            <p className="font-bold text-[var(--accent-blue)] mb-1">Confirmed Verbally</p>
             {gate.overrideReason && <p className="text-[var(--text-secondary)]">{gate.overrideReason}</p>}
           </div>
         )}
@@ -207,30 +202,30 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
           <div className="flex flex-wrap gap-2 pt-2 border-t border-[var(--border)]">
             {(gate.approverType === 'client' || isHybrid) && gate.listensTo && canRecordClientApproval && (
               <Button size="sm" variant="primary" onClick={handleMarkObtained} disabled={submitting}>
-                <CheckCircle2 size={13} className="mr-1.5" /> Mark Client Approval Obtained
+                <CheckCircle2 size={13} className="mr-1.5" /> Mark as Approved
               </Button>
             )}
             {canOverride && (
               <Button size="sm" variant="outline" onClick={() => setOverrideOpen(true)}>
-                <Unlock size={13} className="mr-1.5" /> Override
+                <Unlock size={13} className="mr-1.5" /> Confirm Verbally
               </Button>
             )}
           </div>
         )}
       </div>
 
-      <Modal isOpen={overrideOpen} onClose={() => setOverrideOpen(false)} title={`Override ${gate.label}`} className="max-w-md">
+      <Modal isOpen={overrideOpen} onClose={() => setOverrideOpen(false)} title={`Confirm Verbally — ${gate.label}`} className="max-w-md">
         <div className="space-y-4">
           <p className="text-xs text-[var(--text-muted)]">
-            Override unblocks dependent tasks without the prerequisite approval.
-            Logged in the project activity feed.
+            Use this when the client has approved verbally and written confirmation will follow.
+            Next steps will start immediately. This action is recorded in the project activity feed.
           </p>
-          <FormField label="Override reason" required>
+          <FormField label="Reason / note" required>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              placeholder="e.g. Client gave verbal approval — written confirmation pending"
+              placeholder="e.g. Client gave verbal approval on call — written confirmation pending"
               className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)]
                          text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
                          focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30
@@ -240,7 +235,7 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
             <Button variant="ghost" onClick={() => setOverrideOpen(false)} disabled={submitting}>Cancel</Button>
             <Button onClick={handleOverride} isLoading={submitting}>
-              <Unlock size={13} className="mr-1.5" /> Override Gate
+              <Unlock size={13} className="mr-1.5" /> Confirm & Continue
             </Button>
           </div>
         </div>
@@ -284,30 +279,30 @@ const ProjectGatesTab = ({ project }) => {
     <div className="space-y-6">
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-2 lg:gap-4">
-        <StatCard label="Open" count={open.length} tone="warning" icon={<Lock size={14} />} />
-        <StatCard label="Overridden" count={overridden.length} tone="accent" icon={<Unlock size={14} />} />
-        <StatCard label="Closed" count={closed.length} tone="success" icon={<CheckCircle2 size={14} />} />
+        <StatCard label="Awaiting Approval" count={open.length} tone="warning" icon={<Lock size={14} />} />
+        <StatCard label="Confirmed Verbally" count={overridden.length} tone="accent" icon={<Unlock size={14} />} />
+        <StatCard label="Approved" count={closed.length} tone="success" icon={<CheckCircle2 size={14} />} />
       </div>
 
       {isLoading && gates.length === 0 && (
-        <p className="text-center text-sm text-[var(--text-muted)] py-8">Loading gates…</p>
+        <p className="text-center text-sm text-[var(--text-muted)] py-8">Loading sign-offs…</p>
       )}
 
-      {/* Open first — that's "what is blocking us" */}
+      {/* Open first — what needs the client's attention */}
       {open.length > 0 && (
-        <Section title={`Blocking the project (${open.length})`}>
+        <Section title={`Awaiting your approval (${open.length})`}>
           {open.map((g) => <GateCard key={g._id} gate={g} projectId={projectId} onRefresh={refresh} />)}
         </Section>
       )}
 
       {overridden.length > 0 && (
-        <Section title="Overridden">
+        <Section title="Confirmed Verbally">
           {overridden.map((g) => <GateCard key={g._id} gate={g} projectId={projectId} onRefresh={refresh} />)}
         </Section>
       )}
 
       {closed.length > 0 && (
-        <Section title="Closed">
+        <Section title="Approved">
           {closed.map((g) => <GateCard key={g._id} gate={g} projectId={projectId} onRefresh={refresh} />)}
         </Section>
       )}
@@ -315,10 +310,10 @@ const ProjectGatesTab = ({ project }) => {
       {gates.length === 0 && !isLoading && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 text-center">
           <p className="text-sm text-[var(--text-muted)] mb-2">
-            No workflow gates on this project.
+            All sign-offs are up to date.
           </p>
           <p className="text-xs text-[var(--text-muted)]">
-            Gates are created automatically when a project is initiated through the Workflow Engine.
+            Sign-off checkpoints will appear here once the project is initiated.
           </p>
         </div>
       )}

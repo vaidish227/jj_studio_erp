@@ -86,7 +86,7 @@ const KPIStrip = ({ kpis }) => {
       />
       <Tile
         icon={Lock}
-        label="Open Gates"
+        label="Pending Sign-offs"
         value={kpis.openGates ?? 0}
         trend={t.openGates}
         redirectPath="/pms/analytics"

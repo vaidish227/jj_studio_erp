@@ -43,6 +43,9 @@ const initiateFromProposal = async (req, res) => {
       assignments,
       leadDesignerId,
       supervisorId,
+      // Workflow template chosen by the user at initiation time. Falls back to
+      // the active default for the project type when absent.
+      workflowTemplateId,
     } = req.body;
 
     if (!proposalId || !mongoose.Types.ObjectId.isValid(proposalId)) {
@@ -192,7 +195,8 @@ const initiateFromProposal = async (req, res) => {
     if (WORKFLOW_ENGINE_V1) {
       try {
         workflowSummary = await workflowEngine.seedProject(project._id, {
-          actorId: req.user._id,
+          templateId: workflowTemplateId || undefined,
+          actorId:    req.user._id,
         });
       } catch (engineErr) {
         console.error("[ProjectInitiation:workflowEngine] seed failed:", engineErr);

@@ -22,6 +22,7 @@ import RequestRevisionModal from '../components/RequestRevisionModal';
 import ReassignTaskModal from '../components/ReassignTaskModal';
 import UploadDrawingModal from '../components/UploadDrawingModal';
 import KitchenRoutingPanel from '../components/KitchenRoutingPanel';
+import DrawingFileLink from '../components/DrawingFileLink';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
 
@@ -61,15 +62,13 @@ const DrawingRow = ({ drawing }) => (
     <div className="flex items-center gap-2 shrink-0">
       <DrawingStatusBadge status={drawing.status} />
       {drawing.fileUrl && (
-        <a
-          href={drawing.fileUrl}
-          target="_blank"
-          rel="noreferrer"
+        <DrawingFileLink
+          drawing={drawing}
           className="p-1 rounded-lg hover:bg-[var(--bg)] text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
           title="Open file"
         >
           <ExternalLink size={13} />
-        </a>
+        </DrawingFileLink>
       )}
     </div>
   </div>

@@ -6,6 +6,7 @@ import { usePMS } from '../context/PMSContext';
 const INITIAL = {
   clientId:                '',
   proposalId:              '',
+  workflowTemplateId:      '',
   name:                    '',
   projectType:             'Residential',
   siteAddress: {

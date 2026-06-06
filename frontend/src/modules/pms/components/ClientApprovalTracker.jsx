@@ -149,7 +149,7 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated }
                   <ApprovalChip label="PD" ok={pdApproved} />
                   <ApprovalChip label="Client" ok={clientObtained} />
                   {gate?.status === 'closed' && (
-                    <span className="text-[10px] font-bold text-[var(--success)] uppercase">Gate closed</span>
+                    <span className="text-[10px] font-bold text-[var(--success)] uppercase">Sign-off complete</span>
                   )}
                 </div>
               )}

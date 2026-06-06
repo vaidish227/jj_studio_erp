@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle } from 'lucide-react';
 import { Modal, Button, FormField } from '../../../shared/components';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import DrawingFileLink from './DrawingFileLink';
 
 const ApproveDrawingModal = ({ isOpen, onClose, drawing, onDone }) => {
   const toast = useToast();
@@ -62,14 +63,12 @@ const ApproveDrawingModal = ({ isOpen, onClose, drawing, onDone }) => {
             v{drawing.version} · by {drawing.uploadedBy?.name || '—'}
           </p>
           {drawing.fileUrl && (
-            <a
-              href={drawing.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <DrawingFileLink
+              drawing={drawing}
               className="text-xs text-[var(--primary)] hover:underline"
             >
               Open file ↗
-            </a>
+            </DrawingFileLink>
           )}
         </div>
 

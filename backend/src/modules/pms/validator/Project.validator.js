@@ -31,6 +31,7 @@ const createProjectSchema = Joi.object({
     'any.required':        'Client is required',
   }),
   proposalId: OID.allow('', null).optional(),
+  workflowTemplateId: OID.allow('', null).optional(),
   name:        Joi.string().trim().min(2).max(200).required(),
   projectType: Joi.string().valid('Residential', 'Commercial').required(),
 

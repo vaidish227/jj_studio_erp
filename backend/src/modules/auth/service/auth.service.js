@@ -26,10 +26,13 @@ const loginUser = async (data) => {
   const permissions = [...new Set([...rolePermissions, ...customPermissions])];
 
   // 5. Generate JWT — include role so middleware can use it without DB lookup
+  // Session length: 7 days. The frontend reads `exp` from the token and
+  // both proactively redirects when the timer fires AND reactively redirects
+  // on any 401, so this single value drives the whole logout-on-expiry flow.
   const token = jwt.sign(
     { id: user._id, email: user.email, role: user.role },
     process.env.JWT_SECRET || "secretkey",
-    { expiresIn: "1d" }
+    { expiresIn: "7d" }
   );
 
   return {
