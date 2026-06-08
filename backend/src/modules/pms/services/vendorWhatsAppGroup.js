@@ -20,18 +20,14 @@
 const WhatsAppProjectGroup = require("../models/WhatsAppProjectGroup.model");
 const Project = require("../models/Project.model");
 const Vendor = require("../models/Vendor.model");
+const Responsibility = require("../models/Responsibility.model");
+const teamResolver = require("./teamResolver");
 
 // User model lookup is optional — degrades gracefully if missing
 let User = null;
 try { User = require("../../auth/models/user.model"); } catch (e) { /* noop */ }
 let CRMClient = null;
 try { CRMClient = require("../../crm/models/CRMClient.model"); } catch (e) { /* noop */ }
-
-const KIND_TO_DESIGNER_SLOT = {
-  ac: "designerC",
-  automation: "designerC",
-  kitchen: "designerD",
-};
 
 /**
  * createPerVendorGroup — build and persist the engagement-scoped group.
@@ -49,7 +45,9 @@ async function createPerVendorGroup({ engagement, gate, actorId } = {}) {
 
   const [project, vendor] = await Promise.all([
     Project.findById(engagement.projectId)
-      .select("name trackingId clientId primaryDesigner supervisor designerB designerC designerD designerE contractor")
+      .select("name trackingId clientId assignments")
+      .populate("assignments.responsibilityId", "slug name vendorKinds")
+      .populate("assignments.users", "name email phone role")
       .lean(),
     Vendor.findById(engagement.vendorId).select("name phone email contactPerson").lean(),
   ]);
@@ -61,33 +59,46 @@ async function createPerVendorGroup({ engagement, gate, actorId } = {}) {
     `JJ Studio - ${project.name} - ${formatKind(engagement.vendorKind)} - ${vendor.name}`;
 
   const members = [];
+  const seenUserIds = new Set();
 
-  // Helper to push an ERP user as a member if they have a phone
-  const pushUser = async (userId, role) => {
-    if (!userId || !User) return;
-    const u = await User.findById(userId).select("name email phone role").lean();
-    if (u && u.phone) {
-      members.push({
-        userId: u._id,
-        name: u.name,
-        phone: u.phone,
-        role: role || u.role,
-        memberType: "team_member",
-        addedBy: actorId || undefined,
-        addedAt: new Date(),
-      });
-    }
+  // Push an already-populated User doc as a member if they have a phone
+  const pushPopulatedUser = (u, role) => {
+    if (!u || !u.phone) return;
+    const uid = String(u._id);
+    if (seenUserIds.has(uid)) return;
+    seenUserIds.add(uid);
+    members.push({
+      userId: u._id,
+      name: u.name,
+      phone: u.phone,
+      role: role || u.role,
+      memberType: "team_member",
+      addedBy: actorId || undefined,
+      addedAt: new Date(),
+    });
   };
 
-  // Designer slot for the kind
-  const designerSlot = KIND_TO_DESIGNER_SLOT[engagement.vendorKind];
-  if (designerSlot) await pushUser(project[designerSlot], `Designer (${engagement.vendorKind})`);
+  // Resolve the designers who own this vendor kind via the Responsibility
+  // master list (vendorKinds field). Admins re-wire AC routing in data,
+  // not code.
+  const owningResponsibilities = await Responsibility.find({
+    vendorKinds: engagement.vendorKind,
+    isActive: true,
+  })
+    .select("slug")
+    .lean();
+  for (const resp of owningResponsibilities) {
+    const designers = await teamResolver.resolveBySlug(project, resp.slug);
+    for (const d of designers) pushPopulatedUser(d, `Designer (${engagement.vendorKind})`);
+  }
 
-  // Principal Designer — best-effort: the explicit slot is `primaryDesigner` per current model
-  await pushUser(project.primaryDesigner, "Principal Designer");
+  // Lead Designer (system slug)
+  const leadDesigners = await teamResolver.resolveBySlug(project, "lead_designer");
+  for (const u of leadDesigners) pushPopulatedUser(u, "Principal Designer");
 
-  // Project coordinator / supervisor
-  await pushUser(project.supervisor, "Supervisor / PC");
+  // Supervisor (system slug)
+  const supervisors = await teamResolver.resolveBySlug(project, "supervisor");
+  for (const u of supervisors) pushPopulatedUser(u, "Supervisor / PC");
 
   // Vendor contact
   if (vendor.phone) {

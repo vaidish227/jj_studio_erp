@@ -20,39 +20,49 @@ const DEFAULT_ROLES = [
   {
     name: "md",
     displayName: "Managing Director",
-    description: "Strategic overview: reports, approvals, and read access to all modules.",
+    // Interim scope: MD sidebar shows ONLY the "Project Management" group.
+    // Action permissions below let the MD dashboard, approvals queue, and
+    // review actions work end-to-end without exposing other modules.
+    description: "Project Management focus — MD dashboard, project approvals, and reviews.",
     permissions: [
-      "dashboard.read",
-      "crm.read",
-      "crm.tab.clients", "crm.tab.leads", "crm.tab.meetings", "crm.tab.converted", "crm.tab.lost",
-      "kit.read",
-      "proposal.read", "proposal.approve",
-      "proposal.tab.approval",
-      "clients.read",
+      // Sidebar parent + project pages
       "projects.read",
+      "projects.create", "projects.customize_plan",
       "projects.tab.assign", "projects.tab.review",
-      "tasks.read", "tasks.approve", "tasks.reassign", "tasks.override_gate",
+      "pms.whatsapp.manage",
+      "vendor.read",
+
+      // Project detail tabs the MD opens from the dashboard
       "pms.tab.tasks", "pms.tab.drawings", "pms.tab.team",
+
+      // Tasks — review, approve, reassign, override
+      "tasks.read", "tasks.approve", "tasks.reassign", "tasks.override_gate",
+
+      // Drawings — full read + approve / release.
+      // The "Design and Drawing Management" sidebar group is gated on
+      // `designer.dashboard` (designer-only), so MD won't see it even
+      // though they can load drawings on the Project Detail page.
       "drawings.read", "drawings.approve", "drawings.release",
       "design.comment",
-      "designer.dashboard",
+      "pd.review.respond",
+
+      // Client approvals + design submissions
+      "approvals.read", "approvals.respond",
+
+      // Supporting reads used by the Project Detail page tabs
+      // (Materials, Site Logs, Site Visits, Purchase Orders, etc.)
+      "milestones.read",
+      "materials.read",
       "site_logs.read",
       "site_visits.read",
-      "vendor.read",
-      "materials.read",
       "purchase_orders.read",
-      "milestones.read",
-      "approvals.read",
       "activity.read",
       "calendar.read",
+      "planner.read", "planner.dashboard",
+
+      // Analytics + downloadable reports (Project Analytics page, Designer
+      // detail page, KPI / project summary Excel exports)
       "reports.read", "reports.export",
-      "finance.read",
-      "users.read",
-      "settings.read",
-      "settings.tab.users", "settings.tab.roles",
-      "settings.checklists.manage", "settings.workflows.manage",
-      "pd.review.respond",
-      "mail.read", "whatsapp.read",
     ],
     isSystem: true,
     color: "#3A6EA5",
@@ -96,6 +106,8 @@ const DEFAULT_ROLES = [
       "mail.send", "mail.read", "mail.manage",
       "whatsapp.send", "whatsapp.read", "whatsapp.manage",
       "communication.settings.manage",
+      "planner.read", "planner.edit", "planner.assign", "planner.delete",
+      "planner.import", "planner.export", "planner.baseline", "planner.dashboard",
     ],
     isSystem: true,
     color: "#4A8F7C",
@@ -140,6 +152,7 @@ const DEFAULT_ROLES = [
       "activity.read",
       "calendar.read",
       "clients.read",
+      "planner.read",
     ],
     isSystem: true,
     color: "#9B59B6",
@@ -163,6 +176,7 @@ const DEFAULT_ROLES = [
       "activity.read",
       "calendar.read",
       "clients.read",
+      "planner.read",
     ],
     isSystem: true,
     color: "#E67E22",

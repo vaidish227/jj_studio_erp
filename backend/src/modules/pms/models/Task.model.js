@@ -92,6 +92,15 @@ const taskSchema = new mongoose.Schema(
       default: "none",
     },
     dayOffsetFromProjectStart: { type: Number, default: 0 },
+    // Workflow phase this task belongs to (e.g. "kickoff" / "design" / "procurement").
+    // Snapshotted at seed time from WorkflowTemplate.phases.taskKeys so the
+    // master-sheet UI can render phase headers without re-resolving the template.
+    // Optional — tasks added manually via "Add Row" can carry it too.
+    phase: { type: String, trim: true },
+    // Stable template key the task was spawned from. Lets the planner UI
+    // detect which rows came from a template vs ad-hoc additions, and supports
+    // future per-project plan editing flows.
+    templateTaskKey: { type: String, trim: true },
     // For kitchen_drawing branch: "in_house" | "outsourced" | null (not decided)
     routing: {
       type: String,
@@ -156,6 +165,65 @@ const taskSchema = new mongoose.Schema(
     // --- Status remarks ---
     holdReason: String,   // required when status → on_hold
     delayReason: String,  // optional note explaining a deadline extension
+
+    // --- Project Planner / Master Plan (Phase 1) ---
+    // Master-sheet fields surfaced in the Planner module. All new planner
+    // mutations go through planner endpoints; legacy Task code is untouched.
+    planning: {
+      // Location
+      floor:    { type: String, default: "" },
+      area:     { type: String, default: "" },
+      zoneName: { type: String, default: "" }, // mirrored to attached Drawings on save
+      room:     { type: String, default: "" },
+      block:    { type: String, default: "" },
+
+      // Drawing taxonomy hint for tasks without a Drawing yet
+      proposedDrawingType: { type: String, default: "" },
+      proposedSubCategory: { type: String, default: "" },
+      drawingCode:         { type: String, default: "" },
+
+      // Planning
+      plannedStartDate:     { type: Date },
+      plannedEndDate:       { type: Date },
+      plannedHours:         { type: Number, default: 0, min: 0 },
+      bufferDays:           { type: Number, default: 0, min: 0 },
+      targetSubmissionDate: { type: Date },
+
+      // Effort actuals (top-level startDate/completedAt cover wall-clock)
+      actualHours:     { type: Number, default: 0, min: 0 },
+      progressPercent: { type: Number, default: 0, min: 0, max: 100 },
+
+      // Classification
+      complexity: {
+        type: String,
+        enum: ["low", "medium", "high"],
+        default: "medium",
+      },
+      requiredInputs: [{ type: String }],
+      siteMeasurementStatus: {
+        type: String,
+        enum: ["not_required", "pending", "done"],
+        default: "not_required",
+      },
+
+      // Additional planner roles (top-level assignedTo is the primary designer)
+      designLeadId:  { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      reviewerId:    { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      coordinatorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+      // Client approval routing — joins to project.clientApprovals[].type
+      requiresClientApproval: { type: Boolean, default: false },
+      clientApprovalKey:      { type: String, default: "" },
+
+      // Baseline snapshot (frozen at first save unless re-baselined)
+      baselinePlannedStartDate: { type: Date },
+      baselinePlannedEndDate:   { type: Date },
+      // Set by nightly delay scan when delay first crosses threshold
+      delayAlertedAt: { type: Date },
+
+      // Optional reference doc (brief/input file)
+      referenceFileUrl: { type: String, default: "" },
+    },
   },
   {
     timestamps: true,
@@ -168,6 +236,9 @@ taskSchema.index({ projectId: 1 });
 taskSchema.index({ status: 1 });
 taskSchema.index({ assignedTo: 1 });
 taskSchema.index({ taskType: 1 });
+// Planner — delay scans and zone filters
+taskSchema.index({ projectId: 1, "planning.plannedEndDate": 1 });
+taskSchema.index({ projectId: 1, "planning.zoneName": 1 });
 
 
 module.exports = mongoose.model("Task", taskSchema, "pms_tasks");

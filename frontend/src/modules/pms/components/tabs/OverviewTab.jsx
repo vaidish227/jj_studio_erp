@@ -1,86 +1,184 @@
 import React from 'react';
-import { CheckSquare, FileText, Users, BarChart2 } from 'lucide-react';
-import { DashboardCard } from '../../../../shared/components';
+import {
+  PenTool, HardHat, Truck, UserCog, ClipboardList,
+  ArrowRight, History,
+} from 'lucide-react';
 import KickstartChecklist from '../KickstartChecklist';
 import ClientApprovalTracker from '../ClientApprovalTracker';
 import WhatsBlockingWidget from '../WhatsBlockingWidget';
+import PendingMDApprovalCard from '../PendingMDApprovalCard';
+import { useAuth } from '../../../../shared/context/AuthContext';
 
-const OverviewTab = ({ project, tasks, drawings, onProjectUpdated, onSwitchToTab }) => {
+const ModuleCard = ({ number, icon: Icon, iconBg, iconColor, title, description, onClick }) => {
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick?.();
+    }
+  };
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 cursor-pointer transition hover:border-[var(--primary)]/40 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+    >
+      <span className="absolute top-4 right-5 text-xs font-black text-[var(--text-muted)]/50 tracking-wider">
+        {number}
+      </span>
+      <div
+        className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${iconBg}`}
+      >
+        <Icon size={22} className={iconColor} />
+      </div>
+      <h3 className="text-base font-extrabold text-[var(--text-primary)] mb-1.5 group-hover:text-[var(--primary)] transition-colors">
+        {title}
+      </h3>
+      <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+        {description}
+      </p>
+      <div className="mt-5 inline-flex items-center gap-1 text-xs font-bold text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
+        Open
+        <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
+      </div>
+    </div>
+  );
+};
+
+const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
+  const { user } = useAuth();
   if (!project) return null;
 
-  const taskCounts = {
-    total:       tasks.length,
-    completed:   tasks.filter((t) => t.status === 'completed').length,
-    inProgress:  tasks.filter((t) => t.status === 'in_progress').length,
-    overdue:     tasks.filter((t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed').length,
-  };
+  // Role-aware view: MD focuses on approvals + visibility; operational checklists
+  // (kickstart, client-approval cycling) are PM territory.
+  const role  = String(user?.role || '').toLowerCase();
+  const isMD  = role === 'md';
 
-  const drawingCounts = {
-    total:    drawings.length,
-    approved: drawings.filter((d) => d.status === 'approved' || d.status === 'released_to_site').length,
-    pending:  drawings.filter((d) => d.status === 'sent_for_approval').length,
-  };
+  const go = (id) => () => onSwitchToTab?.(id);
+
+  const modules = [
+    {
+      number: '01',
+      icon: ClipboardList,
+      iconBg: 'bg-[var(--warning)]/10',
+      iconColor: 'text-[var(--warning)]',
+      title: 'Project Planner / Master Sheet',
+      description: 'Phase plan, gates, tasks & approvals — the master sheet driving the whole project.',
+      onClick: go('planner'),
+    },
+    {
+      number: '02',
+      icon: PenTool,
+      iconBg: 'bg-[var(--primary)]/10',
+      iconColor: 'text-[var(--primary)]',
+      title: 'Design and Drawing Management',
+      description: 'Concept, working drawings, 3D & approval drawings with full revision control.',
+      onClick: go('drawings'),
+    },
+    {
+      number: '03',
+      icon: HardHat,
+      iconBg: 'bg-[var(--accent-blue)]/10',
+      iconColor: 'text-[var(--accent-blue)]',
+      title: 'Site Execution and Monitoring',
+      description: 'Civil, electrical, plumbing & finishing tracked with daily site updates and photos.',
+      onClick: go('logs'),
+    },
+    {
+      number: '04',
+      icon: UserCog,
+      iconBg: 'bg-[var(--success)]/10',
+      iconColor: 'text-[var(--success)]',
+      title: 'Site Supervisor and Contractor',
+      description: 'Supervisors, contractors & on-site team with assigned scope and contact details.',
+      onClick: go('team'),
+    },
+    {
+      number: '05',
+      icon: Truck,
+      iconBg: 'bg-[var(--accent-teal)]/10',
+      iconColor: 'text-[var(--accent-teal)]',
+      title: 'Procurement and Vendor Management',
+      description: 'Material selection, purchase status & vendor performance — all in one place.',
+      onClick: go('vendor_engagement'),
+    },
+  ];
+
+  // "What's Blocking" widget — same component for everyone, but placement
+  // differs by role. For MD it lives near the bottom (project gates are
+  // status info, not their primary action item). For everyone else it stays
+  // at the top so PMs see blockers without tab-switching.
+  const whatsBlockingWidget = (
+    <WhatsBlockingWidget
+      project={project}
+      onSwitchToGates={onSwitchToTab ? () => onSwitchToTab('gates') : undefined}
+    />
+  );
 
   return (
     <div className="space-y-6">
-      {/* Phase 3a — "What's Blocking" at the top of Overview so PMs see it without tab-switching */}
-      <WhatsBlockingWidget
-        project={project}
-        onSwitchToGates={onSwitchToTab ? () => onSwitchToTab('gates') : undefined}
-      />
+      {/* MD-only — pending designer submissions for this project, with quick actions */}
+      {isMD && (
+        <PendingMDApprovalCard
+          projectId={project._id}
+          projectName={project.name}
+        />
+      )}
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <DashboardCard
-          title="Total Tasks"
-          value={taskCounts.total}
-          icon={CheckSquare}
-          iconBg="bg-[var(--primary)]/10"
-          compact
-        />
-        <DashboardCard
-          title="Completed"
-          value={taskCounts.completed}
-          icon={CheckSquare}
-          iconBg="bg-[var(--success)]/10"
-          compact
-        />
-        <DashboardCard
-          title="Total Drawings"
-          value={drawingCounts.total}
-          icon={FileText}
-          iconBg="bg-[var(--accent-blue)]/10"
-          compact
-        />
-        <DashboardCard
-          title="Drawings Approved"
-          value={drawingCounts.approved}
-          icon={BarChart2}
-          iconBg="bg-[var(--accent-teal)]/10"
-          compact
-        />
+      {/* PM/admin/etc — blocking gates at the top */}
+      {!isMD && whatsBlockingWidget}
+
+      {/* Module grid — 5 cards (3 + 2) acting as a navigable, client-friendly project overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {modules.map((m) => (
+          <ModuleCard key={m.number} {...m} />
+        ))}
       </div>
 
-      {/* Kickstart + Client Approvals */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <KickstartChecklist
-          projectId={project._id}
-          kickstartData={project.kickstartData || {}}
-          onUpdated={onProjectUpdated}
-        />
+      {/* Kickstart (PM-only) + Client Approvals (read-only for MD).
+          For MD the row collapses to a single full-width Client Approvals card. */}
+      <div className={isMD ? '' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'}>
+        {!isMD && (
+          <KickstartChecklist
+            projectId={project._id}
+            kickstartData={project.kickstartData || {}}
+            onUpdated={onProjectUpdated}
+          />
+        )}
         <ClientApprovalTracker
           project={project}
           projectId={project._id}
           approvals={project.clientApprovals || []}
           onUpdated={onProjectUpdated}
+          readOnly={isMD}
         />
       </div>
+
+      {/* MD sees "Awaiting your approval" here — below the action cards and
+          status panels, so it reads as project-status reference, not the
+          primary action item. */}
+      {isMD && whatsBlockingWidget}
 
       {/* Project notes */}
       {project.notes && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Notes</h3>
           <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">{project.notes}</p>
+        </div>
+      )}
+
+      {/* Activity log access (cards layout doesn't have a dedicated activity card) */}
+      {onSwitchToTab && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => onSwitchToTab('activity')}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
+          >
+            <History size={13} />
+            View activity log
+          </button>
         </div>
       )}
     </div>

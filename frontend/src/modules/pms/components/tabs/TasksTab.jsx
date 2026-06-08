@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, List, LayoutGrid, Info, CheckCircle2 } from 'lucide-react';
+import { Plus, List, LayoutGrid, Info, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '../../../../shared/components';
 import PermissionGate from '../../../../shared/components/PermissionGate/PermissionGate';
 import TaskCard from '../TaskCard';
@@ -27,29 +27,78 @@ const KanbanBoard = ({ tasks, onTaskUpdated }) => {
   }, {});
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-9 gap-3 overflow-x-auto">
-      {KANBAN_COLUMNS.map((col) => {
-        const colTasks = byStatus[col.id] || [];
-        return (
-          <div key={col.id} className={`rounded-2xl border ${col.border} bg-[var(--bg)] flex flex-col min-h-[200px]`}>
-            <div className={`flex items-center justify-between px-3 py-2.5 rounded-t-2xl ${col.bg}`}>
-              <span className={`text-xs font-black uppercase tracking-wider ${col.color}`}>{col.label}</span>
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${col.bg} ${col.color}`}>
-                {colTasks.length}
-              </span>
+    <div className="overflow-x-auto pb-2 -mx-1 px-1">
+      <div className="flex gap-3 min-w-max">
+        {KANBAN_COLUMNS.map((col) => {
+          const colTasks = byStatus[col.id] || [];
+          return (
+            <div
+              key={col.id}
+              className={`w-[260px] shrink-0 rounded-2xl border ${col.border} bg-[var(--bg)] flex flex-col min-h-[260px]`}
+            >
+              <div className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-t-2xl ${col.bg}`}>
+                <span className={`text-[11px] font-black uppercase tracking-wider ${col.color} truncate`}>
+                  {col.label}
+                </span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--surface)] ${col.color} shrink-0`}>
+                  {colTasks.length}
+                </span>
+              </div>
+              <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[65vh]">
+                {colTasks.length === 0 ? (
+                  <p className="text-[11px] text-[var(--text-muted)] text-center pt-6">No tasks</p>
+                ) : (
+                  colTasks.map((task) => (
+                    <TaskCard key={task._id} task={task} onUpdated={onTaskUpdated} compact />
+                  ))
+                )}
+              </div>
             </div>
-            <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[60vh]">
-              {colTasks.length === 0 ? (
-                <p className="text-[11px] text-[var(--text-muted)] text-center pt-6">No tasks</p>
-              ) : (
-                colTasks.map((task) => (
-                  <TaskCard key={task._id} task={task} onUpdated={onTaskUpdated} compact />
-                ))
-              )}
-            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const TaskGroup = ({ type, typeTasks, onTaskUpdated }) => {
+  const [open, setOpen] = useState(true);
+  const cfg = TASK_TYPE_CONFIG[type];
+
+  return (
+    <div className={`border border-[var(--border)] rounded-2xl bg-[var(--surface)] overflow-hidden
+                     transition-colors hover:border-[var(--primary)]/30
+                     ${open ? 'shadow-sm' : ''}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`w-full flex items-center gap-2 group select-none px-4 py-3 transition-colors
+                    ${open ? 'border-b border-[var(--border)] bg-[var(--bg)]/40' : 'hover:bg-[var(--bg)]/40'}`}
+      >
+        {open
+          ? <ChevronDown size={14} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors" />
+          : <ChevronRight size={14} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors" />
+        }
+        {cfg && (
+          <div className={`w-5 h-5 rounded flex items-center justify-center ${cfg.bg}`}>
+            <cfg.Icon size={12} className={cfg.color} />
           </div>
-        );
-      })}
+        )}
+        <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--primary)] transition-colors">
+          {cfg?.label || type}
+        </h3>
+        <span className="text-[10px] font-bold text-[var(--text-muted)] ml-auto bg-[var(--surface)] border border-[var(--border)] px-2 py-0.5 rounded-full">
+          {typeTasks.length}
+        </span>
+      </button>
+
+      {open && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 p-4 animate-[fadeIn_0.15s_ease-out]">
+          {typeTasks.map((task) => (
+            <TaskCard key={task._id} task={task} onUpdated={onTaskUpdated} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -64,29 +113,9 @@ const ListView = ({ tasks, onTaskUpdated }) => {
 
   return (
     <div className="space-y-6">
-      {Object.entries(grouped).map(([type, typeTasks]) => {
-        const cfg = TASK_TYPE_CONFIG[type];
-        return (
-          <div key={type}>
-            <div className="flex items-center gap-2 mb-3">
-              {cfg && (
-                <div className={`w-5 h-5 rounded flex items-center justify-center ${cfg.bg}`}>
-                  <cfg.Icon size={12} className={cfg.color} />
-                </div>
-              )}
-              <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)]">
-                {cfg?.label || type}
-              </h3>
-              <span className="text-[10px] font-bold text-[var(--text-muted)] ml-auto">{typeTasks.length}</span>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-              {typeTasks.map((task) => (
-                <TaskCard key={task._id} task={task} onUpdated={onTaskUpdated} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      {Object.entries(grouped).map(([type, typeTasks]) => (
+        <TaskGroup key={type} type={type} typeTasks={typeTasks} onTaskUpdated={onTaskUpdated} />
+      ))}
     </div>
   );
 };

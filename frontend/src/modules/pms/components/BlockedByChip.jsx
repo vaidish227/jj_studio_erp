@@ -31,22 +31,22 @@ const BlockedByChip = ({ task, blockingTasks = [], blockingGates = [], onOverrid
 
   const canOverride = hasPermission('tasks.override_gate');
 
-  // Compose a tight human label of what's blocking
+  // Compose a tight human label of what's pending
   const depLabel = blockingTasks.length === 1
     ? blockingTasks[0].title
     : blockingTasks.length > 1
-      ? `${blockingTasks.length} prerequisite tasks`
+      ? `${blockingTasks.length} earlier task${blockingTasks.length === 1 ? '' : 's'}`
       : null;
   const gateLabel = blockingGates.length === 1
     ? blockingGates[0].label
     : blockingGates.length > 1
-      ? `${blockingGates.length} approval gates`
+      ? `${blockingGates.length} approval${blockingGates.length === 1 ? '' : 's'}`
       : null;
-  const label = depLabel || gateLabel || 'a prerequisite';
+  const label = depLabel || gateLabel || 'an earlier step';
 
   const handleOverride = async () => {
     if (reason.trim().length < 5) {
-      toast.error('Override reason must be at least 5 characters');
+      toast.error('Reason must be at least 5 characters');
       return;
     }
     setSubmitting(true);
@@ -55,14 +55,14 @@ const BlockedByChip = ({ task, blockingTasks = [], blockingGates = [], onOverrid
       const n = res?.gatesOverridden?.length || 0;
       toast.success(
         n > 0
-          ? `Task unblocked — ${n} gate${n === 1 ? '' : 's'} overridden`
-          : 'Task unblocked'
+          ? `Task ready to start — ${n} sign-off${n === 1 ? '' : 's'} confirmed verbally`
+          : 'Task ready to start'
       );
       setOpen(false);
       setReason('');
       onOverridden?.();
     } catch (err) {
-      toast.error(err?.message || 'Failed to override gate');
+      toast.error(err?.message || 'Could not confirm verbally');
     } finally {
       setSubmitting(false);
     }
@@ -78,7 +78,7 @@ const BlockedByChip = ({ task, blockingTasks = [], blockingGates = [], onOverrid
         <div className="flex items-center gap-1.5 min-w-0">
           <Lock size={12} className="text-[var(--warning)] shrink-0" />
           <span className="text-[11px] text-[var(--warning)] truncate">
-            Blocked by: <span className="font-bold">{label}</span>
+            Waiting on: <span className="font-bold">{label}</span>
           </span>
         </div>
         {canOverride && (
@@ -88,7 +88,7 @@ const BlockedByChip = ({ task, blockingTasks = [], blockingGates = [], onOverrid
             className="shrink-0 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider
                        text-[var(--warning)] hover:text-[var(--warning)]/80 transition-colors"
           >
-            <Unlock size={10} /> Override
+            <Unlock size={10} /> Confirm Verbally
           </button>
         )}
       </div>
@@ -96,21 +96,22 @@ const BlockedByChip = ({ task, blockingTasks = [], blockingGates = [], onOverrid
       <Modal
         isOpen={open}
         onClose={() => setOpen(false)}
-        title="Override Gate"
+        title="Confirm Verbally"
         className="max-w-md"
       >
         <div className="space-y-4">
           <p className="text-xs text-[var(--text-muted)]">
-            Overriding a gate unblocks this task without the prerequisite approval.
-            The override is logged in the project activity feed and notifications are sent.
+            Use this when the client has approved verbally and written confirmation will follow.
+            This task can then start immediately. The action is recorded in the project activity feed
+            and notifications are sent.
           </p>
 
-          <FormField label="Reason for Override" required>
+          <FormField label="Reason / note" required>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              placeholder="e.g. Client verbally approved layout — written confirmation pending"
+              placeholder="e.g. Client verbally approved layout on call — written confirmation pending"
               className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg)]
                          text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
                          focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30
@@ -124,7 +125,7 @@ const BlockedByChip = ({ task, blockingTasks = [], blockingGates = [], onOverrid
             </Button>
             <Button onClick={handleOverride} isLoading={submitting}>
               <Unlock size={13} className="mr-1.5" />
-              Override Gate
+              Confirm & Continue
             </Button>
           </div>
         </div>

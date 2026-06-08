@@ -14,8 +14,16 @@ const taskDefSchema = new mongoose.Schema(
     key: { type: String, required: true },               // stable id within the template (e.g. "site_measurement_d0")
     title: { type: String, required: true },
     taskType: { type: String, required: true },           // must be a Task.taskType enum value
-    teamSlot: { type: String },                           // e.g. "primaryDesigner", "designerB" → resolved against Project.team
+    // Stable slug from Responsibility master list (e.g. "lead_designer",
+    // "furniture_measurements") — resolved at seed time via teamResolver.
+    responsibilitySlug: { type: String },
+    // @deprecated — old hardcoded field name. Migration script copies this
+    // value into responsibilitySlug; kept readable so legacy seed data
+    // continues to work until next reseed.
+    teamSlot: { type: String },
     dayOffsetFromProjectStart: { type: Number, default: 0 },
+    plannedDays:  { type: Number, default: 1, min: 0 },   // duration in days; drives plannedEndDate at seed time
+    plannedHours: { type: Number, default: 0, min: 0 },   // estimated effort hours; copied to task.planning.plannedHours
     priority: {
       type: String,
       enum: ["low", "medium", "high", "urgent"],

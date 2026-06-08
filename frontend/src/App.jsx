@@ -39,11 +39,12 @@ import RolesPermissionsPage from './modules/settings/pages/RolesPermissionsPage'
 // Phase 3b — Template admin
 import ChecklistTemplatesPage from './modules/pms/pages/ChecklistTemplatesPage';
 import WorkflowTemplatesPage from './modules/pms/pages/WorkflowTemplatesPage';
+import ResponsibilitiesPage from './modules/pms/pages/ResponsibilitiesPage';
 // Phase 4 — Analytics
 import AnalyticsPage from './modules/pms/pages/AnalyticsPage';
+import PMSDashboardPage from './modules/pms/pages/PMSDashboardPage';
 import ProjectsPage from './modules/pms/pages/ProjectsPage';
 import ProjectDetailPage from './modules/pms/pages/ProjectDetailPage';
-import ProjectInitiationPage from './modules/pms/pages/ProjectInitiationPage';
 import MyTasksPage from './modules/pms/pages/MyTasksPage';
 import TaskDetailPage from './modules/pms/pages/TaskDetailPage';
 import DrawingLibraryPage from './modules/pms/pages/DrawingLibraryPage';
@@ -52,6 +53,7 @@ import CalendarPage from './modules/pms/pages/CalendarPage';
 import ApprovalDashboardPage from './modules/pms/pages/ApprovalDashboardPage';
 import DesignerDashboardPage from './modules/pms/pages/DesignerDashboardPage';
 import ManagerReviewQueuePage from './modules/pms/pages/ManagerReviewQueuePage';
+import DesignerDetailPage from './modules/pms/pages/DesignerDetailPage';
 import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
 import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
@@ -162,9 +164,9 @@ export default function App() {
                 </Route>
 
                 {/* PMS — Project Management */}
+                <Route path="/pms/dashboard"                   element={<PMSDashboardPage />} />
                 <Route path="/projects"                        element={<ProjectsPage />} />
                 <Route path="/projects/create"                 element={<ProjectsPage />} />
-                <Route path="/projects/initiate/:proposalId"   element={<ProjectInitiationPage />} />
                 <Route path="/projects/:id"                    element={<ProjectDetailPage />} />
                 {/* /tasks/:id must come BEFORE /tasks to prevent route shadowing */}
                 <Route path="/tasks/:id"                       element={<TaskDetailPage />} />
@@ -199,8 +201,10 @@ export default function App() {
                 <Route path="/settings/roles-permissions"  element={<RolesPermissionsPage />} />
                 <Route path="/settings/checklist-templates" element={<ChecklistTemplatesPage />} />
                 <Route path="/settings/workflow-templates"  element={<WorkflowTemplatesPage />} />
+                <Route path="/settings/responsibilities"    element={<ResponsibilitiesPage />} />
                 {/* Phase 4 — Analytics */}
                 <Route path="/pms/analytics" element={<AnalyticsPage />} />
+                <Route path="/pms/designers/:userId" element={<DesignerDetailPage />} />
               </Route>
 
               {/* Global default redirect */}

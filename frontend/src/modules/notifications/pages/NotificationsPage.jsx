@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -97,7 +97,7 @@ const NotificationsPage = () => {
       setTotal(res.total || 0);
       setUnread(res.unread || 0);
     } catch {
-      // silent — list page tolerates errors; user can hit Refresh
+      // silent â€” list page tolerates errors; user can hit Refresh
     } finally {
       setIsLoading(false);
     }
@@ -170,7 +170,7 @@ const NotificationsPage = () => {
           </div>
           <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">Notifications</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            {unread > 0 ? <><span className="font-bold text-[var(--text-primary)]">{unread} unread</span> · {total} total</> : `All caught up — ${total} total`}
+            {unread > 0 ? <><span className="font-bold text-[var(--text-primary)]">{unread} unread</span> Â· {total} total</> : `All caught up â€” ${total} total`}
           </p>
         </div>
 
@@ -215,7 +215,7 @@ const NotificationsPage = () => {
       <Card className="p-0 overflow-hidden">
         {items.length === 0 && !isLoading ? (
           <div className="px-6 py-16 text-center">
-            <Bell size={36} className="mx-auto text-[var(--text-muted)] opacity-40" />
+            <Bell size={36} className="mx-auto text-[var(--text-muted)] opacity-60" />
             <p className="text-sm text-[var(--text-muted)] mt-4 font-medium">
               No notifications match these filters.
             </p>
@@ -256,11 +256,11 @@ const NotificationsPage = () => {
                       )}
                       <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest">
                         <span>{n.module}</span>
-                        <span>·</span>
+                        <span>Â·</span>
                         <span>{formatAbsoluteTime(n.createdAt)}</span>
                         {n.actorName && (
                           <>
-                            <span>·</span>
+                            <span>Â·</span>
                             <span className="normal-case tracking-normal">by {n.actorName}</span>
                           </>
                         )}

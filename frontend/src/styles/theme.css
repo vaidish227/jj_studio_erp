@@ -20,7 +20,7 @@
    --sidebar-active: #D4B76C;
 
    --sidebar-text: #EAEAEA;
-   --sidebar-text-muted: #A0A0A0;
+   --sidebar-text-muted: #C8C8C8;
 
    /* =========================
      📦 BORDERS
@@ -29,11 +29,11 @@
    --divider: #D6D1C4;
 
    /* =========================
-     📝 TEXT
+     📝 TEXT (darkened for readability — was #6B6B6B / #A0A0A0)
   ========================= */
    --text-primary: #2E2E2E;
-   --text-secondary: #6B6B6B;
-   --text-muted: #A0A0A0;
+   --text-secondary: #4A4A4A;
+   --text-muted: #5E5E5E;
 
    /* =========================
      🎯 ACCENTS
@@ -47,4 +47,20 @@
    --success: #4CAF50;
    --warning: #F4B400;
    --error: #D93025;
+}
+
+/* =========================
+   🔤 GLOBAL TYPOGRAPHY
+   Inter is the single brand font across the entire app.
+   Loaded from Google Fonts in /index.html.
+========================= */
+html, body, #root {
+   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
+   -webkit-font-smoothing: antialiased;
+   -moz-osx-font-smoothing: grayscale;
+   text-rendering: optimizeLegibility;
+}
+
+button, input, select, textarea {
+   font-family: inherit;
 }

@@ -23,7 +23,23 @@ export const pmsService = {
 
   // ─── Drawings ──────────────────────────────────────────────────────────────
   uploadDrawing:         (data)              => apiClient.post('/pms/drawing/upload', data),
+  // Multipart file upload — pass a FormData instance. Axios drops the JSON
+  // default content-type when undefined so the browser writes its own
+  // multipart boundary.
+  uploadDrawingFile:     (formData)          => apiClient.post('/pms/drawing/upload', formData, {
+    headers: { 'Content-Type': undefined },
+  }),
   reviseDrawing:         (id, data)          => apiClient.post(`/pms/drawing/revise/${id}`, data),
+  // Auto-revision lookup for the upload form: returns { version: <next> }.
+  getNextDrawingVersion: (params)            => apiClient.get('/pms/drawing/next-version', { params }),
+  // Signed-URL accessors: { url, source, expiresIn }
+  // Pass { historyVersion: N } to sign a past revision instead of the current file.
+  getDrawingDownloadUrl: (id, { historyVersion } = {}) =>
+    apiClient.get(`/pms/drawing/${id}/download`,
+      historyVersion != null ? { params: { historyVersion } } : undefined),
+  getDrawingPreviewUrl:  (id, { historyVersion } = {}) =>
+    apiClient.get(`/pms/drawing/${id}/preview`,
+      historyVersion != null ? { params: { historyVersion } } : undefined),
   getAllDrawings:         (params)            => apiClient.get('/pms/drawing/all', { params }),
   getPendingApprovals:   ()                  => apiClient.get('/pms/drawing/pending-approvals'),
   getDrawingsByProject:  (projectId, params) => apiClient.get(`/pms/drawing/project/${projectId}`, { params }),
@@ -33,6 +49,16 @@ export const pmsService = {
   rejectDrawing:         (id, data)          => apiClient.patch(`/pms/drawing/reject/${id}`, data),
   releaseDrawing:        (id)                => apiClient.patch(`/pms/drawing/release/${id}`),
   deleteDrawing:         (id)                => apiClient.delete(`/pms/drawing/delete/${id}`),
+
+  // ─── Drawing Annotations (Phase 6) ────────────────────────────────────────
+  // Coordinates are normalized [0,1]; the modal converts to pixels on render.
+  listDrawingAnnotations:   (id, version) =>
+    apiClient.get(`/pms/drawing/${id}/annotations`,
+      version != null ? { params: { version } } : undefined),
+  createDrawingAnnotation:  (id, data)    => apiClient.post(`/pms/drawing/${id}/annotations`, data),
+  updateDrawingAnnotation:  (annotationId, data) =>
+    apiClient.patch(`/pms/drawing/annotation/${annotationId}`, data),
+  deleteDrawingAnnotation:  (annotationId) => apiClient.delete(`/pms/drawing/annotation/${annotationId}`),
 
   // ─── Vendors ───────────────────────────────────────────────────────────────
   getVendors:            (params)            => apiClient.get('/pms/vendor/all', { params }),
@@ -155,6 +181,10 @@ export const pmsService = {
   deleteChecklistTemplate:   (id)                      => apiClient.delete(`/pms/templates/checklist/${id}`),
   listWorkflowTemplates:     ()                        => apiClient.get('/pms/templates/workflow'),
   getWorkflowTemplate:       (id)                      => apiClient.get(`/pms/templates/workflow/${id}`),
+  getWorkflowTemplateOptions:()                        => apiClient.get('/pms/templates/workflow/options'),
+  createWorkflowTemplate:    (data)                    => apiClient.post('/pms/templates/workflow', data),
+  updateWorkflowTemplate:    (id, data)                => apiClient.patch(`/pms/templates/workflow/${id}`, data),
+  deleteWorkflowTemplate:    (id)                      => apiClient.delete(`/pms/templates/workflow/${id}`),
 
   // ─── Analytics (Phase 4) ───────────────────────────────────────────────────
   getGateAging:              ()                        => apiClient.get('/pms/analytics/gate-aging'),
@@ -174,8 +204,30 @@ export const pmsService = {
   getProposalPreview:    (proposalId)        => apiClient.get(`/pms/project-initiation/proposal-preview/${proposalId}`),
   initiateFromProposal:  (data)              => apiClient.post('/pms/project-initiation/from-proposal', data),
 
+  // ─── PMS Dashboard (operational landing page) ─────────────────────────────
+  getDashboardOverview:  (period = 'month')  => apiClient.get(`/pms/dashboard/overview?period=${period}`),
+  getDesignerKRA:        (period = 'month')  => apiClient.get(`/pms/dashboard/designer-kra?period=${period}`),
+  getDesignerDetail:     (userId, period = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}?period=${period}`),
+  getProjectAnalytics:   (period = 'month')  => apiClient.get(`/pms/dashboard/analytics?period=${period}`),
+  // Phase C — report JSON (frontend turns these into .xlsx via SheetJS)
+  getDesignerKpiReport:    (period = 'month') => apiClient.get(`/pms/dashboard/reports/designer-kpi?period=${period}`),
+  getProjectSummaryReport: (period = 'month') => apiClient.get(`/pms/dashboard/reports/project-summary?period=${period}`),
+  getAlerts:             ()                  => apiClient.get('/pms/dashboard/alerts'),
+  getProjectPendingApproval: (projectId)     => apiClient.get(`/pms/dashboard/project/${projectId}/pending-md-approval`),
+
   // ─── DLR Sheet ─────────────────────────────────────────────────────────────
   getDLRSheet:           (projectId)         => apiClient.get(`/pms/drawing/dlr/${projectId}`),
+
+  // ─── Project Planner / Master Plan ────────────────────────────────────────
+  getPlannerMaster:      (projectId, params) => apiClient.get(`/pms/planner/${projectId}/master`, { params }),
+  getPlannerSummary:     (projectId)         => apiClient.get(`/pms/planner/${projectId}/summary`),
+  createPlannerRow:      (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/rows`, data),
+  patchPlannerRow:       (taskId,    data)   => apiClient.patch(`/pms/planner/rows/${taskId}`, data),
+  deletePlannerRow:      (taskId)            => apiClient.delete(`/pms/planner/rows/${taskId}`),
+  bulkAssignPlanner:     (data)              => apiClient.post(`/pms/planner/rows/bulk/assign`, data),
+  bulkDatesPlanner:      (data)              => apiClient.post(`/pms/planner/rows/bulk/dates`, data),
+  freezePlannerBaseline: (projectId)         => apiClient.post(`/pms/planner/${projectId}/baseline`),
+  autoSchedulePlanner:   (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/auto-schedule`, data),
 
   // ─── DDMS — Designer Dashboard ────────────────────────────────────────────
   getDesignerDashboard:  ()                  => apiClient.get('/pms/designer/dashboard'),
@@ -188,4 +240,10 @@ export const pmsService = {
   createRevisionRequest:         (data)      => apiClient.post('/pms/design-revisions', data),
   getRevisionRequestsByDrawing:  (drawingId) => apiClient.get(`/pms/design-revisions/drawing/${drawingId}`),
   resolveRevisionRequest:        (id)        => apiClient.patch(`/pms/design-revisions/${id}/resolve`),
+
+  // ─── Responsibilities (dynamic team master list) ──────────────────────────
+  listResponsibilities:    (params)         => apiClient.get('/pms/responsibility/all', { params }),
+  createResponsibility:    (data)           => apiClient.post('/pms/responsibility/create', data),
+  updateResponsibility:    (id, data)       => apiClient.patch(`/pms/responsibility/update/${id}`, data),
+  deleteResponsibility:    (id, opts = {})  => apiClient.delete(`/pms/responsibility/delete/${id}`, { params: opts }),
 };

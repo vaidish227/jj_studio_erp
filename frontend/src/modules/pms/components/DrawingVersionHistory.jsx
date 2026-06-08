@@ -1,11 +1,12 @@
 import React from 'react';
 import { ExternalLink } from 'lucide-react';
+import DrawingFileLink from './DrawingFileLink';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
   : '—';
 
-const DrawingVersionHistory = ({ revisionHistory = [] }) => {
+const DrawingVersionHistory = ({ drawing, revisionHistory = [] }) => {
   if (!revisionHistory.length) return null;
 
   return (
@@ -29,15 +30,15 @@ const DrawingVersionHistory = ({ revisionHistory = [] }) => {
               {entry.uploadedBy?.name || '—'} · {fmt(entry.uploadedAt)}
             </p>
           </div>
-          {entry.fileUrl && (
-            <a
-              href={entry.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+          {entry.fileUrl && drawing?._id && (
+            <DrawingFileLink
+              drawing={drawing}
+              historyVersion={entry.version}
               className="shrink-0 text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
+              title={`Open v${entry.version}`}
             >
               <ExternalLink size={12} />
-            </a>
+            </DrawingFileLink>
           )}
         </div>
       ))}

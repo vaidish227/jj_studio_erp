@@ -79,7 +79,7 @@ const ProposalViewer = ({ proposal, client }) => {
                   <tbody>
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={columns.length + 1} className="px-4 py-8 text-center italic text-gray-500">
+                        <td colSpan={columns.length + 1} className="px-4 py-8 text-center italic text-[var(--text-secondary)]">
                           Empty section structure
                         </td>
                       </tr>

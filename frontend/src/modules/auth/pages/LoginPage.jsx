@@ -1,5 +1,5 @@
-import React from 'react';
-import { Mail, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mail, Lock, AlertCircle } from 'lucide-react';
 
 import WaveBackground from '../../../shared/components/WaveBackground/WaveBackground';
 import Input from '../../../shared/components/Input/Input';
@@ -20,6 +20,19 @@ const LoginPage = () => {
     handleChange,
     handleSubmit,
   } = useLogin();
+
+  // One-shot banner when the user landed here because their session expired.
+  // Set by apiClient on 401 or by AuthContext when the expiry timer fires.
+  const [sessionExpiredNote, setSessionExpiredNote] = useState(null);
+  useEffect(() => {
+    try {
+      const reason = sessionStorage.getItem('auth_redirect_reason');
+      if (reason) {
+        setSessionExpiredNote(reason);
+        sessionStorage.removeItem('auth_redirect_reason');
+      }
+    } catch {}
+  }, []);
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center px-4 py-10">
@@ -100,6 +113,15 @@ const LoginPage = () => {
               Forgot Password?
             </button>
           </div>
+
+          {/* Session-expired banner (shown once after auto-redirect) */}
+          {sessionExpiredNote && !apiError && (
+            <div className="flex items-start gap-2 bg-[var(--warning)]/10 border border-[var(--warning)]/30
+                            rounded-xl px-4 py-3 text-sm text-[var(--warning)]">
+              <AlertCircle size={15} className="shrink-0 mt-0.5" />
+              <span className="font-medium">{sessionExpiredNote}</span>
+            </div>
+          )}
 
           {/* API Error */}
           {apiError && (

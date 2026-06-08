@@ -49,13 +49,13 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
   if (isLoading) {
     return (
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 text-sm text-[var(--text-muted)]">
-        Loading gates…
+        Loading sign-offs…
       </div>
     );
   }
 
   const open = gates.filter((g) => g.status === 'open');
-  // Sort by age desc — oldest blockers surface first
+  // Sort by age desc — oldest items surface first
   const top = open.sort((a, b) => (b.ageingDays || 0) - (a.ageingDays || 0)).slice(0, 3);
 
   if (open.length === 0) {
@@ -64,7 +64,7 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
         <CheckCircle2 size={20} className="text-[var(--success)] shrink-0" />
         <div className="flex-1">
           <p className="text-sm font-bold text-[var(--success)]">All clear</p>
-          <p className="text-xs text-[var(--text-muted)]">No approval gates are currently blocking the project.</p>
+          <p className="text-xs text-[var(--text-muted)]">No sign-offs pending — the project is moving smoothly.</p>
         </div>
       </div>
     );
@@ -72,7 +72,7 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
 
   const handleMarkObtained = async (gate) => {
     if (!gate.listensTo) {
-      toast.error('This gate has no linked client-approval field.');
+      toast.error('This sign-off has no linked client approval.');
       return;
     }
     setBusyId(gate._id);
@@ -82,7 +82,7 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
         status: 'obtained',
         obtainedAt: new Date().toISOString(),
       });
-      toast.success(`"${gate.listensTo}" marked obtained`);
+      toast.success(`"${gate.listensTo}" marked as approved`);
       refresh();
     } catch (err) {
       toast.error(err?.message || 'Failed');
@@ -96,9 +96,9 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <AlertTriangle size={16} className="text-[var(--warning)]" />
-          <h3 className="text-sm font-bold text-[var(--text-primary)]">What's blocking the project</h3>
+          <h3 className="text-sm font-bold text-[var(--text-primary)]">Awaiting your approval</h3>
           <span className="text-[10px] font-black uppercase tracking-widest text-[var(--warning)] bg-[var(--warning)]/10 px-2 py-0.5 rounded">
-            {open.length} open
+            {open.length} pending
           </span>
         </div>
         {onSwitchToGates && (
@@ -149,7 +149,7 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
                 <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{gate.label}</p>
                 {gate.blockingTasks?.length > 0 && (
                   <p className="text-[11px] text-[var(--text-muted)] truncate">
-                    Blocks {gate.blockingTasks.length} task{gate.blockingTasks.length === 1 ? '' : 's'}
+                    {gate.blockingTasks.length} task{gate.blockingTasks.length === 1 ? '' : 's'} waiting to start
                   </p>
                 )}
               </div>
@@ -161,7 +161,7 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
                     onClick={() => handleMarkObtained(gate)}
                     disabled={busyId === gate._id}
                   >
-                    <CheckCircle2 size={12} className="mr-1" /> Mark Obtained
+                    <CheckCircle2 size={12} className="mr-1" /> Mark Approved
                   </Button>
                 )}
                 {canOverride && (
@@ -169,7 +169,7 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
                     size="sm"
                     variant="ghost"
                     onClick={() => onSwitchToGates?.()}
-                    title="Open Gates tab to override"
+                    title="Open Sign-offs tab to confirm verbally"
                   >
                     <Unlock size={12} />
                   </Button>
@@ -182,7 +182,7 @@ const WhatsBlockingWidget = ({ project, onSwitchToGates }) => {
 
       {open.length > 3 && (
         <p className="text-xs text-[var(--text-muted)] text-center pt-1">
-          + {open.length - 3} more open gate{open.length - 3 === 1 ? '' : 's'} — see Gates tab
+          + {open.length - 3} more pending sign-off{open.length - 3 === 1 ? '' : 's'} — see Sign-offs tab
         </p>
       )}
     </div>

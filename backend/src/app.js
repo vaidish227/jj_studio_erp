@@ -83,6 +83,9 @@ app.use("/api/kit", kitRoutes);
 const pmsProjectRoutes = require("./modules/pms/routes/Project.route");
 app.use("/api/pms/project", pmsProjectRoutes);
 
+const pmsResponsibilityRoutes = require("./modules/pms/routes/Responsibility.route");
+app.use("/api/pms/responsibility", pmsResponsibilityRoutes);
+
 const pmsProjectInitiationRoutes = require("./modules/pms/routes/ProjectInitiation.route");
 app.use("/api/pms/project-initiation", pmsProjectInitiationRoutes);
 
@@ -156,6 +159,10 @@ app.use("/api/pms/design-comments", designCommentRoutes);
 
 const designRevisionRoutes = require("./modules/pms/routes/DesignRevisionRequest.route");
 app.use("/api/pms/design-revisions", designRevisionRoutes);
+
+// ─── Project Planner / Master Plan ───────────────────────────────────────────
+const pmsPlannerRoutes = require("./modules/pms/routes/Planner.route");
+app.use("/api/pms/planner", pmsPlannerRoutes);
 
 // ─── Settings & RBAC (admin only — guarded inside the route file) ─────────────
 const rolesRoutes = require("./modules/settings/routes/Roles.route");

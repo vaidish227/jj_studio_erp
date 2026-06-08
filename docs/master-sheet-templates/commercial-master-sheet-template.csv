@@ -1,0 +1,19 @@
+#,Phase,Drawing / Task Name,Category,Responsibility / Designer Role,Start Day,Duration (Days),Planned Hours,Priority,Depends On,Requires Gate,Checklist
+1,Kickoff,Collect base building MEP / client brief,MEP Collection,Furniture Measurements,D+0,3,6,High,,,mep_collection_v1
+2,Kickoff,Site survey & built-form measurement,Site Measurement,Furniture Measurements,D+1,2,8,High,,,site_measurement_v1
+3,Kickoff,Concept & brand direction,Concept Making,Concept / 3D,D+3,5,20,Medium,,,concept_making_v1
+4,Layout,Space planning — zoning & circulation,Furniture Layout (Space Plan),Lead Designer,D+4,5,20,High,Site Measurement,,furniture_layout_v1
+5,Layout,Furniture layout — workstations & meeting rooms,Furniture Layout,Lead Designer,D+6,4,16,High,Space Planning,Space Planning — Client Approval,furniture_layout_v1
+6,Design,Civil Drawing,Civil Drawing,Furniture Measurements,D+8,5,16,Medium,,Furniture Layout — Client Approval,civil_drawing_v1
+7,Design,Electrical + Data / Networking Layout,Technical Drawing,Technical Drawings,D+8,6,20,Medium,,Furniture Layout — Client Approval,technical_drawing_v1
+8,Design,HVAC Coordination,AC Coordination,Technical Drawings,D+8,5,16,High,,Furniture Layout — Client Approval,ac_coordination_v1
+9,Design,Fire Safety / Sprinkler Coordination,AC Coordination,Technical Drawings,D+8,4,12,High,,Furniture Layout — Client Approval,ac_coordination_v1
+10,Design,Building Automation / Access Control,Automation Coordination,Technical Drawings,D+8,4,12,Medium,,Furniture Layout — Client Approval,automation_coordination_v1
+11,Design,Technical Drawings (false ceiling / partitions),Technical Drawing,Technical Drawings,D+8,7,24,Medium,,Furniture Layout — Client Approval,technical_drawing_v1
+12,Design,Workstation Detail Drawing,Technical Drawing,Technical Drawings,D+9,5,16,Medium,,Furniture Layout — Client Approval,technical_drawing_v1
+13,Design,Reception / Lobby 3D Render,3D Render,Concept / 3D,D+10,6,24,Medium,Concept Making,Furniture Layout — Client Approval; PD 3D Review,3d_render_v1
+14,Design,Conference / Board Room 3D Render,3D Render,Concept / 3D,D+11,5,20,Medium,Concept Making,Furniture Layout — Client Approval; PD 3D Review,3d_render_v1
+15,Design,Cafeteria / Pantry Layout & 3D,Kitchen Drawing,Bathroom / Kitchen,D+10,4,14,Medium,,Furniture Layout — Client Approval,kitchen_drawing_v1
+16,Design,Restroom Drawing,Bathroom Drawing,Bathroom / Kitchen,D+10,4,12,Medium,,Furniture Layout — Client Approval,bathroom_drawing_v1
+17,Design,Signage & Branding Detail,Technical Drawing,Concept / 3D,D+12,4,12,Low,Concept Making,Furniture Layout — Client Approval,technical_drawing_v1
+18,Handover,Design → Execution Handover Signoff,Handover Signoff,Lead Designer,D+40,1,4,High,,Design → Execution Handover,handover_signoff_v1

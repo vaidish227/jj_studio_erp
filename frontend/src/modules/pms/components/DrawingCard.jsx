@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, ChevronDown, ChevronUp, ExternalLink, Clock, AlertCircle, MessageCircle, GitBranch, Eye, CheckCircle2 } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp, Clock, AlertCircle, MessageCircle, GitBranch, Eye, CheckCircle2, Download } from 'lucide-react';
 import { Button } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import DrawingStatusBadge from './DrawingStatusBadge';
@@ -7,7 +7,9 @@ import DrawingVersionHistory from './DrawingVersionHistory';
 import DesignCommentThread from './DesignCommentThread';
 import RevisionRequestPanel from './RevisionRequestPanel';
 import PDReviewModal from './PDReviewModal';
+import PreviewDrawingModal from './PreviewDrawingModal';
 import { useAuth } from '../../../shared/context/AuthContext';
+import { useToast } from '../../../shared/notifications/ToastProvider';
 import { pmsService } from '../../../shared/services/pmsService';
 
 const fmt = (d) => d
@@ -40,9 +42,39 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
 
   // Phase 2 — Principal Designer review status (only fetched for 3D drawings)
   const { hasPermission } = useAuth();
+  const toast = useToast();
   const [pdReview, setPDReview] = useState(null);
   const [pdMode, setPDMode] = useState(null); // 'request' | 'respond' | null
   const isThreeD = drawing.drawingType === '3d_render';
+
+  // Phase 5 — Preview opens an in-app modal (zoom + annotation tools).
+  // Download still fetches a signed URL and triggers a browser download.
+  const [busy, setBusy] = useState(null); // 'download' | null
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const handlePreview = () => setPreviewOpen(true);
+
+  const handleDownload = async () => {
+    if (busy) return;
+    setBusy('download');
+    try {
+      const res = await pmsService.getDrawingDownloadUrl(drawing._id);
+      if (res?.url) {
+        // Use a hidden anchor so we don't navigate the page away.
+        const a = document.createElement('a');
+        a.href = res.url;
+        a.rel = 'noopener noreferrer';
+        a.download = drawing.fileName || drawing.title || 'drawing';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        toast.error('Download URL unavailable');
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Could not start download');
+    } finally { setBusy(null); }
+  };
 
   useEffect(() => {
     if (!isThreeD || !drawing?._id) {
@@ -103,18 +135,45 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
         <span className="ml-auto">{fmt(drawing.createdAt)}</span>
       </div>
 
+      {/* Zone + description */}
+      {(drawing.zoneName || drawing.description) && (
+        <div className="space-y-0.5 text-xs">
+          {drawing.zoneName && (
+            <p className="text-[var(--text-secondary)]">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mr-1.5">Zone</span>
+              {drawing.zoneName}
+            </p>
+          )}
+          {drawing.description && (
+            <p className="text-[var(--text-muted)] leading-snug line-clamp-2">{drawing.description}</p>
+          )}
+        </div>
+      )}
+
       {/* Action row */}
       <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-[var(--border)]">
         {drawing.fileUrl && (
-          <a
-            href={drawing.fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline shrink-0"
-          >
-            <ExternalLink size={11} />
-            View file
-          </a>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handlePreview}
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg
+                         text-[var(--primary)] hover:bg-[var(--primary)]/10 transition-colors"
+              title="Preview & annotate"
+            >
+              <Eye size={11} /> Preview
+            </button>
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={busy === 'download'}
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg
+                         text-[var(--text-secondary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 transition-colors disabled:opacity-50"
+              title="Download original file"
+            >
+              <Download size={11} /> Download
+            </button>
+          </div>
         )}
 
         <div className="flex items-center gap-2 ml-auto flex-wrap">
@@ -235,7 +294,7 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
       {/* Version history */}
       {showHistory && (
         <div className="border-t border-[var(--border)] pt-3">
-          <DrawingVersionHistory revisionHistory={drawing.revisionHistory} />
+          <DrawingVersionHistory drawing={drawing} revisionHistory={drawing.revisionHistory} />
         </div>
       )}
 
@@ -261,6 +320,15 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
           isOpen={!!pdMode}
           onClose={() => setPDMode(null)}
           onDone={() => { onUpdated?.(); setPDMode(null); }}
+        />
+      )}
+
+      {/* Phase 6 — In-app preview with zoom + annotation tools */}
+      {previewOpen && (
+        <PreviewDrawingModal
+          drawing={drawing}
+          isOpen={previewOpen}
+          onClose={() => setPreviewOpen(false)}
         />
       )}
     </div>

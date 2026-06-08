@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -65,7 +65,7 @@ const MeetingsCalendarView = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Left — compact month calendar */}
+      {/* Left â€” compact month calendar */}
       <div className="lg:col-span-4">
         <Card className="p-5">
           <div className="flex items-center justify-between mb-5 gap-2">
@@ -110,7 +110,7 @@ const MeetingsCalendarView = ({
             ))}
           </div>
 
-          {/* Day cells — number + a small count badge for days with meetings */}
+          {/* Day cells â€” number + a small count badge for days with meetings */}
           <div className="grid grid-cols-7 gap-1">
             {calendarDays.map((day, index) => {
               const isSelected = sameDay(day.date, selectedDate);
@@ -144,7 +144,7 @@ const MeetingsCalendarView = ({
         </Card>
       </div>
 
-      {/* Right — selected day's meetings */}
+      {/* Right â€” selected day's meetings */}
       <div className="lg:col-span-8">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -170,7 +170,7 @@ const MeetingsCalendarView = ({
             </div>
           ) : (
             <div className="py-20 text-center bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-2xl">
-              <CalendarIcon size={24} className="text-[var(--text-muted)] opacity-30 mx-auto mb-3" />
+              <CalendarIcon size={24} className="text-[var(--text-muted)] opacity-60 mx-auto mb-3" />
               <p className="text-sm text-[var(--text-muted)] font-medium">
                 No meetings scheduled on this day.
               </p>

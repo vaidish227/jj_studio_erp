@@ -14,6 +14,7 @@ import PriorityBadge from '../components/PriorityBadge';
 import DrawingStatusBadge from '../components/DrawingStatusBadge';
 import RequestRevisionModal from '../components/RequestRevisionModal';
 import ReassignTaskModal from '../components/ReassignTaskModal';
+import DrawingFileLink from '../components/DrawingFileLink';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
@@ -30,11 +31,13 @@ const DrawingChip = ({ drawing }) => (
     <span className="text-xs text-[var(--text-secondary)] truncate max-w-[120px]">{drawing.title}</span>
     <DrawingStatusBadge status={drawing.status} />
     {drawing.fileUrl && (
-      <a href={drawing.fileUrl} target="_blank" rel="noreferrer"
+      <DrawingFileLink
+        drawing={drawing}
         className="text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
-        onClick={(e) => e.stopPropagation()}>
+        onClick={(e) => e.stopPropagation()}
+      >
         <ExternalLink size={11} />
-      </a>
+      </DrawingFileLink>
     )}
   </div>
 );

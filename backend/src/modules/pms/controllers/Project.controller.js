@@ -1,4 +1,5 @@
 const Project = require("../models/Project.model");
+const Responsibility = require("../models/Responsibility.model");
 const {
   createProjectSchema,
   updateProjectSchema,
@@ -9,19 +10,12 @@ const {
 const { logActivity } = require("../../../shared/activityLogger");
 const workflowEngine = require("../services/workflowEngine");
 const kitEvents = require("../../kit/services/kitEvents");
+const teamResolver = require("../services/teamResolver");
 
 const WORKFLOW_ENGINE_V1 =
   String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
 
-const TEAM_POPULATE = [
-  { path: "primaryDesigner", select: "name email role" },
-  { path: "supervisor",      select: "name email role" },
-  { path: "designerB",       select: "name email role" },
-  { path: "designerC",       select: "name email role" },
-  { path: "designerD",       select: "name email role" },
-  { path: "designerE",       select: "name email role" },
-  { path: "contractor",      select: "name email role" },
-];
+const TEAM_POPULATE = teamResolver.assignmentsPopulate();
 
 /**
  * @route POST /api/pms/project/create
@@ -35,8 +29,6 @@ const createProject = async (req, res) => {
 
     // Strip empty proposalId so Mongoose doesn't try to cast '' → ObjectId
     if (!value.proposalId) delete value.proposalId;
-    if (!value.primaryDesigner) delete value.primaryDesigner;
-    if (!value.supervisor) delete value.supervisor;
 
     const existingProject = await Project.findOne({ proposalId: value.proposalId }).lean();
     if (value.proposalId && existingProject) {
@@ -45,6 +37,12 @@ const createProject = async (req, res) => {
         project: existingProject,
       });
     }
+
+    // Pull the chosen workflow template (if any) before persisting — the
+    // engine accepts it via `templateId`, but the Project document also
+    // stores `workflowTemplateId` for downstream populate.
+    const requestedTemplateId = value.workflowTemplateId;
+    if (!requestedTemplateId) delete value.workflowTemplateId;
 
     const project = await Project.create(value);
 
@@ -66,9 +64,31 @@ const createProject = async (req, res) => {
       actor: req.user,
     });
 
+    // Workflow Engine — seed the task graph from the chosen template.
+    // Best-effort: failures are logged but do not block project creation.
+    let workflowSummary = null;
+    if (WORKFLOW_ENGINE_V1) {
+      try {
+        workflowSummary = await workflowEngine.seedProject(project._id, {
+          templateId: requestedTemplateId || undefined,
+          actorId:    req.user._id,
+        });
+      } catch (engineErr) {
+        console.error("[createProject:workflowEngine] seed failed:", engineErr);
+      }
+    }
+
+    // Return the project with the populated template so the stepper renders
+    // the right phases immediately on redirect.
+    const populated = await Project.findById(project._id)
+      .populate("clientId",         "name phone email trackingId")
+      .populate("workflowTemplateId", "name phases projectType")
+      .populate(TEAM_POPULATE);
+
     res.status(201).json({
-      message: "Project created successfully",
-      project,
+      message:  "Project created successfully",
+      project:  populated || project,
+      workflow: workflowSummary,
     });
   } catch (error) {
     console.error("[createProject]", error);
@@ -84,9 +104,9 @@ const getAllProjects = async (req, res) => {
     const { status, projectType, designerId, page = 1, limit = 20 } = req.query;
     const filter = {};
 
-    if (status)      filter.status          = status;
-    if (projectType) filter.projectType     = projectType;
-    if (designerId)  filter.primaryDesigner = designerId;
+    if (status)      filter.status      = status;
+    if (projectType) filter.projectType = projectType;
+    if (designerId)  filter["assignments.users"] = designerId;
 
     const skip  = (Number(page) - 1) * Number(limit);
     const total = await Project.countDocuments(filter);
@@ -119,6 +139,7 @@ const getProjectById = async (req, res) => {
     const project = await Project.findById(req.params.id)
       .populate("clientId")
       .populate("proposalId")
+      .populate("workflowTemplateId", "name phases projectType")
       .populate(TEAM_POPULATE);
 
     if (!project) {
@@ -230,6 +251,9 @@ const updateKickstart = async (req, res) => {
 
 /**
  * @route PATCH /api/pms/project/team/:id
+ * Body: { assignments: [{ responsibilityId, userIds: [] }] }
+ * Replaces the entire team in one call. Empty userIds = responsibility
+ * listed but unassigned (UI usually drops the row entirely).
  */
 const updateTeam = async (req, res) => {
   try {
@@ -238,15 +262,29 @@ const updateTeam = async (req, res) => {
       return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
     }
 
-    // Convert empty strings to null (clears the assignment)
-    const setFields = {};
-    for (const [key, val] of Object.entries(value)) {
-      setFields[key] = val || null;
+    // Verify every (master) responsibilityId exists. Custom rows skip this.
+    const ids = value.assignments
+      .map((a) => a.responsibilityId)
+      .filter(Boolean);
+    if (ids.length > 0) {
+      const found = await Responsibility.find({ _id: { $in: ids } }, { _id: 1 }).lean();
+      if (found.length !== new Set(ids.map(String)).size) {
+        return res
+          .status(400)
+          .json({ message: "One or more responsibilityId values are invalid" });
+      }
     }
+
+    const assignments = value.assignments.map((a) => {
+      const row = { users: a.userIds || [] };
+      if (a.responsibilityId) row.responsibilityId = a.responsibilityId;
+      if (a.customName)       row.customName       = a.customName.trim();
+      return row;
+    });
 
     const project = await Project.findByIdAndUpdate(
       req.params.id,
-      { $set: setFields },
+      { $set: { assignments } },
       { new: true }
     ).populate(TEAM_POPULATE);
 
@@ -261,7 +299,7 @@ const updateTeam = async (req, res) => {
       entityId:    project._id,
       action:      "team_updated",
       description: `Team updated on project "${project.name}"`,
-      metadata:    value,
+      metadata:    { assignmentCount: assignments.length },
     });
 
     res.status(200).json({ message: "Team updated", project });
@@ -354,17 +392,7 @@ const getMyProjects = async (req, res) => {
     const userId = req.user._id;
     const { status, page = 1, limit = 50 } = req.query;
 
-    const filter = {
-      $or: [
-        { primaryDesigner: userId },
-        { designerB: userId },
-        { designerC: userId },
-        { designerD: userId },
-        { designerE: userId },
-        { supervisor:  userId },
-        { contractor:  userId },
-      ],
-    };
+    const filter = { "assignments.users": userId };
 
     if (status) filter.status = status;
 

@@ -2,12 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart3, Lock, Clock, Users, ShoppingBag, IndianRupee, ArrowUpRight,
-  TrendingUp, TrendingDown, AlertTriangle, RefreshCw,
+  TrendingUp, TrendingDown, AlertTriangle, RefreshCw, Activity,
+  FileSpreadsheet, Download,
 } from 'lucide-react';
+import {
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
+  BarChart, Bar as RBar, XAxis, YAxis, CartesianGrid, LineChart, Line,
+} from 'recharts';
 import { Button, Loader } from '../../../shared/components';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import { exportReportAsExcel } from '../../../shared/utils/excelExport';
 
 /**
  * AnalyticsPage — Phase 4.
@@ -17,12 +23,66 @@ import { useToast } from '../../../shared/notifications/ToastProvider';
  */
 
 const TABS = [
-  { id: 'gates',       label: 'Gate Aging',           icon: Lock },
+  { id: 'overview',    label: 'Project Overview',     icon: Activity },
+  { id: 'gates',       label: 'Pending Sign-offs',    icon: Lock },
   { id: 'sla',         label: 'Release SLA',          icon: Clock },
   { id: 'designers',   label: 'Designer Utilisation', icon: Users },
   { id: 'vendors',     label: 'Vendor Performance',   icon: ShoppingBag },
   { id: 'profit',      label: 'Profitability',        icon: IndianRupee },
 ];
+
+// ── Shared chart helpers ─────────────────────────────────────────────────────
+const cssVar = (name, fallback = '#000') => {
+  if (typeof window === 'undefined') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+};
+
+const PROJECT_STATUS_COLOR = {
+  new:              '#94a3b8',
+  design_phase:     '#3b82f6',
+  execution_phase:  '#8b5cf6',
+  on_hold:          '#64748b',
+  completed:        '#22c55e',
+  cancelled:        '#ef4444',
+};
+const PROJECT_STATUS_LABEL = {
+  new:              'New',
+  design_phase:     'Design',
+  execution_phase:  'Execution',
+  on_hold:          'On Hold',
+  completed:        'Completed',
+  cancelled:        'Cancelled',
+};
+const HEALTH_COLOR = {
+  on_track: '#22c55e',
+  at_risk:  '#f59e0b',
+  blocked:  '#ef4444',
+  on_hold:  '#64748b',
+  delayed:  '#7c2d12',
+};
+const HEALTH_LABEL = {
+  on_track: 'On Track', at_risk: 'At Risk', blocked: 'Blocked', on_hold: 'On Hold', delayed: 'Delayed',
+};
+const PHASE_LABEL = {
+  kickoff: 'Kickoff', layout: 'Layout', design: 'Design', procurement: 'Procurement',
+  release: 'Release', execution: 'Execution', handover: 'Handover',
+};
+
+const SimpleTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-lg text-xs">
+      {label && <p className="font-bold text-[var(--text-primary)] mb-1">{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} className="text-[var(--text-secondary)] flex items-center gap-1.5">
+          <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: p.color || p.fill }} />
+          {p.name}: <span className="font-bold text-[var(--text-primary)]">{p.value ?? '—'}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
 
 const fmtINR = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 const fmtHours = (h) => {
@@ -55,12 +115,12 @@ const GateAgingPanel = () => {
   }, []);
 
   if (loading) return <PanelLoader />;
-  if (!data || data.total === 0) return <EmptyPanel icon={<Lock size={28} />} msg="No open gates across projects." />;
+  if (!data || data.total === 0) return <EmptyPanel icon={<Lock size={28} />} msg="No pending sign-offs across projects." />;
 
   return (
     <div className="space-y-5">
       <SummaryRow>
-        <Stat label="Open gates" value={data.total} />
+        <Stat label="Pending sign-offs" value={data.total} />
         <Stat label="0–3 days" value={data.buckets['0-3']} tone="success" />
         <Stat label="4–7 days" value={data.buckets['4-7']} tone="accent" />
         <Stat label="8–14 days" value={data.buckets['8-14']} tone="warning" />
@@ -72,7 +132,7 @@ const GateAgingPanel = () => {
           <thead className="bg-[var(--bg)] text-[var(--text-muted)]">
             <tr>
               <Th>Project</Th>
-              <Th>Gate</Th>
+              <Th>Sign-off</Th>
               <Th>Approver</Th>
               <Th right>Age</Th>
               <Th right>Action</Th>
@@ -426,10 +486,266 @@ const ApproverBadge = ({ type }) => {
   return <span className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${cls}`}>{type?.replace('_', ' ')}</span>;
 };
 
+// ── Project Overview (Phase B) ───────────────────────────────────────────────
+const PERIOD_OPTIONS = [
+  { value: 'week',    label: 'Last 7 Days' },
+  { value: 'month',   label: 'Last 30 Days' },
+  { value: 'quarter', label: 'Last 90 Days' },
+  { value: 'all',     label: 'All Time' },
+];
+
+const ProjectOverviewPanel = () => {
+  const toast = useToast();
+  const [period, setPeriod] = useState('month');
+  const [data, setData]     = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    pmsService.getProjectAnalytics(period)
+      .then((res) => { if (!cancelled) setData(res || null); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [period]);
+
+  const downloadDesignerKpi = async () => {
+    setDownloading('kpi');
+    try {
+      const res = await pmsService.getDesignerKpiReport(period);
+      exportReportAsExcel(res, {
+        fileName: `designer-kpi-${period}`,
+        columns: [
+          { header: 'Name',           key: 'name',          width: 22 },
+          { header: 'Role',           key: 'role',          width: 14 },
+          { header: 'Email',          key: 'email',         width: 26 },
+          { header: 'Active Tasks',   key: 'activeTasks',   width: 12 },
+          { header: 'Overdue Active', key: 'overdueActive', width: 14 },
+          { header: 'Delivered',      key: 'delivered',     width: 11 },
+          { header: 'On-Time %',      key: 'onTimePct',     width: 11 },
+          { header: 'First-Pass %',   key: 'firstPassPct',  width: 12 },
+          { header: 'KRA Score',      key: 'kraScore',      width: 11 },
+        ],
+      });
+      toast.success('Designer KPI report downloaded');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to download');
+    } finally { setDownloading(null); }
+  };
+
+  const downloadProjectSummary = async () => {
+    setDownloading('projects');
+    try {
+      const res = await pmsService.getProjectSummaryReport(period);
+      exportReportAsExcel(res, {
+        fileName: `project-summary-${period}`,
+        columns: [
+          { header: 'Tracking ID',  key: 'trackingId',   width: 16 },
+          { header: 'Name',         key: 'name',         width: 30 },
+          { header: 'Status',       key: 'status',       width: 14 },
+          { header: 'Phase',        key: 'phase',        width: 12 },
+          { header: 'Health',       key: 'health',       width: 11 },
+          { header: 'Progress %',   key: 'progressPct',  width: 11 },
+          { header: 'Start Date',   key: 'startDate',    width: 12 },
+          { header: 'ETA',          key: 'eta',          width: 12 },
+          { header: 'Days to ETA',  key: 'daysToDeadline', width: 12 },
+          { header: 'Delayed',      key: 'isDelayed',    width: 10 },
+          { header: 'Tasks Total',  key: 'tasksTotal',   width: 12 },
+          { header: 'Tasks Done',   key: 'tasksDone',    width: 11 },
+          { header: 'Tasks Active', key: 'tasksActive',  width: 12 },
+          { header: 'Tasks Overdue',key: 'tasksOverdue', width: 13 },
+          { header: 'Open Gates',   key: 'openGates',    width: 11 },
+        ],
+      });
+      toast.success('Project summary downloaded');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to download');
+    } finally { setDownloading(null); }
+  };
+
+  if (loading) return <PanelLoader />;
+  if (!data) return <EmptyPanel icon={<Activity size={28} />} msg="No analytics data available." />;
+
+  const statusData = (data.statusDistribution || [])
+    .filter((d) => d.count > 0)
+    .map((d) => ({ name: PROJECT_STATUS_LABEL[d.status] || d.status, value: d.count, color: PROJECT_STATUS_COLOR[d.status] || '#94a3b8' }));
+  const healthData = (data.healthDistribution || [])
+    .filter((d) => d.count > 0)
+    .map((d) => ({ name: HEALTH_LABEL[d.health] || d.health, value: d.count, color: HEALTH_COLOR[d.health] || '#94a3b8' }));
+  const phaseData  = (data.phaseDistribution || [])
+    .map((d) => ({ phase: PHASE_LABEL[d.phase] || d.phase, count: d.count }));
+
+  return (
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <SummaryRow>
+          <Stat label="Total Projects"  value={data.totals?.projects ?? 0} />
+          <Stat label="Active"          value={data.totals?.activeProjects ?? 0} tone="info" />
+          <Stat label="Completed"       value={data.totals?.completedProjects ?? 0} tone="success" />
+          <Stat label="Designers Active" value={data.totals?.designersActive ?? 0} tone="primary" />
+        </SummaryRow>
+        <div className="flex items-center gap-2">
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className="px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
+          >
+            {PERIOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <button
+            type="button"
+            onClick={downloadDesignerKpi}
+            disabled={downloading === 'kpi'}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50"
+          >
+            <FileSpreadsheet size={13} /> {downloading === 'kpi' ? '…' : 'Designer KPI'}
+          </button>
+          <button
+            type="button"
+            onClick={downloadProjectSummary}
+            disabled={downloading === 'projects'}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50"
+          >
+            <Download size={13} /> {downloading === 'projects' ? '…' : 'Project Summary'}
+          </button>
+        </div>
+      </div>
+
+      {/* Donut row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Projects by Status</h3>
+          {statusData.length === 0
+            ? <p className="text-xs text-[var(--text-muted)] py-10 text-center">No projects.</p>
+            : (
+              <div style={{ width: '100%', height: 260 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={90} paddingAngle={2}>
+                      {statusData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                    </Pie>
+                    <Tooltip content={<SimpleTooltip />} />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10, paddingTop: 6 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+        </div>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Active Projects by Health</h3>
+          {healthData.length === 0
+            ? <p className="text-xs text-[var(--text-muted)] py-10 text-center">No active projects.</p>
+            : (
+              <div style={{ width: '100%', height: 260 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={healthData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={90} paddingAngle={2}>
+                      {healthData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                    </Pie>
+                    <Tooltip content={<SimpleTooltip />} />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10, paddingTop: 6 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+        </div>
+      </div>
+
+      {/* Phase distribution + delayed-per-project */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Active Projects by Phase</h3>
+          <div style={{ width: '100%', height: 260 }}>
+            <ResponsiveContainer>
+              <BarChart data={phaseData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={cssVar('--border', '#e5e7eb')} />
+                <XAxis dataKey="phase" tick={{ fontSize: 10, fill: cssVar('--text-muted', '#94a3b8') }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: cssVar('--text-muted', '#94a3b8') }} />
+                <Tooltip content={<SimpleTooltip />} cursor={{ fill: 'transparent' }} />
+                <RBar dataKey="count" name="Projects" fill={cssVar('--primary', '#d4b76c')} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Top Delayed — Overdue Tasks per Project</h3>
+          {(!data.delayedPerProject || data.delayedPerProject.length === 0)
+            ? <p className="text-xs text-[var(--text-muted)] py-10 text-center">No projects with overdue tasks.</p>
+            : (
+              <div style={{ width: '100%', height: 260 }}>
+                <ResponsiveContainer>
+                  <BarChart
+                    data={data.delayedPerProject}
+                    layout="vertical"
+                    margin={{ top: 5, right: 20, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke={cssVar('--border', '#e5e7eb')} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: cssVar('--text-muted', '#94a3b8') }} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: cssVar('--text-muted', '#94a3b8') }} width={120} />
+                    <Tooltip content={<SimpleTooltip />} cursor={{ fill: 'transparent' }} />
+                    <RBar dataKey="count" name="Overdue Tasks" fill={cssVar('--error', '#ef4444')} radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+        </div>
+      </div>
+
+      {/* Trend line + designer leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Activity Trend — Last 12 Weeks</h3>
+          <div style={{ width: '100%', height: 260 }}>
+            <ResponsiveContainer>
+              <LineChart data={data.activeTrend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={cssVar('--border', '#e5e7eb')} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: cssVar('--text-muted', '#94a3b8') }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: cssVar('--text-muted', '#94a3b8') }} />
+                <Tooltip content={<SimpleTooltip />} />
+                <Legend iconSize={8} wrapperStyle={{ fontSize: 10, paddingTop: 6 }} />
+                <Line type="monotone" dataKey="newProjects"  name="New Projects"   stroke={cssVar('--primary', '#d4b76c')} strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="tasksDone"    name="Tasks Done"     stroke={cssVar('--success', '#22c55e')} strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="tasksDelayed" name="Tasks Delayed"  stroke={cssVar('--error', '#ef4444')}   strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-[var(--text-primary)] mb-3">Designer Leaderboard — KRA Score</h3>
+          {(!data.designerLeaderboard?.top || data.designerLeaderboard.top.length === 0)
+            ? <p className="text-xs text-[var(--text-muted)] py-10 text-center">No designer activity in this period.</p>
+            : (
+              <div style={{ width: '100%', height: 260 }}>
+                <ResponsiveContainer>
+                  <BarChart
+                    data={data.designerLeaderboard.top}
+                    layout="vertical"
+                    margin={{ top: 5, right: 20, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke={cssVar('--border', '#e5e7eb')} />
+                    <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 10, fill: cssVar('--text-muted', '#94a3b8') }} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: cssVar('--text-muted', '#94a3b8') }} width={120} />
+                    <Tooltip content={<SimpleTooltip />} cursor={{ fill: 'transparent' }} />
+                    <RBar dataKey="kraScore" name="KRA Score" fill={cssVar('--primary', '#d4b76c')} radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Main page ────────────────────────────────────────────────────────────────
 const AnalyticsPage = () => {
   const { hasPermission } = useAuth();
-  const [active, setActive] = useState('gates');
+  const [active, setActive] = useState('overview');
 
   if (!hasPermission('reports.read')) {
     return (
@@ -441,6 +757,7 @@ const AnalyticsPage = () => {
   }
 
   const Panel =
+    active === 'overview'  ? ProjectOverviewPanel :
     active === 'gates'     ? GateAgingPanel    :
     active === 'sla'       ? ReleaseSLAPanel   :
     active === 'designers' ? DesignerUtilisationPanel :

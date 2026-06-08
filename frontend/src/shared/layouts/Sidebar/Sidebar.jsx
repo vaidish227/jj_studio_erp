@@ -31,6 +31,9 @@ const Sidebar = ({
   };
 
   const filterItem = (item) => {
+    if (item.roles && Array.isArray(item.roles)) {
+      return item.roles.includes(user?.role);
+    }
     if (hasPermission('*')) return true;
     if (item.permission) return hasPermission(item.permission);
     return true;

@@ -2,6 +2,7 @@ const Task = require("../models/Task.model");
 const Project = require("../models/Project.model");
 const User = require("../../auth/models/user.model");
 const workflowEngine = require("../services/workflowEngine");
+const teamResolver = require("../services/teamResolver");
 
 const WORKFLOW_ENGINE_V1 =
   String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
@@ -20,6 +21,27 @@ const { logActivity } = require("../../../shared/activityLogger");
 const mailService      = require("../../mail/service/mail.service");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 const whatsappService  = require("../../whatsapp/service/whatsapp.service");
+
+/**
+ * Resolve every active Managing Director (and admin as fallback) in the system.
+ * Used by submitTask / sendForApproval to route designer submissions straight
+ * to the MD inbox in addition to the project's supervisor + lead designer.
+ *
+ * Returns [{ _id, name, email, phone }, ...] — empty array if none.
+ */
+async function resolveMDApprovers() {
+  try {
+    return await User.find({
+      role: { $in: ["md", "admin"] },
+      isActive: { $ne: false },
+    })
+      .select("_id name email phone role")
+      .lean();
+  } catch (e) {
+    console.error("[resolveMDApprovers]", e.message);
+    return [];
+  }
+}
 
 /**
  * Decorate a single task or an array of tasks with `blockingTasks[]` and
@@ -574,7 +596,14 @@ const submitTask = async (req, res) => {
       return res.status(400).json({ message: error.details.map((d) => d.message).join("; ") });
     }
 
-    const task = await Task.findById(req.params.id).populate("projectId", "name trackingId supervisor primaryDesigner");
+    const task = await Task.findById(req.params.id).populate({
+      path: "projectId",
+      select: "name trackingId assignments",
+      populate: [
+        { path: "assignments.responsibilityId", select: "slug name" },
+        { path: "assignments.users", select: "name email phone" },
+      ],
+    });
     if (!task) return res.status(404).json({ message: "Task not found" });
 
     // Only the assigned designer can submit
@@ -610,39 +639,54 @@ const submitTask = async (req, res) => {
       metadata:    { from: "in_progress", to: "pending_review" },
     });
 
+    // Resolve reviewers — every active MD/Admin (system-wide) + the project's
+    // own supervisor and lead designer (dedup'd). MDs are the primary approver
+    // for designer submissions; the project leads stay in the loop as FYI.
+    const project = task.projectId;
+    const mdApprovers   = await resolveMDApprovers();
+    const supervisors   = await teamResolver.resolveBySlug(project, "supervisor");
+    const leadDesigners = await teamResolver.resolveBySlug(project, "lead_designer");
+    const reviewerMap   = new Map();
+    for (const u of [...mdApprovers, ...supervisors, ...leadDesigners]) {
+      if (u && u._id) reviewerMap.set(String(u._id), u);
+    }
+    // Never notify the submitter themselves (e.g. if a manager-tier user is
+    // also assigned the task for some reason).
+    reviewerMap.delete(String(req.user._id));
+    const reviewers   = Array.from(reviewerMap.values());
+    const reviewerIds = reviewers.map((u) => u._id);
+
     // In-app notification → reviewers
     notify({
       type: "task.submitted",
       module: "pms",
-      priority: "normal",
-      title: `Review needed: ${task.title}`,
+      priority: "high",
+      title: `MD Approval Required: ${task.title}`,
       message: `${task.projectId?.name || "Project"}${value.submissionNotes ? ` — ${value.submissionNotes}` : ""}`,
       link: `/tasks/${task._id}`,
-      recipients: [task.projectId?.supervisor, task.projectId?.primaryDesigner].filter(Boolean),
+      recipients: reviewerIds,
       actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
       relatedTo: { module: "pms", recordId: task._id },
       metadata: { taskTitle: task.title, projectName: task.projectId?.name },
     });
 
-    // Notify reviewers (supervisor + primaryDesigner on the project) — fire-and-forget
-    const project = task.projectId;
-    const notifyIds = [project?.supervisor, project?.primaryDesigner].filter(Boolean);
-    if (notifyIds.length > 0) {
+    // Notify reviewers via email/WhatsApp — fire-and-forget
+    if (reviewers.length > 0) {
       (async () => {
-        const reviewers = await User.find({ _id: { $in: notifyIds } }).select("name email phone").lean();
+        // Reviewers from teamResolver already have name/email/phone populated.
         const submitter = await User.findById(req.user._id).select("name").lean();
         for (const reviewer of reviewers) {
-          const subject = `Review Required: ${task.title}`;
+          const subject = `MD Approval Required: ${task.title}`;
           const html = `
             <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-              <h2 style="color:#1a1a2e">Task Submitted for Review</h2>
+              <h2 style="color:#1a1a2e">Design Submitted — MD Approval Required</h2>
               <table style="width:100%;border-collapse:collapse">
                 <tr><td style="padding:8px;font-weight:bold;color:#555">Task</td><td style="padding:8px">${task.title}</td></tr>
                 <tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Project</td><td style="padding:8px">${project.name} (${project.trackingId})</td></tr>
                 <tr><td style="padding:8px;font-weight:bold;color:#555">Submitted By</td><td style="padding:8px">${submitter?.name || "Designer"}</td></tr>
                 ${value.submissionNotes ? `<tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Notes</td><td style="padding:8px">${value.submissionNotes}</td></tr>` : ""}
               </table>
-              <p style="color:#888;font-size:12px;margin-top:24px">Please log in to JJ Studio ERP to review.</p>
+              <p style="color:#888;font-size:12px;margin-top:24px">Please log in to JJ Studio ERP and open Approval / Review Design to action.</p>
             </div>`;
           if (reviewer.email) {
             mailService.sendImmediate({ to: reviewer.email, subject, html, relatedTo: { module: "pms", recordId: task._id }, createdBy: req.user._id }).catch(() => {});
@@ -650,7 +694,7 @@ const submitTask = async (req, res) => {
           if (reviewer.phone) {
             whatsappService.sendImmediate({
               to: reviewer.phone,
-              message: `*Review Required — JJ Studio ERP*\n\n*Task:* ${task.title}\n*Project:* ${project.name}\n*Submitted by:* ${submitter?.name || "Designer"}\n\nPlease check JJ Studio ERP to review.`,
+              message: `*MD Approval Required — JJ Studio ERP*\n\n*Task:* ${task.title}\n*Project:* ${project.name}\n*Submitted by:* ${submitter?.name || "Designer"}\n\nOpen Approval / Review Design in JJ Studio ERP to action.`,
               relatedTo: { module: "pms", recordId: task._id }, createdBy: req.user._id,
             }).catch(() => {});
           }

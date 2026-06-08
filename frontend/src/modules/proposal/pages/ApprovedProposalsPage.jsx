@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { CheckCircle2 } from 'lucide-react';
 
 const ApprovedProposalsPage = () => {
@@ -14,7 +14,7 @@ const ApprovedProposalsPage = () => {
       </div>
 
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 text-center">
-        <CheckCircle2 size={48} className="text-[var(--text-muted)] opacity-20 mx-auto mb-4" />
+        <CheckCircle2 size={48} className="text-[var(--text-muted)] opacity-60 mx-auto mb-4" />
         <p className="text-[var(--text-muted)]">No approved proposals yet.</p>
       </div>
     </div>

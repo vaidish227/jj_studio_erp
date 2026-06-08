@@ -13,18 +13,40 @@ const checklistSnapshotItem = Joi.object({
   isCompleted: Joi.boolean().optional(),
 });
 
+// Used for the legacy URL-paste flow (fileUrl required) and as the post-S3
+// upload validator (controller injects fileUrl after putObject succeeds).
 const uploadDrawingSchema = Joi.object({
-  projectId:   OID.required().messages({ 'any.required': 'Project ID is required' }),
-  taskId:      OID.allow('', null).optional(),
-  title:       Joi.string().trim().min(1).max(200).required(),
-  drawingType: Joi.string().valid(...DRAWING_TYPES).optional(),
-  fileUrl:     Joi.string().uri().required().messages({ 'any.required': 'File URL is required' }),
-  fileName:    Joi.string().optional(),
-  fileType:    Joi.string().optional(),
-  fileSize:    Joi.number().optional(),
+  projectId:    OID.required().messages({ 'any.required': 'Project ID is required' }),
+  taskId:       OID.allow('', null).optional(),
+  title:        Joi.string().trim().min(1).max(200).required(),
+  zoneName:     Joi.string().trim().allow('').max(120).optional(),
+  description:  Joi.string().allow('').max(2000).optional(),
+  drawingType:  Joi.string().valid(...DRAWING_TYPES).optional(),
+  fileUrl:      Joi.string().uri().required().messages({ 'any.required': 'File URL is required' }),
+  fileName:     Joi.string().optional(),
+  fileType:     Joi.string().optional(),
+  fileSize:     Joi.number().optional(),
+  s3Bucket:     Joi.string().optional(),
+  s3Key:        Joi.string().optional(),
   revisionNotes:     Joi.string().allow('').optional(),
   notes:             Joi.string().allow('').optional(),
   checklistSnapshot: Joi.array().items(checklistSnapshotItem).optional(),
+});
+
+// Multipart form field validation — runs BEFORE the file is streamed to S3
+// so we reject bad submissions without burning bandwidth.
+const uploadDrawingFormSchema = Joi.object({
+  projectId:    OID.required().messages({ 'any.required': 'Project ID is required' }),
+  taskId:       OID.allow('', null).optional(),
+  title:        Joi.string().trim().min(1).max(200).required().messages({
+    'any.required':  'Design name is required',
+    'string.empty':  'Design name is required',
+  }),
+  zoneName:     Joi.string().trim().allow('').max(120).optional(),
+  description:  Joi.string().allow('').max(2000).optional(),
+  drawingType:  Joi.string().valid(...DRAWING_TYPES).optional(),
+  revisionNotes:     Joi.string().allow('').optional(),
+  notes:             Joi.string().allow('').optional(),
 });
 
 const reviseDrawingSchema = Joi.object({
@@ -32,6 +54,8 @@ const reviseDrawingSchema = Joi.object({
   fileName:          Joi.string().optional(),
   fileType:          Joi.string().optional(),
   fileSize:          Joi.number().optional(),
+  s3Bucket:          Joi.string().optional(),
+  s3Key:             Joi.string().optional(),
   revisionNotes:     Joi.string().allow('').optional(),
   checklistSnapshot: Joi.array().items(checklistSnapshotItem).optional(),
 });
@@ -49,6 +73,7 @@ const rejectDrawingSchema = Joi.object({
 
 module.exports = {
   uploadDrawingSchema,
+  uploadDrawingFormSchema,
   reviseDrawingSchema,
   approveDrawingSchema,
   rejectDrawingSchema,

@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Check } from 'lucide-react';
 
-const PHASES = [
+// Fallback — used only when the project has no workflow template attached
+// (legacy projects created before the template picker shipped).
+const DEFAULT_PHASES = [
   { key: 'kickoff',     label: 'Kickoff'     },
   { key: 'layout',      label: 'Layout'      },
   { key: 'design',      label: 'Design'      },
@@ -13,10 +15,12 @@ const PHASES = [
 
 /**
  * ProjectPhaseStepper — sticky horizontal stepper showing where the project sits
- * in the workflow engine's phase progression.
+ * in its workflow's phase progression.
  *
- * Falls back gracefully on legacy projects with no `phase` field (engine not run):
- * derives the phase from status so the component still renders.
+ * Phase list is read from `project.workflowTemplateId.phases` so a project
+ * built from a custom template (e.g. "Villa Premium" with a "Vastu" phase)
+ * displays its own flow. Falls back to the canonical 7-phase list for legacy
+ * projects with no template attached.
  */
 const STATUS_FALLBACK = {
   design_phase:    'design',
@@ -25,11 +29,30 @@ const STATUS_FALLBACK = {
   completed:       'handover',
 };
 
+const slugify = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, '_');
+
 const ProjectPhaseStepper = ({ project, className = '' }) => {
+  // Prefer template phases over the hardcoded fallback. Sort by `order` so
+  // re-ordered phases render correctly.
+  const phases = useMemo(() => {
+    const tplPhases = project?.workflowTemplateId?.phases;
+    if (Array.isArray(tplPhases) && tplPhases.length > 0) {
+      return [...tplPhases]
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map((p) => ({
+          key:   slugify(p.name),
+          label: String(p.name || '')
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase()),
+        }));
+    }
+    return DEFAULT_PHASES;
+  }, [project]);
+
   if (!project) return null;
 
-  const currentPhase = project.phase || STATUS_FALLBACK[project.status] || 'kickoff';
-  const currentIdx = Math.max(0, PHASES.findIndex((p) => p.key === currentPhase));
+  const currentPhase = project.phase || STATUS_FALLBACK[project.status] || phases[0]?.key || 'kickoff';
+  const currentIdx = Math.max(0, phases.findIndex((p) => p.key === currentPhase));
 
   return (
     <div
@@ -37,13 +60,13 @@ const ProjectPhaseStepper = ({ project, className = '' }) => {
                   p-3 lg:p-4 overflow-x-auto ${className}`}
     >
       <div className="flex items-center gap-1 min-w-max">
-        {PHASES.map((phase, idx) => {
+        {phases.map((phase, idx) => {
           const isDone    = idx < currentIdx;
           const isCurrent = idx === currentIdx;
           const isFuture  = idx > currentIdx;
 
           return (
-            <React.Fragment key={phase.key}>
+            <React.Fragment key={`${phase.key}-${idx}`}>
               <div
                 className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg shrink-0 transition-colors
                   ${isDone    ? 'bg-[var(--success)]/10 text-[var(--success)]'        : ''}
@@ -63,7 +86,7 @@ const ProjectPhaseStepper = ({ project, className = '' }) => {
                 <span className="text-xs uppercase tracking-wider">{phase.label}</span>
               </div>
 
-              {idx < PHASES.length - 1 && (
+              {idx < phases.length - 1 && (
                 <div
                   className={`h-px w-6 shrink-0 transition-colors
                     ${idx < currentIdx ? 'bg-[var(--success)]' : 'bg-[var(--border)]'}

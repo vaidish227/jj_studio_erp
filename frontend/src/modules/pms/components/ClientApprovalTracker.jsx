@@ -33,7 +33,7 @@ const STATUS_CFG = {
 
 const STATUS_CYCLE = ['pending', 'obtained', 'not_applicable'];
 
-const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated }) => {
+const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated, readOnly = false }) => {
   const toast = useToast();
   const [items, setItems] = useState(() =>
     APPROVAL_TYPES.map(({ key }) => {
@@ -62,6 +62,7 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated }
   const obtained = items.filter((i) => i.status === 'obtained').length;
 
   const cycle = async (idx) => {
+    if (readOnly) return;
     const current = items[idx].status;
     const next    = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length];
 
@@ -113,12 +114,15 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated }
               <div className="flex items-center gap-1 group">
                 <button
                   type="button"
-                  disabled={saving !== null}
+                  disabled={saving !== null || readOnly}
                   onClick={() => cycle(idx)}
-                  title="Click to cycle: Pending → Obtained → N/A"
-                  className={`flex-1 flex items-center gap-3 text-left py-2 px-2 rounded-lg
-                              hover:bg-[var(--bg)] transition-colors
-                              ${saving !== null ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                  title={readOnly
+                    ? 'View-only — only PM can update client approvals'
+                    : 'Click to cycle: Pending → Obtained → N/A'}
+                  className={`flex-1 flex items-center gap-3 text-left py-2 px-2 rounded-lg transition-colors
+                              ${readOnly ? 'cursor-default' :
+                                saving !== null ? 'opacity-60 cursor-not-allowed' :
+                                'cursor-pointer hover:bg-[var(--bg)]'}`}
                 >
                   <Icon size={16} className={`${cfg.color} shrink-0`} />
                   <span className="flex-1 text-sm text-[var(--text-primary)]">
@@ -128,7 +132,7 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated }
                     {cfg.label}
                   </span>
                 </button>
-                {item.status !== 'obtained' && item.status !== 'not_applicable' && (
+                {!readOnly && item.status !== 'obtained' && item.status !== 'not_applicable' && (
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setSendModalType(item.type); }}
@@ -149,7 +153,7 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated }
                   <ApprovalChip label="PD" ok={pdApproved} />
                   <ApprovalChip label="Client" ok={clientObtained} />
                   {gate?.status === 'closed' && (
-                    <span className="text-[10px] font-bold text-[var(--success)] uppercase">Gate closed</span>
+                    <span className="text-[10px] font-bold text-[var(--success)] uppercase">Sign-off complete</span>
                   )}
                 </div>
               )}
@@ -158,7 +162,9 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated }
         })}
       </div>
       <p className="text-[10px] text-[var(--text-muted)] mt-2 px-1">
-        Click any row to cycle status. Hover to send via WhatsApp/Mail. Hybrid rows need both PD and Client.
+        {readOnly
+          ? 'View-only — only the PM can update client approval status.'
+          : 'Click any row to cycle status. Hover to send via WhatsApp/Mail. Hybrid rows need both PD and Client.'}
       </p>
 
       {/* Phase 3a — Send approval request modal */}

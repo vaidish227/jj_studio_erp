@@ -136,13 +136,13 @@ const MyDayWidget = () => {
           ))}
         </Section>
 
-        <Section icon={<Lock size={13} />} title="Blocked" count={c.blocked || 0} tone="warning">
+        <Section icon={<Lock size={13} />} title="Waiting" count={c.blocked || 0} tone="warning">
           {(data?.blockedTasks || []).slice(0, 4).map((t) => (
             <Row
               key={t._id}
               title={t.title}
-              subtitle={`${t.projectId?.trackingId || ''} · waiting on prereq`}
-              right={<span className="text-[10px] font-black text-[var(--warning)] uppercase">Blocked</span>}
+              subtitle={`${t.projectId?.trackingId || ''} · waiting on earlier step`}
+              right={<span className="text-[10px] font-black text-[var(--warning)] uppercase">Waiting</span>}
               onClick={() => navigate(`/tasks/${t._id}`)}
             />
           ))}
@@ -160,12 +160,12 @@ const MyDayWidget = () => {
           ))}
         </Section>
 
-        <Section icon={<Lock size={13} />} title="Open gates on my projects" count={c.gatesIBlock || 0} tone="accent">
+        <Section icon={<Lock size={13} />} title="Pending sign-offs on my projects" count={c.gatesIBlock || 0} tone="accent">
           {(data?.gatesIBlock || []).slice(0, 6).map((g) => (
             <Row
               key={g._id}
               title={g.label}
-              subtitle={`${g.projectId?.trackingId || ''} · open ${g.ageingDays}d`}
+              subtitle={`${g.projectId?.trackingId || ''} · pending ${g.ageingDays}d`}
               right={
                 <span className="text-[9px] font-black uppercase tracking-widest text-[var(--accent-blue)] bg-[var(--accent-blue)]/10 px-1.5 py-0.5 rounded">
                   {g.approverType.replace('_', ' ')}

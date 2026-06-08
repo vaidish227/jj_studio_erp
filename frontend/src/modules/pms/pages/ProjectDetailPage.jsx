@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { CommunicationTimeline } from '../../kit';
 import {
   ChevronRight, RefreshCw, Calendar, MapPin,
-  Briefcase, User, DollarSign,
+  Briefcase, User, DollarSign, ArrowLeft,
 } from 'lucide-react';
 import { Button, Loader } from '../../../shared/components';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
+import ProjectDelayBanner from '../components/ProjectDelayBanner';
 import ProjectPhaseStepper from '../components/ProjectPhaseStepper';
 import ProgressRing from '../components/ProgressRing';
 import useProjectDetail from '../hooks/useProjectDetail';
+import { getLeadDesigner } from '../utils/teamHelpers';
 import OverviewTab        from '../components/tabs/OverviewTab';
 import TasksTab           from '../components/tabs/TasksTab';
 import DrawingsTab        from '../components/tabs/DrawingsTab';
@@ -29,6 +31,8 @@ import VendorEngagementTab    from '../components/tabs/VendorEngagementTab';
 import DrawingReleaseTab      from '../components/tabs/DrawingReleaseTab';
 // Phase 3b — Handover
 import HandoverTab            from '../components/tabs/HandoverTab';
+// Project Planner / Master Plan
+import ProjectPlannerTab      from '../components/planner/ProjectPlannerTab';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
 
@@ -46,7 +50,8 @@ const fmtCurrency = (n) => n
 // To revert: `localStorage.removeItem('pms.tabsV2')`.
 const TABS_LEGACY = [
   { id: 'overview',          label: 'Overview' },
-  { id: 'gates',             label: 'Gates' },
+  { id: 'planner',           label: 'Master Plan' },
+  { id: 'gates',             label: 'Sign-offs' },
   { id: 'tasks',             label: 'Tasks' },
   { id: 'drawings',          label: 'Drawings' },
   { id: 'dlr',               label: 'DLR Sheet' },
@@ -68,7 +73,8 @@ const TABS_LEGACY = [
 const TABS_V2 = [
   { id: 'overview',  label: 'Overview',         subTabs: ['overview'] },
   { id: 'workflow',  label: 'Workflow',         subTabs: [
-    { id: 'gates',     label: 'Gates' },
+    { id: 'planner',   label: 'Master Plan' },
+    { id: 'gates',     label: 'Sign-offs' },
     { id: 'tasks',     label: 'Tasks' },
     { id: 'approvals', label: 'Approvals' },
     { id: 'handover',  label: 'Handover' },
@@ -111,8 +117,22 @@ const findGroupForSubTab = (subId) => {
 const ProjectDetailPage = () => {
   const { id }    = useParams();
   const navigate  = useNavigate();
+  const location  = useLocation();
   const tabsV2    = isTabsV2();
-  const [activeTab, setActiveTab] = useState('overview');
+  const initialTab = (() => {
+    try {
+      const t = new URLSearchParams(location.search).get('tab');
+      return t || 'overview';
+    } catch { return 'overview'; }
+  })();
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Honour ?tab=… deep links on navigation (e.g. from the dashboard alerts).
+  useEffect(() => {
+    const t = new URLSearchParams(location.search).get('tab');
+    if (t && t !== activeTab) setActiveTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   const {
     project, tasks, drawings, siteLogs,
@@ -151,7 +171,10 @@ const ProjectDetailPage = () => {
         </span>
       </nav>
 
-      {/* Header card */}
+      {/* Header card — only on Overview. When navigating into any module
+          card, hide this so the page jumps straight to the module's sub-nav
+          and content (no project metadata clutter). */}
+      {activeTab === 'overview' && (
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 lg:p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
@@ -223,25 +246,41 @@ const ProjectDetailPage = () => {
           <div className="flex items-start gap-2">
             <User size={14} className="text-[var(--text-muted)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Primary Designer</p>
-              <p className="text-sm text-[var(--text-primary)]">{project.primaryDesigner?.name || '—'}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Lead Designer</p>
+              <p className="text-sm text-[var(--text-primary)]">{getLeadDesigner(project)?.name || '—'}</p>
             </div>
           </div>
         </div>
       </div>
+      )}
+
+      {/* Delay alert — only renders when project is overdue or has overdue tasks */}
+      <ProjectDelayBanner
+        project={project}
+        overdueTasks={(tasks || []).filter((t) => {
+          if (!t?.dueDate) return false;
+          if (new Date(t.dueDate) >= new Date()) return false;
+          const s = String(t.status || '').toLowerCase();
+          return !['approved', 'released_to_site', 'completed', 'done'].includes(s);
+        })}
+        onViewTasks={() => setActiveTab('tasks')}
+      />
 
       {/* Workflow Phase Stepper (Phase 1) */}
       <ProjectPhaseStepper project={project} />
 
-      {/* Tab bar — Phase 3a: V2 mode renders 6 top-level groups + sub-tabs */}
+      {/* Card-driven navigation: top tab bar is hidden. When inside a module, show
+          a compact "back to overview" + sub-tabs row instead. */}
       {tabsV2 ? (
-        <TabsV2Bar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          tasks={tasks}
-          drawings={drawings}
-          siteLogs={siteLogs}
-        />
+        activeTab !== 'overview' && (
+          <ModuleSubNav
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            tasks={tasks}
+            drawings={drawings}
+            siteLogs={siteLogs}
+          />
+        )
       ) : (
         <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--border)] pb-0 -mb-2 scrollbar-hide">
           {TABS_LEGACY.map((tab) => (
@@ -327,6 +366,7 @@ const ProjectDetailPage = () => {
             onUpdated={refresh}
           />
         )}
+        {activeTab === 'planner'           && <ProjectPlannerTab   project={project} onSwitchToTab={setActiveTab} />}
         {activeTab === 'gates'             && <ProjectGatesTab     project={project} />}
         {activeTab === 'release_log'       && <DrawingReleaseTab   project={project} />}
         {activeTab === 'handover'          && <HandoverTab         project={project} drawings={drawings} />}
@@ -342,43 +382,42 @@ const ProjectDetailPage = () => {
   );
 };
 
-// Phase 3a — Consolidated 6-group tab bar with sub-tabs.
-const TabsV2Bar = ({ activeTab, setActiveTab, tasks, drawings, siteLogs }) => {
+// Friendly module titles that match the cards on the Overview page.
+const MODULE_TITLES = {
+  workflow: 'Project Planner / Master Sheet',
+  drawings: 'Design and Drawing Management',
+  site:     'Site Execution and Monitoring System',
+  team:     'Site Supervisor and Contractor',
+  activity: 'Activity Log',
+};
+
+// Card-driven nav: a single compact row shown when the user has drilled into a module.
+// Contains a "back to overview" button + the sub-tabs of the active group (when there are 2+).
+const ModuleSubNav = ({ activeTab, setActiveTab, tasks, drawings, siteLogs }) => {
   const activeGroup = findGroupForSubTab(activeTab) || 'overview';
   const group = TABS_V2.find((g) => g.id === activeGroup);
   const subTabs = (group?.subTabs || []).filter((s) => typeof s !== 'string');
+  const moduleTitle = MODULE_TITLES[activeGroup] || group?.label || '';
 
   return (
-    <div className="space-y-1">
-      {/* Top group tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--border)] pb-0 -mb-px scrollbar-hide">
-        {TABS_V2.map((g) => {
-          const isActive = g.id === activeGroup;
-          return (
-            <button
-              key={g.id}
-              type="button"
-              onClick={() => {
-                // Land on the first sub-tab of the group
-                const firstSub = g.subTabs?.[0];
-                const subId = typeof firstSub === 'string' ? firstSub : firstSub?.id;
-                if (subId) setActiveTab(subId);
-              }}
-              className={`shrink-0 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors
-                ${isActive
-                  ? 'border-[var(--primary)] text-[var(--primary)]'
-                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                }`}
-            >
-              {g.label}
-            </button>
-          );
-        })}
-      </div>
+    <div className="flex items-center gap-3 flex-wrap border-b border-[var(--border)] pb-2">
+      <button
+        type="button"
+        onClick={() => setActiveTab('overview')}
+        className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/8 rounded-md transition-colors"
+      >
+        <ArrowLeft size={14} />
+        Back to Overview
+      </button>
 
-      {/* Sub-tabs row (only when group has multiple sub-tabs) */}
+      {moduleTitle && (
+        <span className="text-sm font-extrabold text-[var(--text-primary)] truncate">
+          {moduleTitle}
+        </span>
+      )}
+
       {subTabs.length > 1 && (
-        <div className="flex items-center gap-1 overflow-x-auto pt-1 scrollbar-hide">
+        <div className="ml-auto flex items-center gap-1 overflow-x-auto scrollbar-hide">
           {subTabs.map((s) => {
             const isActive = activeTab === s.id;
             return (

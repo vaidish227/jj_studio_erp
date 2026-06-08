@@ -24,6 +24,7 @@ const Drawing = require("../models/Drawing.model");
 const Task = require("../models/Task.model");
 const ApprovalGate = require("../models/ApprovalGate.model");
 const workflowEngine = require("../services/workflowEngine");
+const teamResolver = require("../services/teamResolver");
 const { logActivity } = require("../../../shared/activityLogger");
 const {
   requestHandoverSchema,
@@ -70,9 +71,14 @@ const requestHandover = async (req, res) => {
     }
 
     const project = await Project.findById(projectId)
-      .select("name supervisor primaryDesigner")
+      .select("name assignments")
+      .populate("assignments.responsibilityId", "slug")
+      .populate("assignments.users", "name email phone")
       .lean();
     if (!project) return res.status(404).json({ message: "Project not found" });
+
+    const leadDesigner = await teamResolver.resolveFirstBySlug(project, "lead_designer");
+    const projectSupervisor = await teamResolver.resolveFirstBySlug(project, "supervisor");
 
     // Build drawing snapshot
     const drawingFilter = { projectId };
@@ -108,8 +114,8 @@ const requestHandover = async (req, res) => {
         walked: false,
       })),
       punchList: existing?.punchList || [],
-      designLeadId: project.primaryDesigner || req.user._id,
-      supervisorId: value.supervisorId || project.supervisor || undefined,
+      designLeadId: (leadDesigner && leadDesigner._id) || req.user._id,
+      supervisorId: value.supervisorId || (projectSupervisor && projectSupervisor._id) || undefined,
       notes: value.notes || "",
       gateId: gate?._id,
       createdBy: req.user._id,

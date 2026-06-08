@@ -24,6 +24,7 @@ const WorkflowTemplate = require("../models/WorkflowTemplate.model");
 const ChecklistTemplate = require("../models/ChecklistTemplate.model");
 const Approval = require("../models/Approval.model");
 const { KITCHEN_CHILDREN } = require("../validator/Task.validator");
+const teamResolver = require("./teamResolver");
 
 const { logActivity } = require("../../../shared/activityLogger");
 
@@ -65,13 +66,18 @@ async function resolveDefaultTemplate(projectType) {
 }
 
 /**
- * Build the assignee ObjectId for a given teamSlot, falling back to null.
- * teamSlot values: primaryDesigner, designerB, designerC, designerD, designerE, supervisor, contractor.
+ * Build the assignee ObjectId for a given responsibilitySlug, falling back
+ * to null. Per the v1 multi-user decision, picks the FIRST user assigned to
+ * the responsibility. Manager can reassign manually if needed.
+ *
+ * Project must be populated with assignmentsPopulate() before calling.
  */
-function resolveAssignee(project, teamSlot) {
-  if (!teamSlot) return null;
-  const v = project[teamSlot];
-  return v && mongoose.Types.ObjectId.isValid(v) ? v : null;
+async function resolveAssignee(project, responsibilitySlug) {
+  if (!responsibilitySlug) return null;
+  const user = await teamResolver.resolveFirstBySlug(project, responsibilitySlug);
+  if (!user) return null;
+  const id = user._id || user;
+  return mongoose.Types.ObjectId.isValid(id) ? id : null;
 }
 
 function computeDueDate(projectStartDate, dayOffset) {
@@ -102,6 +108,122 @@ async function snapshotChecklist(checklistTemplateName, taskType) {
   return ChecklistTemplate.snapshotForTaskType(taskType);
 }
 
+// ── Customized-plan overlay ─────────────────────────────────────────────────
+// Per-project initiation customization (MD only) — applies safe-field overrides
+// onto a freshly loaded template object BEFORE seedProject reads it.
+//
+// Editable surface (mirrors WorkflowTemplate safe-field boundary):
+//   • Task: title, dayOffsetFromProjectStart, plannedDays, plannedHours,
+//           priority, responsibilitySlug, checklistTemplateName, notes
+//   • Task: add new (server mints key), remove existing (also unlinks from phase)
+//   • Phase: rename (engine auto-advance only recognises SYSTEM_PHASE_SLUGS)
+//
+// Locked (silently ignored if present):
+//   • Task: key, taskType on existing tasks, dependsOnKeys, requiresGateKeys
+//   • Gates: entirely (structure + types + approver + listensTo + unblocks)
+//   • Phase: add/remove, reorder, taskKeys for existing tasks
+function generateTaskKeyForCustom(title, dayOffset, existingKeys) {
+  const base = String(title || "task")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40) || "task";
+  let candidate = `${base}_d${dayOffset || 0}`;
+  if (!existingKeys.has(candidate)) return candidate;
+  let n = 2;
+  while (existingKeys.has(`${candidate}_${n}`)) n += 1;
+  return `${candidate}_${n}`;
+}
+
+function applyCustomizedPlan(template, plan) {
+  const tpl = JSON.parse(JSON.stringify(template)); // deep clone — keep mongoose lean obj clean
+  const taskByKey = new Map((tpl.tasks || []).map((t) => [t.key, t]));
+  const existingKeys = new Set(taskByKey.keys());
+  const incomingKeys = new Set();
+
+  const safeAssign = (target, source, field) => {
+    if (source[field] !== undefined && source[field] !== null) target[field] = source[field];
+  };
+
+  // 1. Tasks — accept overrides + new draft tasks
+  const newTaskList = [];
+  if (Array.isArray(plan.tasks)) {
+    for (const t of plan.tasks) {
+      const incomingKey = t.key && !String(t.key).startsWith("__draft_") ? t.key : null;
+      if (incomingKey && taskByKey.has(incomingKey)) {
+        // Existing task: overlay safe fields only
+        const base = taskByKey.get(incomingKey);
+        safeAssign(base, t, "title");
+        safeAssign(base, t, "dayOffsetFromProjectStart");
+        safeAssign(base, t, "plannedDays");
+        safeAssign(base, t, "plannedHours");
+        safeAssign(base, t, "priority");
+        safeAssign(base, t, "responsibilitySlug");
+        safeAssign(base, t, "checklistTemplateName");
+        safeAssign(base, t, "notes");
+        newTaskList.push(base);
+        incomingKeys.add(incomingKey);
+      } else {
+        // New task — mint a key, never accept dependsOnKeys/requiresGateKeys
+        // from client (those would corrupt the engine's gate graph).
+        const newKey = generateTaskKeyForCustom(
+          t.title,
+          t.dayOffsetFromProjectStart,
+          new Set([...existingKeys, ...incomingKeys])
+        );
+        const newTask = {
+          key: newKey,
+          taskType: t.taskType,
+          title: t.title || "New task",
+          dayOffsetFromProjectStart: Number(t.dayOffsetFromProjectStart) || 0,
+          plannedDays: Number(t.plannedDays) > 0 ? Number(t.plannedDays) : 1,
+          plannedHours: Number(t.plannedHours) > 0 ? Number(t.plannedHours) : 0,
+          priority: t.priority || "medium",
+          responsibilitySlug: t.responsibilitySlug || "",
+          checklistTemplateName: t.checklistTemplateName || "",
+          notes: t.notes || "",
+          dependsOnKeys: [],
+          requiresGateKeys: [],
+        };
+        newTaskList.push(newTask);
+        incomingKeys.add(newKey);
+        // Track which phase this draft was placed in via the phases payload below
+        if (t.__phaseIdx !== undefined) newTask.__phaseIdx = t.__phaseIdx;
+      }
+    }
+    tpl.tasks = newTaskList;
+  }
+
+  // 2. Phases — accept rename + adjusted taskKeys (lock structure: count/order untouched)
+  if (Array.isArray(plan.phases) && tpl.phases?.length) {
+    for (let i = 0; i < tpl.phases.length; i += 1) {
+      const incoming = plan.phases[i];
+      if (!incoming) continue;
+      const base = tpl.phases[i];
+      if (incoming.name && typeof incoming.name === "string") {
+        base.name = incoming.name.trim();
+      }
+      // Rebuild taskKeys: keep only keys that still exist in the customized task list
+      if (Array.isArray(incoming.taskKeys)) {
+        base.taskKeys = incoming.taskKeys.filter((k) => incomingKeys.has(k));
+      } else {
+        // Drop removed tasks from the existing phase.taskKeys
+        base.taskKeys = (base.taskKeys || []).filter((k) => incomingKeys.has(k));
+      }
+      // Append any new draft tasks that targeted this phase
+      const orphanDrafts = newTaskList
+        .filter((t) => t.__phaseIdx === i && !base.taskKeys.includes(t.key))
+        .map((t) => t.key);
+      if (orphanDrafts.length) base.taskKeys.push(...orphanDrafts);
+    }
+  }
+
+  // Strip transient __phaseIdx markers before handing back to seedProject
+  for (const t of tpl.tasks || []) delete t.__phaseIdx;
+
+  return tpl;
+}
+
 /**
  * seedProject — instantiate the full PDF-accurate task graph on a project.
  *
@@ -112,10 +234,16 @@ async function snapshotChecklist(checklistTemplateName, taskType) {
  * @param {Object}  opts
  * @param {ObjectId|string} [opts.templateId] — override; default = resolveDefaultTemplate
  * @param {ObjectId|string} [opts.actorId]    — for activity log + notifications
+ * @param {Object}  [opts.customizedPlan]     — per-project plan overrides applied to the
+ *                                              loaded template. Only safe fields take
+ *                                              effect; gate structure + dependency keys
+ *                                              come from the template unchanged.
  * @returns {Promise<{ tasksCreated:number, gatesCreated:number, depsCreated:number, templateId:ObjectId }>}
  */
 async function seedProject(projectId, opts = {}) {
-  const project = await Project.findById(projectId);
+  const project = await Project.findById(projectId).populate(
+    teamResolver.assignmentsPopulate()
+  );
   if (!project) throw new Error(`Project ${projectId} not found`);
 
   // Idempotency: skip if already seeded
@@ -143,6 +271,13 @@ async function seedProject(projectId, opts = {}) {
     return { tasksCreated: 0, gatesCreated: 0, depsCreated: 0, templateId: null, skipped: "no_template" };
   }
 
+  // Apply per-project customization overlay (MD-only, gated upstream).
+  // Only SAFE fields take effect — gate structure and dependency keys come
+  // from the base template unchanged so engine invariants stay intact.
+  if (opts.customizedPlan && typeof opts.customizedPlan === "object") {
+    template = applyCustomizedPlan(template, opts.customizedPlan);
+  }
+
   // 1. Create gates FIRST (tasks will reference them via requiresGateKeys)
   const gateKeyToDoc = new Map();
   for (const g of template.gates || []) {
@@ -161,10 +296,21 @@ async function seedProject(projectId, opts = {}) {
     gateKeyToDoc.set(g.key, doc);
   }
 
+  // Build template-key → phase-name map once so each Task can carry its phase
+  // for the master-sheet phase-grouped view.
+  const keyToPhaseName = new Map();
+  for (const p of template.phases || []) {
+    for (const k of (p.taskKeys || [])) {
+      if (k) keyToPhaseName.set(k, p.name || "");
+    }
+  }
+
   // 2. Create tasks (no dependencies wired yet)
   const taskKeyToDoc = new Map();
   for (const t of template.tasks || []) {
-    const assignedTo = resolveAssignee(project, t.teamSlot);
+    // Accepts legacy `teamSlot` and the new `responsibilitySlug` field.
+    const slug = t.responsibilitySlug || t.teamSlot;
+    const assignedTo = await resolveAssignee(project, slug);
     const dueDate = computeDueDate(project.startDate, t.dayOffsetFromProjectStart);
 
     const checklist = await snapshotChecklist(t.checklistTemplateName, t.taskType);
@@ -174,6 +320,16 @@ async function seedProject(projectId, opts = {}) {
     const hasGates = (t.requiresGateKeys || []).length > 0;
     const initialStatus = hasDeps || hasGates ? "blocked" : "not_started";
     const gateStatus = hasGates ? "open" : "none";
+
+    // Seed planning estimates from the template.
+    // plannedDays drives plannedEndDate so the project master sheet's "Days"
+    // column comes out non-zero on day 1.
+    const plannedDays  = Number(t.plannedDays)  > 0 ? Number(t.plannedDays)  : 0;
+    const plannedHours = Number(t.plannedHours) > 0 ? Number(t.plannedHours) : 0;
+    const plannedStartDate = computeDueDate(project.startDate, t.dayOffsetFromProjectStart);
+    const plannedEndDate   = plannedDays > 0
+      ? computeDueDate(project.startDate, (Number(t.dayOffsetFromProjectStart) || 0) + plannedDays)
+      : undefined;
 
     const taskDoc = await Task.create({
       projectId: project._id,
@@ -188,7 +344,14 @@ async function seedProject(projectId, opts = {}) {
       dependsOn: [], // wired below
       gateStatus,
       dayOffsetFromProjectStart: t.dayOffsetFromProjectStart || 0,
+      phase:           keyToPhaseName.get(t.key) || undefined,
+      templateTaskKey: t.key,
       routing: t.taskType === "kitchen_drawing" ? null : undefined,
+      planning: {
+        plannedStartDate,
+        plannedEndDate,
+        plannedHours,
+      },
     });
     taskKeyToDoc.set(t.key, taskDoc);
   }
