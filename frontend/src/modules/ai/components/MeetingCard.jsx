@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Phone, MapPin, Calendar, Clock, User as UserIcon } from 'lucide-react';
 
 const STATUS_BADGE = {
-  scheduled:           { label: 'Scheduled',  className: 'bg-blue-50 text-blue-700' },
-  rescheduled:         { label: 'Rescheduled',className: 'bg-amber-50 text-amber-700' },
-  completed:           { label: 'Completed',  className: 'bg-emerald-50 text-emerald-700' },
-  cancelled:           { label: 'Cancelled',  className: 'bg-rose-50 text-rose-700' },
-  follow_up_required:  { label: 'Follow-up',  className: 'bg-violet-50 text-violet-700' },
+  scheduled:           { label: 'Scheduled',  className: 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]' },
+  rescheduled:         { label: 'Rescheduled',className: 'bg-[var(--warning)]/10 text-[var(--warning)]' },
+  completed:           { label: 'Completed',  className: 'bg-[var(--success)]/10 text-[var(--success)]' },
+  cancelled:           { label: 'Cancelled',  className: 'bg-[var(--error)]/10 text-[var(--error)]' },
+  follow_up_required:  { label: 'Follow-up',  className: 'bg-[var(--primary)]/10 text-[var(--primary)]' },
 };
 
 const TYPE_LABEL = {
@@ -33,7 +33,7 @@ const MeetingCard = ({ items, total, viewAllUrl }) => {
   return (
     <div className="flex flex-col gap-1.5">
       {items.map((m) => {
-        const badge = STATUS_BADGE[m.status] || { label: m.status, className: 'bg-gray-100 text-gray-700' };
+        const badge = STATUS_BADGE[m.status] || { label: m.status, className: 'bg-[var(--bg)] text-[var(--text-muted)]' };
         const { day, time } = fmtDateTime(m.date);
         const typeLabel = TYPE_LABEL[m.type] || m.type;
         const target = m.url || viewAllUrl || '/crm/meetings';

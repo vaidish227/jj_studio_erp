@@ -26,7 +26,7 @@ const PHASE_COLOR = {
   procurement: 'var(--accent-blue)',
   release:     'var(--warning)',
   execution:   'var(--success)',
-  handover:    '#9333ea',
+  handover:    'var(--accent-green)',
 };
 
 const cssVarToHex = (varName) => {

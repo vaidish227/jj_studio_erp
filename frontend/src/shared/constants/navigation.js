@@ -130,4 +130,7 @@ export const NAV_ITEMS = [
       { id: 'responsibilities',    label: 'Responsibilities',    path: '/settings/responsibilities',    roles: ['admin', 'md'] },
     ],
   },
-];
+]
+  // Feature flag: hide the KIT section entirely when VITE_ENABLE_KIT !== 'true'
+  // (e.g. client builds). Mirrors the VITE_ENABLE_AI gating on AI components.
+  .filter((item) => item.id !== 'kit' || import.meta.env.VITE_ENABLE_KIT === 'true');

@@ -11,11 +11,11 @@ const ROLE_LABELS = {
 };
 
 const ROLE_COLORS = {
-  admin:      'bg-purple-100 text-purple-700',
-  md:         'bg-blue-100 text-blue-700',
-  manager:    'bg-indigo-100 text-indigo-700',
+  admin:      'bg-[var(--error)]/10 text-[var(--error)]',
+  md:         'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]',
+  manager:    'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]',
   designer:   'bg-[var(--primary)]/10 text-[var(--primary)]',
-  supervisor: 'bg-amber-100 text-amber-700',
+  supervisor: 'bg-[var(--warning)]/10 text-[var(--warning)]',
 };
 
 const WorkloadDot = ({ count }) => {

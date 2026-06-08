@@ -20,13 +20,13 @@ import ImportClientsModal from '../components/ImportClientsModal';
 const PAGE_SIZE = 25;
 
 const STATUS_CONFIG = {
-  new:            { label: 'New',            color: 'bg-blue-100 text-blue-700' },
-  contacted:      { label: 'Contacted',      color: 'bg-violet-100 text-violet-700' },
-  meeting_done:   { label: 'Meeting Done',   color: 'bg-purple-100 text-purple-700' },
-  proposal_sent:  { label: 'Proposal Sent',  color: 'bg-orange-100 text-orange-700' },
-  interested:     { label: 'Interested',     color: 'bg-emerald-100 text-emerald-700' },
-  converted:      { label: 'Converted',      color: 'bg-green-100 text-green-700' },
-  lost:           { label: 'Lost',           color: 'bg-red-100 text-red-700' },
+  new:            { label: 'New',            color: 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]' },
+  contacted:      { label: 'Contacted',      color: 'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]' },
+  meeting_done:   { label: 'Meeting Done',   color: 'bg-[var(--primary)]/10 text-[var(--primary)]' },
+  proposal_sent:  { label: 'Proposal Sent',  color: 'bg-[var(--warning)]/10 text-[var(--warning)]' },
+  interested:     { label: 'Interested',     color: 'bg-[var(--accent-green)]/10 text-[var(--accent-green)]' },
+  converted:      { label: 'Converted',      color: 'bg-[var(--success)]/10 text-[var(--success)]' },
+  lost:           { label: 'Lost',           color: 'bg-[var(--error)]/10 text-[var(--error)]' },
 };
 
 const LIFECYCLE_LABELS = {
@@ -197,7 +197,7 @@ const ClientsListPage = () => {
                 </tr>
               ) : (
                 paginated.map((client) => {
-                  const sc = STATUS_CONFIG[client.status] || { label: client.status || 'Unknown', color: 'bg-gray-100 text-gray-600' };
+                  const sc = STATUS_CONFIG[client.status] || { label: client.status || 'Unknown', color: 'bg-[var(--bg)] text-[var(--text-muted)]' };
                   const stageLabel = LIFECYCLE_LABELS[client.lifecycleStage] || client.lifecycleStage || '—';
                   return (
                     <tr

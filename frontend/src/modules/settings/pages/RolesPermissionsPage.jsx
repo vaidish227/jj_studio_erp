@@ -70,20 +70,20 @@ const ACTION_LABELS = {
 };
 
 const ACTION_COLORS = {
-  read:      { on: 'bg-[#4A8F7C] text-white border-[#4A8F7C]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[#4A8F7C]/50 hover:text-[#4A8F7C]' },
+  read:      { on: 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/50 hover:text-[var(--accent-teal)]' },
   create:    { on: 'bg-[var(--primary)] text-black border-[var(--primary)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]' },
-  update:    { on: 'bg-[#3A6EA5] text-white border-[#3A6EA5]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[#3A6EA5]/50 hover:text-[#3A6EA5]' },
+  update:    { on: 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-blue)]/50 hover:text-[var(--accent-blue)]' },
   delete:    { on: 'bg-[var(--error)] text-white border-[var(--error)]',     off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--error)]/50 hover:text-[var(--error)]' },
   approve:   { on: 'bg-[var(--success)] text-white border-[var(--success)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--success)]/50 hover:text-[var(--success)]' },
-  export:    { on: 'bg-[#4A8F7C] text-white border-[#4A8F7C]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[#4A8F7C]/50 hover:text-[#4A8F7C]' },
+  export:    { on: 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/50 hover:text-[var(--accent-teal)]' },
   manage:    { on: 'bg-[var(--warning)] text-black border-[var(--warning)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)]' },
-  submit:    { on: 'bg-[#3A6EA5] text-white border-[#3A6EA5]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[#3A6EA5]/50 hover:text-[#3A6EA5]' },
+  submit:    { on: 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-blue)]/50 hover:text-[var(--accent-blue)]' },
   upload:    { on: 'bg-[var(--primary)] text-black border-[var(--primary)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]' },
   release:   { on: 'bg-[var(--success)] text-white border-[var(--success)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--success)]/50 hover:text-[var(--success)]' },
   reassign:  { on: 'bg-[var(--warning)] text-black border-[var(--warning)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)]' },
-  respond:   { on: 'bg-[#4A8F7C] text-white border-[#4A8F7C]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[#4A8F7C]/50 hover:text-[#4A8F7C]' },
+  respond:   { on: 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/50 hover:text-[var(--accent-teal)]' },
   send:      { on: 'bg-[var(--primary)] text-black border-[var(--primary)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]' },
-  comment:   { on: 'bg-[#3A6EA5] text-white border-[#3A6EA5]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[#3A6EA5]/50 hover:text-[#3A6EA5]' },
+  comment:   { on: 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-blue)]/50 hover:text-[var(--accent-blue)]' },
   dashboard: { on: 'bg-[var(--primary)] text-black border-[var(--primary)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]' },
 };
 
@@ -117,7 +117,7 @@ const Chip = ({ action, active, isWildcard, onChange }) => {
 const TabChip = ({ label, active, isWildcard, onChange }) => {
   if (isWildcard) {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-[4px] rounded-full text-[10px] font-semibold border bg-violet-500/20 text-violet-400 border-violet-500/30 select-none">
+      <span className="inline-flex items-center gap-1 px-2.5 py-[4px] rounded-full text-[10px] font-semibold border bg-[var(--primary)]/20 text-[var(--primary)] border-[var(--primary)]/30 select-none">
         <Eye size={8} />{label}
       </span>
     );
@@ -128,8 +128,8 @@ const TabChip = ({ label, active, isWildcard, onChange }) => {
       onClick={onChange}
       className={`inline-flex items-center gap-1 px-2.5 py-[4px] rounded-full text-[10px] font-semibold border transition-all duration-100 ${
         active
-          ? 'bg-violet-500 text-white border-violet-500'
-          : 'border-[var(--border)] text-[var(--text-muted)] hover:border-violet-400/60 hover:text-violet-400'
+          ? 'bg-[var(--primary)] text-black border-[var(--primary)]'
+          : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/60 hover:text-[var(--primary)]'
       }`}
     >
       {active && <Eye size={8} />}
@@ -226,7 +226,7 @@ const OverrideUserCard = ({ user, isSelected, onClick }) => {
           <p className="text-[11px] text-[var(--text-muted)] truncate">{roleMeta?.label || user.role}</p>
         </div>
         {hasCustom && (
-          <div className="shrink-0 w-2 h-2 rounded-full bg-amber-500" title={`${user.customPermissions.length} custom permission(s)`} />
+          <div className="shrink-0 w-2 h-2 rounded-full bg-[var(--warning)]" title={`${user.customPermissions.length} custom permission(s)`} />
         )}
       </div>
     </button>
@@ -422,10 +422,10 @@ const FeatureAreaCard = ({
             variant === 'override' ? (
               <div className="flex items-center gap-1.5 text-[10px] font-bold">
                 {inherited > 0 && (
-                  <span className="inline-flex items-center gap-0.5 text-[#4A8F7C]"><Lock size={9} />{inherited}</span>
+                  <span className="inline-flex items-center gap-0.5 text-[var(--accent-teal)]"><Lock size={9} />{inherited}</span>
                 )}
                 {custom > 0 && (
-                  <span className="inline-flex items-center gap-0.5 text-amber-500"><KeyRound size={9} />{custom}</span>
+                  <span className="inline-flex items-center gap-0.5 text-[var(--warning)]"><KeyRound size={9} />{custom}</span>
                 )}
                 {inherited === 0 && custom === 0 && (
                   <span className="text-[var(--text-muted)] tabular-nums">0/{allPerms.length}</span>
@@ -622,7 +622,7 @@ const OverrideFeatureAreaDetailPanel = ({
         <span
           key={permStr}
           title="Inherited from role"
-          className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border bg-[#4A8F7C]/12 text-[#4A8F7C] border-[#4A8F7C]/30 select-none`}
+          className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border bg-[var(--accent-teal)]/12 text-[var(--accent-teal)] border-[var(--accent-teal)]/30 select-none`}
         >
           <Lock size={8} />{label}
         </span>
@@ -635,7 +635,7 @@ const OverrideFeatureAreaDetailPanel = ({
           type="button"
           onClick={() => toggleOverridePermission(permStr)}
           title="Custom override — click to remove"
-          className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border bg-amber-500/12 text-amber-600 border-amber-500/40 hover:bg-amber-500/20 transition-colors`}
+          className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border bg-[var(--warning)]/12 text-[var(--warning)] border-[var(--warning)]/40 hover:bg-[var(--warning)]/20 transition-colors`}
         >
           <KeyRound size={8} />{label}<X size={8} className="ml-0.5 opacity-60" />
         </button>
@@ -647,7 +647,7 @@ const OverrideFeatureAreaDetailPanel = ({
         type="button"
         onClick={() => toggleOverridePermission(permStr)}
         title="Click to add as custom override"
-        className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-amber-500/50 hover:text-amber-500 transition-colors`}
+        className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)] transition-colors`}
       >
         <Plus size={8} />{label}
       </button>
@@ -684,11 +684,11 @@ const OverrideFeatureAreaDetailPanel = ({
           </div>
           <div className="shrink-0 flex items-center gap-4 text-right">
             <div>
-              <p className="text-xl font-black text-[#4A8F7C] leading-none tabular-nums">{inheritedCount}</p>
+              <p className="text-xl font-black text-[var(--accent-teal)] leading-none tabular-nums">{inheritedCount}</p>
               <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">Inherited</p>
             </div>
             <div>
-              <p className="text-xl font-black text-amber-500 leading-none tabular-nums">{customCount}</p>
+              <p className="text-xl font-black text-[var(--warning)] leading-none tabular-nums">{customCount}</p>
               <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">Custom</p>
             </div>
           </div>
@@ -895,7 +895,7 @@ const RolesPermissionsPage = () => {
                         <span className="px-2 py-0.5 bg-[var(--bg)] border border-[var(--border)] rounded-full text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wide">System</span>
                       )}
                       {isDirty && (
-                        <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded-full text-[11px] text-amber-600 font-semibold">Unsaved</span>
+                        <span className="px-2 py-0.5 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-full text-[11px] text-[var(--warning)] font-semibold">Unsaved</span>
                       )}
                     </div>
                     {selectedRole.description && (
@@ -932,8 +932,8 @@ const RolesPermissionsPage = () => {
                 </div>
                 {/* Legend pills */}
                 <div className="hidden xl:flex items-center gap-2 shrink-0 text-[10px]">
-                  <span className="flex items-center gap-1 text-[var(--text-muted)]"><span className="w-2.5 h-2.5 rounded-full bg-violet-500 inline-block" />Sections</span>
-                  <span className="flex items-center gap-1 text-[var(--text-muted)]"><span className="w-2.5 h-2.5 rounded bg-[#4A8F7C] inline-block" />Actions</span>
+                  <span className="flex items-center gap-1 text-[var(--text-muted)]"><span className="w-2.5 h-2.5 rounded-full bg-[var(--primary)] inline-block" />Sections</span>
+                  <span className="flex items-center gap-1 text-[var(--text-muted)]"><span className="w-2.5 h-2.5 rounded bg-[var(--accent-teal)] inline-block" />Actions</span>
                 </div>
               </div>
 
@@ -1029,13 +1029,13 @@ const RolesPermissionsPage = () => {
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 space-y-2">
               <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Legend</p>
               <div className="flex items-center gap-2 text-[11px]">
-                <span className="inline-flex items-center gap-1 px-2 py-[4px] rounded-lg border bg-[#4A8F7C]/12 text-[#4A8F7C] border-[#4A8F7C]/30 font-semibold shrink-0">
+                <span className="inline-flex items-center gap-1 px-2 py-[4px] rounded-lg border bg-[var(--accent-teal)]/12 text-[var(--accent-teal)] border-[var(--accent-teal)]/30 font-semibold shrink-0">
                   <Lock size={8} />Inherited
                 </span>
                 <span className="text-[var(--text-muted)]">from role, locked</span>
               </div>
               <div className="flex items-center gap-2 text-[11px]">
-                <span className="inline-flex items-center gap-1 px-2 py-[4px] rounded-lg border bg-amber-500/12 text-amber-600 border-amber-500/40 font-semibold shrink-0">
+                <span className="inline-flex items-center gap-1 px-2 py-[4px] rounded-lg border bg-[var(--warning)]/12 text-[var(--warning)] border-[var(--warning)]/40 font-semibold shrink-0">
                   <KeyRound size={8} />Custom
                 </span>
                 <span className="text-[var(--text-muted)]">override, click to remove</span>
@@ -1084,18 +1084,18 @@ const RolesPermissionsPage = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-bold text-[var(--text-primary)]">{overrideUser.name}</h3>
                       {overrideDirty && (
-                        <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded-full text-[11px] text-amber-600 font-semibold">Unsaved</span>
+                        <span className="px-2 py-0.5 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-full text-[11px] text-[var(--warning)] font-semibold">Unsaved</span>
                       )}
                     </div>
                     <p className="text-sm text-[var(--text-muted)]">{overrideUser.email}</p>
                   </div>
                   <div className="shrink-0 flex items-center gap-5 text-right">
                     <div>
-                      <p className="text-xl font-black text-[#4A8F7C] leading-none">{effectivePerms.rolePermissions.length}</p>
+                      <p className="text-xl font-black text-[var(--accent-teal)] leading-none">{effectivePerms.rolePermissions.length}</p>
                       <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">inherited</p>
                     </div>
                     <div>
-                      <p className="text-xl font-black text-amber-500 leading-none">{overrideDraft.length}</p>
+                      <p className="text-xl font-black text-[var(--warning)] leading-none">{overrideDraft.length}</p>
                       <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">custom</p>
                     </div>
                   </div>

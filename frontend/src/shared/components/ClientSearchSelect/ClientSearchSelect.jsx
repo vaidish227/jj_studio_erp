@@ -139,9 +139,9 @@ const ClientSearchSelect = ({ value, onChange, placeholder = 'Search client by n
               </div>
               <span className={[
                 'text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0',
-                client.status === 'converted' ? 'bg-emerald-100 text-emerald-700' :
-                client.status === 'new' ? 'bg-blue-100 text-blue-700' :
-                'bg-gray-100 text-gray-600'
+                client.status === 'converted' ? 'bg-[var(--success)]/10 text-[var(--success)]' :
+                client.status === 'new' ? 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]' :
+                'bg-[var(--bg)] text-[var(--text-muted)]'
               ].join(' ')}>
                 {client.status}
               </span>

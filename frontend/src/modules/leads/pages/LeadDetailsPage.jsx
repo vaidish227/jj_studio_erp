@@ -846,10 +846,12 @@ const LeadDetailsPage = () => {
             </div>
           </Card>
 
-          <Card className="space-y-4">
-            <SectionTitle title="Communications" icon={MessageCircle} />
-            <CommunicationTimeline entityType="lead" entityId={id} />
-          </Card>
+          {import.meta.env.VITE_ENABLE_KIT === 'true' && (
+            <Card className="space-y-4">
+              <SectionTitle title="Communications" icon={MessageCircle} />
+              <CommunicationTimeline entityType="lead" entityId={id} />
+            </Card>
+          )}
         </div>
       </div>
 

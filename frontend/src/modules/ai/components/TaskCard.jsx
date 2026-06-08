@@ -3,22 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Flag, ChevronRight } from 'lucide-react';
 
 const STATUS_BADGE = {
-  not_started:             { label: 'Not started',  className: 'bg-gray-100 text-gray-700' },
-  in_progress:             { label: 'In progress',  className: 'bg-blue-50 text-blue-700' },
-  pending_review:          { label: 'In review',    className: 'bg-amber-50 text-amber-700' },
-  revision_requested:      { label: 'Revision',     className: 'bg-orange-50 text-orange-700' },
-  pending_client_approval: { label: 'Client review', className: 'bg-purple-50 text-purple-700' },
-  approved:                { label: 'Approved',     className: 'bg-emerald-50 text-emerald-700' },
-  released_to_site:        { label: 'Released',     className: 'bg-teal-50 text-teal-700' },
-  completed:               { label: 'Completed',    className: 'bg-green-50 text-green-700' },
-  on_hold:                 { label: 'On hold',      className: 'bg-rose-50 text-rose-700' },
+  not_started:             { label: 'Not started',  className: 'bg-[var(--bg)] text-[var(--text-muted)]' },
+  in_progress:             { label: 'In progress',  className: 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]' },
+  pending_review:          { label: 'In review',    className: 'bg-[var(--warning)]/10 text-[var(--warning)]' },
+  revision_requested:      { label: 'Revision',     className: 'bg-[var(--warning)]/10 text-[var(--warning)]' },
+  pending_client_approval: { label: 'Client review', className: 'bg-[var(--primary)]/10 text-[var(--primary)]' },
+  approved:                { label: 'Approved',     className: 'bg-[var(--accent-green)]/10 text-[var(--accent-green)]' },
+  released_to_site:        { label: 'Released',     className: 'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]' },
+  completed:               { label: 'Completed',    className: 'bg-[var(--success)]/10 text-[var(--success)]' },
+  on_hold:                 { label: 'On hold',      className: 'bg-[var(--bg)] text-[var(--text-muted)]' },
 };
 
 const PRIORITY_COLOR = {
-  low:    'text-gray-500',
-  medium: 'text-blue-500',
-  high:   'text-amber-600',
-  urgent: 'text-red-600',
+  low:    'text-[var(--text-muted)]',
+  medium: 'text-[var(--accent-blue)]',
+  high:   'text-[var(--warning)]',
+  urgent: 'text-[var(--error)]',
 };
 
 function formatDate(d) {
@@ -35,7 +35,7 @@ const TaskCard = ({ items, mode = 'list' }) => {
   return (
     <div className="flex flex-col gap-1.5">
       {items.map((t, i) => {
-        const badge = STATUS_BADGE[t.status] || { label: t.status, className: 'bg-gray-100 text-gray-700' };
+        const badge = STATUS_BADGE[t.status] || { label: t.status, className: 'bg-[var(--bg)] text-[var(--text-muted)]' };
         const onOpen = () => {
           if (t.url) navigate(t.url);
           else if (t.id && t.project?.id) navigate(`/projects/${t.project.id}?taskId=${t.id}`);
@@ -56,12 +56,12 @@ const TaskCard = ({ items, mode = 'list' }) => {
                 <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[11px]">
                   <span className={`px-1.5 py-0.5 rounded ${badge.className}`}>{badge.label}</span>
                   {t.priority && (
-                    <span className={`inline-flex items-center gap-0.5 ${PRIORITY_COLOR[t.priority] || 'text-gray-500'}`}>
+                    <span className={`inline-flex items-center gap-0.5 ${PRIORITY_COLOR[t.priority] || 'text-[var(--text-muted)]'}`}>
                       <Flag className="w-3 h-3" /> {t.priority}
                     </span>
                   )}
                   {t.dueDate && (
-                    <span className={`inline-flex items-center gap-0.5 ${t.isOverdue ? 'text-red-600 font-medium' : 'text-[var(--text-muted,#A0A0A0)]'}`}>
+                    <span className={`inline-flex items-center gap-0.5 ${t.isOverdue ? 'text-[var(--error)] font-medium' : 'text-[var(--text-muted,#A0A0A0)]'}`}>
                       <Calendar className="w-3 h-3" /> {formatDate(t.dueDate)}
                       {t.isOverdue && ' · overdue'}
                       {typeof t.overdueByDays === 'number' && t.overdueByDays > 0 && ` · ${t.overdueByDays}d`}

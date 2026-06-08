@@ -5,12 +5,12 @@ import { useToast } from '../../../shared/notifications/ToastProvider';
 import useAssignableUsers from '../hooks/useAssignableUsers';
 
 const ROLE_COLORS = {
-  admin:      'bg-red-100 text-red-700',
-  md:         'bg-blue-100 text-blue-700',
-  manager:    'bg-indigo-100 text-indigo-700',
-  designer:   'bg-purple-100 text-purple-700',
-  supervisor: 'bg-amber-100 text-amber-700',
-  sales:      'bg-green-100 text-green-700',
+  admin:      'bg-[var(--error)]/10 text-[var(--error)]',
+  md:         'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]',
+  manager:    'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]',
+  designer:   'bg-[var(--primary)]/10 text-[var(--primary)]',
+  supervisor: 'bg-[var(--warning)]/10 text-[var(--warning)]',
+  sales:      'bg-[var(--accent-green)]/10 text-[var(--accent-green)]',
 };
 
 const ROLE_LABELS = {

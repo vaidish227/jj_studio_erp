@@ -138,30 +138,35 @@ export default function App() {
                   </Route>
                 </Route>
 
-                {/* KIT — Keep In Touch (communication automation engine) */}
-                <Route element={<CRMProvider><Outlet /></CRMProvider>}>
-                  <Route path="/kit">
-                    <Route path="follow-ups" element={<FollowUpsPage />} />
-                    <Route path="campaigns">
-                      <Route index           element={<KitCampaignsPage />} />
-                      <Route path="create"   element={<KitCampaignBuilderPage />} />
-                      <Route path=":id"      element={<KitCampaignBuilderPage />} />
+                {/* KIT — Keep In Touch (communication automation engine).
+                    Feature-flagged: the whole route tree is omitted when
+                    VITE_ENABLE_KIT !== 'true' (e.g. client builds), mirroring
+                    the VITE_ENABLE_AI gating. */}
+                {import.meta.env.VITE_ENABLE_KIT === 'true' && (
+                  <Route element={<CRMProvider><Outlet /></CRMProvider>}>
+                    <Route path="/kit">
+                      <Route path="follow-ups" element={<FollowUpsPage />} />
+                      <Route path="campaigns">
+                        <Route index           element={<KitCampaignsPage />} />
+                        <Route path="create"   element={<KitCampaignBuilderPage />} />
+                        <Route path=":id"      element={<KitCampaignBuilderPage />} />
+                      </Route>
+                      <Route path="automations">
+                        <Route index           element={<KitAutomationsPage />} />
+                        <Route path="create"   element={<KitAutomationBuilderPage />} />
+                        <Route path=":id"      element={<KitAutomationBuilderPage />} />
+                      </Route>
+                      <Route path="whatsapp"   element={<KitTemplateLibraryPage channel="whatsapp" />} />
+                      <Route path="mail"       element={<KitTemplateLibraryPage channel="email" />} />
+                      <Route path="templates">
+                        <Route path="create"   element={<KitTemplateEditorPage />} />
+                        <Route path="edit/:id" element={<KitTemplateEditorPage />} />
+                      </Route>
+                      <Route path="analytics"  element={<KitAnalyticsPage />} />
+                      <Route path="settings"   element={<KitSettingsPage />} />
                     </Route>
-                    <Route path="automations">
-                      <Route index           element={<KitAutomationsPage />} />
-                      <Route path="create"   element={<KitAutomationBuilderPage />} />
-                      <Route path=":id"      element={<KitAutomationBuilderPage />} />
-                    </Route>
-                    <Route path="whatsapp"   element={<KitTemplateLibraryPage channel="whatsapp" />} />
-                    <Route path="mail"       element={<KitTemplateLibraryPage channel="email" />} />
-                    <Route path="templates">
-                      <Route path="create"   element={<KitTemplateEditorPage />} />
-                      <Route path="edit/:id" element={<KitTemplateEditorPage />} />
-                    </Route>
-                    <Route path="analytics"  element={<KitAnalyticsPage />} />
-                    <Route path="settings"   element={<KitSettingsPage />} />
                   </Route>
-                </Route>
+                )}
 
                 {/* PMS — Project Management */}
                 <Route path="/pms/dashboard"                   element={<PMSDashboardPage />} />

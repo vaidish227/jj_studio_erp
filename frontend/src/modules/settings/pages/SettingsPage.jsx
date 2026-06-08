@@ -9,7 +9,7 @@ const SETTINGS_CARDS = [
     title: 'User Management',
     description: 'Create and manage user accounts, assign roles, and control team access.',
     path: '/settings/users',
-    color: '#3A6EA5',
+    color: 'var(--accent-blue)',
   },
   {
     id: 'roles',
@@ -17,7 +17,7 @@ const SETTINGS_CARDS = [
     title: 'Roles & Permissions',
     description: 'Define role permissions, manage module access, and configure what each role can do.',
     path: '/settings/roles-permissions',
-    color: '#D4B76C',
+    color: 'var(--primary)',
   },
 ];
 
@@ -47,7 +47,7 @@ const SettingsPage = () => {
                 <div className="flex items-start justify-between mb-4">
                   <div
                     className="w-12 h-12 rounded-xl flex items-center justify-center"
-                    style={{ backgroundColor: `${card.color}1A` }}
+                    style={{ backgroundColor: `color-mix(in srgb, ${card.color} 10%, transparent)` }}
                   >
                     <Icon size={22} style={{ color: card.color }} />
                   </div>
