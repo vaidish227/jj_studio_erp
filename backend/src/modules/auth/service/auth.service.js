@@ -47,6 +47,31 @@ const loginUser = async (data) => {
   };
 };
 
+// Returns the current user + their freshly resolved effective permissions
+// (role permissions + per-user custom overrides). Used by GET /auth/me so the
+// frontend can refresh permissions live after an admin changes a role,
+// without forcing the user to log out and log back in.
+const getMe = async (userId) => {
+  const user = await User.findById(userId).lean();
+  if (!user) throw new Error("User not found");
+  if (user.isActive === false) throw new Error("Account is inactive.");
+
+  const roleDoc = await Role.findOne({ name: user.role }).lean();
+  const rolePermissions = roleDoc ? roleDoc.permissions : [];
+  const customPermissions = user.customPermissions || [];
+  const permissions = [...new Set([...rolePermissions, ...customPermissions])];
+
+  return {
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
+    permissions,
+  };
+};
+
 const changePassword = async (userId, data) => {
   const { oldPassword, newPassword } = data;
 
@@ -62,4 +87,4 @@ const changePassword = async (userId, data) => {
   return { message: "Password changed successfully" };
 };
 
-module.exports = { loginUser, changePassword };
+module.exports = { loginUser, getMe, changePassword };

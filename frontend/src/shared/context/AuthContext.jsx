@@ -1,5 +1,6 @@
   import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { handleAuthFailure } from '../services/apiClient';
+import { authService } from '../services/authService';
 
 const AuthContext = createContext(null);
 
@@ -39,6 +40,40 @@ export const AuthProvider = ({ children }) => {
   // Timer that fires exactly when the current JWT expires.
   const expiryTimerRef = useRef(null);
 
+  // Called after a successful login
+  const login = useCallback((userData, token, userPermissions = []) => {
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('permissions', JSON.stringify(userPermissions));
+    setUser(userData);
+    setPermissions(userPermissions);
+  }, []);
+
+  // Re-fetch the current user + effective permissions from the server. Used to
+  // pick up role/permission changes live — e.g. when an admin grants the MD
+  // role the "Reports" permission, the MD user gets it on the next focus tick
+  // instead of having to log out and log back in. A network error is treated
+  // as transient: keep the cached state. A 401 is handled by the apiClient
+  // interceptor (clears state, redirects to /login).
+  const refreshSession = useCallback(async () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    try {
+      const data = await authService.me();
+      if (!data) return;
+      const freshUser = data.user;
+      const freshPermissions = data.permissions || [];
+      if (freshUser) {
+        localStorage.setItem('user', JSON.stringify(freshUser));
+        setUser(freshUser);
+      }
+      localStorage.setItem('permissions', JSON.stringify(freshPermissions));
+      setPermissions(freshPermissions);
+    } catch {
+      // Swallow transient errors. 401s already triggered a redirect in apiClient.
+    }
+  }, []);
+
   // Hydrate from localStorage on mount (survives page refresh)
   useEffect(() => {
     const savedUser = readLocalStorage('user');
@@ -56,18 +91,29 @@ export const AuthProvider = ({ children }) => {
       }
       setUser(savedUser);
       setPermissions(savedPermissions);
+      // Hydrate UI immediately from cache, then refresh from server so any
+      // role/permission changes that happened while logged out show up without
+      // a re-login. Don't block the loading screen on this.
+      refreshSession();
     }
     setIsLoading(false);
-  }, []);
+  }, [refreshSession]);
 
-  // Called after a successful login
-  const login = useCallback((userData, token, userPermissions = []) => {
-    localStorage.setItem('auth_token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('permissions', JSON.stringify(userPermissions));
-    setUser(userData);
-    setPermissions(userPermissions);
-  }, []);
+  // Re-fetch permissions when the user returns to the tab. Catches the common
+  // "admin granted me a permission, switch back to my tab" flow cheaply.
+  useEffect(() => {
+    if (!user) return;
+    const onFocus = () => { refreshSession(); };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshSession();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [user, refreshSession]);
 
   // Clear all auth state
   const logout = useCallback(() => {
@@ -144,6 +190,7 @@ export const AuthProvider = ({ children }) => {
       isAdmin,
       login,
       logout,
+      refreshSession,
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,

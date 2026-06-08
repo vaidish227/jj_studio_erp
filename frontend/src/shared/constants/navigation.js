@@ -86,6 +86,7 @@ export const NAV_ITEMS = [
       { id: 'projects',          label: 'All Projects',             path: '/projects' },
       { id: 'assign-task',       label: 'Assign Task',              path: '/pms/assign-task',       permission: 'projects.tab.assign' },
       { id: 'review-design',     label: 'Approval / Review Design', path: '/pms/review-design',     permission: 'projects.tab.review' },
+      { id: 'documents',         label: 'Document Repository',      path: '/pms/documents',         permission: 'projects.read' },
       { id: 'whatsapp-groups',   label: 'WhatsApp Groups',          path: '/pms/whatsapp-groups',   permission: 'pms.whatsapp.manage' },
       { id: 'vendors',           label: 'Vendor Directory',         path: '/vendors',                permission: 'vendor.read' },
     ],

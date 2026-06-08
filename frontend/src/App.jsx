@@ -57,6 +57,7 @@ import DesignerDetailPage from './modules/pms/pages/DesignerDetailPage';
 import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
 import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
+import DocumentRepositoryPage from './modules/pms/pages/DocumentRepositoryPage';
 import NotificationsPage from './modules/notifications/pages/NotificationsPage';
 
 export default function App() {
@@ -146,6 +147,7 @@ export default function App() {
                 <Route path="/pms/assign-task"       element={<AssignTaskPage />} />
                 <Route path="/pms/review-design"     element={<ReviewDesignPage />} />
                 <Route path="/pms/whatsapp-groups"   element={<WhatsAppGroupsPage />} />
+                <Route path="/pms/documents"         element={<DocumentRepositoryPage />} />
 
                 {/* PMS — Legacy routes kept for backward compatibility */}
                 <Route path="/pms/calendar"      element={<CalendarPage />} />
