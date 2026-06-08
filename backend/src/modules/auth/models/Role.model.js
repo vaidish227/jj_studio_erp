@@ -9,7 +9,7 @@ const ALL_PERMISSIONS = [
   // CRM
   "crm.read", "crm.create", "crm.update", "crm.delete",
   // KIT
-  "kit.read", "kit.create", "kit.update", "kit.delete",
+  "kit.read", "kit.create", "kit.update", "kit.delete", "kit.manage",
   // Proposal & Quotation
   "proposal.read", "proposal.create", "proposal.update", "proposal.delete", "proposal.approve",
   // Clients

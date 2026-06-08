@@ -9,8 +9,8 @@
   }
 
   .custom-scrollbar:hover {
-    scrollbar-color: #cbd5e1 transparent;
-    /* Tailwind slate-300 */
+    scrollbar-color: var(--divider) transparent;
+    /* warm greige to match Modern Luxe theme */
   }
 
   /* Webkit browsers (Chrome, Safari, Edge) */
@@ -29,8 +29,8 @@
   }
 
   .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    /* Default for light bg */
+    background: var(--divider);
+    /* warm greige to match Modern Luxe theme */
   }
 
   /* Specific override for sidebar (dark background) */

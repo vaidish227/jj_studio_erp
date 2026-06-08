@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { CommunicationTimeline } from '../../kit';
 import {
   ChevronRight, RefreshCw, Calendar, MapPin,
   Briefcase, User, IndianRupee, ArrowLeft,
@@ -334,6 +335,12 @@ const ProjectDetailPage = () => {
             onProjectUpdated={refresh}
             onSwitchToTab={setActiveTab}
           />
+        )}
+        {activeTab === 'overview' && import.meta.env.VITE_ENABLE_KIT === 'true' && (
+          <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <h3 className="font-black text-sm uppercase tracking-wider text-[var(--text-primary)] mb-3">Communications</h3>
+            <CommunicationTimeline entityType="project" entityId={id} />
+          </div>
         )}
         {activeTab === 'tasks'     && (
           <TasksTab

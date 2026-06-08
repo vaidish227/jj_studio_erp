@@ -104,7 +104,7 @@ const EnquiryFormPage = () => {
         {/* Section 1: Client Personal Info */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
               <User size={20} />
             </div>
             <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">Personal Information</h2>
@@ -164,7 +164,7 @@ const EnquiryFormPage = () => {
         {/* Section 2: Referral & Context */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] flex items-center justify-center">
               <Briefcase size={20} />
             </div>
             <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">Referral & Source</h2>
@@ -220,7 +220,7 @@ const EnquiryFormPage = () => {
         {/* Section 3: Project Requirements */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[var(--accent-teal)]/10 text-[var(--accent-teal)] flex items-center justify-center">
               <MapPin size={20} />
             </div>
             <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">Project Requirements</h2>

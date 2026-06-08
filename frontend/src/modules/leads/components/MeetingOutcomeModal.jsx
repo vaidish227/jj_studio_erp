@@ -10,27 +10,27 @@ const INTEREST_OPTIONS = [
     icon: CheckCircle2,
     label: 'Client is Interested',
     sublabel: 'Ready to receive a proposal',
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50 border-emerald-200',
-    activeBg: 'bg-emerald-100 border-emerald-500 ring-2 ring-emerald-200',
+    color: 'text-[var(--success)]',
+    bg: 'bg-[var(--success)]/10 border-[var(--success)]/20',
+    activeBg: 'bg-[var(--success)]/20 border-[var(--success)] ring-2 ring-[var(--success)]/30',
   },
   {
     value: false,
     icon: Clock,
     label: 'Needs Follow-up',
     sublabel: 'Not ready yet — schedule follow-up',
-    color: 'text-amber-600',
-    bg: 'bg-amber-50 border-amber-200',
-    activeBg: 'bg-amber-100 border-amber-500 ring-2 ring-amber-200',
+    color: 'text-[var(--warning)]',
+    bg: 'bg-[var(--warning)]/10 border-[var(--warning)]/20',
+    activeBg: 'bg-[var(--warning)]/20 border-[var(--warning)] ring-2 ring-[var(--warning)]/30',
   },
   {
     value: 'lost',
     icon: XCircle,
     label: 'Not Interested',
     sublabel: 'Mark lead as lost',
-    color: 'text-red-500',
-    bg: 'bg-red-50 border-red-200',
-    activeBg: 'bg-red-100 border-red-500 ring-2 ring-red-200',
+    color: 'text-[var(--error)]',
+    bg: 'bg-[var(--error)]/10 border-[var(--error)]/20',
+    activeBg: 'bg-[var(--error)]/20 border-[var(--error)] ring-2 ring-[var(--error)]/30',
   },
 ];
 
@@ -117,7 +117,7 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave, onRecordMOM }) 
         {/* Interest options */}
         <div>
           <p className="text-sm font-bold text-[var(--text-primary)] mb-3">
-            Client outcome <span className="text-red-500">*</span>
+            Client outcome <span className="text-[var(--error)]">*</span>
           </p>
           <div className="grid grid-cols-1 gap-2">
             {INTEREST_OPTIONS.map((opt) => {
@@ -175,9 +175,9 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave, onRecordMOM }) 
 
         {/* Interested CTA hint */}
         {clientInterested === true && (
-          <div className="flex items-start gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-emerald-700 font-medium">
+          <div className="flex items-start gap-3 px-4 py-3 bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-xl">
+            <CheckCircle2 size={16} className="text-[var(--success)] mt-0.5 shrink-0" />
+            <p className="text-xs text-[var(--success)] font-medium">
               Saving will move this lead to <strong>Interested</strong> stage — you can create a
               proposal immediately after.
             </p>

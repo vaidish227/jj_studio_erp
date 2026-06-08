@@ -9,6 +9,7 @@ const {
 } = require("../validator/Project.validator");
 const { logActivity } = require("../../../shared/activityLogger");
 const workflowEngine = require("../services/workflowEngine");
+const kitEvents = require("../../kit/services/kitEvents");
 const teamResolver = require("../services/teamResolver");
 
 const WORKFLOW_ENGINE_V1 =
@@ -52,6 +53,15 @@ const createProject = async (req, res) => {
       entityId:    project._id,
       action:      "created",
       description: `Project "${project.name}" created`,
+    });
+
+    // KIT automation trigger (fire-and-forget).
+    kitEvents.emit("project.created", {
+      sourceModule: "pms",
+      entityType: "project",
+      entityId: project._id,
+      payload: { name: project.name, status: project.status },
+      actor: req.user,
     });
 
     // Workflow Engine — seed the task graph from the chosen template.

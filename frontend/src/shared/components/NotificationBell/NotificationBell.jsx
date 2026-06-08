@@ -24,12 +24,12 @@ const MODULE_ICONS = {
 };
 
 const MODULE_COLORS = {
-  crm:      'bg-amber-100 text-amber-700',
-  meeting:  'bg-blue-100 text-blue-700',
-  pms:      'bg-indigo-100 text-indigo-700',
-  proposal: 'bg-emerald-100 text-emerald-700',
-  auth:     'bg-purple-100 text-purple-700',
-  system:   'bg-slate-100 text-slate-700',
+  crm:      'bg-[var(--warning)]/10 text-[var(--warning)]',
+  meeting:  'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]',
+  pms:      'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]',
+  proposal: 'bg-[var(--accent-green)]/10 text-[var(--accent-green)]',
+  auth:     'bg-[var(--primary)]/10 text-[var(--primary)]',
+  system:   'bg-[var(--bg)] text-[var(--text-muted)]',
 };
 
 const PRIORITY_DOT = {
@@ -56,7 +56,7 @@ const formatRelativeTime = (iso) => {
 
 const NotificationRow = ({ n, onClick, onDismiss }) => {
   const Icon = MODULE_ICONS[n.module] || Activity;
-  const colorCls = MODULE_COLORS[n.module] || 'bg-slate-100 text-slate-700';
+  const colorCls = MODULE_COLORS[n.module] || 'bg-[var(--bg)] text-[var(--text-muted)]';
   const dotCls = PRIORITY_DOT[n.priority] || PRIORITY_DOT.normal;
   const unread = !n.readAt;
 

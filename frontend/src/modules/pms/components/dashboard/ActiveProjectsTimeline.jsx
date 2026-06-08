@@ -15,7 +15,7 @@ const PHASE_COLOR = {
   procurement: 'text-[var(--accent-blue)] bg-[var(--accent-blue)]/12',
   release:     'text-[var(--warning)] bg-[var(--warning)]/12',
   execution:   'text-[var(--success)] bg-[var(--success)]/12',
-  handover:    'text-[#9333ea] bg-[#9333ea]/12',
+  handover:    'text-[var(--accent-green)] bg-[var(--accent-green)]/12',
 };
 
 const HEALTH_FILL = {

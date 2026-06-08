@@ -75,7 +75,7 @@ const DEFAULT_ROLES = [
       "dashboard.read",
       "crm.read", "crm.create", "crm.update",
       "crm.tab.clients", "crm.tab.leads", "crm.tab.meetings", "crm.tab.converted", "crm.tab.lost",
-      "kit.read", "kit.create", "kit.update",
+      "kit.read", "kit.create", "kit.update", "kit.manage",
       "kit.tab.templates",
       "proposal.read", "proposal.create", "proposal.update", "proposal.approve",
       "proposal.tab.templates", "proposal.tab.approval",

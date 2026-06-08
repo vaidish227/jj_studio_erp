@@ -1,5 +1,6 @@
 const Payment = require("../models/Payment.model");
 const Proposal = require("../../crm/models/Proposal.model");
+const kitEvents = require("../../kit/services/kitEvents");
 const mongoose = require("mongoose");
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -79,6 +80,17 @@ const updatePaymentStatus = async (req, res) => {
     }
 
     await payment.save();
+
+    // KIT automation trigger (fire-and-forget).
+    if (status === "received") {
+      kitEvents.emit("payment.received", {
+        sourceModule: "finance",
+        entityType: "proposal",
+        entityId: payment.proposalId,
+        payload: { amount: payment.amount, method: payment.method || "cash" },
+        actor: req.user,
+      });
+    }
 
     res.status(200).json({
       success: true,

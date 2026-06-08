@@ -19,13 +19,22 @@ const initialState = {
   notes: '',
 };
 
+// PhoneInput emits the full E.164 form ("+919876543210"), so strip the leading
+// "91" country code before checking for 10 local digits — but only when it's
+// clearly a prefix (>10 digits), not when a valid 10-digit number starts with 91.
+const localMobileDigits = (raw) => {
+  let s = String(raw || '').replace(/\D/g, '');
+  if (s.length > 10 && s.startsWith('91')) s = s.slice(2);
+  return s;
+};
+
 const validateForm = (data) => {
   const errors = {};
 
   if (!data.clientName.trim()) errors.clientName = 'Client name is required';
   if (!data.contactMobile.trim()) {
     errors.contactMobile = 'Mobile number is required';
-  } else if (!/^\d{10}$/.test(data.contactMobile.replace(/\D/g, ''))) {
+  } else if (!/^\d{10}$/.test(localMobileDigits(data.contactMobile))) {
     errors.contactMobile = 'Enter a valid 10-digit mobile number';
   }
 

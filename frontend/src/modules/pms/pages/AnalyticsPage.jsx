@@ -39,12 +39,12 @@ const cssVar = (name, fallback = '#000') => {
 };
 
 const PROJECT_STATUS_COLOR = {
-  new:              '#94a3b8',
-  design_phase:     '#3b82f6',
-  execution_phase:  '#8b5cf6',
-  on_hold:          '#64748b',
-  completed:        '#22c55e',
-  cancelled:        '#ef4444',
+  new:              cssVar('--text-muted',   '#7C6B56'),
+  design_phase:     cssVar('--accent-blue',  '#356293'),
+  execution_phase:  cssVar('--accent-teal',  '#3F7E6C'),
+  on_hold:          cssVar('--text-muted',   '#7C6B56'),
+  completed:        cssVar('--success',      '#3C8A4D'),
+  cancelled:        cssVar('--error',        '#C23B28'),
 };
 const PROJECT_STATUS_LABEL = {
   new:              'New',
@@ -55,11 +55,11 @@ const PROJECT_STATUS_LABEL = {
   cancelled:        'Cancelled',
 };
 const HEALTH_COLOR = {
-  on_track: '#22c55e',
-  at_risk:  '#f59e0b',
-  blocked:  '#ef4444',
-  on_hold:  '#64748b',
-  delayed:  '#7c2d12',
+  on_track: cssVar('--success',    '#3C8A4D'),
+  at_risk:  cssVar('--warning',    '#A87320'),
+  blocked:  cssVar('--error',      '#C23B28'),
+  on_hold:  cssVar('--text-muted', '#7C6B56'),
+  delayed:  '#7c2d12', // deep terracotta — already warm/on-theme, no exact token; kept to stay distinct from "blocked"
 };
 const HEALTH_LABEL = {
   on_track: 'On Track', at_risk: 'At Risk', blocked: 'Blocked', on_hold: 'On Hold', delayed: 'Delayed',

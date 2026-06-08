@@ -7,11 +7,11 @@ import ManageTeamModal from '../ManageTeamModal';
 import { groupAssignmentsByUser } from '../../utils/teamHelpers';
 
 const ROLE_BADGE = {
-  admin:      { label: 'Admin',      cls: 'bg-red-100 text-red-700' },
-  md:         { label: 'MD',         cls: 'bg-blue-100 text-blue-700' },
-  manager:    { label: 'Manager',    cls: 'bg-indigo-100 text-indigo-700' },
+  admin:      { label: 'Admin',      cls: 'bg-[var(--error)]/10 text-[var(--error)]' },
+  md:         { label: 'MD',         cls: 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]' },
+  manager:    { label: 'Manager',    cls: 'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]' },
   designer:   { label: 'Designer',   cls: 'bg-[var(--primary)]/10 text-[var(--primary)]' },
-  supervisor: { label: 'Supervisor', cls: 'bg-amber-100 text-amber-700' },
+  supervisor: { label: 'Supervisor', cls: 'bg-[var(--warning)]/10 text-[var(--warning)]' },
 };
 
 const FallbackIcon = LucideIcons.Users;

@@ -3,22 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, FileText, PenTool, CreditCard } from 'lucide-react';
 
 const STATUS_BADGE = {
-  draft:              { label: 'Draft',            className: 'bg-gray-100 text-gray-700' },
-  pending_approval:   { label: 'Pending approval', className: 'bg-amber-50 text-amber-700' },
-  revision_requested: { label: 'Revision',         className: 'bg-orange-50 text-orange-700' },
-  manager_approved:   { label: 'Approved',         className: 'bg-emerald-50 text-emerald-700' },
-  sent:               { label: 'Sent',             className: 'bg-blue-50 text-blue-700' },
-  esign_received:     { label: 'eSign in',         className: 'bg-teal-50 text-teal-700' },
-  payment_received:   { label: 'Paid',             className: 'bg-green-50 text-green-700' },
-  project_ready:      { label: 'Project ready',    className: 'bg-violet-50 text-violet-700' },
-  rejected:           { label: 'Rejected',         className: 'bg-rose-50 text-rose-700' },
-  project_started:    { label: 'Project started',  className: 'bg-emerald-100 text-emerald-800' },
+  draft:              { label: 'Draft',            className: 'bg-[var(--bg)] text-[var(--text-muted)]' },
+  pending_approval:   { label: 'Pending approval', className: 'bg-[var(--warning)]/10 text-[var(--warning)]' },
+  revision_requested: { label: 'Revision',         className: 'bg-[var(--warning)]/10 text-[var(--warning)]' },
+  manager_approved:   { label: 'Approved',         className: 'bg-[var(--success)]/10 text-[var(--success)]' },
+  sent:               { label: 'Sent',             className: 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]' },
+  esign_received:     { label: 'eSign in',         className: 'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]' },
+  payment_received:   { label: 'Paid',             className: 'bg-[var(--success)]/10 text-[var(--success)]' },
+  project_ready:      { label: 'Project ready',    className: 'bg-[var(--primary)]/10 text-[var(--primary)]' },
+  rejected:           { label: 'Rejected',         className: 'bg-[var(--error)]/10 text-[var(--error)]' },
+  project_started:    { label: 'Project started',  className: 'bg-[var(--accent-green)]/10 text-[var(--accent-green)]' },
 };
 
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
 
 const badgeFor = (status) =>
-  STATUS_BADGE[status] || { label: status, className: 'bg-gray-100 text-gray-700' };
+  STATUS_BADGE[status] || { label: status, className: 'bg-[var(--bg)] text-[var(--text-muted)]' };
 
 function DetailCard({ p }) {
   const navigate = useNavigate();
@@ -46,10 +46,10 @@ function DetailCard({ p }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded ${signed ? 'bg-teal-50 text-teal-700' : 'bg-gray-100 text-gray-500'}`}>
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded ${signed ? 'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]' : 'bg-[var(--bg)] text-[var(--text-muted)]'}`}>
           <PenTool className="w-3 h-3" /> {signed ? 'eSigned' : 'eSign pending'}
         </span>
-        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded ${paid ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded ${paid ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--bg)] text-[var(--text-muted)]'}`}>
           <CreditCard className="w-3 h-3" /> {paid ? `Paid ${inr(p.payment.amount)}` : 'Payment pending'}
         </span>
       </div>

@@ -110,9 +110,9 @@ const MaterialModal = ({ isOpen, onClose, onSave, initial = EMPTY, title }) => {
 };
 
 const CATEGORY_COLORS = {
-  Flooring: 'bg-amber-50 text-amber-700', Fittings: 'bg-blue-50 text-blue-700',
-  Paint:    'bg-pink-50 text-pink-700',   Hardware: 'bg-gray-50 text-gray-700',
-  Lighting: 'bg-yellow-50 text-yellow-700', Furniture: 'bg-purple-50 text-purple-700',
+  Flooring: 'bg-[var(--warning)]/10 text-[var(--warning)]', Fittings: 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]',
+  Paint:    'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]',   Hardware: 'bg-[var(--bg)] text-[var(--text-muted)]',
+  Lighting: 'bg-[var(--primary)]/10 text-[var(--primary)]', Furniture: 'bg-[var(--accent-green)]/10 text-[var(--accent-green)]',
   Other:    'bg-[var(--border)] text-[var(--text-muted)]',
 };
 

@@ -240,7 +240,7 @@ const EditorModal = ({ responsibility, isOpen, onClose, onSaved }) => {
                 onClick={() => toggleArrayValue('vendorKinds', v)}
                 className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors ${
                   form.vendorKinds.includes(v)
-                    ? 'border-amber-500 bg-amber-50 text-amber-700'
+                    ? 'border-[var(--warning)] bg-[var(--warning)]/10 text-[var(--warning)]'
                     : 'border-[var(--border)] text-[var(--text-muted)]'
                 }`}
               >
@@ -371,7 +371,7 @@ const ResponsibilitiesPage = () => {
                       <Icon name={r.icon} className={r.color} />
                       <span className="font-semibold text-[var(--text-primary)]">{r.name}</span>
                       {r.system && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] px-1.5 py-0.5 rounded-full">
                           <Lock size={8} /> System
                         </span>
                       )}
@@ -392,13 +392,13 @@ const ResponsibilitiesPage = () => {
                     {r.vendorKinds?.length ? (
                       <div className="flex flex-wrap gap-1">
                         {r.vendorKinds.map((v) => (
-                          <span key={v} className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">{v}</span>
+                          <span key={v} className="text-[10px] font-semibold bg-[var(--warning)]/10 text-[var(--warning)] px-1.5 py-0.5 rounded">{v}</span>
                         ))}
                       </div>
                     ) : <span className="text-xs text-[var(--text-muted)]">—</span>}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${r.isActive ? 'bg-green-100 text-green-700' : 'bg-[var(--border)] text-[var(--text-muted)]'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${r.isActive ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--border)] text-[var(--text-muted)]'}`}>
                       {r.isActive ? 'Active' : 'Archived'}
                     </span>
                   </td>
@@ -417,7 +417,7 @@ const ResponsibilitiesPage = () => {
                           <button
                             type="button"
                             onClick={() => handleArchive(r, false)}
-                            className="p-1.5 rounded text-[var(--text-muted)] hover:text-amber-600 hover:bg-[var(--bg)]"
+                            className="p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--warning)] hover:bg-[var(--bg)]"
                             title="Archive"
                           >
                             <Archive size={13} />
@@ -426,7 +426,7 @@ const ResponsibilitiesPage = () => {
                           <button
                             type="button"
                             onClick={() => handleArchive(r, true)}
-                            className="p-1.5 rounded text-[var(--text-muted)] hover:text-green-600 hover:bg-[var(--bg)]"
+                            className="p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--success)] hover:bg-[var(--bg)]"
                             title="Reactivate"
                           >
                             <ArchiveRestore size={13} />

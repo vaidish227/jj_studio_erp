@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Phone, MapPin } from 'lucide-react';
 
 const STATUS_BADGE = {
-  new:           { label: 'New',          className: 'bg-blue-50 text-blue-700' },
-  contacted:     { label: 'Contacted',    className: 'bg-cyan-50 text-cyan-700' },
-  meeting_done:  { label: 'Met',          className: 'bg-violet-50 text-violet-700' },
-  proposal_sent: { label: 'Proposal',     className: 'bg-amber-50 text-amber-700' },
-  converted:     { label: 'Converted',    className: 'bg-emerald-50 text-emerald-700' },
-  lost:          { label: 'Lost',         className: 'bg-rose-50 text-rose-700' },
+  new:           { label: 'New',          className: 'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]' },
+  contacted:     { label: 'Contacted',    className: 'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]' },
+  meeting_done:  { label: 'Met',          className: 'bg-[var(--primary)]/10 text-[var(--primary)]' },
+  proposal_sent: { label: 'Proposal',     className: 'bg-[var(--warning)]/10 text-[var(--warning)]' },
+  converted:     { label: 'Converted',    className: 'bg-[var(--success)]/10 text-[var(--success)]' },
+  lost:          { label: 'Lost',         className: 'bg-[var(--error)]/10 text-[var(--error)]' },
 };
 
 const fmtBudget = (n) => {
@@ -27,7 +27,7 @@ const LeadCard = ({ items, total, viewAllUrl }) => {
   return (
     <div className="flex flex-col gap-1.5">
       {items.map((l) => {
-        const badge = STATUS_BADGE[l.status] || { label: l.status, className: 'bg-gray-100 text-gray-700' };
+        const badge = STATUS_BADGE[l.status] || { label: l.status, className: 'bg-[var(--bg)] text-[var(--text-muted)]' };
         const budget = fmtBudget(l.budget);
         return (
           <button
