@@ -25,6 +25,7 @@ import PurchaseOrdersTab  from '../components/tabs/PurchaseOrdersTab';
 import WhatsAppTab        from '../components/tabs/WhatsAppTab';
 import ActivityTab        from '../components/tabs/ActivityTab';
 import DocumentsTab       from '../components/tabs/DocumentsTab';
+import GanttTab           from '../components/tabs/GanttTab';
 // Phase 2 — Workflow Engine surfaces
 import ProjectGatesTab        from '../components/tabs/ProjectGatesTab';
 import VendorEngagementTab    from '../components/tabs/VendorEngagementTab';
@@ -52,6 +53,7 @@ const TABS_LEGACY = [
   { id: 'overview',          label: 'Overview' },
   { id: 'documents',         label: 'Documents' },
   { id: 'planner',           label: 'Master Plan' },
+  { id: 'gantt',             label: 'Gantt' },
   { id: 'gates',             label: 'Sign-offs' },
   { id: 'tasks',             label: 'Tasks' },
   { id: 'drawings',          label: 'Drawings' },
@@ -76,6 +78,7 @@ const TABS_V2 = [
   { id: 'documents', label: 'Documents',        subTabs: ['documents'] },
   { id: 'workflow',  label: 'Workflow',         subTabs: [
     { id: 'planner',   label: 'Master Plan' },
+    { id: 'gantt',     label: 'Gantt' },
     { id: 'gates',     label: 'Sign-offs' },
     { id: 'tasks',     label: 'Tasks' },
     { id: 'approvals', label: 'Approvals' },
@@ -367,6 +370,7 @@ const ProjectDetailPage = () => {
           />
         )}
         {activeTab === 'planner'           && <ProjectPlannerTab   project={project} onSwitchToTab={setActiveTab} />}
+        {activeTab === 'gantt'             && <GanttTab            project={project} tasks={tasks} />}
         {activeTab === 'gates'             && <ProjectGatesTab     project={project} />}
         {activeTab === 'release_log'       && <DrawingReleaseTab   project={project} />}
         {activeTab === 'handover'          && <HandoverTab         project={project} drawings={drawings} />}
