@@ -6,6 +6,8 @@ const mongoose = require("mongoose");
 const ALL_PERMISSIONS = [
   // Dashboard
   "dashboard.read",
+  // MD Dashboard — cross-module executive overview
+  "md.dashboard.read",
   // CRM
   "crm.read", "crm.create", "crm.update", "crm.delete",
   // KIT

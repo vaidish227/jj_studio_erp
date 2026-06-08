@@ -350,8 +350,8 @@ const TaskDetailPage = () => {
             </Button>
           )}
           {canApprove && (
-            <Button size="sm" onClick={() => setShowRevision(true)} disabled={actioning}
-              className="bg-[var(--warning)] hover:bg-[var(--warning)]/90 text-black">
+            <Button size="sm" variant="ghost" onClick={() => setShowRevision(true)} disabled={actioning}
+              className="bg-[var(--warning)]/10 hover:bg-[var(--warning)]/20 text-[var(--warning)] border border-[var(--warning)]/30">
               <GitBranch size={13} className="mr-1" />
               Request Revision
             </Button>

@@ -25,6 +25,9 @@ const DEFAULT_ROLES = [
     // review actions work end-to-end without exposing other modules.
     description: "Project Management focus — MD dashboard, project approvals, and reviews.",
     permissions: [
+      // MD-only executive cross-module dashboard
+      "md.dashboard.read",
+
       // Sidebar parent + project pages
       "projects.read",
       "projects.create", "projects.customize_plan",

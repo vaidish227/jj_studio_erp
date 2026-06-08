@@ -8,6 +8,7 @@ import DesignCommentThread from './DesignCommentThread';
 import RevisionRequestPanel from './RevisionRequestPanel';
 import PDReviewModal from './PDReviewModal';
 import PreviewDrawingModal from './PreviewDrawingModal';
+import DrawingPreviewThumb from './DrawingPreviewThumb';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { pmsService } from '../../../shared/services/pmsService';
@@ -93,6 +94,15 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3
                     hover:border-[var(--primary)]/40 transition-all duration-150">
+
+      {/* Thumbnail preview */}
+      {drawing.fileUrl && (
+        <DrawingPreviewThumb
+          drawing={drawing}
+          compact
+          className="w-full h-36 rounded-xl"
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-start gap-3">

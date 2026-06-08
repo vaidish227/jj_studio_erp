@@ -7,6 +7,9 @@ export const PERMISSIONS = {
   // Dashboard
   DASHBOARD_READ: 'dashboard.read',
 
+  // MD Dashboard — cross-module executive overview
+  MD_DASHBOARD_READ: 'md.dashboard.read',
+
   // CRM
   CRM_READ:   'crm.read',
   CRM_CREATE: 'crm.create',
@@ -178,6 +181,13 @@ export const PERMISSION_MODULES = [
     label:       'Dashboard',
     description: 'Main overview with KPIs and recent activity',
     group:       'Core',
+    actions:     ['read'],
+  },
+  {
+    key:         'md-dashboard',
+    label:       'MD Dashboard',
+    description: 'Executive cross-module overview — CRM, proposals, projects, finance',
+    group:       'Leadership',
     actions:     ['read'],
   },
   {
@@ -409,6 +419,14 @@ export const FEATURE_AREAS = [
     icon:        'dashboard',
     color:       '#6B7280',
     modules:     ['dashboard'],
+  },
+  {
+    key:         'leadership',
+    label:       'Leadership',
+    description: 'Executive MD Dashboard — cross-module rollup for senior leadership',
+    icon:        'dashboard',
+    color:       '#3A6EA5',
+    modules:     ['md-dashboard'],
   },
   {
     key:         'crm',

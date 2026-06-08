@@ -464,7 +464,8 @@ const GanttTab = ({ project, tasks }) => {
                   );
                 })}
 
-                {/* Today line */}
+                {/* Today line — pill anchored to the top of the header so it
+                    never overlaps the month / week / day sub-labels below. */}
                 {todayX != null && (
                   <g>
                     <line
@@ -474,10 +475,10 @@ const GanttTab = ({ project, tasks }) => {
                       strokeWidth={1.5}
                       strokeDasharray="4 3"
                     />
-                    <rect x={todayX - 19} y={HEADER_H - 18} width={38} height={14} rx={3} fill="var(--accent-blue)" />
+                    <rect x={todayX - 19} y={26} width={38} height={14} rx={3} fill="var(--accent-blue)" />
                     <text
                       x={todayX}
-                      y={HEADER_H - 7}
+                      y={37}
                       fontSize={9}
                       fontWeight={800}
                       fill="#fff"
@@ -562,10 +563,23 @@ const GanttTab = ({ project, tasks }) => {
                         width={w} height={BAR_H}
                         rx={4}
                         fill="none"
-                        stroke={isOverdue ? 'var(--error)' : fill}
-                        strokeWidth={isOverdue ? 1.5 : 1}
-                        opacity={isOverdue ? 1 : 0.8}
+                        stroke={fill}
+                        strokeWidth={1}
+                        opacity={0.8}
                       />
+                      {/* Overdue: outer dashed ring so the cue is visible even
+                          when the bar fill is already red (blocked / revision). */}
+                      {isOverdue && (
+                        <rect
+                          x={x1 - 2} y={y + BAR_PAD - 2}
+                          width={w + 4} height={BAR_H + 4}
+                          rx={5}
+                          fill="none"
+                          stroke="var(--error)"
+                          strokeWidth={1.5}
+                          strokeDasharray="3 2"
+                        />
+                      )}
                       {w > 60 && (
                         <text
                           x={x1 + 6}
@@ -633,24 +647,29 @@ const GanttTab = ({ project, tasks }) => {
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="border-t border-[var(--border)] px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          {Object.entries(STATUS_LABEL).map(([k, l]) => (
-            <div key={k} className="flex items-center gap-1.5">
-              <span
-                className="w-2.5 h-2.5 rounded-sm"
-                style={{ backgroundColor: STATUS_FILL[k], opacity: 0.75 }}
-              />
-              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{l}</span>
-            </div>
-          ))}
-          <div className="ml-auto flex items-center gap-3">
+        {/* Legend — split into two rows so the meta indicators (Today / Overdue)
+            stay visible regardless of viewport width. */}
+        <div className="border-t border-[var(--border)] px-4 py-2 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {Object.entries(STATUS_LABEL).map(([k, l]) => (
+              <div key={k} className="flex items-center gap-1.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-sm"
+                  style={{ backgroundColor: STATUS_FILL[k], opacity: 0.75 }}
+                />
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{l}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-3.5 h-0.5 bg-[var(--accent-blue)]" />
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Today</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm border border-[var(--error)]" />
+              <svg width={14} height={10} aria-hidden="true">
+                <rect x={1} y={1} width={12} height={8} rx={2} fill="none" stroke="var(--error)" strokeWidth={1.2} strokeDasharray="3 2" />
+              </svg>
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Overdue</span>
             </div>
           </div>

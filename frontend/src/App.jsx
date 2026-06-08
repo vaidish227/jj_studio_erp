@@ -43,6 +43,7 @@ import ResponsibilitiesPage from './modules/pms/pages/ResponsibilitiesPage';
 // Phase 4 — Analytics
 import AnalyticsPage from './modules/pms/pages/AnalyticsPage';
 import PMSDashboardPage from './modules/pms/pages/PMSDashboardPage';
+import MDDashboardPage from './modules/dashboard/pages/MDDashboardPage';
 import ProjectsPage from './modules/pms/pages/ProjectsPage';
 import ProjectDetailPage from './modules/pms/pages/ProjectDetailPage';
 import MyTasksPage from './modules/pms/pages/MyTasksPage';
@@ -168,6 +169,9 @@ export default function App() {
                     </Route>
                   </Route>
                 )}
+
+                {/* MD — Executive cross-module dashboard */}
+                <Route path="/md/dashboard"                    element={<MDDashboardPage />} />
 
                 {/* PMS — Project Management */}
                 <Route path="/pms/dashboard"                   element={<PMSDashboardPage />} />

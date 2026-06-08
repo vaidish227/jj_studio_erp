@@ -1533,4 +1533,13 @@ module.exports = {
   // Reports (Phase C — JSON; frontend turns these into Excel via SheetJS)
   getDesignerKpiReport,
   getProjectSummaryReport,
+  // Helpers exposed for cross-module aggregators (e.g., MD Dashboard)
+  startOfPeriod,
+  previousPeriodWindow,
+  PERIOD_DAYS,
+  classifyHealth,
+  HEALTH_RANK,
+  ACTIVE_STATUSES,
+  TASK_DONE,
+  DAY,
 };

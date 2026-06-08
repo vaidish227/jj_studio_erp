@@ -283,41 +283,30 @@ const AssignTaskPage = () => {
       </div>
 
       {/* ── Filter Bar ── */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
-        <div className="flex flex-col gap-3">
-          {/* Row 1: Search + Status pills */}
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-            {/* Search */}
-            <div className="relative flex-1 max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search tasks, projects, designers…"
-                className="pl-9 pr-4 py-2 text-sm rounded-xl border border-[var(--border)] bg-[var(--bg)]
-                           text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
-                           focus:outline-none focus:ring-1 focus:ring-[var(--primary)] w-full"
-              />
-            </div>
-            {hasFilters && (
-              <button
-                onClick={clearFilters}
-                className="text-xs text-[var(--primary)] hover:underline font-semibold shrink-0"
-              >
-                Clear filters
-              </button>
-            )}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-3">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
+          {/* Search */}
+          <div className="relative flex-1 lg:max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search tasks, projects, designers…"
+              className="h-9 pl-9 pr-3 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)]
+                         text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
+                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)]
+                         w-full transition-colors"
+            />
           </div>
 
-          {/* Row 2: Dropdowns */}
-          <div className="flex flex-wrap gap-2">
-            {/* Project */}
+          {/* Dropdowns */}
+          <div className="flex flex-wrap items-center gap-2 flex-1">
             <select
               value={projectFilter}
               onChange={(e) => setProject(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)]
+              className="h-9 px-3 pr-8 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)]
                          text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]
-                         max-w-[200px]"
+                         focus:border-[var(--primary)] min-w-[140px] max-w-[200px] transition-colors cursor-pointer"
             >
               <option value="">All Projects</option>
               {projectOptions.map((p) => (
@@ -325,35 +314,43 @@ const AssignTaskPage = () => {
               ))}
             </select>
 
-            {/* Status */}
             <select
               value={statusFilter}
               onChange={(e) => setStatus(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)]
-                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              className="h-9 px-3 pr-8 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)]
+                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]
+                         focus:border-[var(--primary)] min-w-[130px] transition-colors cursor-pointer"
             >
               {STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
 
-            {/* Priority */}
             <select
               value={priorityFilter}
               onChange={(e) => setPriority(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)]
-                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              className="h-9 px-3 pr-8 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)]
+                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]
+                         focus:border-[var(--primary)] min-w-[120px] transition-colors cursor-pointer"
             >
               {PRIORITY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
 
-            {filtered.length > 0 && (
-              <span className="ml-auto self-center text-xs text-[var(--text-muted)] font-semibold">
-                {filtered.length} task{filtered.length !== 1 ? 's' : ''}
-              </span>
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="h-9 px-3 text-xs font-semibold text-[var(--primary)] hover:bg-[var(--primary)]/10
+                           rounded-lg transition-colors"
+              >
+                Clear
+              </button>
             )}
+
+            <span className="ml-auto text-xs text-[var(--text-muted)] font-semibold whitespace-nowrap pr-1">
+              {filtered.length} {filtered.length === 1 ? 'task' : 'tasks'}
+            </span>
           </div>
         </div>
       </div>
