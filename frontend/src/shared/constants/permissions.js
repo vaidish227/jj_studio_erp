@@ -9,6 +9,8 @@ export const PERMISSIONS = {
 
   // CRM
   CRM_READ:   'crm.read',
+  // Phase 2 Stage 2 — granular API-enforced lead read (alias: clients.read / crm.read)
+  CRM_LEAD_READ: 'crm.lead.read',
   CRM_CREATE: 'crm.create',
   CRM_UPDATE: 'crm.update',
   CRM_DELETE: 'crm.delete',
@@ -162,6 +164,29 @@ export const PERMISSIONS = {
 
   // Phase 1 — Principal Designer review pathway
   PD_REVIEW_RESPOND: 'pd.review.respond',
+
+  // ── Reconciled (existed on routes/seed/backend but missing here) ────────────
+  // Proposal send
+  PROPOSAL_SEND: 'proposal.send',
+  // Quotation template records
+  TEMPLATE_READ:   'template.read',
+  TEMPLATE_CREATE: 'template.create',
+  TEMPLATE_UPDATE: 'template.update',
+  TEMPLATE_DELETE: 'template.delete',
+  // Planner (PMS master sheet)
+  PLANNER_READ:      'planner.read',
+  PLANNER_EDIT:      'planner.edit',
+  PLANNER_ASSIGN:    'planner.assign',
+  PLANNER_DELETE:    'planner.delete',
+  PLANNER_BASELINE:  'planner.baseline',
+  PLANNER_DASHBOARD: 'planner.dashboard',
+  PLANNER_IMPORT:    'planner.import',
+  PLANNER_EXPORT:    'planner.export',
+  // AI Assistant
+  AI_CHAT:        'ai.chat',
+  AI_ADMIN:       'ai.admin',
+  AI_DOCS_READ:   'ai.docs.read',
+  AI_DOCS_MANAGE: 'ai.docs.manage',
 };
 
 // ─── Module groupings for Roles & Permissions UI ──────────────────────────────

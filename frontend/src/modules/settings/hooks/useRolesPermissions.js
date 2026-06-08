@@ -13,6 +13,13 @@ export const useRolesPermissions = () => {
   const [loading,          setLoading]          = useState(false);
   const [saving,           setSaving]           = useState(false);
 
+  // ── Permission registry (Module → Section → Action catalogue) ────────────────
+  const [registry,        setRegistry]        = useState([]);
+  const [registryLoading, setRegistryLoading] = useState(true);
+
+  // ── Permission presets (role templates) ──────────────────────────────────────
+  const [presets, setPresets] = useState([]);
+
   // ── Role CRUD modals ─────────────────────────────────────────────────────────
   const [createModalOpen,  setCreateModalOpen]  = useState(false);
   const [cloneTarget,      setCloneTarget]      = useState(null);
@@ -47,6 +54,38 @@ export const useRolesPermissions = () => {
   }, []);
 
   useEffect(() => { fetchRoles(); }, [fetchRoles]);
+
+  // Load the permission registry once (drives the Module → Section → Action UI).
+  useEffect(() => {
+    let active = true;
+    setRegistryLoading(true);
+    settingsService.getRegistry()
+      .then((res) => { if (active) setRegistry(res.data?.modules || []); })
+      .catch((err) => { error(err || 'Failed to load permission catalogue'); })
+      .finally(() => { if (active) setRegistryLoading(false); });
+    return () => { active = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load presets (role templates) once.
+  useEffect(() => {
+    let active = true;
+    settingsService.getPresets()
+      .then((res) => { if (active) setPresets(res.data?.presets || []); })
+      .catch(() => {}) // presets are optional UX sugar — fail silently
+    return () => { active = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Apply a preset's permissions to the working draft (operates on draft only,
+  // never saves). mode: 'add' (union) | 'replace' (overwrite draft).
+  const applyPreset = (permissions, mode = 'add') => {
+    setDraftPermissions((prev) => {
+      const next = mode === 'replace'
+        ? [...new Set(permissions)]
+        : [...new Set([...prev, ...permissions])];
+      setIsDirty(true);
+      return next;
+    });
+  };
 
   const selectRole = (role) => {
     setSelectedRole(role);
@@ -112,12 +151,12 @@ export const useRolesPermissions = () => {
   };
 
   // ── Create role ──────────────────────────────────────────────────────────────
-  const handleCreateRole = async ({ name, displayName, description, color, cloneFrom }) => {
+  const handleCreateRole = async ({ name, displayName, description, color, cloneFrom, seedPermissions }) => {
     setRoleActionBusy(true);
     try {
       const permissions = cloneFrom
         ? (roles.find((r) => r._id === cloneFrom)?.permissions || [])
-        : [];
+        : (seedPermissions?.length ? [...new Set(seedPermissions)] : []);
       const res = await settingsService.createRole({ name, displayName, description, color, permissions });
       setRoles((prev) => [...prev, res.data]);
       setCreateModalOpen(false);
@@ -216,6 +255,12 @@ export const useRolesPermissions = () => {
     isDirty,
     loading,
     saving,
+    // Permission registry
+    registry,
+    registryLoading,
+    // Presets (role templates)
+    presets,
+    applyPreset,
     selectRole,
     togglePermission,
     togglePermissionSet,

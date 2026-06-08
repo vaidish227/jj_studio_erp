@@ -10,6 +10,10 @@ export const settingsService = {
 
   // ─── Permission definitions ──────────────────────────────────────────────────
   getAllPermissions: () => apiClient.get('/roles/permissions/all'),
+  // Structured Module → Section → Action catalogue for the Roles UI
+  getRegistry: () => apiClient.get('/roles/registry'),
+  // Curated role templates (permission bundles) for the Roles UI
+  getPresets: () => apiClient.get('/roles/presets'),
 
   // ─── Users ──────────────────────────────────────────────────────────────────
   getUsers:          ()             => apiClient.get('/roles/users/list'),

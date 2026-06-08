@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const Role = require("../modules/auth/models/Role.model");
 const User = require("../modules/auth/models/user.model");
+const { aliasesFor } = require("../modules/auth/permissions/aliases");
 
 // ─── Verify JWT token ───────────────────────────────────────────────────────
 const verifyToken = async (req, res, next) => {
@@ -50,10 +51,14 @@ const loadPermissions = async (req, res, next) => {
 };
 
 // ─── Check if req.permissions includes the given permission ─────────────────
+// Alias-aware: a granular permission is also satisfied by any of its legacy
+// aliases (see permissions/aliases.js). Permissions without aliases behave
+// exactly as before — this is purely additive / backward-compatible.
 const hasPermission = (permissions, permission) => {
   if (!permissions) return false;
   if (permissions.includes("*")) return true; // Admin wildcard
-  return permissions.includes(permission);
+  if (permissions.includes(permission)) return true;
+  return aliasesFor(permission).some((alias) => permissions.includes(alias));
 };
 
 // ─── Route-level permission guard ────────────────────────────────────────────
