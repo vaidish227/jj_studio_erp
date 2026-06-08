@@ -28,8 +28,11 @@ const EnrollModal = ({ campaignId, onClose, onDone }) => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await crmService.getLeads({});
-        const list = res?.data?.clients || res?.data?.leads || res?.data || [];
+        // /clients/get paginates (default 10) and returns { clients, leads } at
+        // the top level of the response body — request a high limit and read
+        // from the right keys.
+        const res = await crmService.getLeads({ limit: 500 });
+        const list = res?.clients || res?.leads || res?.data?.clients || res?.data || [];
         setLeads(Array.isArray(list) ? list : []);
       } catch (err) {
         toast.error(err?.message || 'Failed to load leads');
