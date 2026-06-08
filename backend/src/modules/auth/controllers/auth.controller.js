@@ -1,7 +1,7 @@
 const bcrypt = require("bcrypt");
 const User = require("../models/user.model");
 const { loginSchema, signupSchema, changePasswordSchema } = require("../validator/auth.validator");
-const { loginUser, changePassword } = require("../service/auth.service");
+const { loginUser, getMe, changePassword } = require("../service/auth.service");
 
 const signup = async (req, res) => {
     try {
@@ -80,6 +80,21 @@ const login = async (req, res) => {
   }
 };
 
+// GET /api/auth/me — returns current user + freshly resolved permissions.
+// Lets the frontend pick up role/permission changes without re-login.
+const meController = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Not authenticated." });
+    }
+    const result = await getMe(userId);
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+};
+
 const changePasswordController = async (req, res) => {
   try {
     // validation
@@ -99,4 +114,4 @@ const changePasswordController = async (req, res) => {
   }
 };
 
-module.exports = { signup, login , changePasswordController};
+module.exports = { signup, login, meController, changePasswordController };

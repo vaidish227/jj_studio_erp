@@ -9,6 +9,7 @@ import {
   MessageCircle,
   FolderOpen,
   MessagesSquare,
+  Crown,
 } from 'lucide-react';
 
 // Each item has an optional `permission` key.
@@ -20,6 +21,13 @@ import {
 // because AppLayout derives activeItem from the last path segment.
 
 export const NAV_ITEMS = [
+  {
+    id: 'md-dashboard',
+    label: 'MD Dashboard',
+    icon: Crown,
+    path: '/md/dashboard',
+    permission: 'md.dashboard.read',
+  },
   {
     id: 'dashboard',
     label: 'Dashboard',
@@ -89,6 +97,8 @@ export const NAV_ITEMS = [
       { id: 'projects',          label: 'All Projects',             path: '/projects' },
       { id: 'assign-task',       label: 'Assign Task',              path: '/pms/assign-task',       permission: 'projects.tab.assign' },
       { id: 'review-design',     label: 'Approval / Review Design', path: '/pms/review-design',     permission: 'projects.tab.review' },
+      { id: 'calendar',          label: 'Calendar',                 path: '/pms/calendar',          permission: 'calendar.read' },
+      { id: 'documents',         label: 'Document Repository',      path: '/pms/documents',         permission: 'projects.read' },
       { id: 'whatsapp-groups',   label: 'WhatsApp Groups',          path: '/pms/whatsapp-groups',   permission: 'pms.whatsapp.manage' },
       { id: 'vendors',           label: 'Vendor Directory',         path: '/vendors',                permission: 'vendor.read' },
     ],

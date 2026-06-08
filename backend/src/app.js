@@ -119,6 +119,9 @@ app.use("/api/pms/sitevisit", pmsSiteVisitRoutes);
 const pmsDashboardRoutes = require("./modules/pms/routes/PMSDashboard.route");
 app.use("/api/pms/dashboard", pmsDashboardRoutes);
 
+const mdDashboardRoutes = require("./modules/dashboard/routes/MDDashboard.route");
+app.use("/api/md/dashboard", mdDashboardRoutes);
+
 const pmsMilestoneRoutes = require("./modules/pms/routes/Milestone.route");
 app.use("/api/pms/milestone", pmsMilestoneRoutes);
 

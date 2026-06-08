@@ -48,17 +48,18 @@ const getCalendarEvents = async (req, res) => {
 
       tasks.forEach((t) => {
         events.push({
-          id:        `task-${t._id}`,
-          type:      "task_due",
-          title:     t.title,
-          date:      t.dueDate,
-          status:    t.status,
-          priority:  t.priority,
-          projectId: t.projectId?._id,
+          id:          `task-${t._id}`,
+          type:        "task_due",
+          title:       t.title,
+          date:        t.dueDate,
+          status:      t.status,
+          priority:    t.priority,
+          projectId:   t.projectId?._id,
           projectName: t.projectId?.name,
-          assignee:  t.assignedTo?.name,
-          entityId:  t._id,
-          color:     "#D4B76C",
+          assignee:    t.assignedTo?.name,
+          assigneeId:  t.assignedTo?._id,
+          entityId:    t._id,
+          color:       "#D4B76C",
         });
       });
     }
@@ -84,6 +85,7 @@ const getCalendarEvents = async (req, res) => {
           projectId:   m.projectId?._id,
           projectName: m.projectId?.name,
           assignee:    m.assignedTo?.name,
+          assigneeId:  m.assignedTo?._id,
           entityId:    m._id,
           color:       "#3A6EA5",
         });
@@ -110,6 +112,7 @@ const getCalendarEvents = async (req, res) => {
           projectId:   v.projectId?._id,
           projectName: v.projectId?.name,
           assignee:    v.visitorId?.name,
+          assigneeId:  v.visitorId?._id,
           entityId:    v._id,
           color:       "#4A8F7C",
         });

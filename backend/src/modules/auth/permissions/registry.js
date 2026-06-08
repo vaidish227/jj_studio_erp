@@ -40,6 +40,17 @@ const PERMISSION_REGISTRY = [
       { key: "overview", label: "Overview", actions: [a("dashboard.read", "View")] },
     ],
   },
+  {
+    key: "md_dashboard",
+    label: "MD Dashboard",
+    group: "Leadership",
+    icon: "dashboard",
+    color: "#3A6EA5",
+    description: "Executive cross-module overview — CRM, proposals, projects, finance",
+    sections: [
+      { key: "overview", label: "Overview", actions: [a("md.dashboard.read", "View")] },
+    ],
+  },
 
   // ─── Sales ─────────────────────────────────────────────────────────────────
   {

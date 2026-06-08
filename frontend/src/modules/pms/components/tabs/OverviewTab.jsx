@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   PenTool, HardHat, Truck, UserCog, ClipboardList,
-  ArrowRight, History,
+  ArrowRight, History, FolderOpen,
 } from 'lucide-react';
 import KickstartChecklist from '../KickstartChecklist';
 import ClientApprovalTracker from '../ClientApprovalTracker';
@@ -102,6 +102,15 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       title: 'Procurement and Vendor Management',
       description: 'Material selection, purchase status & vendor performance — all in one place.',
       onClick: go('vendor_engagement'),
+    },
+    {
+      number: '06',
+      icon: FolderOpen,
+      iconBg: 'bg-[var(--accent-blue)]/10',
+      iconColor: 'text-[var(--accent-blue)]',
+      title: 'Document Repository',
+      description: 'Agreements, BOQ, MOMs, design files & SOPs — review or download in one place.',
+      onClick: go('documents'),
     },
   ];
 

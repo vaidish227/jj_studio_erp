@@ -27,6 +27,8 @@ const DEFAULT_ROLES = [
     permissions: [
       // Phase 2 Stage 2 — read-only CRM access (project creation client picker)
       "crm.lead.read",
+      // MD-only executive cross-module dashboard
+      "md.dashboard.read",
 
       // Sidebar parent + project pages
       "projects.read",

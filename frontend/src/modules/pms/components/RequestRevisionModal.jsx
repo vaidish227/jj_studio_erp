@@ -127,7 +127,7 @@ const RequestRevisionModal = ({ task, isOpen, onClose, onRevisionRequested }) =>
           <Button
             onClick={handleSubmit}
             disabled={saving}
-            className="bg-[var(--warning)] hover:bg-[var(--warning)]/90 text-black"
+            className="bg-[var(--warning)] hover:opacity-90 text-white shadow-sm hover:shadow-md hover:shadow-[var(--warning)]/25"
           >
             <GitBranch size={14} className="mr-1.5" />
             {saving ? 'Sending…' : 'Request Revision'}

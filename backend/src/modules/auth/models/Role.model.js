@@ -12,6 +12,8 @@ const { flattenPermissions } = require("../permissions/registry");
 const LEGACY_PERMISSIONS = [
   // Dashboard
   "dashboard.read",
+  // MD Dashboard — cross-module executive overview
+  "md.dashboard.read",
   // CRM
   "crm.read", "crm.create", "crm.update", "crm.delete",
   // KIT

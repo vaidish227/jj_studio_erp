@@ -43,6 +43,7 @@ import ResponsibilitiesPage from './modules/pms/pages/ResponsibilitiesPage';
 // Phase 4 — Analytics
 import AnalyticsPage from './modules/pms/pages/AnalyticsPage';
 import PMSDashboardPage from './modules/pms/pages/PMSDashboardPage';
+import MDDashboardPage from './modules/dashboard/pages/MDDashboardPage';
 import ProjectsPage from './modules/pms/pages/ProjectsPage';
 import ProjectDetailPage from './modules/pms/pages/ProjectDetailPage';
 import MyTasksPage from './modules/pms/pages/MyTasksPage';
@@ -57,6 +58,7 @@ import DesignerDetailPage from './modules/pms/pages/DesignerDetailPage';
 import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
 import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
+import DocumentRepositoryPage from './modules/pms/pages/DocumentRepositoryPage';
 import NotificationsPage from './modules/notifications/pages/NotificationsPage';
 // KIT — Keep In Touch (communication automation). Aliased to avoid clashing with
 // the proposal module's TemplateEditorPage import above.
@@ -168,6 +170,9 @@ export default function App() {
                   </Route>
                 )}
 
+                {/* MD — Executive cross-module dashboard */}
+                <Route path="/md/dashboard"                    element={<MDDashboardPage />} />
+
                 {/* PMS — Project Management */}
                 <Route path="/pms/dashboard"                   element={<PMSDashboardPage />} />
                 <Route path="/projects"                        element={<ProjectsPage />} />
@@ -188,6 +193,7 @@ export default function App() {
                 <Route path="/pms/assign-task"       element={<AssignTaskPage />} />
                 <Route path="/pms/review-design"     element={<ReviewDesignPage />} />
                 <Route path="/pms/whatsapp-groups"   element={<WhatsAppGroupsPage />} />
+                <Route path="/pms/documents"         element={<DocumentRepositoryPage />} />
 
                 {/* PMS — Legacy routes kept for backward compatibility */}
                 <Route path="/pms/calendar"      element={<CalendarPage />} />

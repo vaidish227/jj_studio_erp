@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { CommunicationTimeline } from '../../kit';
 import {
   ChevronRight, RefreshCw, Calendar, MapPin,
-  Briefcase, User, DollarSign, ArrowLeft,
+  Briefcase, User, IndianRupee, ArrowLeft,
 } from 'lucide-react';
 import { Button, Loader } from '../../../shared/components';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
@@ -25,6 +25,8 @@ import MaterialsTab       from '../components/tabs/MaterialsTab';
 import PurchaseOrdersTab  from '../components/tabs/PurchaseOrdersTab';
 import WhatsAppTab        from '../components/tabs/WhatsAppTab';
 import ActivityTab        from '../components/tabs/ActivityTab';
+import DocumentsTab       from '../components/tabs/DocumentsTab';
+import GanttTab           from '../components/tabs/GanttTab';
 // Phase 2 — Workflow Engine surfaces
 import ProjectGatesTab        from '../components/tabs/ProjectGatesTab';
 import VendorEngagementTab    from '../components/tabs/VendorEngagementTab';
@@ -40,8 +42,8 @@ const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
   : '—';
 
-const fmtCurrency = (n) => n
-  ? `₹${Number(n).toLocaleString('en-IN')}`
+const fmtCurrency = (n) => (n || n === 0)
+  ? Number(n).toLocaleString('en-IN')
   : '—';
 
 // Phase 3a — Tab consolidation.
@@ -50,7 +52,9 @@ const fmtCurrency = (n) => n
 // To revert: `localStorage.removeItem('pms.tabsV2')`.
 const TABS_LEGACY = [
   { id: 'overview',          label: 'Overview' },
+  { id: 'documents',         label: 'Documents' },
   { id: 'planner',           label: 'Master Plan' },
+  { id: 'gantt',             label: 'Gantt' },
   { id: 'gates',             label: 'Sign-offs' },
   { id: 'tasks',             label: 'Tasks' },
   { id: 'drawings',          label: 'Drawings' },
@@ -72,8 +76,10 @@ const TABS_LEGACY = [
 // 6-tab consolidated layout with sub-tabs inside each group.
 const TABS_V2 = [
   { id: 'overview',  label: 'Overview',         subTabs: ['overview'] },
+  { id: 'documents', label: 'Documents',        subTabs: ['documents'] },
   { id: 'workflow',  label: 'Workflow',         subTabs: [
     { id: 'planner',   label: 'Master Plan' },
+    { id: 'gantt',     label: 'Gantt' },
     { id: 'gates',     label: 'Sign-offs' },
     { id: 'tasks',     label: 'Tasks' },
     { id: 'approvals', label: 'Approvals' },
@@ -237,7 +243,7 @@ const ProjectDetailPage = () => {
             </div>
           </div>
           <div className="flex items-start gap-2">
-            <DollarSign size={14} className="text-[var(--text-muted)] mt-0.5 shrink-0" />
+            <IndianRupee size={14} className="text-[var(--text-muted)] mt-0.5 shrink-0" />
             <div>
               <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Budget</p>
               <p className="text-sm text-[var(--text-primary)]">{fmtCurrency(project.budget)}</p>
@@ -254,20 +260,24 @@ const ProjectDetailPage = () => {
       </div>
       )}
 
-      {/* Delay alert — only renders when project is overdue or has overdue tasks */}
-      <ProjectDelayBanner
-        project={project}
-        overdueTasks={(tasks || []).filter((t) => {
-          if (!t?.dueDate) return false;
-          if (new Date(t.dueDate) >= new Date()) return false;
-          const s = String(t.status || '').toLowerCase();
-          return !['approved', 'released_to_site', 'completed', 'done'].includes(s);
-        })}
-        onViewTasks={() => setActiveTab('tasks')}
-      />
-
-      {/* Workflow Phase Stepper (Phase 1) */}
-      <ProjectPhaseStepper project={project} />
+      {/* Delay alert + phase stepper — only on Overview. When the user drills
+          into a module card (Master Plan, Drawings, Documents, etc.), hide
+          these so the dedicated screen stays focused on its own content. */}
+      {activeTab === 'overview' && (
+        <>
+          <ProjectDelayBanner
+            project={project}
+            overdueTasks={(tasks || []).filter((t) => {
+              if (!t?.dueDate) return false;
+              if (new Date(t.dueDate) >= new Date()) return false;
+              const s = String(t.status || '').toLowerCase();
+              return !['approved', 'released_to_site', 'completed', 'done'].includes(s);
+            })}
+            onViewTasks={() => setActiveTab('tasks')}
+          />
+          <ProjectPhaseStepper project={project} />
+        </>
+      )}
 
       {/* Card-driven navigation: top tab bar is hidden. When inside a module, show
           a compact "back to overview" + sub-tabs row instead. */}
@@ -367,6 +377,7 @@ const ProjectDetailPage = () => {
           />
         )}
         {activeTab === 'planner'           && <ProjectPlannerTab   project={project} onSwitchToTab={setActiveTab} />}
+        {activeTab === 'gantt'             && <GanttTab            project={project} tasks={tasks} />}
         {activeTab === 'gates'             && <ProjectGatesTab     project={project} />}
         {activeTab === 'release_log'       && <DrawingReleaseTab   project={project} />}
         {activeTab === 'handover'          && <HandoverTab         project={project} drawings={drawings} />}
@@ -376,6 +387,7 @@ const ProjectDetailPage = () => {
         {activeTab === 'vendor_engagement' && <VendorEngagementTab project={project} />}
         {activeTab === 'purchase_orders'   && <PurchaseOrdersTab   project={project} />}
         {activeTab === 'whatsapp'          && <WhatsAppTab         project={project} />}
+        {activeTab === 'documents'         && <DocumentsTab        project={project} />}
         {activeTab === 'activity'          && <ActivityTab         project={project} />}
       </div>
     </div>
@@ -384,11 +396,12 @@ const ProjectDetailPage = () => {
 
 // Friendly module titles that match the cards on the Overview page.
 const MODULE_TITLES = {
-  workflow: 'Project Planner / Master Sheet',
-  drawings: 'Design and Drawing Management',
-  site:     'Site Execution and Monitoring System',
-  team:     'Site Supervisor and Contractor',
-  activity: 'Activity Log',
+  workflow:  'Project Planner / Master Sheet',
+  drawings:  'Design and Drawing Management',
+  site:      'Site Execution and Monitoring System',
+  team:      'Site Supervisor and Contractor',
+  documents: 'Document Repository',
+  activity:  'Activity Log',
 };
 
 // Card-driven nav: a single compact row shown when the user has drilled into a module.
