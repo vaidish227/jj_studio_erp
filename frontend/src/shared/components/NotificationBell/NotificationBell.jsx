@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -82,7 +82,7 @@ const NotificationRow = ({ n, onClick, onDismiss }) => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{n.message}</p>
         )}
         <p className="text-[10px] text-[var(--text-muted)] mt-1 uppercase tracking-widest font-bold">
-          {formatRelativeTime(n.createdAt)} • {n.module}
+          {formatRelativeTime(n.createdAt)} â€¢ {n.module}
         </p>
       </div>
       <button
@@ -171,7 +171,7 @@ const NotificationBell = () => {
                   <Loader2 size={20} className="animate-spin mx-auto text-[var(--text-muted)]" />
                 ) : (
                   <>
-                    <Bell size={28} className="mx-auto text-[var(--text-muted)] opacity-50" />
+                    <Bell size={28} className="mx-auto text-[var(--text-muted)] opacity-70" />
                     <p className="text-xs text-[var(--text-muted)] mt-3 font-medium">
                       No notifications yet
                     </p>

@@ -10,6 +10,7 @@ const {
   bulkAssign,
   bulkDates,
   freezeBaseline,
+  autoSchedule,
 } = require("../controllers/Planner.controller");
 
 // Sheet — project-scoped reads
@@ -17,8 +18,9 @@ router.get("/:projectId/master",  requirePermission("planner.read"), getMasterSh
 router.get("/:projectId/summary", requirePermission("planner.read"), getSummary);
 
 // Project-scoped mutations
-router.post("/:projectId/rows",     requirePermission("planner.edit"),     createRow);
-router.post("/:projectId/baseline", requirePermission("planner.baseline"), freezeBaseline);
+router.post("/:projectId/rows",          requirePermission("planner.edit"),     createRow);
+router.post("/:projectId/baseline",      requirePermission("planner.baseline"), freezeBaseline);
+router.post("/:projectId/auto-schedule", requirePermission("planner.edit"),     autoSchedule);
 
 // Row-scoped mutations
 router.patch("/rows/:taskId",  requirePermission("planner.edit"),   patchRow);

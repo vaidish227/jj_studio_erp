@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -140,7 +140,7 @@ const ReviewPage = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 print:hidden">
         <div className="flex items-start gap-4">
           <button
@@ -155,7 +155,7 @@ const ReviewPage = () => {
               <StatusBadge status={proposal.status} />
             </div>
             <p className="text-xs text-[var(--text-muted)] font-medium mt-1">
-              REF: #{String(proposal._id || '').slice(-8).toUpperCase()} • Created {new Date(proposal.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              REF: #{String(proposal._id || '').slice(-8).toUpperCase()} â€¢ Created {new Date(proposal.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             </p>
           </div>
         </div>
@@ -273,7 +273,7 @@ const ReviewPage = () => {
         </div>
       </div>
 
-      {/* ── Two-column layout ── */}
+      {/* â”€â”€ Two-column layout â”€â”€ */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Info Panel */}
         <div className="lg:col-span-4 space-y-4 print:hidden">
@@ -369,20 +369,20 @@ const ReviewPage = () => {
           <Card>
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-[var(--border)]">
               <h2 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Financial Summary</h2>
-              <span className="text-xs font-bold text-[var(--primary)]">₹ INR</span>
+              <span className="text-xs font-bold text-[var(--primary)]">â‚¹ INR</span>
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-[var(--text-muted)] font-medium">Subtotal</span>
-                <span className="font-semibold text-[var(--text-primary)]">₹{Number(proposal.subtotal || 0).toLocaleString('en-IN')}</span>
+                <span className="font-semibold text-[var(--text-primary)]">â‚¹{Number(proposal.subtotal || 0).toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-[var(--text-muted)] font-medium">GST (18%)</span>
-                <span className="font-semibold text-[var(--text-primary)]">₹{Number(proposal.gst || 0).toLocaleString('en-IN')}</span>
+                <span className="font-semibold text-[var(--text-primary)]">â‚¹{Number(proposal.gst || 0).toLocaleString('en-IN')}</span>
               </div>
               <div className="pt-3 border-t border-[var(--border)] flex justify-between items-center">
                 <span className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Total</span>
-                <span className="text-xl font-bold text-[var(--primary)]">₹{Number(proposal.finalAmount || 0).toLocaleString('en-IN')}</span>
+                <span className="text-xl font-bold text-[var(--primary)]">â‚¹{Number(proposal.finalAmount || 0).toLocaleString('en-IN')}</span>
               </div>
             </div>
           </Card>
@@ -417,7 +417,7 @@ const ReviewPage = () => {
                   ))
               ) : (
                 <div className="text-center py-6">
-                  <History size={28} className="mx-auto mb-2 text-[var(--text-muted)] opacity-30" />
+                  <History size={28} className="mx-auto mb-2 text-[var(--text-muted)] opacity-60" />
                   <p className="text-xs text-[var(--text-muted)]">No activity recorded yet.</p>
                 </div>
               )}
@@ -431,12 +431,12 @@ const ReviewPage = () => {
             <ProposalViewer proposal={proposal} client={client} />
           </div>
           <p className="text-center text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-widest mt-4 flex items-center justify-center gap-2 print:hidden">
-            <AlertCircle size={12} /> Live Preview · Proposal Quotation Table
+            <AlertCircle size={12} /> Live Preview Â· Proposal Quotation Table
           </p>
         </div>
       </div>
 
-      {/* ── Confirmation Modal ── */}
+      {/* â”€â”€ Confirmation Modal â”€â”€ */}
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}

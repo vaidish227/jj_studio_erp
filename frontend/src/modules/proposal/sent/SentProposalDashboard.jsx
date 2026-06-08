@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   RotateCcw,
@@ -19,7 +19,7 @@ import PaymentStatusModal from '../../../shared/components/PaymentStatusModal';
 
 const PAGE_SIZE = 25;
 
-// ─── eSign Confirmation Modal ────────────────────────────────────────────────
+// â”€â”€â”€ eSign Confirmation Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const EsignModal = ({ proposal, onClose, onConfirm, isLoading }) => {
   const [signedAt, setSignedAt] = useState(new Date().toISOString().split('T')[0]);
 
@@ -78,7 +78,7 @@ const EsignModal = ({ proposal, onClose, onConfirm, isLoading }) => {
   );
 };
 
-// ─── Payment Confirmation Modal ───────────────────────────────────────────────
+// â”€â”€â”€ Payment Confirmation Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PaymentModal = ({ proposal, onClose, onConfirm, isLoading }) => {
   return (
     <PaymentStatusModal
@@ -90,7 +90,7 @@ const PaymentModal = ({ proposal, onClose, onConfirm, isLoading }) => {
   );
 };
 
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SentProposalDashboard = () => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -169,7 +169,7 @@ const SentProposalDashboard = () => {
   // Apply reusable filter system
   const filteredProposals = process(proposals);
 
-  // 25/page pagination — page resets to 1 when filters change.
+  // 25/page pagination â€” page resets to 1 when filters change.
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => { setCurrentPage(1); }, [filters]);
   const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
@@ -230,7 +230,7 @@ const SentProposalDashboard = () => {
                   <td colSpan="5" className="py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-14 h-14 rounded-full bg-[var(--bg)] flex items-center justify-center">
-                        <AlertCircle size={28} className="text-[var(--text-muted)] opacity-40" />
+                        <AlertCircle size={28} className="text-[var(--text-muted)] opacity-60" />
                       </div>
                       <p className="text-sm text-[var(--text-muted)]">No sent proposals being tracked.</p>
                     </div>
@@ -326,7 +326,7 @@ const SentProposalDashboard = () => {
         {totalPages > 1 && (
           <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]/20">
             <p className="text-xs text-[var(--text-muted)] font-medium">
-              Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+              Showing {pageStart + 1}â€“{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
             </p>
             <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
           </div>

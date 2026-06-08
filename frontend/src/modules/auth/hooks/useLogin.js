@@ -57,7 +57,9 @@ const useLogin = () => {
       if (response.token) {
         // Store auth state in context (which also writes to localStorage)
         login(response.user, response.token, response.permissions || []);
-        navigate('/dashboard');
+        const role = String(response.user?.role || '').toLowerCase();
+        const landing = role === 'md' ? '/pms/dashboard' : '/dashboard';
+        navigate(landing);
       }
     } catch (err) {
       setApiError(err?.message || 'Login failed. Please try again.');

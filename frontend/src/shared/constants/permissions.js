@@ -48,6 +48,8 @@ export const PERMISSIONS = {
   PROJECTS_CREATE: 'projects.create',
   PROJECTS_UPDATE: 'projects.update',
   PROJECTS_DELETE: 'projects.delete',
+  // Per-project plan customization at initiation time (MD/admin)
+  PROJECTS_CUSTOMIZE_PLAN: 'projects.customize_plan',
   // Project management nav tabs
   PROJECTS_TAB_ASSIGN: 'projects.tab.assign',
   PROJECTS_TAB_REVIEW: 'projects.tab.review',
@@ -385,6 +387,139 @@ export const PERMISSION_MODULES = [
     description: 'Create and manage user accounts, roles, and custom permissions',
     group:       'Administration',
     actions:     ['read', 'create', 'update', 'delete', 'manage'],
+  },
+];
+
+// ─── Feature areas — top-level cards in Roles & Permissions UI ────────────────
+// A feature area is what the user thinks of as "one thing" in the sidebar (CRM,
+// Proposal, Project Management, …). Each area bundles one or more permission
+// modules so the role editor shows ONE clean card per area instead of dozens
+// of small modules.
+//
+// To add a new module to an existing area: append its key to that area's
+// `modules` array. To add a new top-level area: append a new entry below.
+//
+// `color` drives the accent on the card / detail panel header.
+export const FEATURE_AREAS = [
+  {
+    key:         'dashboard',
+    label:       'Dashboard',
+    description: 'Main overview with KPIs and recent activity',
+    icon:        'dashboard',
+    color:       '#6B7280',
+    modules:     ['dashboard'],
+  },
+  {
+    key:         'crm',
+    label:       'CRM',
+    description: 'Client relationships, leads, meetings, and conversion pipeline',
+    icon:        'crm',
+    color:       '#D4B76C',
+    modules:     ['crm'],
+  },
+  {
+    key:         'proposal',
+    label:       'Proposal & Quotation',
+    description: 'Create, send, and approve client proposals and quotations',
+    icon:        'proposal',
+    color:       '#D4B76C',
+    modules:     ['proposal'],
+  },
+  {
+    key:         'clients',
+    label:       'Clients',
+    description: 'Converted client profiles and contact management',
+    icon:        'clients',
+    color:       '#D4B76C',
+    modules:     ['clients'],
+  },
+  {
+    key:         'kit',
+    label:       'KIT (Keep In Touch)',
+    description: 'Scheduled follow-ups and templated communications',
+    icon:        'kit',
+    color:       '#D4B76C',
+    modules:     ['kit'],
+  },
+  {
+    key:         'project_management',
+    label:       'Project Management',
+    description: 'Projects, tasks, milestones, and project detail tabs',
+    icon:        'projects',
+    color:       '#4A8F7C',
+    modules:     ['projects', 'tasks', 'pms', 'milestones'],
+  },
+  {
+    key:         'design',
+    label:       'Design & Drawings',
+    description: 'Drawing uploads, reviews, collaboration, and client approvals',
+    icon:        'drawings',
+    color:       '#9B59B6',
+    modules:     ['drawings', 'design', 'designer', 'approvals'],
+  },
+  {
+    key:         'site_operations',
+    label:       'Site Operations',
+    description: 'Site logs, visits, materials, and purchase orders',
+    icon:        'site_logs',
+    color:       '#E67E22',
+    modules:     ['site_logs', 'site_visits', 'materials', 'purchase_orders'],
+  },
+  {
+    key:         'activity_calendar',
+    label:       'Activity & Calendar',
+    description: 'Audit log and team calendar',
+    icon:        'calendar',
+    color:       '#E67E22',
+    modules:     ['activity', 'calendar'],
+  },
+  {
+    key:         'communication',
+    label:       'Communication',
+    description: 'Mail and WhatsApp messaging',
+    icon:        'mail',
+    color:       '#3A6EA5',
+    modules:     ['mail', 'whatsapp'],
+  },
+  {
+    key:         'vendor',
+    label:       'Vendor Directory',
+    description: 'Manage vendor profiles and contacts',
+    icon:        'vendor',
+    color:       '#7F8C8D',
+    modules:     ['vendor'],
+  },
+  {
+    key:         'client_portal',
+    label:       'Client Portal',
+    description: 'External client portal access',
+    icon:        'client_portal',
+    color:       '#7F8C8D',
+    modules:     ['client_portal'],
+  },
+  {
+    key:         'reports',
+    label:       'Reports',
+    description: 'Business intelligence reports and exports',
+    icon:        'reports',
+    color:       '#27AE60',
+    modules:     ['reports'],
+  },
+  {
+    key:         'finance',
+    label:       'Finance',
+    description: 'Payments, invoices, and financial summaries',
+    icon:        'finance',
+    color:       '#27AE60',
+    modules:     ['finance'],
+  },
+  {
+    key:         'settings',
+    label:       'Settings',
+    description: 'System configuration, users, and roles',
+    icon:        'settings',
+    color:       '#D93025',
+    modules:     ['settings', 'users'],
   },
 ];
 

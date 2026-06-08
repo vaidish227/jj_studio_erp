@@ -6,9 +6,20 @@ const {
   getProjectDashboard,
   getUserDashboard,
 } = require("../controllers/PMSDashboard.controller");
-const { getOverview } = require("../controllers/DashboardOverview.controller");
+const {
+  getOverview, getDesignerKRA, getDesignerDetail, getAnalytics,
+  getProjectPendingApproval, getAlerts,
+  getDesignerKpiReport, getProjectSummaryReport,
+} = require("../controllers/DashboardOverview.controller");
 
 router.get("/overview",              requirePermission("projects.read"),  getOverview);
+router.get("/designer-kra",          requirePermission("projects.read"),  getDesignerKRA);
+router.get("/designer/:userId",      requirePermission("projects.read"),  getDesignerDetail);
+router.get("/analytics",             requirePermission("projects.read"),  getAnalytics);
+router.get("/reports/designer-kpi",      requirePermission("projects.read"), getDesignerKpiReport);
+router.get("/reports/project-summary",   requirePermission("projects.read"), getProjectSummaryReport);
+router.get("/alerts",                requirePermission("projects.read"),  getAlerts);
+router.get("/project/:projectId/pending-md-approval", requirePermission("projects.read"), getProjectPendingApproval);
 router.get("/global-stats",          requirePermission("dashboard.read"), getGlobalStats);
 router.get("/project/:projectId",    requirePermission("projects.read"),  getProjectDashboard);
 router.get("/user",                  requirePermission("projects.read"),  getUserDashboard);

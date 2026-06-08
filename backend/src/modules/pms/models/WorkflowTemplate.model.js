@@ -22,6 +22,8 @@ const taskDefSchema = new mongoose.Schema(
     // continues to work until next reseed.
     teamSlot: { type: String },
     dayOffsetFromProjectStart: { type: Number, default: 0 },
+    plannedDays:  { type: Number, default: 1, min: 0 },   // duration in days; drives plannedEndDate at seed time
+    plannedHours: { type: Number, default: 0, min: 0 },   // estimated effort hours; copied to task.planning.plannedHours
     priority: {
       type: String,
       enum: ["low", "medium", "high", "urgent"],

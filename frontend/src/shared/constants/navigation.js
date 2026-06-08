@@ -94,11 +94,14 @@ export const NAV_ITEMS = [
     id: 'design-drawing',
     label: 'Design and Drawing Management',
     icon: FolderOpen,
-    permission: 'drawings.read',
+    // Gate on `designer.dashboard` (a designer-specific permission) so that
+    // privileged roles like MD/Admin — who have `drawings.read` to load
+    // project drawings — don't see this sidebar group.
+    permission: 'designer.dashboard',
     children: [
       { id: 'designer-dashboard', label: 'My Dashboard',    path: '/designer/dashboard', permission: 'designer.dashboard' },
       { id: 'tasks',              label: 'My Task',          path: '/tasks',              permission: 'tasks.submit' },
-      { id: 'drawings',           label: 'Drawing Library', path: '/drawings' },
+      { id: 'drawings',           label: 'Drawing Library', path: '/drawings',           permission: 'drawings.read' },
     ],
   },
   {
@@ -120,7 +123,7 @@ export const NAV_ITEMS = [
       { id: 'roles-permissions', label: 'Roles & Permissions', path: '/settings/roles-permissions', permission: 'settings.tab.roles' },
       // Phase 3b — Template admin
       { id: 'checklist-templates', label: 'Checklist Templates', path: '/settings/checklist-templates', permission: 'settings.checklists.manage' },
-      { id: 'workflow-templates',  label: 'Workflow Templates',  path: '/settings/workflow-templates',  permission: 'settings.workflows.manage' },
+      { id: 'workflow-templates',  label: 'Master Templates',    path: '/settings/workflow-templates',  permission: 'settings.workflows.manage' },
       { id: 'responsibilities',    label: 'Responsibilities',    path: '/settings/responsibilities',    roles: ['admin', 'md'] },
     ],
   },

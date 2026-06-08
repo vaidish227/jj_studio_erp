@@ -84,13 +84,13 @@ const ApprovedClientDetails = () => {
       <div className="flex items-center gap-4">
         <button 
           onClick={() => navigate('/proposal/approved')}
-          className="p-2 rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-[var(--primary)] transition-all shadow-sm"
+          className="p-2 rounded-xl bg-white border border-gray-200 text-[var(--text-muted)] hover:text-[var(--primary)] transition-all shadow-sm"
         >
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Client Profile & History</h1>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+          <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">Client Profile & History</h1>
+          <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest mt-1">
             Proposal #{proposal._id.slice(-8).toUpperCase()} • {client?.name || lead?.name}
           </p>
         </div>
@@ -103,8 +103,8 @@ const ApprovedClientDetails = () => {
             <Rocket size={22} fill="currentColor" fillOpacity={0.2} />
           </div>
           <div>
-            <h4 className="text-lg font-bold text-gray-900 tracking-tight">Ready to start the project?</h4>
-            <p className="text-xs text-gray-400 font-medium mt-0.5">Finalize the sales process and transition to official project management.</p>
+            <h4 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Ready to start the project?</h4>
+            <p className="text-xs text-[var(--text-muted)] font-medium mt-0.5">Finalize the sales process and transition to official project management.</p>
           </div>
         </div>
         
@@ -131,7 +131,7 @@ const ApprovedClientDetails = () => {
             <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100/50 space-y-8">
               <div className="flex items-center gap-3 text-amber-600/60 pb-2">
                 <User size={18} />
-                <h3 className="font-bold uppercase tracking-[0.2em] text-[10px] text-gray-400">Client Information</h3>
+                <h3 className="font-bold uppercase tracking-[0.2em] text-[10px] text-[var(--text-muted)]">Client Information</h3>
               </div>
               <div className="space-y-6">
                 <DetailItem icon={User} label="Name" value={client?.name || lead?.name} />
@@ -145,7 +145,7 @@ const ApprovedClientDetails = () => {
             <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100/50 space-y-8">
               <div className="flex items-center gap-3 text-blue-600/60 pb-2">
                 <FileText size={18} />
-                <h3 className="font-bold uppercase tracking-[0.2em] text-[10px] text-gray-400">Proposal Summary</h3>
+                <h3 className="font-bold uppercase tracking-[0.2em] text-[10px] text-[var(--text-muted)]">Proposal Summary</h3>
               </div>
               <div className="space-y-6">
                 <DetailItem icon={Briefcase} label="Project Type" value={lead?.projectType || 'Interior'} />
@@ -159,19 +159,19 @@ const ApprovedClientDetails = () => {
           {/* Quotation Table Card */}
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100/50 overflow-hidden">
             <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/30">
-              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900">Quotation Data</h3>
+              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]">Quotation Data</h3>
             </div>
             <div className="p-8">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[10px] uppercase tracking-widest text-gray-300 font-bold border-b border-gray-50">
+                  <tr className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] font-bold border-b border-gray-50">
                     <th className="pb-4 text-left font-bold">Item Name</th>
                     <th className="pb-4 text-center font-bold">Quantity</th>
                     <th className="pb-4 text-right font-bold">Rate</th>
                     <th className="pb-4 text-right font-bold">Total</th>
                   </tr>
                 </thead>
-                <tbody className="text-gray-600">
+                <tbody className="text-[var(--text-secondary)]">
                   {proposal.content?.items?.map((item, idx) => (
                     <tr key={idx}>
                       <td className="py-4 font-medium">{item.name}</td>
@@ -183,8 +183,8 @@ const ApprovedClientDetails = () => {
                 </tbody>
               </table>
               <div className="mt-8 pt-6 border-t border-gray-50 flex justify-end items-center gap-12">
-                <span className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Final Total</span>
-                <span className="text-2xl font-black text-gray-900">₹{Number(proposal.finalAmount).toLocaleString('en-IN')}</span>
+                <span className="text-xs font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Final Total</span>
+                <span className="text-2xl font-black text-[var(--text-primary)]">₹{Number(proposal.finalAmount).toLocaleString('en-IN')}</span>
               </div>
             </div>
           </div>
@@ -201,8 +201,8 @@ const ApprovedClientDetails = () => {
               </div>
               
               <div className="p-8 rounded-[2rem] bg-gray-50/50 border border-gray-100 flex flex-col items-center justify-center text-center">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-300">Advance Paid</p>
-                <h4 className="text-4xl font-black text-gray-800 mt-2">₹{Number(advancePayment?.amount || 10000).toLocaleString('en-IN')}</h4>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Advance Paid</p>
+                <h4 className="text-4xl font-black text-[var(--text-primary)] mt-2">₹{Number(advancePayment?.amount || 10000).toLocaleString('en-IN')}</h4>
               </div>
 
               <div className="space-y-6 pt-2">
@@ -227,20 +227,20 @@ const ApprovedClientDetails = () => {
               {timelineItems.map((event, idx) => (
                 <div key={idx} className="relative pl-12 group">
                   <div className={`absolute left-0 top-0.5 w-9 h-9 rounded-full flex items-center justify-center z-10 border-4 border-white transition-all ${
-                    event.type === 'project' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-200' : 'bg-gray-100 text-gray-400'
+                    event.type === 'project' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-200' : 'bg-gray-100 text-[var(--text-muted)]'
                   }`}>
                     <HistoryIcon type={event.type} />
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <p className="text-sm font-bold text-gray-900 leading-none">{event.title}</p>
-                      <p className="text-[10px] text-gray-300 font-bold mt-1.5 uppercase tracking-tighter">
+                      <p className="text-sm font-bold text-[var(--text-primary)] leading-none">{event.title}</p>
+                      <p className="text-[10px] text-[var(--text-muted)] font-bold mt-1.5 uppercase tracking-tighter">
                         {formatDateShort(event.createdAt)} {new Date(event.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                     {event.description && (
                       <div className="bg-gray-50/50 border border-gray-100/50 rounded-xl p-3">
-                        <p className="text-[11px] leading-relaxed text-gray-500 font-medium">
+                        <p className="text-[11px] leading-relaxed text-[var(--text-secondary)] font-medium">
                           {event.description}
                         </p>
                       </div>
@@ -268,11 +268,11 @@ const ApprovedClientDetails = () => {
   );
 };
 
-const DetailItem = ({ icon: Icon, label, value, valueColor = 'text-gray-900' }) => (
+const DetailItem = ({ icon: Icon, label, value, valueColor = 'text-[var(--text-primary)]' }) => (
   <div className="flex items-start gap-4">
-    {Icon && <Icon size={16} className="text-gray-200 mt-1 shrink-0" />}
+    {Icon && <Icon size={16} className="text-[var(--text-muted)] mt-1 shrink-0" />}
     <div>
-      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-300 leading-none mb-2">{label}</p>
+      <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] leading-none mb-2">{label}</p>
       <p className={`text-sm font-bold leading-tight ${valueColor}`}>{value}</p>
     </div>
   </div>

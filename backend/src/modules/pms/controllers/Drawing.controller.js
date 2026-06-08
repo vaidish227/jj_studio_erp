@@ -12,6 +12,7 @@ const {
 const { logActivity }    = require("../../../shared/activityLogger");
 const mailService        = require("../../mail/service/mail.service");
 const whatsappService    = require("../../whatsapp/service/whatsapp.service");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 // Phase 2 — Drawing release acknowledgement log
 const { writeReleaseLog } = require("./DrawingReleaseLog.controller");
 // Phase 4 — Per-drawing PD review enforcement on 3D renders
@@ -136,6 +137,117 @@ async function nextVersion({ projectId, zoneName, title }) {
 }
 
 /**
+ * Map a Drawing.drawingType to the closest Task.taskType so the auto-created
+ * planner row carries an appropriate task type. Falls back to "technical_drawing"
+ * for ambiguous types — the PM can change it later from the planner.
+ */
+const DRAWING_TO_TASK_TYPE = {
+  plan:              "furniture_layout",
+  elevation:         "technical_drawing",
+  civil:             "civil_drawing",
+  electrical:        "technical_drawing",
+  plumbing:          "technical_drawing",
+  technical_detail:  "technical_drawing",
+  ac_coordination:   "ac_coordination",
+  automation:        "automation_coordination",
+  kitchen:           "kitchen_drawing",
+  bathroom:          "bathroom_drawing",
+  "3d_render":       "3d_render",
+  concept:           "concept_making",
+  material_selection:"furniture_layout",
+  site_photo:        "site_measurement",
+  other:             "technical_drawing",
+};
+
+/**
+ * Ensure the uploaded drawing has a planner-sheet row.
+ *
+ * Resolution order:
+ *   1. Drawing was uploaded with an explicit taskId → use as-is (already in sheet).
+ *   2. A previous version of this drawing (same projectId+zoneName+title) is
+ *      already linked to a task → reuse that taskId so the revision stays on
+ *      the same row.
+ *   3. A planner task already exists matching projectId+zoneName+title → link.
+ *   4. None of the above → auto-create a planner task carrying the drawing's
+ *      metadata and link the drawing to it.
+ *
+ * Best-effort: never throws. If the link can't be established, the drawing
+ * stays orphan (legacy behaviour) and the upload still succeeds.
+ */
+async function ensureSheetRowForDrawing(drawing, actorId) {
+  try {
+    if (drawing.taskId) return null;
+
+    const projectId = drawing.projectId;
+    const title     = (drawing.title || "").trim();
+    const zoneName  = (drawing.zoneName || "").trim();
+
+    // 2. Look for a previous revision that already carries a taskId
+    const priorWithTask = await Drawing.findOne({
+      _id: { $ne: drawing._id },
+      projectId,
+      title,
+      taskId: { $ne: null },
+      ...(zoneName ? { zoneName } : { $or: [{ zoneName: "" }, { zoneName: { $exists: false } }] }),
+    }).select("taskId").lean();
+    if (priorWithTask?.taskId) {
+      drawing.taskId = priorWithTask.taskId;
+      await drawing.save();
+      return { taskId: priorWithTask.taskId, created: false, reason: "prior-revision" };
+    }
+
+    // 3. Look for an existing planner task with matching projectId+zone+title
+    const planningZoneFilter = zoneName
+      ? { "planning.zoneName": zoneName }
+      : { $or: [{ "planning.zoneName": "" }, { "planning.zoneName": { $exists: false } }] };
+    const existingTask = await Task.findOne({
+      projectId,
+      title,
+      ...planningZoneFilter,
+    }).select("_id").lean();
+    if (existingTask) {
+      drawing.taskId = existingTask._id;
+      await drawing.save();
+      return { taskId: existingTask._id, created: false, reason: "existing-task" };
+    }
+
+    // 4. Auto-create a planner task to host this drawing
+    const taskType = DRAWING_TO_TASK_TYPE[drawing.drawingType] || "technical_drawing";
+    const newTask = await Task.create({
+      projectId,
+      title,
+      taskType,
+      assignedTo: drawing.uploadedBy || actorId || null,
+      status:     "in_progress",
+      startDate:  new Date(),
+      priority:   "medium",
+      planning: {
+        zoneName,
+        proposedDrawingType: drawing.drawingType || "",
+        plannedStartDate:    new Date(),
+        complexity:          "medium",
+      },
+    });
+    drawing.taskId = newTask._id;
+    await drawing.save();
+
+    logActivity({
+      projectId,
+      actorId:     actorId || drawing.uploadedBy,
+      entityType:  "task",
+      entityId:    newTask._id,
+      action:      "created",
+      description: `Planner row auto-created from drawing "${title}"`,
+    });
+
+    return { taskId: newTask._id, created: true, reason: "auto-created" };
+  } catch (err) {
+    console.error("[ensureSheetRowForDrawing]", err.message);
+    return null;
+  }
+}
+
+/**
  * @route GET /api/pms/drawing/next-version?projectId=&zoneName=&title=
  * Tiny helper for the upload modal — drives the auto-revision badge.
  */
@@ -249,6 +361,10 @@ const uploadDrawing = async (req, res) => {
         description: `Drawing "${drawing.title}" v${version} uploaded`,
       });
 
+      // Auto-link the drawing to a planner-sheet row so it appears in the
+      // Master Sheet immediately. Creates a new task if none exists.
+      await ensureSheetRowForDrawing(drawing, req.user._id);
+
       return res.status(201).json({
         message: version > 1 ? `Drawing version v${version} uploaded` : "Drawing uploaded successfully",
         drawing,
@@ -284,6 +400,10 @@ const uploadDrawing = async (req, res) => {
       action:      "created",
       description: `Drawing "${drawing.title}" v${version} uploaded`,
     });
+
+    // Auto-link the drawing to a planner-sheet row so it appears in the
+    // Master Sheet immediately. Creates a new task if none exists.
+    await ensureSheetRowForDrawing(drawing, req.user._id);
 
     res.status(201).json({
       message: version > 1 ? `Drawing version v${version} uploaded` : "Drawing uploaded successfully",
@@ -454,6 +574,12 @@ const reviseDrawing = async (req, res) => {
       { new: true }
     );
 
+    // Backfill the sheet row for legacy drawings that were uploaded without
+    // a taskId. New uploads are linked at upload time so this is a no-op for them.
+    if (updated && !updated.taskId) {
+      await ensureSheetRowForDrawing(updated, req.user._id);
+    }
+
     res.status(200).json({
       message: `Drawing revised to v${newVersion}`,
       drawing: updated,
@@ -583,12 +709,87 @@ const sendForApproval = async (req, res) => {
     }
     await drawing.save();
 
+    // Notify every active MD / Admin — designer-submitted drawings need MD approval.
+    notifyMDsOnDrawingSubmission({ drawing, actor: req.user }).catch(() => {});
+
     res.status(200).json({ message: "Drawing sent for approval", drawing });
   } catch (error) {
     console.error("[sendForApproval]", error);
     res.status(500).json({ message: error.message });
   }
 };
+
+/**
+ * Route a designer-submitted drawing to every active MD/Admin via in-app
+ * notification, mail, and WhatsApp. Best-effort — errors are logged, never
+ * propagated.
+ */
+async function notifyMDsOnDrawingSubmission({ drawing, actor }) {
+  try {
+    const recipients = await User.find({
+      role: { $in: ["md", "admin"] },
+      isActive: { $ne: false },
+    }).select("_id name email phone").lean();
+    if (!recipients.length) return;
+
+    const project = await Project.findById(drawing.projectId).select("name trackingId").lean();
+    const submitter = actor?._id
+      ? await User.findById(actor._id).select("name").lean()
+      : null;
+
+    notify({
+      type: "drawing.submitted",
+      module: "pms",
+      priority: "high",
+      title: `MD Approval Required: ${drawing.title}`,
+      message: `${project?.name || "Project"} · v${drawing.version}${drawing.submissionNotes ? ` — ${drawing.submissionNotes}` : ""}`,
+      link: `/projects/${drawing.projectId}?tab=drawings`,
+      recipients: recipients.map((u) => u._id),
+      actor: actor ? { _id: actor._id, name: actor.name } : undefined,
+      relatedTo: { module: "pms", recordId: drawing._id },
+      metadata: { drawingTitle: drawing.title, projectName: project?.name },
+    });
+
+    const subject = `MD Approval Required: ${drawing.title}`;
+    const html = `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+        <h2 style="color:#1a1a2e">Drawing Submitted — MD Approval Required</h2>
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="padding:8px;font-weight:bold;color:#555">Drawing</td><td style="padding:8px">${drawing.title} (v${drawing.version})</td></tr>
+          <tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Project</td><td style="padding:8px">${project?.name || "—"}${project?.trackingId ? ` (${project.trackingId})` : ""}</td></tr>
+          <tr><td style="padding:8px;font-weight:bold;color:#555">Submitted By</td><td style="padding:8px">${submitter?.name || "Designer"}</td></tr>
+          ${drawing.submissionNotes ? `<tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Notes</td><td style="padding:8px">${drawing.submissionNotes}</td></tr>` : ""}
+        </table>
+        <p style="color:#888;font-size:12px;margin-top:24px">Please log in to JJ Studio ERP and open Approval / Review Design to action.</p>
+      </div>`;
+
+    const waMessage =
+      `*MD Approval Required — JJ Studio ERP*\n\n` +
+      `*Drawing:* ${drawing.title} (v${drawing.version})\n` +
+      `*Project:* ${project?.name || "—"}\n` +
+      `*Submitted by:* ${submitter?.name || "Designer"}\n\n` +
+      `Open Approval / Review Design in JJ Studio ERP to action.`;
+
+    for (const r of recipients) {
+      if (r.email) {
+        mailService.sendImmediate({
+          to: r.email, subject, html,
+          relatedTo: { module: "pms", recordId: drawing._id },
+          createdBy: actor?._id || null,
+        }).catch(() => {});
+      }
+      if (r.phone) {
+        whatsappService.sendImmediate({
+          to: r.phone, message: waMessage,
+          relatedTo: { module: "pms", recordId: drawing._id },
+          createdBy: actor?._id || null,
+        }).catch(() => {});
+      }
+    }
+  } catch (e) {
+    console.error("[notifyMDsOnDrawingSubmission]", e.message);
+  }
+}
 
 /**
  * @route PATCH /api/pms/drawing/approve/:id
@@ -653,6 +854,11 @@ const approveDrawing = async (req, res) => {
 
 /**
  * @route PATCH /api/pms/drawing/reject/:id
+ *
+ * Side effect: if the drawing is attached to a Task (master-sheet row), the
+ * task is flipped back to `revision_requested` and the rejection reason is
+ * copied to `revisionInstructions`. assignedTo stays untouched so the same
+ * designer sees the row "back in their court" with the new instructions.
  */
 const rejectDrawing = async (req, res) => {
   try {
@@ -678,6 +884,24 @@ const rejectDrawing = async (req, res) => {
 
     if (!drawing) {
       return res.status(404).json({ message: "Drawing not found" });
+    }
+
+    // Reallocate the master-sheet row back to the designer for revision.
+    // assignedTo stays untouched — the same designer sees the row "back in
+    // their court" and uploads a new version via /revise/:id, which auto-
+    // archives the rejected file into revisionHistory[].
+    if (drawing.taskId) {
+      try {
+        await Task.findByIdAndUpdate(drawing.taskId, {
+          $set: {
+            status:               "revision_requested",
+            revisionInstructions: value.rejectionReason,
+          },
+        });
+      } catch (taskErr) {
+        // Don't fail the rejection just because the task update failed.
+        console.error("[rejectDrawing:taskReassign]", taskErr.message);
+      }
     }
 
     logActivity({

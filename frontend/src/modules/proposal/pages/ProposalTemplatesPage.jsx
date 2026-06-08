@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, Loader2, Edit3, Trash2, Calendar, LayoutGrid, Eye, X, Upload } from 'lucide-react';
 import Button from '../../../shared/components/Button/Button';
@@ -53,7 +53,7 @@ const ProposalTemplatesPage = () => {
   // Apply reusable filter system
   const filteredTemplates = process(templates);
 
-  // 25/page pagination — page resets to 1 when filters change.
+  // 25/page pagination â€” page resets to 1 when filters change.
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => { setCurrentPage(1); }, [filters]);
   const totalPages = Math.max(1, Math.ceil(filteredTemplates.length / PAGE_SIZE));
@@ -119,7 +119,7 @@ const ProposalTemplatesPage = () => {
       ) : filteredTemplates.length === 0 ? (
         <div className="bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-3xl p-16 text-center">
           <div className="w-20 h-20 bg-[var(--bg)] rounded-full flex items-center justify-center mx-auto mb-6">
-            <LayoutGrid size={32} className="text-[var(--text-muted)] opacity-30" />
+            <LayoutGrid size={32} className="text-[var(--text-muted)] opacity-60" />
           </div>
           <h2 className="text-xl font-black text-[var(--text-primary)]">No Templates Found</h2>
           <p className="text-[var(--text-muted)] max-w-sm mx-auto mt-2 font-medium">
@@ -176,7 +176,7 @@ const ProposalTemplatesPage = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-[var(--bg)] border border-[var(--border)] text-xs font-bold text-[var(--text-secondary)]">
-                          {columnsCount} Cols × {rowsCount} Rows
+                          {columnsCount} Cols Ã— {rowsCount} Rows
                         </span>
                       </td>
                       <td className="px-6 py-4 text-[var(--text-muted)] font-medium flex items-center gap-2 h-full py-6">
@@ -218,7 +218,7 @@ const ProposalTemplatesPage = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]/20">
               <p className="text-xs text-[var(--text-muted)] font-medium">
-                Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredTemplates.length)} of {filteredTemplates.length}
+                Showing {pageStart + 1}â€“{Math.min(pageStart + PAGE_SIZE, filteredTemplates.length)} of {filteredTemplates.length}
               </p>
               <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
             </div>

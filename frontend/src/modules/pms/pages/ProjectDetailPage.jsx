@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   ChevronRight, RefreshCw, Calendar, MapPin,
   Briefcase, User, DollarSign, ArrowLeft,
 } from 'lucide-react';
 import { Button, Loader } from '../../../shared/components';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
+import ProjectDelayBanner from '../components/ProjectDelayBanner';
 import ProjectPhaseStepper from '../components/ProjectPhaseStepper';
 import ProgressRing from '../components/ProgressRing';
 import useProjectDetail from '../hooks/useProjectDetail';
@@ -115,8 +116,22 @@ const findGroupForSubTab = (subId) => {
 const ProjectDetailPage = () => {
   const { id }    = useParams();
   const navigate  = useNavigate();
+  const location  = useLocation();
   const tabsV2    = isTabsV2();
-  const [activeTab, setActiveTab] = useState('overview');
+  const initialTab = (() => {
+    try {
+      const t = new URLSearchParams(location.search).get('tab');
+      return t || 'overview';
+    } catch { return 'overview'; }
+  })();
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Honour ?tab=… deep links on navigation (e.g. from the dashboard alerts).
+  useEffect(() => {
+    const t = new URLSearchParams(location.search).get('tab');
+    if (t && t !== activeTab) setActiveTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   const {
     project, tasks, drawings, siteLogs,
@@ -155,7 +170,10 @@ const ProjectDetailPage = () => {
         </span>
       </nav>
 
-      {/* Header card */}
+      {/* Header card — only on Overview. When navigating into any module
+          card, hide this so the page jumps straight to the module's sub-nav
+          and content (no project metadata clutter). */}
+      {activeTab === 'overview' && (
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 lg:p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-0">
@@ -233,6 +251,19 @@ const ProjectDetailPage = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {/* Delay alert — only renders when project is overdue or has overdue tasks */}
+      <ProjectDelayBanner
+        project={project}
+        overdueTasks={(tasks || []).filter((t) => {
+          if (!t?.dueDate) return false;
+          if (new Date(t.dueDate) >= new Date()) return false;
+          const s = String(t.status || '').toLowerCase();
+          return !['approved', 'released_to_site', 'completed', 'done'].includes(s);
+        })}
+        onViewTasks={() => setActiveTab('tasks')}
+      />
 
       {/* Workflow Phase Stepper (Phase 1) */}
       <ProjectPhaseStepper project={project} />

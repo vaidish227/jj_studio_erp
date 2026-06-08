@@ -64,6 +64,9 @@ const createRowSchema = Joi.object({
   priority: Joi.string().valid(...PRIORITIES).default("medium"),
   notes:    Joi.string().allow("").max(2000),
   dependsOn: Joi.array().items(OID).max(50),
+  // Optional phase label so the master-sheet UI can drop the new row under the
+  // correct phase header. Free-form to match the template's phase names.
+  phase:    Joi.string().trim().allow("").max(80),
   planning:  planningPatch.default({}),
 });
 

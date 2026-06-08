@@ -142,7 +142,7 @@ const DLRSheetTab = ({ project }) => {
       {/* Print header — only visible when printing */}
       <div className="hidden print:block mb-4">
         <h1 className="text-lg font-bold">Drawing List Register — {project.name}</h1>
-        <p className="text-sm text-gray-500">{project.trackingId} · Printed {new Date().toLocaleDateString('en-IN')}</p>
+        <p className="text-sm text-[var(--text-secondary)]">{project.trackingId} · Printed {new Date().toLocaleDateString('en-IN')}</p>
       </div>
 
       {/* Summary stats */}

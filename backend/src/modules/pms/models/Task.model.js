@@ -92,6 +92,15 @@ const taskSchema = new mongoose.Schema(
       default: "none",
     },
     dayOffsetFromProjectStart: { type: Number, default: 0 },
+    // Workflow phase this task belongs to (e.g. "kickoff" / "design" / "procurement").
+    // Snapshotted at seed time from WorkflowTemplate.phases.taskKeys so the
+    // master-sheet UI can render phase headers without re-resolving the template.
+    // Optional — tasks added manually via "Add Row" can carry it too.
+    phase: { type: String, trim: true },
+    // Stable template key the task was spawned from. Lets the planner UI
+    // detect which rows came from a template vs ad-hoc additions, and supports
+    // future per-project plan editing flows.
+    templateTaskKey: { type: String, trim: true },
     // For kitchen_drawing branch: "in_house" | "outsourced" | null (not decided)
     routing: {
       type: String,

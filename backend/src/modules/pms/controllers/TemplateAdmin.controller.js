@@ -312,6 +312,8 @@ const taskEditSchema = Joi.object({
   taskType: Joi.string().trim().required(),
   title: Joi.string().trim().min(1).max(200).required(),
   dayOffsetFromProjectStart: Joi.number().integer().min(0).max(730).required(),
+  plannedDays:  Joi.number().min(0).max(730).default(1),
+  plannedHours: Joi.number().min(0).max(10000).default(0),
   priority: Joi.string().valid(...PRIORITY_VALUES).required(),
   responsibilitySlug: Joi.string().trim().allow("").optional(),
   checklistTemplateName: Joi.string().trim().allow("").optional(),
@@ -411,6 +413,10 @@ const updateWorkflowTemplate = async (req, res) => {
     //   - Tasks without `key` are NEW: server generates key, taskType comes
     //     from the request.
     //   - Tasks missing from the payload but present in the doc are REMOVED.
+    // submittedKeyToFinalKey lets the phases payload reference newly-added
+    // tasks via their client-side draft id — server rewrites those to the
+    // freshly minted stable key when applying phase.taskKeys below.
+    const submittedKeyToFinalKey = new Map();
     if (Array.isArray(value.tasks)) {
       const validTaskTypes = new Set(getTaskTypeEnum());
       const existingByKey  = new Map((template.tasks || []).map((t) => [
@@ -433,10 +439,13 @@ const updateWorkflowTemplate = async (req, res) => {
           // taskType on existing rows stays put — switching it on an in-flight
           // template could surprise the engine. New rows can freely set it.
           usedKeys.add(edit.key);
+          submittedKeyToFinalKey.set(edit.key, edit.key);
           nextTasks.push({
             ...existing,
             title: edit.title,
             dayOffsetFromProjectStart: edit.dayOffsetFromProjectStart,
+            plannedDays:  edit.plannedDays  ?? existing.plannedDays  ?? 1,
+            plannedHours: edit.plannedHours ?? existing.plannedHours ?? 0,
             priority: edit.priority,
             responsibilitySlug:    edit.responsibilitySlug    ?? existing.responsibilitySlug,
             checklistTemplateName: edit.checklistTemplateName ?? existing.checklistTemplateName,
@@ -446,13 +455,17 @@ const updateWorkflowTemplate = async (req, res) => {
         }
 
         // New task — generate key, accept submitted taskType
-        const key = generateTaskKey(edit.title, edit.dayOffsetFromProjectStart, usedKeys);
-        usedKeys.add(key);
+        const newKey = generateTaskKey(edit.title, edit.dayOffsetFromProjectStart, usedKeys);
+        usedKeys.add(newKey);
+        // Remember the submitted (draft) key so phase.taskKeys can be rewritten.
+        if (edit.key) submittedKeyToFinalKey.set(edit.key, newKey);
         nextTasks.push({
-          key,
+          key: newKey,
           taskType:                  edit.taskType,
           title:                     edit.title,
           dayOffsetFromProjectStart: edit.dayOffsetFromProjectStart,
+          plannedDays:               edit.plannedDays  ?? 1,
+          plannedHours:              edit.plannedHours ?? 0,
           priority:                  edit.priority,
           responsibilitySlug:        edit.responsibilitySlug    || "",
           checklistTemplateName:     edit.checklistTemplateName || "",
@@ -495,13 +508,30 @@ const updateWorkflowTemplate = async (req, res) => {
       const survivingTaskKeys = new Set((template.tasks || []).map((t) => t.key));
       const survivingGateKeys = new Set((template.gates || []).map((g) => g.key));
 
+      // Rewrite client-side draft task keys into the freshly minted server
+      // keys before filtering — otherwise newly-added tasks become orphans.
+      const remapTaskKey = (k) => submittedKeyToFinalKey.get(k) ?? k;
+
+      // Phase names must be unique (case-insensitive). The editor lets users
+      // add phases freely, so we guard here.
+      const seenPhaseNames = new Set();
+      for (const p of value.phases) {
+        const lower = String(p.name || '').trim().toLowerCase();
+        if (!lower) return res.status(400).json({ message: "Phase name cannot be empty" });
+        if (seenPhaseNames.has(lower)) {
+          return res.status(400).json({ message: `Duplicate phase name "${p.name}"` });
+        }
+        seenPhaseNames.add(lower);
+      }
+
+      // Re-number orders contiguously from 1 so the editor never ships odd gaps.
       template.phases = value.phases
         .slice()
         .sort((a, b) => a.order - b.order)
-        .map((p) => ({
-          name:     p.name,
-          order:    p.order,
-          taskKeys: (p.taskKeys || []).filter((k) => survivingTaskKeys.has(k)),
+        .map((p, idx) => ({
+          name:     String(p.name).trim(),
+          order:    idx + 1,
+          taskKeys: (p.taskKeys || []).map(remapTaskKey).filter((k) => survivingTaskKeys.has(k)),
           gateKeys: (p.gateKeys || []).filter((k) => survivingGateKeys.has(k)),
         }));
     }

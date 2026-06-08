@@ -53,6 +53,7 @@ import CalendarPage from './modules/pms/pages/CalendarPage';
 import ApprovalDashboardPage from './modules/pms/pages/ApprovalDashboardPage';
 import DesignerDashboardPage from './modules/pms/pages/DesignerDashboardPage';
 import ManagerReviewQueuePage from './modules/pms/pages/ManagerReviewQueuePage';
+import DesignerDetailPage from './modules/pms/pages/DesignerDetailPage';
 import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
 import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
@@ -166,6 +167,7 @@ export default function App() {
                 <Route path="/settings/responsibilities"    element={<ResponsibilitiesPage />} />
                 {/* Phase 4 — Analytics */}
                 <Route path="/pms/analytics" element={<AnalyticsPage />} />
+                <Route path="/pms/designers/:userId" element={<DesignerDetailPage />} />
               </Route>
 
               {/* Global default redirect */}

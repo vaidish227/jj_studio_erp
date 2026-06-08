@@ -206,6 +206,14 @@ export const pmsService = {
 
   // ─── PMS Dashboard (operational landing page) ─────────────────────────────
   getDashboardOverview:  (period = 'month')  => apiClient.get(`/pms/dashboard/overview?period=${period}`),
+  getDesignerKRA:        (period = 'month')  => apiClient.get(`/pms/dashboard/designer-kra?period=${period}`),
+  getDesignerDetail:     (userId, period = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}?period=${period}`),
+  getProjectAnalytics:   (period = 'month')  => apiClient.get(`/pms/dashboard/analytics?period=${period}`),
+  // Phase C — report JSON (frontend turns these into .xlsx via SheetJS)
+  getDesignerKpiReport:    (period = 'month') => apiClient.get(`/pms/dashboard/reports/designer-kpi?period=${period}`),
+  getProjectSummaryReport: (period = 'month') => apiClient.get(`/pms/dashboard/reports/project-summary?period=${period}`),
+  getAlerts:             ()                  => apiClient.get('/pms/dashboard/alerts'),
+  getProjectPendingApproval: (projectId)     => apiClient.get(`/pms/dashboard/project/${projectId}/pending-md-approval`),
 
   // ─── DLR Sheet ─────────────────────────────────────────────────────────────
   getDLRSheet:           (projectId)         => apiClient.get(`/pms/drawing/dlr/${projectId}`),
@@ -219,6 +227,7 @@ export const pmsService = {
   bulkAssignPlanner:     (data)              => apiClient.post(`/pms/planner/rows/bulk/assign`, data),
   bulkDatesPlanner:      (data)              => apiClient.post(`/pms/planner/rows/bulk/dates`, data),
   freezePlannerBaseline: (projectId)         => apiClient.post(`/pms/planner/${projectId}/baseline`),
+  autoSchedulePlanner:   (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/auto-schedule`, data),
 
   // ─── DDMS — Designer Dashboard ────────────────────────────────────────────
   getDesignerDashboard:  ()                  => apiClient.get('/pms/designer/dashboard'),

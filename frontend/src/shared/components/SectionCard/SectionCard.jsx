@@ -9,7 +9,7 @@ const SectionCard = ({ title, icon: Icon, children, className = '', headerAction
           <div className="flex items-center gap-2">
             {Icon && <Icon size={16} className="text-[var(--primary)]" />}
             {title && (
-              <h3 className="text-xs font-black uppercase tracking-wider text-gray-900">
+              <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-primary)]">
                 {title}
               </h3>
             )}

@@ -429,7 +429,7 @@ const FilterChip = ({ label, onRemove }) => (
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const ProjectsPage = () => {
   const navigate = useNavigate();
-  const [view, setView]           = useState('table');
+  const [view, setView]           = useState('grid');
   const [statusFilter, setStatus] = useState('');
   const [search, setSearch]       = useState('');
   const [showCreate, setShowCreate] = useState(false);

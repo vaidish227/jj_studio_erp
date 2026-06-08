@@ -11,6 +11,7 @@ const Task        = require("../models/Task.model");
 const Drawing     = require("../models/Drawing.model");
 const Project     = require("../models/Project.model");
 const ProjectPlan = require("../models/ProjectPlan.model");
+const WorkflowTemplate = require("../models/WorkflowTemplate.model");
 const ApprovalGate = (() => {
   try { return require("../models/ApprovalGate.model"); }
   catch { return null; }
@@ -93,6 +94,61 @@ function computeDelayDays(task) {
   return diff > 0 ? diff : 0;
 }
 
+/**
+ * Lazy-backfill `phase` (and `templateTaskKey` when derivable) on tasks that
+ * predate the schema field. Runs the FIRST time an old project's master sheet
+ * is opened — afterwards every row already has phase saved, so it's a no-op.
+ *
+ * Matching strategy, in order of preference:
+ *   1. existing task.templateTaskKey  →  template.phases keyToPhase lookup
+ *   2. case-insensitive trimmed task.title  →  template.tasks titleToKey
+ *
+ * Tasks added manually via "Add Drawing Row" won't match a template entry and
+ * stay phase-less (rendered under the "Other" group). That's by design.
+ */
+async function backfillTaskPhases(projectWorkflowTemplateId, tasks) {
+  const missing = tasks.filter((t) => !t.phase);
+  if (!missing.length || !projectWorkflowTemplateId) return tasks;
+
+  const template = await WorkflowTemplate.findById(projectWorkflowTemplateId).lean();
+  if (!template) return tasks;
+
+  const keyToPhase = new Map();
+  for (const p of template.phases || []) {
+    for (const k of (p.taskKeys || [])) {
+      if (k) keyToPhase.set(k, p.name || "");
+    }
+  }
+  const titleToKey = new Map();
+  for (const t of template.tasks || []) {
+    if (t.title) titleToKey.set(String(t.title).toLowerCase().trim(), t.key);
+  }
+
+  const bulkOps = [];
+  for (const t of missing) {
+    let key = t.templateTaskKey || null;
+    if (!key && t.title) {
+      key = titleToKey.get(String(t.title).toLowerCase().trim()) || null;
+    }
+    const phaseName = key ? keyToPhase.get(key) : null;
+    if (!phaseName) continue; // no confident match — leave in "Other"
+
+    // Patch in-memory copy so the response already reflects the phase
+    t.phase = phaseName;
+    if (key && !t.templateTaskKey) t.templateTaskKey = key;
+
+    const set = { phase: phaseName };
+    if (key && !t.templateTaskKey) set.templateTaskKey = key;
+    bulkOps.push({ updateOne: { filter: { _id: t._id }, update: { $set: set } } });
+  }
+
+  if (bulkOps.length) {
+    try { await Task.bulkWrite(bulkOps, { ordered: false }); }
+    catch (e) { console.warn("[Planner.backfillTaskPhases] bulkWrite failed:", e.message); }
+  }
+  return tasks;
+}
+
 function buildDrawingSummary(drawing) {
   if (!drawing) return null;
   return {
@@ -101,11 +157,13 @@ function buildDrawingSummary(drawing) {
     version:       drawing.version,
     drawingType:   drawing.drawingType,
     subCategory:   drawing.subCategory || "",
+    fileName:      drawing.fileName || "",
     fileType:      drawing.fileType,
     fileUrl:       drawing.fileUrl,
     revisionsCount: 1 + (Array.isArray(drawing.revisionHistory) ? drawing.revisionHistory.length : 0),
     uploadedAt:    drawing.createdAt,
     approvalDate:  drawing.approvalDate,
+    rejectedAt:    drawing.rejectedAt,
     rejectionReason: drawing.rejectionReason,
   };
 }
@@ -125,7 +183,7 @@ exports.getMasterSheet = async (req, res) => {
     if (qErr) return res.status(400).json({ message: qErr.message });
 
     const project = await Project.findById(projectId)
-      .select("name trackingId phase startDate estimatedCompletionDate clientApprovals status")
+      .select("name trackingId phase startDate estimatedCompletionDate clientApprovals status workflowTemplateId")
       .lean();
     if (!project) return res.status(404).json({ message: "Project not found" });
 
@@ -148,13 +206,17 @@ exports.getMasterSheet = async (req, res) => {
       .sort({ "planning.plannedStartDate": 1, createdAt: 1 })
       .lean();
 
+    // Lazy backfill: pre-phase projects get phase / templateTaskKey filled in
+    // from their workflow template on first open of the master sheet.
+    await backfillTaskPhases(project.workflowTemplateId, tasks);
+
     // Drawing join — latest per task. One IN query is cheaper than N round-trips.
     const taskIds = tasks.map((t) => t._id);
     const drawingsByTask = new Map();
     if (taskIds.length) {
       const drawings = await Drawing.find({ taskId: { $in: taskIds } })
         .sort({ version: -1, createdAt: -1 })
-        .select("taskId status version drawingType subCategory fileType fileUrl revisionHistory createdAt approvalDate rejectionReason")
+        .select("taskId status version drawingType subCategory fileType fileName fileUrl revisionHistory createdAt approvalDate rejectedAt rejectionReason")
         .lean();
       for (const d of drawings) {
         const key = String(d.taskId);
@@ -202,6 +264,13 @@ exports.getMasterSheet = async (req, res) => {
         stage,
         priority:  t.priority,
         assignedTo: t.assignedTo,
+        // Workflow phase (e.g. "kickoff" / "design") so the master-sheet UI
+        // can group rows under phase headers. Empty string when unknown
+        // (existing pre-phase projects or ad-hoc rows added without one).
+        phase:     t.phase || "",
+        templateTaskKey: t.templateTaskKey || "",
+        // Template-defined offset — drives "Auto-Schedule" bulk action.
+        dayOffsetFromProjectStart: t.dayOffsetFromProjectStart || 0,
         designLead: t.planning?.designLeadId  || null,
         reviewer:   t.planning?.reviewerId    || null,
         coordinator:t.planning?.coordinatorId || null,
@@ -315,6 +384,7 @@ exports.createRow = async (req, res) => {
       priority: value.priority,
       notes: value.notes || "",
       dependsOn: value.dependsOn || [],
+      phase: value.phase || undefined,
       planning,
     });
 
@@ -564,5 +634,80 @@ exports.freezeBaseline = async (req, res) => {
   } catch (err) {
     console.error("[Planner.freezeBaseline]", err);
     res.status(500).json({ message: "Failed to freeze baseline" });
+  }
+};
+
+/**
+ * POST /api/pms/planner/:projectId/auto-schedule
+ *
+ * Bulk-fills planned dates from the template-defined dayOffsetFromProjectStart.
+ * For each task:
+ *   plannedStartDate = projectStart + dayOffsetFromProjectStart days
+ *   plannedEndDate   = plannedStartDate + defaultDurationDays days (3 by default)
+ *
+ * Modes (body):
+ *   - { defaultDurationDays?: number = 3 } — duration applied to every task
+ *   - { overwriteExisting?: boolean = false } — when false (default), tasks
+ *     that already have plannedStartDate are skipped, so a re-click doesn't
+ *     destroy hand-tuned dates.
+ */
+exports.autoSchedule = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!isOid(projectId)) return res.status(400).json({ message: "Invalid projectId" });
+
+    const defaultDurationDays = Math.max(0, Math.min(365, Number(req.body?.defaultDurationDays ?? 3)));
+    const overwriteExisting   = Boolean(req.body?.overwriteExisting);
+
+    const project = await Project.findById(projectId).select("startDate").lean();
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (!project.startDate) {
+      return res.status(422).json({ message: "Project has no start date — set one before auto-scheduling." });
+    }
+
+    const tasks = await Task.find({ projectId })
+      .select("dayOffsetFromProjectStart planning.plannedStartDate planning.plannedEndDate planning.baselinePlannedStartDate planning.baselinePlannedEndDate")
+      .lean();
+
+    const baseTs = new Date(project.startDate).getTime();
+    const ops = [];
+    let scheduled = 0;
+    let skipped   = 0;
+
+    for (const t of tasks) {
+      if (!overwriteExisting && t.planning?.plannedStartDate) {
+        skipped++;
+        continue;
+      }
+      const offsetDays = Number(t.dayOffsetFromProjectStart || 0);
+      const start = new Date(baseTs + offsetDays * DAY_MS);
+      const end   = new Date(start.getTime() + defaultDurationDays * DAY_MS);
+
+      const set = {
+        "planning.plannedStartDate": start,
+        "planning.plannedEndDate":   end,
+      };
+      // Snapshot baseline on first set (mirrors patchRow behaviour)
+      if (!t.planning?.baselinePlannedStartDate) set["planning.baselinePlannedStartDate"] = start;
+      if (!t.planning?.baselinePlannedEndDate)   set["planning.baselinePlannedEndDate"]   = end;
+
+      ops.push({ updateOne: { filter: { _id: t._id }, update: { $set: set } } });
+      scheduled++;
+    }
+
+    if (ops.length) await Task.bulkWrite(ops);
+    await recomputePlanTotals(projectId);
+    await logActivity({
+      projectId, actorId: req.user?._id,
+      entityType: "project", entityId: projectId,
+      action: "planner.auto_scheduled",
+      description: `Auto-scheduled ${scheduled} task(s) from project start ${new Date(project.startDate).toISOString().slice(0,10)}`,
+      metadata: { scheduled, skipped, defaultDurationDays, overwriteExisting },
+    });
+
+    res.json({ scheduled, skipped, total: tasks.length });
+  } catch (err) {
+    console.error("[Planner.autoSchedule]", err);
+    res.status(500).json({ message: "Failed to auto-schedule" });
   }
 };
