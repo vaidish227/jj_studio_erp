@@ -1,4 +1,5 @@
 const Project = require("../models/Project.model");
+const Task = require("../models/Task.model");
 const Responsibility = require("../models/Responsibility.model");
 const {
   createProjectSchema,
@@ -392,7 +393,19 @@ const getMyProjects = async (req, res) => {
     const userId = req.user._id;
     const { status, page = 1, limit = 50 } = req.query;
 
-    const filter = { "assignments.users": userId };
+    // A designer counts as "on a project" if EITHER they're on the project
+    // team roster (assignments[].users) OR they've been assigned a task on
+    // it via the master sheet. Task-level assignment is now the more common
+    // path post Make-Plan-Effective rollout, so we must include it here or
+    // the designer can't navigate to the project from the sidebar.
+    const myTaskProjectIds = await Task.distinct("projectId", { assignedTo: userId });
+
+    const filter = {
+      $or: [
+        { "assignments.users": userId },
+        { _id: { $in: myTaskProjectIds } },
+      ],
+    };
 
     if (status) filter.status = status;
 

@@ -62,6 +62,9 @@ const TaskRow = ({ task, onUpdated }) => {
   const canResumeHold = isMyTask && task.status === 'on_hold';
   const canSubmit   = isMyTask && hasPermission('tasks.submit') && ['in_progress', 'revision_requested'].includes(task.status);
   const canHold     = isMyTask && task.status === 'in_progress';
+  // Submit needs at least one drawing — empty submissions waste the
+  // reviewer's time. Backend rejects 400 as a safety net.
+  const hasDrawings = (task.drawingCount || 0) > 0;
 
   const quickStart = async (status) => {
     setActioning(true);
@@ -102,6 +105,24 @@ const TaskRow = ({ task, onUpdated }) => {
             <ChevronRight size={13} className="text-[var(--text-muted)]" />
           </div>
         </div>
+
+        {/* Blocked-by-dependency alert */}
+        {task.status === 'blocked' && (task.blockingTasks?.length > 0 || task.blockingGates?.length > 0) && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[var(--error)]/8 border border-[var(--error)]/20"
+            onClick={(e) => e.stopPropagation()}>
+            <AlertCircle size={13} className="text-[var(--error)] shrink-0 mt-0.5" />
+            <p className="text-xs text-[var(--error)] leading-snug">
+              <span className="font-bold">Blocked — </span>
+              {task.blockingTasks?.length > 0 && (
+                <>waiting on <span className="font-semibold">{task.blockingTasks.map((b) => b.title).join(', ')}</span></>
+              )}
+              {task.blockingTasks?.length > 0 && task.blockingGates?.length > 0 && ' · '}
+              {task.blockingGates?.length > 0 && (
+                <>approval: <span className="font-semibold">{task.blockingGates.map((g) => g.label || g.key).join(', ')}</span></>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* On hold / revision alert */}
         {task.status === 'on_hold' && task.holdReason && (
@@ -215,11 +236,12 @@ const TaskRow = ({ task, onUpdated }) => {
             {canSubmit && (
               <button
                 onClick={() => setShowSubmit(true)}
-                disabled={actioning}
+                disabled={actioning || !hasDrawings}
+                title={!hasDrawings ? 'Upload a drawing first — a review needs something to review.' : undefined}
                 className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg
-                           bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors disabled:opacity-50 ml-auto"
+                           bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
               >
-                <Send size={10} /> Submit for Review
+                <Send size={10} /> {hasDrawings ? 'Submit for Review' : 'Upload Drawing First'}
               </button>
             )}
           </div>
@@ -231,6 +253,7 @@ const TaskRow = ({ task, onUpdated }) => {
         isOpen={showSubmit}
         onClose={() => setShowSubmit(false)}
         onSubmitted={() => { setShowSubmit(false); onUpdated?.(); }}
+        drawingCount={task.drawingCount ?? null}
       />
 
       <TaskStatusUpdateModal

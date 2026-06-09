@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import KickstartChecklist from '../KickstartChecklist';
 import ClientApprovalTracker from '../ClientApprovalTracker';
-import WhatsBlockingWidget from '../WhatsBlockingWidget';
 import PendingMDApprovalCard from '../PendingMDApprovalCard';
 import { useAuth } from '../../../../shared/context/AuthContext';
 
@@ -114,17 +113,6 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
     },
   ];
 
-  // "What's Blocking" widget — same component for everyone, but placement
-  // differs by role. For MD it lives near the bottom (project gates are
-  // status info, not their primary action item). For everyone else it stays
-  // at the top so PMs see blockers without tab-switching.
-  const whatsBlockingWidget = (
-    <WhatsBlockingWidget
-      project={project}
-      onSwitchToGates={onSwitchToTab ? () => onSwitchToTab('gates') : undefined}
-    />
-  );
-
   return (
     <div className="space-y-6">
       {/* MD-only — pending designer submissions for this project, with quick actions */}
@@ -134,9 +122,6 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
           projectName={project.name}
         />
       )}
-
-      {/* PM/admin/etc — blocking gates at the top */}
-      {!isMD && whatsBlockingWidget}
 
       {/* Module grid — 5 cards (3 + 2) acting as a navigable, client-friendly project overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -163,11 +148,6 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
           readOnly={isMD}
         />
       </div>
-
-      {/* MD sees "Awaiting your approval" here — below the action cards and
-          status panels, so it reads as project-status reference, not the
-          primary action item. */}
-      {isMD && whatsBlockingWidget}
 
       {/* Project notes */}
       {project.notes && (

@@ -33,6 +33,12 @@ const getDesignerDashboard = async (req, res) => {
     const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const in14d = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
+    // Project IDs reached via task-level assignment (master sheet). Needed so
+    // the Active Projects widget shows projects the designer was assigned to
+    // through Make-Plan-Effective / inline planner assignment even when they
+    // were never added to the project's team roster.
+    const myTaskProjectIds = await Task.distinct("projectId", { assignedTo: userId });
+
     // ── Parallel data fetch ──────────────────────────────────────────────────
     const [
       allMyTasks,
@@ -96,9 +102,12 @@ const getDesignerDashboard = async (req, res) => {
         .sort({ createdAt: -1 })
         .lean(),
 
-      // Active projects where I'm part of the team (any responsibility)
+      // Active projects where I'm part of the team OR have any assigned task
       Project.find({
-        "assignments.users": userId,
+        $or: [
+          { "assignments.users": userId },
+          { _id: { $in: myTaskProjectIds } },
+        ],
         status: { $in: ["design_phase", "execution_phase"] },
       })
         .select("name trackingId status phase progressPercent estimatedCompletionDate clientId assignments clientApprovals")

@@ -5,7 +5,7 @@ import {
   Eye, History as HistoryIcon, X, ExternalLink, FileText, RotateCcw,
   UserCog, CalendarRange, ArrowLeftRight, Zap, CheckSquare, Square,
   Upload, Replace, Calendar as CalendarIcon, UserPlus, MessageSquare,
-  ChevronDown, ChevronRight, Rocket, Lock,
+  ChevronDown, ChevronRight, Rocket, Lock, Download, FileSpreadsheet,
 } from 'lucide-react';
 import { pmsService } from '../../../../shared/services/pmsService';
 import DatePicker from '../../../../shared/components/DatePicker/DatePicker';
@@ -92,7 +92,7 @@ const DelayBadge = ({ days }) => {
   );
 };
 
-const PlannerHeader = ({ project, plan, counters, onRefresh, onAddRow, onAutoSchedule, onActivate, refreshing }) => (
+const PlannerHeader = ({ project, plan, counters, onRefresh, onAddRow, onAutoSchedule, onActivate, onExport, onImport, exporting, refreshing }) => (
   <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
     <div className="flex items-start justify-between gap-3 mb-4">
       <div>
@@ -119,6 +119,23 @@ const PlannerHeader = ({ project, plan, counters, onRefresh, onAddRow, onAutoSch
           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50"
         >
           <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} /> Refresh
+        </button>
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={exporting}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50"
+          title="Download every row as an Excel (.xlsx) file"
+        >
+          {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Export
+        </button>
+        <button
+          type="button"
+          onClick={onImport}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)]"
+          title="Bulk-update existing rows from an Excel file"
+        >
+          <FileSpreadsheet size={13} /> Import
         </button>
         <button
           type="button"
@@ -1269,6 +1286,7 @@ const MasterSheetGrid = ({
             <th className="px-3 py-2">Zone</th>
             <th className="px-3 py-2">Floor</th>
             <th className="px-3 py-2 min-w-[180px]">Designer</th>
+            <th className="px-3 py-2 min-w-[110px]">Checklist</th>
             <th className="px-3 py-2">Planned Start</th>
             <th className="px-3 py-2">Deadline</th>
             <th className="px-3 py-2" title="Auto-computed from Start &amp; Deadline">Days</th>
@@ -1276,7 +1294,6 @@ const MasterSheetGrid = ({
             <th className="px-3 py-2">Actual Hrs</th>
             <th className="px-3 py-2">Progress</th>
             <th className="px-3 py-2">Delay</th>
-            <th className="px-3 py-2 min-w-[110px]">Checklist</th>
             <th className="px-3 py-2">Drawing</th>
             <th className="px-3 py-2 min-w-[70px]">Actions</th>
           </tr>
@@ -1393,6 +1410,9 @@ const MasterSheetGrid = ({
                   />
                 </td>
                 <td className="px-3 py-2">
+                  <ChecklistCell row={r} onOpen={() => onOpenChecklist(r)} />
+                </td>
+                <td className="px-3 py-2">
                   <EditableDateCell
                     value={r.planning.plannedStartDate}
                     onSave={(iso) => onPatch(r.taskId, { planning: { plannedStartDate: iso } })}
@@ -1424,9 +1444,6 @@ const MasterSheetGrid = ({
                   />
                 </td>
                 <td className="px-3 py-2"><DelayBadge days={r.delayDays} /></td>
-                <td className="px-3 py-2">
-                  <ChecklistCell row={r} onOpen={() => onOpenChecklist(r)} />
-                </td>
                 <td className="px-3 py-2">
                   <DrawingCell
                     drawing={r.drawing}
@@ -1789,6 +1806,216 @@ const ActivatePlanModal = ({ open, projectId, onClose, onConfirm, busy }) => {
   );
 };
 
+/**
+ * Two-step import wizard:
+ *   1. File pick + Preview  → dry-run on the server, show diff stats + errors
+ *   2. Confirm Import       → re-runs without dryRun, writes updates
+ *
+ * Server enforces "update existing rows only" — creating tasks via import is
+ * intentionally not supported in v1 (assignee name matching is too fuzzy).
+ */
+const ImportExcelModal = ({ open, projectId, onClose, onDone }) => {
+  const toast = useToast();
+  const [file, setFile]       = useState(null);
+  const [busy, setBusy]       = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [error, setError]     = useState(null);
+  const [templateBusy, setTemplateBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setFile(null);
+    setBusy(false);
+    setPreview(null);
+    setError(null);
+    setTemplateBusy(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  const downloadTemplate = async () => {
+    setTemplateBusy(true);
+    try {
+      const blob = await pmsService.getPlannerImportTemplate();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `master-sheet_import-template.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to download template');
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
+
+  const handlePickFile = (e) => {
+    const f = e.target.files?.[0] || null;
+    setFile(f);
+    setPreview(null);
+    setError(null);
+    e.target.value = ''; // allow re-picking the same file
+  };
+
+  const runPreview = async () => {
+    if (!file || !projectId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await pmsService.importPlannerExcel(projectId, file, { dryRun: true });
+      setPreview(res);
+    } catch (err) {
+      setError(err?.message || 'Failed to preview import');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runCommit = async () => {
+    if (!file || !projectId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await pmsService.importPlannerExcel(projectId, file, { dryRun: false });
+      toast.success(`Imported — ${res.rowsUpdated} row${res.rowsUpdated !== 1 ? 's' : ''} updated, ${res.rowsSkipped} skipped, ${res.rowsFailed} failed`);
+      onDone?.();
+      onClose?.();
+    } catch (err) {
+      setError(err?.message || 'Failed to import');
+      setBusy(false);
+    }
+  };
+
+  const canPreview = !!file && !busy && !preview;
+  const canCommit  = !!preview && !busy && preview.rowsUpdated > 0;
+
+  return (
+    <ModalShell
+      title="Import from Excel"
+      subtitle="Updates existing rows only. Use the Export button first to get a sheet with valid Task IDs."
+      onClose={busy ? undefined : onClose}
+      footer={(
+        <>
+          <button type="button" onClick={onClose} disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50">
+            Cancel
+          </button>
+          {!preview && (
+            <button type="button" onClick={runPreview} disabled={!canPreview}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50">
+              {busy ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />} Preview
+            </button>
+          )}
+          {preview && (
+            <button type="button" onClick={runCommit} disabled={!canCommit}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--success)] rounded-lg hover:opacity-90 disabled:opacity-50">
+              {busy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              Confirm & Import
+            </button>
+          )}
+        </>
+      )}
+    >
+      {/* First-time helper — download a blank template with headers + Instructions sheet */}
+      <div className="mb-3 flex items-center justify-between gap-2 bg-[var(--primary)]/5 border border-[var(--primary)]/20 rounded-lg px-2.5 py-2">
+        <div className="text-[11px] text-[var(--text-secondary)] leading-snug">
+          <span className="font-bold text-[var(--text-primary)]">First time?</span>{' '}
+          Download a blank template to see the required columns and rules.
+        </div>
+        <button
+          type="button"
+          onClick={downloadTemplate}
+          disabled={templateBusy}
+          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-[var(--primary)] border border-[var(--primary)]/40 bg-[var(--surface)] rounded-md hover:bg-[var(--primary)]/10 disabled:opacity-50 whitespace-nowrap"
+        >
+          {templateBusy ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+          Download Template
+        </button>
+      </div>
+
+      {/* File picker */}
+      <label className="block">
+        <div className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
+          Excel File (.xlsx, max 5 MB)
+        </div>
+        <input
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          onChange={handlePickFile}
+          disabled={busy}
+          className="block w-full text-xs text-[var(--text-secondary)]
+                     file:mr-3 file:py-1.5 file:px-3
+                     file:rounded-md file:border-0
+                     file:text-xs file:font-bold
+                     file:bg-[var(--primary)]/10 file:text-[var(--primary)]
+                     hover:file:bg-[var(--primary)]/20"
+        />
+        {file && (
+          <p className="text-[11px] text-[var(--text-muted)] mt-1.5">
+            Selected: <span className="font-semibold text-[var(--text-secondary)]">{file.name}</span> ({Math.round(file.size / 1024)} KB)
+          </p>
+        )}
+      </label>
+
+      {error && (
+        <div className="mt-3 text-xs text-[var(--error)] bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-lg p-2.5">
+          {error}
+        </div>
+      )}
+
+      {/* Preview summary */}
+      {preview && (
+        <div className="mt-4 space-y-2.5">
+          <div className="grid grid-cols-4 gap-2 text-xs">
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-2 text-center">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase">Rows Read</div>
+              <div className="text-base font-extrabold text-[var(--text-primary)]">{preview.rowsRead}</div>
+            </div>
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-2 text-center">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase">Will Update</div>
+              <div className="text-base font-extrabold text-[var(--success)]">{preview.rowsUpdated}</div>
+            </div>
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-2 text-center">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase">Skipped</div>
+              <div className="text-base font-extrabold text-[var(--text-muted)]">{preview.rowsSkipped}</div>
+            </div>
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-2 text-center">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase">Errors</div>
+              <div className={`text-base font-extrabold ${preview.rowsFailed > 0 ? 'text-[var(--error)]' : 'text-[var(--text-muted)]'}`}>
+                {preview.rowsFailed}
+              </div>
+            </div>
+          </div>
+
+          {preview.errors?.length > 0 && (
+            <div className="max-h-40 overflow-y-auto bg-[var(--error)]/5 border border-[var(--error)]/20 rounded-lg p-2 text-[11px]">
+              <p className="font-bold text-[var(--error)] mb-1.5">
+                Issues found ({preview.errors.length}{preview.truncated ? '+' : ''}):
+              </p>
+              <ul className="space-y-0.5">
+                {preview.errors.map((e, i) => (
+                  <li key={i} className="text-[var(--text-secondary)]">
+                    <span className="font-mono text-[10px] text-[var(--text-muted)]">Row {e.row}</span> — {e.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {preview.rowsUpdated === 0 && preview.rowsFailed === 0 && (
+            <p className="text-[11px] text-[var(--warning)]">
+              Nothing to update — the file has no changes vs. the live data.
+            </p>
+          )}
+        </div>
+      )}
+    </ModalShell>
+  );
+};
+
 // ─── Bulk action toolbar ─────────────────────────────────────────────────────
 const BulkToolbar = ({ selectedCount, onAssign, onSetDates, onShiftDates, onClear }) => (
   <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-lg p-3 flex flex-wrap items-center gap-2">
@@ -1851,6 +2078,8 @@ const ProjectPlannerTab = ({ project }) => {
   const [notesBusy,       setNotesBusy]       = useState(false);
   const [checklistRow,    setChecklistRow]    = useState(null);
   const [checklistBusy,   setChecklistBusy]   = useState(false);
+  const [importOpen,      setImportOpen]      = useState(false);
+  const [exporting,       setExporting]       = useState(false);
 
   const projectId = project?._id;
 
@@ -2154,6 +2383,29 @@ const ProjectPlannerTab = ({ project }) => {
     }
   }, [notesRow, fetchSheet]);
 
+  // ── Excel Export ──────────────────────────────────────────────────────────
+  const handleExport = useCallback(async () => {
+    if (!projectId) return;
+    setExporting(true);
+    try {
+      const blob = await pmsService.exportPlannerExcel(projectId);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      const code = data?.project?.code || projectId;
+      a.href     = url;
+      a.download = `master-sheet_${code}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Master sheet exported');
+    } catch (err) {
+      toast.error(err?.message || 'Failed to export');
+    } finally {
+      setExporting(false);
+    }
+  }, [projectId, data, toast]);
+
   const handleSaveChecklist = useCallback(async (items) => {
     if (!checklistRow) return;
     setChecklistBusy(true);
@@ -2231,6 +2483,9 @@ const ProjectPlannerTab = ({ project }) => {
         onAddRow={() => { setAddPhase(''); setShowAdd(true); }}
         onAutoSchedule={() => setAutoOpen(true)}
         onActivate={() => setActivateOpen(true)}
+        onExport={handleExport}
+        onImport={() => setImportOpen(true)}
+        exporting={exporting}
         refreshing={refreshing}
       />
       <FilterBar filters={filters} setFilters={setFilters} zones={zones} designers={designers} />
@@ -2327,6 +2582,12 @@ const ProjectPlannerTab = ({ project }) => {
         onClose={() => !checklistBusy && setChecklistRow(null)}
         onSave={handleSaveChecklist}
         busy={checklistBusy}
+      />
+      <ImportExcelModal
+        open={importOpen}
+        projectId={projectId}
+        onClose={() => setImportOpen(false)}
+        onDone={() => fetchSheet(true)}
       />
     </div>
   );

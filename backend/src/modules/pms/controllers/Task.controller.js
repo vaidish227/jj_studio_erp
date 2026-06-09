@@ -295,6 +295,23 @@ const getMyTasks = async (req, res) => {
       .sort({ dueDate: 1, createdAt: -1 });
 
     const decorated = await decorateWithBlockers(tasks);
+
+    // Drawing counts per task — used by the My Task UI to disable the inline
+    // "Submit for Review" button when there's nothing attached. One $group
+    // pipeline is cheaper than N count queries.
+    const taskIds = decorated.map((t) => t._id);
+    let countByTaskId = new Map();
+    if (taskIds.length) {
+      const agg = await Drawing.aggregate([
+        { $match: { taskId: { $in: taskIds } } },
+        { $group: { _id: "$taskId", count: { $sum: 1 } } },
+      ]);
+      countByTaskId = new Map(agg.map((r) => [String(r._id), r.count]));
+    }
+    for (const t of decorated) {
+      t.drawingCount = countByTaskId.get(String(t._id)) || 0;
+    }
+
     res.status(200).json({ count: decorated.length, tasks: decorated });
   } catch (error) {
     console.error("[getMyTasks]", error);
@@ -542,6 +559,17 @@ const submitTask = async (req, res) => {
     if (!allowedFromStatuses.includes(task.status)) {
       return res.status(400).json({
         message: `Cannot submit — task is currently "${task.status}". Must be in_progress or revision_requested.`,
+      });
+    }
+
+    // Drawing-required guard: a review needs something to review. If the
+    // task has zero linked drawings, block here with a clear message rather
+    // than letting the designer submit an empty package the PM can't action.
+    const drawingCount = await Drawing.countDocuments({ taskId: task._id });
+    if (drawingCount === 0) {
+      return res.status(400).json({
+        code:    "NO_DRAWING_TO_SUBMIT",
+        message: "Please upload at least one drawing before submitting this task for review.",
       });
     }
 

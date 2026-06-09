@@ -230,6 +230,19 @@ export const pmsService = {
   autoSchedulePlanner:   (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/auto-schedule`, data),
   getPlanActivationPreview: (projectId)      => apiClient.get(`/pms/planner/${projectId}/activation-preview`),
   activatePlan:          (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/activate`, data),
+  // Excel export — returns a Blob; caller is responsible for triggering download.
+  exportPlannerExcel:    (projectId)         => apiClient.get(`/pms/planner/${projectId}/export`, { responseType: 'blob' }),
+  // Blank import template (headers + sample row + Instructions sheet) — returns a Blob.
+  getPlannerImportTemplate: ()               => apiClient.get(`/pms/planner/import-template`, { responseType: 'blob' }),
+  // Excel import — multipart upload. Pass dryRun=true for a preview without writes.
+  importPlannerExcel:    (projectId, file, { dryRun = false } = {}) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('dryRun', String(!!dryRun));
+    return apiClient.post(`/pms/planner/${projectId}/import`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 
   // ─── DDMS — Designer Dashboard ────────────────────────────────────────────
   getDesignerDashboard:  ()                  => apiClient.get('/pms/designer/dashboard'),
