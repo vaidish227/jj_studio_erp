@@ -55,7 +55,6 @@ const TABS_LEGACY = [
   { id: 'documents',         label: 'Documents' },
   { id: 'planner',           label: 'Master Plan' },
   { id: 'gantt',             label: 'Gantt' },
-  { id: 'gates',             label: 'Sign-offs' },
   { id: 'tasks',             label: 'Tasks' },
   { id: 'drawings',          label: 'Drawings' },
   { id: 'dlr',               label: 'DLR Sheet' },
@@ -67,7 +66,7 @@ const TABS_LEGACY = [
   { id: 'vendor_engagement', label: 'Vendors' },
   { id: 'purchase_orders',   label: 'POs' },
   { id: 'team',              label: 'Team' },
-  { id: 'approvals',         label: 'Approvals' },
+  { id: 'approvals',         label: 'Client Approvals' },
   { id: 'whatsapp',          label: 'WhatsApp' },
   { id: 'handover',          label: 'Handover' },
   { id: 'activity',          label: 'Activity' },
@@ -80,9 +79,8 @@ const TABS_V2 = [
   { id: 'workflow',  label: 'Workflow',         subTabs: [
     { id: 'planner',   label: 'Master Plan' },
     { id: 'gantt',     label: 'Gantt' },
-    { id: 'gates',     label: 'Sign-offs' },
     { id: 'tasks',     label: 'Tasks' },
-    { id: 'approvals', label: 'Approvals' },
+    { id: 'approvals', label: 'Client Approvals' },
     { id: 'handover',  label: 'Handover' },
   ]},
   { id: 'drawings',  label: 'Drawings',         subTabs: [

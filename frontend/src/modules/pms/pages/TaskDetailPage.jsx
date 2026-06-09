@@ -37,6 +37,7 @@ const fmtTime = (d) => d
 // ── Status colour map ────────────────────────────────────────────────────────
 const STATUS_META = {
   not_started:           { color: 'var(--text-muted)',    bg: 'var(--border)',           label: 'Not Started' },
+  blocked:               { color: 'var(--error)',         bg: 'var(--error)',            label: 'Blocked' },
   in_progress:           { color: 'var(--accent-blue)',   bg: 'var(--accent-blue)',      label: 'In Progress' },
   pending_review:        { color: 'var(--warning)',       bg: 'var(--warning)',          label: 'Pending Review' },
   revision_requested:    { color: 'var(--error)',         bg: 'var(--error)',            label: 'Revision Requested' },
@@ -160,7 +161,14 @@ const TaskDetailPage = () => {
   }
 
   const isMyTask         = String(task.assignedTo?._id || task.assignedTo) === String(user?._id);
+  // A review needs something to review — block Submit when there are no
+  // linked drawings. UI disables the button; backend rejects 400 as a
+  // defense-in-depth backup.
+  const hasDrawings      = (drawings?.length || 0) > 0;
   const canSubmit        = isMyTask && hasPermission('tasks.submit') && ['in_progress', 'revision_requested'].includes(task.status);
+  const submitBlockedReason = canSubmit && !hasDrawings
+    ? 'Upload a drawing first — a review needs something to review.'
+    : null;
   const canStartTask     = isMyTask && task.status === 'not_started';
   const canStartRevision = isMyTask && task.status === 'revision_requested';
   const canApprove       = hasPermission('tasks.approve') && task.status === 'pending_review';
@@ -329,7 +337,12 @@ const TaskDetailPage = () => {
             </Button>
           )}
           {canSubmit && (
-            <Button size="sm" onClick={() => setShowSubmit(true)} disabled={actioning}>
+            <Button
+              size="sm"
+              onClick={() => setShowSubmit(true)}
+              disabled={actioning || !hasDrawings}
+              title={submitBlockedReason || undefined}
+            >
               <Send size={13} className="mr-1" />
               Submit for Review
             </Button>
@@ -377,7 +390,70 @@ const TaskDetailPage = () => {
             </Button>
           )}
         </div>
+        {submitBlockedReason && (
+          <p className="text-[11px] text-[var(--warning)] mt-2 inline-flex items-center gap-1">
+            <AlertTriangle size={11} /> {submitBlockedReason}
+          </p>
+        )}
       </div>
+
+      {/* ── Blocked-by-dependency banner ─────────────────────────────────── */}
+      {task.status === 'blocked' && (task.blockingTasks?.length > 0 || task.blockingGates?.length > 0) && (
+        <div className="bg-[var(--error)]/5 border border-[var(--error)]/30 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[var(--error)]/15 flex items-center justify-center shrink-0">
+              <AlertTriangle size={16} className="text-[var(--error)]" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-black uppercase tracking-widest text-[var(--error)] mb-1">
+                This task is blocked
+              </p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                You can't start this task until the items below are complete. Once they are, your task will unlock automatically.
+              </p>
+              {task.blockingTasks?.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                    Waiting on tasks
+                  </p>
+                  <ul className="space-y-1">
+                    {task.blockingTasks.map((bt) => (
+                      <li key={bt._id} className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--error)]/60" />
+                        <Link
+                          to={`/tasks/${bt._id}`}
+                          className="font-semibold text-[var(--text-primary)] hover:text-[var(--primary)] hover:underline"
+                        >
+                          {bt.title}
+                        </Link>
+                        <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">· {bt.status?.replace(/_/g, ' ')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {task.blockingGates?.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                    Waiting on approvals
+                  </p>
+                  <ul className="space-y-1">
+                    {task.blockingGates.map((g) => (
+                      <li key={g._id} className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--warning)]/70" />
+                        <span className="font-semibold text-[var(--text-primary)]">{g.label || g.key}</span>
+                        {g.approverType && (
+                          <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">· approver: {g.approverType}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Revision instructions banner ─────────────────────────────────── */}
       <RevisionBanner task={task} />
@@ -471,6 +547,7 @@ const TaskDetailPage = () => {
         isOpen={showSubmit}
         onClose={() => setShowSubmit(false)}
         onSubmitted={refresh}
+        drawingCount={drawings?.length || 0}
       />
       <RequestRevisionModal
         task={task}

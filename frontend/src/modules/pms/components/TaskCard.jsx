@@ -34,6 +34,10 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
   const canStart     = isMyTask && task.status === 'not_started' && !isBlocked;
   const canRevision  = isMyTask && task.status === 'revision_requested';
   const canSubmit    = isMyTask && hasPermission('tasks.submit') && ['in_progress', 'revision_requested'].includes(task.status);
+  // Submit needs at least one drawing. drawingCount comes from getMyTasks
+  // (and similar list endpoints). When undefined we don't gate — backend
+  // remains the source of truth.
+  const hasDrawings  = (task.drawingCount ?? 1) > 0;
 
   const handleStatusUpdate = async (status, e) => {
     e.stopPropagation();
@@ -166,12 +170,13 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
             {canSubmit && (
               <button
                 onClick={(e) => { e.stopPropagation(); setShowSubmit(true); }}
-                disabled={actioning}
+                disabled={actioning || !hasDrawings}
+                title={!hasDrawings ? 'Upload a drawing first — a review needs something to review.' : undefined}
                 className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg
                            bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20
-                           transition-colors disabled:opacity-50"
+                           transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Send size={10} /> Submit for Review
+                <Send size={10} /> {hasDrawings ? 'Submit for Review' : 'Upload Drawing First'}
               </button>
             )}
           </div>
@@ -207,6 +212,7 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
         isOpen={showSubmit}
         onClose={() => setShowSubmit(false)}
         onSubmitted={() => { setShowSubmit(false); onUpdated?.(); }}
+        drawingCount={task.drawingCount ?? null}
       />
     </>
   );

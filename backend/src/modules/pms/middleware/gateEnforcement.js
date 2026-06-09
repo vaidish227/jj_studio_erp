@@ -22,6 +22,10 @@ const ApprovalGate = require("../models/ApprovalGate.model");
 const workflowEngine = require("../services/workflowEngine");
 
 const ENGINE_ENABLED = String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
+// Soft-transition flag: when false, gate enforcement is a no-op and every
+// downstream activity (task.submit, drawing.release, po.emit) passes through.
+// Models + override code stay intact for easy re-enablement.
+const GATES_ENABLED  = String(process.env.WORKFLOW_GATES_ENABLED || "").toLowerCase() === "true";
 
 /**
  * Internal: does the user hold the override permission?
@@ -62,6 +66,7 @@ function requireTaskAccess({
   return async function gateEnforcementMiddleware(req, res, next) {
     try {
       if (!ENGINE_ENABLED) return next();
+      if (!GATES_ENABLED)  return next(); // soft-transition: gates disabled
 
       const taskId = resolveTaskIdFromRequest(req, taskIdParam);
       if (!taskId) return next(); // can't evaluate; let controller handle
@@ -146,6 +151,7 @@ function requireProjectActivityAllowed({
   return async function projectGateMiddleware(req, res, next) {
     try {
       if (!ENGINE_ENABLED) return next();
+      if (!GATES_ENABLED)  return next(); // soft-transition: gates disabled
 
       const projectId = await projectIdResolver(req);
       if (!projectId) return next();
@@ -188,4 +194,5 @@ module.exports = {
   requireTaskAccess,
   requireProjectActivityAllowed,
   ENGINE_ENABLED,
+  GATES_ENABLED,
 };

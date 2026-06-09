@@ -28,6 +28,11 @@ const teamResolver = require("./teamResolver");
 
 const { logActivity } = require("../../../shared/activityLogger");
 
+// Soft-transition flag: when false, seedProject creates Tasks only (no
+// ApprovalGate, no TaskDependency, no "blocked" initial status). Templates
+// keep their gate/dep definitions so the flag is fully reversible.
+const GATES_ENABLED = String(process.env.WORKFLOW_GATES_ENABLED || "").toLowerCase() === "true";
+
 let notify = () => {};
 try {
   ({ dispatch: notify } = require("../../notifications/services/notificationDispatcher"));
@@ -279,21 +284,25 @@ async function seedProject(projectId, opts = {}) {
   }
 
   // 1. Create gates FIRST (tasks will reference them via requiresGateKeys)
+  // Soft-transition: skip entirely when GATES_ENABLED=false. gateKeyToDoc
+  // stays empty so step 4 (gate → blocked task ids) is also a no-op.
   const gateKeyToDoc = new Map();
-  for (const g of template.gates || []) {
-    const doc = await ApprovalGate.create({
-      projectId: project._id,
-      workflowTemplateId: template._id,
-      key: g.key,
-      gateType: g.gateType,
-      label: g.label,
-      approverType: g.approverType,
-      listensTo: g.listensTo,
-      blockedActivities: g.blockedActivities || [],
-      blockedTaskIds: [], // populated after tasks are made
-      status: "open",
-    });
-    gateKeyToDoc.set(g.key, doc);
+  if (GATES_ENABLED) {
+    for (const g of template.gates || []) {
+      const doc = await ApprovalGate.create({
+        projectId: project._id,
+        workflowTemplateId: template._id,
+        key: g.key,
+        gateType: g.gateType,
+        label: g.label,
+        approverType: g.approverType,
+        listensTo: g.listensTo,
+        blockedActivities: g.blockedActivities || [],
+        blockedTaskIds: [], // populated after tasks are made
+        status: "open",
+      });
+      gateKeyToDoc.set(g.key, doc);
+    }
   }
 
   // Build template-key → phase-name map once so each Task can carry its phase
@@ -315,11 +324,13 @@ async function seedProject(projectId, opts = {}) {
 
     const checklist = await snapshotChecklist(t.checklistTemplateName, t.taskType);
 
-    // Tasks with prerequisite tasks OR gates start as blocked
+    // Tasks with prerequisite tasks OR gates start as blocked.
+    // Soft-transition: when GATES_ENABLED=false, force every task to
+    // "not_started" so designers never see BLOCKED rows.
     const hasDeps = (t.dependsOnKeys || []).length > 0;
     const hasGates = (t.requiresGateKeys || []).length > 0;
-    const initialStatus = hasDeps || hasGates ? "blocked" : "not_started";
-    const gateStatus = hasGates ? "open" : "none";
+    const initialStatus = GATES_ENABLED && (hasDeps || hasGates) ? "blocked" : "not_started";
+    const gateStatus    = GATES_ENABLED && hasGates ? "open" : "none";
 
     // Seed planning estimates from the template.
     // plannedDays drives plannedEndDate so the project master sheet's "Days"
@@ -356,7 +367,9 @@ async function seedProject(projectId, opts = {}) {
     taskKeyToDoc.set(t.key, taskDoc);
   }
 
-  // 3. Wire dependencies (TaskDependency records + Task.dependsOn cache)
+  // 3. Wire dependencies. TaskDependency docs are created only when gates
+  // are enabled — but Task.dependsOn[] is always populated, so the data is
+  // there if gates are re-enabled later (no re-seed required).
   let depsCreated = 0;
   for (const t of template.tasks || []) {
     if (!t.dependsOnKeys?.length) continue;
@@ -366,16 +379,18 @@ async function seedProject(projectId, opts = {}) {
     for (const fromKey of t.dependsOnKeys) {
       const fromTask = taskKeyToDoc.get(fromKey);
       if (!fromTask) continue;
-      await TaskDependency.create({
-        projectId: project._id,
-        fromTaskId: fromTask._id,
-        toTaskId: toTask._id,
-        requiredStatus: "approved",
-        hardGate: true,
-        workflowTemplateId: template._id,
-      });
+      if (GATES_ENABLED) {
+        await TaskDependency.create({
+          projectId: project._id,
+          fromTaskId: fromTask._id,
+          toTaskId: toTask._id,
+          requiredStatus: "approved",
+          hardGate: true,
+          workflowTemplateId: template._id,
+        });
+        depsCreated++;
+      }
       depIds.push(fromTask._id);
-      depsCreated++;
     }
     if (depIds.length) {
       toTask.dependsOn = depIds;

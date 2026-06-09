@@ -78,10 +78,10 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
     }
     setSubmitting(true);
     try {
-      const res = await pmsService.overrideProjectGate(projectId, gate._id, {
+      await pmsService.overrideProjectGate(projectId, gate._id, {
         overrideReason: reason.trim(),
       });
-      toast.success(`Confirmed verbally — ${res?.tasksUnblocked ?? 0} task(s) can now start`);
+      toast.success('Verbal confirmation recorded');
       setOverrideOpen(false);
       setReason('');
       onRefresh?.();
@@ -147,11 +147,11 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
           </div>
         )}
 
-        {/* Tasks waiting on this sign-off */}
+        {/* Tasks linked to this sign-off — informational, no enforcement claim */}
         {gate.blockingTasks?.length > 0 && (
           <div>
             <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
-              {gate.blockingTasks.length} task{gate.blockingTasks.length === 1 ? '' : 's'} waiting to start
+              {gate.blockingTasks.length} linked task{gate.blockingTasks.length === 1 ? '' : 's'}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {gate.blockingTasks.slice(0, 6).map((t) => (
@@ -160,7 +160,7 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
                   className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)]"
                   title={t.taskType}
                 >
-                  <Lock size={9} /> {t.title}
+                  {t.title}
                 </span>
               ))}
               {gate.blockingTasks.length > 6 && (
@@ -172,20 +172,15 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
           </div>
         )}
 
-        {/* Next steps unlocked when approved */}
-        {gate.blockedActivities?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--warning)]/10 text-[var(--warning)] font-bold">
-              Next steps unlock after approval
-            </span>
-          </div>
-        )}
-
-        {/* Verbal confirmation note */}
+        {/* Verbal confirmation note. Hide reasons set by internal migration
+            scripts (e.g. "soft-transition disable") — those are infra, not
+            information the manager or client should see. */}
         {gate.status === 'overridden' && (
           <div className="bg-[var(--accent-blue)]/8 border border-[var(--accent-blue)]/20 rounded-lg p-3 text-xs">
             <p className="font-bold text-[var(--accent-blue)] mb-1">Confirmed Verbally</p>
-            {gate.overrideReason && <p className="text-[var(--text-secondary)]">{gate.overrideReason}</p>}
+            {gate.overrideReason && gate.overrideReason !== 'soft-transition disable' && (
+              <p className="text-[var(--text-secondary)]">{gate.overrideReason}</p>
+            )}
           </div>
         )}
 
@@ -218,7 +213,7 @@ const GateCard = ({ gate, projectId, onRefresh }) => {
         <div className="space-y-4">
           <p className="text-xs text-[var(--text-muted)]">
             Use this when the client has approved verbally and written confirmation will follow.
-            Next steps will start immediately. This action is recorded in the project activity feed.
+            This action is recorded in the project activity feed for audit purposes.
           </p>
           <FormField label="Reason / note" required>
             <textarea
@@ -260,9 +255,16 @@ const ProjectGatesTab = ({ project }) => {
   const projectId = project?._id;
   const { gates, isLoading, error, refresh } = useProjectGates(projectId);
 
-  const open       = gates.filter((g) => g.status === 'open');
-  const overridden = gates.filter((g) => g.status === 'overridden');
-  const closed     = gates.filter((g) => g.status === 'closed');
+  // Exclude gates that were force-overridden by the gate-disable migration
+  // (overrideReason === "soft-transition disable"). Those are infra noise,
+  // not real verbal confirmations, and would otherwise inflate the
+  // "Confirmed Verbally" count and stat card.
+  const visible = gates.filter(
+    (g) => g.overrideReason !== 'soft-transition disable'
+  );
+  const open       = visible.filter((g) => g.status === 'open');
+  const overridden = visible.filter((g) => g.status === 'overridden');
+  const closed     = visible.filter((g) => g.status === 'closed');
 
   if (!projectId) return null;
 
@@ -277,6 +279,13 @@ const ProjectGatesTab = ({ project }) => {
 
   return (
     <div className="space-y-6">
+      {/* Page intro — sets honest expectations about what this page does */}
+      <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+        Track which client approvals have been obtained on this project. Mark items as
+        approved once the client signs the PDF or confirms verbally. Useful for project
+        history and audit.
+      </p>
+
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-2 lg:gap-4">
         <StatCard label="Awaiting Approval" count={open.length} tone="warning" icon={<Lock size={14} />} />
@@ -288,9 +297,9 @@ const ProjectGatesTab = ({ project }) => {
         <p className="text-center text-sm text-[var(--text-muted)] py-8">Loading sign-offs…</p>
       )}
 
-      {/* Open first — what needs the client's attention */}
+      {/* Open first — approvals the manager still needs to chase */}
       {open.length > 0 && (
-        <Section title={`Awaiting your approval (${open.length})`}>
+        <Section title={`Awaiting client approval (${open.length})`}>
           {open.map((g) => <GateCard key={g._id} gate={g} projectId={projectId} onRefresh={refresh} />)}
         </Section>
       )}
@@ -310,10 +319,10 @@ const ProjectGatesTab = ({ project }) => {
       {gates.length === 0 && !isLoading && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 text-center">
           <p className="text-sm text-[var(--text-muted)] mb-2">
-            All sign-offs are up to date.
+            No client approvals tracked for this project yet.
           </p>
           <p className="text-xs text-[var(--text-muted)]">
-            Sign-off checkpoints will appear here once the project is initiated.
+            Approval checkpoints (e.g. Furniture Layout, Material Selection) appear here once the project is initiated from a template.
           </p>
         </div>
       )}
