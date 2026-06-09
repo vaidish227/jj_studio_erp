@@ -41,6 +41,10 @@ const AppLayout = ({ children }) => {
       activeItem = 'crm-dashboard';
     } else if (pathParts[0] === 'md' && pathParts[1] === 'dashboard') {
       activeItem = 'md-dashboard';
+    } else if (pathParts[0] === 'designer' && pathParts[1] === 'dashboard') {
+      // Designer's "My Dashboard" nav id is 'designer-dashboard', but the last
+      // path segment is 'dashboard' — map it so the right row highlights.
+      activeItem = 'designer-dashboard';
     } else {
       activeItem = pathParts[pathParts.length - 1];
     }

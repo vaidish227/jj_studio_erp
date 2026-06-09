@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Palette, AlertTriangle, Clock, GitBranch, FileText, Briefcase, MapPin,
   Play, Send, CheckCircle2, ArrowRight, Lock, Hourglass, Eye, PartyPopper,
-  ListChecks, PencilLine, Zap,
+  ListChecks, PencilLine, Zap, X,
 } from 'lucide-react';
 import { Loader } from '../../../shared/components';
 import { useAuth } from '../../../shared/context/AuthContext';
@@ -12,6 +12,9 @@ import { pmsService } from '../../../shared/services/pmsService';
 import useDesignerDashboard from '../hooks/useDesignerDashboard';
 import PriorityBadge from '../components/PriorityBadge';
 import DrawingStatusBadge from '../components/DrawingStatusBadge';
+import WorkByProjectDonut from '../components/dashboard/WorkByProjectDonut';
+import DeadlineTimeline from '../components/dashboard/DeadlineTimeline';
+import DrawingStatusDonut from '../components/dashboard/DrawingStatusDonut';
 
 const fmt = (d) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
@@ -45,6 +48,44 @@ const TONE_COLOR = {
 
 const sameId = (a, b) => a && b && String(a) === String(b);
 
+// Does a task's due date fall on the given midnight timestamp?
+const sameDayTs = (dueDate, ts) => {
+  if (!dueDate) return false;
+  const d = new Date(dueDate); d.setHours(0, 0, 0, 0);
+  return d.getTime() === ts;
+};
+
+// Human label for the active Action Queue focus filter.
+const focusLabel = (focus) => {
+  if (!focus) return '';
+  if (focus.kind === 'overdue') return 'Overdue';
+  if (focus.kind === 'today')   return 'Due today';
+  if (focus.kind === 'project')  return focus.name;
+  if (focus.kind === 'day')      return focus.label;
+  return '';
+};
+
+// Whole days since a timestamp (for "waiting" aging chips).
+const ageDays = (ts) => {
+  if (!ts) return null;
+  return Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
+};
+
+// Aging chip — escalates colour as a stall gets older, so long waits stand out.
+const AgeChip = ({ ts }) => {
+  const d = ageDays(ts);
+  if (d == null) return null;
+  const tone = d >= 5 ? 'var(--error)' : d >= 3 ? 'var(--warning)' : 'var(--text-muted)';
+  return (
+    <span
+      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+      style={{ background: `color-mix(in srgb, ${tone} 12%, transparent)`, color: tone }}
+    >
+      {d <= 0 ? 'today' : `${d}d`}
+    </span>
+  );
+};
+
 // ── Small inline action button ───────────────────────────────────────────────
 const ActionBtn = ({ icon: Icon, label, onClick, busy, variant = 'primary', size = 'sm' }) => {
   const styles = variant === 'primary'
@@ -56,8 +97,8 @@ const ActionBtn = ({ icon: Icon, label, onClick, busy, variant = 'primary', size
       type="button"
       onClick={onClick}
       disabled={busy}
-      className={`inline-flex items-center gap-1.5 font-bold rounded-lg border transition-colors
-                  disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ${pad} ${styles}`}
+      className={`inline-flex items-center gap-1.5 font-bold rounded-lg border transition-all active:scale-95
+                  disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 shrink-0 ${pad} ${styles}`}
     >
       {Icon && <Icon size={size === 'lg' ? 15 : 13} />}
       {label}
@@ -160,7 +201,7 @@ const RecommendedHero = ({ recommended, busy, runAction, navigate }) => {
   );
 };
 
-// ── Refined Action Queue row ─────────────────────────────────────────────────
+// ── Action Queue row (list view) ─────────────────────────────────────────────
 const QueueRow = ({ task, busy, runAction, navigate }) => {
   const meta = dueMeta(task.dueDate);
   const isStart = task.status === 'not_started';
@@ -168,7 +209,7 @@ const QueueRow = ({ task, busy, runAction, navigate }) => {
   return (
     <div className="flex items-stretch gap-3 group">
       <div className="w-[3px] rounded-full my-2 shrink-0" style={{ background: TONE_COLOR[meta.tone] }} />
-      <div className="flex items-center gap-3 flex-1 min-w-0 py-2.5 border-b border-[var(--border)] group-last:border-0">
+      <div className="flex items-center gap-3 flex-1 min-w-0 py-2.5 px-1.5 -mx-1.5 rounded-lg border-b border-[var(--border)] group-last:border-0 hover:bg-[var(--bg)]/60 transition-colors">
         <button
           type="button"
           onClick={() => task.projectId?._id && navigate(`/projects/${task.projectId._id}`)}
@@ -218,7 +259,7 @@ const ProjectHealthCard = ({ project, actionQueue, drawingsInReview, navigate })
       type="button"
       onClick={() => navigate(`/projects/${project._id}`)}
       className="w-full text-left bg-[var(--bg)] border border-[var(--border)] rounded-xl p-3
-                 hover:border-[var(--primary)]/40 transition-all"
+                 hover:border-[var(--primary)]/40 hover:shadow-sm active:scale-[0.99] transition-all"
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{project.name}</p>
@@ -273,7 +314,9 @@ const DesignerDashboardPage = () => {
   const { data, isLoading, error, refresh } = useDesignerDashboard();
 
   const [busy, setBusy] = useState(null);
-  const [queueFilter, setQueueFilter] = useState('all'); // all | overdue | today
+  // Unified Action Queue focus — set by KPI chips, the work-by-project donut,
+  // and the deadline timeline. null = no filter.
+  const [focus, setFocus] = useState(null); // {kind:'overdue'|'today'|'project'|'day', id?, name?, ts?, label?}
 
   const runAction = useCallback(async (key, fn, successMsg) => {
     setBusy(key);
@@ -291,17 +334,54 @@ const DesignerDashboardPage = () => {
   const {
     ribbon, actionQueue = [], blockedTasks = [], actionableDrawings = [],
     drawingsInReview = [], todaysSiteVisits = [], reviewsWaitingOnMe = [],
-    pendingRevisionRequests = [], activeProjects = [], capabilities = {},
+    pendingRevisionRequests = [], activeProjects = [], capabilities = {}, stats = {},
   } = data || {};
 
   const filteredQueue = useMemo(() => {
-    if (queueFilter === 'overdue') return actionQueue.filter((t) => t.dueDate && new Date(t.dueDate) < startOfToday());
-    if (queueFilter === 'today')   return actionQueue.filter((t) => {
-      const d = t.dueDate && new Date(t.dueDate);
-      return d && d >= startOfToday() && d <= endOfToday();
+    if (!focus) return actionQueue;
+    const sot = startOfToday(), eot = endOfToday();
+    if (focus.kind === 'overdue') return actionQueue.filter((t) => t.dueDate && new Date(t.dueDate) < sot);
+    if (focus.kind === 'today')   return actionQueue.filter((t) => {
+      const d = t.dueDate && new Date(t.dueDate); return d && d >= sot && d <= eot;
     });
+    if (focus.kind === 'project') return actionQueue.filter((t) => sameId(t.projectId?._id, focus.id));
+    if (focus.kind === 'day')     return actionQueue.filter((t) => sameDayTs(t.dueDate, focus.ts));
     return actionQueue;
-  }, [actionQueue, queueFilter]);
+  }, [actionQueue, focus]);
+
+  // Work distribution by project (drives the donut + queue project filter).
+  const workByProject = useMemo(() => {
+    const map = new Map();
+    actionQueue.forEach((t) => {
+      const id = t.projectId?._id;
+      if (!id) return;
+      const cur = map.get(id) || { id, name: t.projectId?.name || '—', value: 0 };
+      cur.value += 1;
+      map.set(id, cur);
+    });
+    return [...map.values()].sort((a, b) => b.value - a.value);
+  }, [actionQueue]);
+
+  // Deadlines per day across the next 14 days (drives the timeline + day filter).
+  const deadlineDays = useMemo(() => {
+    const base = startOfToday();
+    const days = Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(base.getTime() + i * 86400000);
+      return {
+        ts: d.getTime(),
+        label: d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' }),
+        count: 0, tasks: [],
+      };
+    });
+    const byTs = new Map(days.map((x) => [x.ts, x]));
+    actionQueue.forEach((t) => {
+      if (!t.dueDate) return;
+      const d = new Date(t.dueDate); d.setHours(0, 0, 0, 0);
+      const bucket = byTs.get(d.getTime());
+      if (bucket) { bucket.count += 1; bucket.tasks.push(t.title); }
+    });
+    return days;
+  }, [actionQueue]);
 
   // Recommended next action: overdue → today → revision → high upcoming.
   const recommended = useMemo(() => {
@@ -349,8 +429,51 @@ const DesignerDashboardPage = () => {
     { key: 'revisions', label: 'Revisions', value: ribbon?.revisions ?? 0, color: 'var(--primary)',    icon: GitBranch },
   ];
 
+  // ── Action Queue (rendered last, full-width list) ──────────────────────────
+  const actionQueueSection = (
+    <Section
+      icon={ListChecks} title="My Action Queue" count={filteredQueue.length} color="var(--primary)"
+      action={
+        <button type="button" onClick={() => navigate('/tasks')}
+          className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline font-semibold">
+          All tasks <ArrowRight size={11} />
+        </button>
+      }
+    >
+      {focus && (
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--border)]">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Filtered by</span>
+          <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-[var(--primary)]/10 text-[var(--primary)]">
+            {focusLabel(focus)}
+            <button type="button" onClick={() => setFocus(null)} className="hover:opacity-70" aria-label="Clear filter">
+              <X size={12} />
+            </button>
+          </span>
+        </div>
+      )}
+      {filteredQueue.length ? (
+        QUEUE_GROUPS.map((g) => {
+          const rows = filteredQueue.filter((t) => g.test(t.dueDate));
+          if (!rows.length) return null;
+          return (
+            <div key={g.key} className="mb-1 last:mb-0">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mt-2 mb-0.5">
+                {g.label} ({rows.length})
+              </p>
+              {rows.map((t) => (
+                <QueueRow key={t._id} task={t} busy={busy} runAction={runAction} navigate={navigate} />
+              ))}
+            </div>
+          );
+        })
+      ) : emptyHint(CheckCircle2, focus
+        ? `Nothing matches "${focusLabel(focus)}".`
+        : 'No actionable tasks right now.')}
+    </Section>
+  );
+
   return (
-    <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
+    <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto animate-in fade-in duration-500">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -372,7 +495,7 @@ const DesignerDashboardPage = () => {
         </button>
       </div>
 
-      {/* ── ZONE 1 · Pulse band: Recommended action + compact KPI cluster ───── */}
+      {/* ── Pulse band: Recommended action + compact KPI cluster ───────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {recommended ? (
           <RecommendedHero recommended={recommended} busy={busy} runAction={runAction} navigate={navigate} />
@@ -389,16 +512,16 @@ const DesignerDashboardPage = () => {
         <div className="grid grid-cols-2 gap-3 lg:col-span-1">
           {kpis.map((c) => {
             const filterable = !!c.filter;
-            const active = filterable && queueFilter === c.filter;
+            const active = filterable && focus?.kind === c.filter;
             const Icon = c.icon;
             return (
               <button
                 key={c.key}
                 type="button"
                 disabled={!filterable}
-                onClick={() => filterable && setQueueFilter(active ? 'all' : c.filter)}
+                onClick={() => filterable && setFocus(active ? null : { kind: c.filter })}
                 className={`flex flex-col justify-between rounded-xl p-3 border text-left transition-all min-h-[72px]
-                  ${filterable ? 'cursor-pointer hover:border-[var(--primary)]/40' : 'cursor-default'}
+                  ${filterable ? 'cursor-pointer hover:border-[var(--primary)]/40 hover:-translate-y-0.5 active:scale-[0.98]' : 'cursor-default'}
                   ${active ? 'ring-2 ring-[var(--primary)]/50' : ''}`}
                 style={{
                   background: `color-mix(in srgb, ${c.color} ${c.value > 0 ? 7 : 4}%, transparent)`,
@@ -428,45 +551,30 @@ const DesignerDashboardPage = () => {
         </div>
       ) : (
         <>
-          {/* ── ZONE 2 · Action Queue (primary) + Project Health rail ──────── */}
+          {/* ── Awareness row 1 · Deadlines (2/3) + Work by project (1/3) ──── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-
             <div className="lg:col-span-2">
-              <Section
-                icon={ListChecks} title="My Action Queue" count={filteredQueue.length} color="var(--primary)"
-                action={
-                  <button type="button" onClick={() => navigate('/tasks')}
-                    className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline font-semibold">
-                    All tasks <ArrowRight size={11} />
-                  </button>
-                }
-              >
-                {filteredQueue.length ? (
-                  QUEUE_GROUPS.map((g) => {
-                    const rows = filteredQueue.filter((t) => g.test(t.dueDate));
-                    if (!rows.length) return null;
-                    return (
-                      <div key={g.key} className="mb-1 last:mb-0">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mt-2 mb-0.5">
-                          {g.label} ({rows.length})
-                        </p>
-                        {rows.map((t) => (
-                          <QueueRow key={t._id} task={t} busy={busy} runAction={runAction} navigate={navigate} />
-                        ))}
-                      </div>
-                    );
-                  })
-                ) : emptyHint(CheckCircle2, queueFilter === 'all'
-                  ? 'No actionable tasks right now.'
-                  : `Nothing ${queueFilter === 'overdue' ? 'overdue' : 'due today'}.`)}
-              </Section>
+              <DeadlineTimeline
+                days={deadlineDays}
+                activeTs={focus?.kind === 'day' ? focus.ts : null}
+                onSelectDay={(ts, label) =>
+                  setFocus(focus?.kind === 'day' && focus.ts === ts ? null : { kind: 'day', ts, label })}
+              />
             </div>
+            <WorkByProjectDonut
+              data={workByProject}
+              activeId={focus?.kind === 'project' ? focus.id : null}
+              onSelect={(id, name) =>
+                setFocus(focus?.kind === 'project' && focus.id === id ? null : { kind: 'project', id, name })}
+            />
+          </div>
 
-            {/* Project Health rail */}
-            <div className="lg:col-span-1">
+          {/* ── Awareness row 2 · Project Health (2/3) + Drawing status (1/3) ─ */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+            <div className="lg:col-span-2">
               <Section icon={Briefcase} title="Project Health" count={activeProjects.length} color="var(--text-secondary)">
                 {activeProjects.length ? (
-                  <div className="space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {activeProjects.map((p) => (
                       <ProjectHealthCard
                         key={p._id} project={p}
@@ -477,9 +585,10 @@ const DesignerDashboardPage = () => {
                 ) : emptyHint(Briefcase, 'No active projects assigned.')}
               </Section>
             </div>
+            <DrawingStatusDonut byStatus={stats?.drawingsByStatus || {}} onNavigate={() => navigate('/drawings')} />
           </div>
 
-          {/* ── ZONE 3 · Secondary worklists (unchanged behavior) ──────────── */}
+          {/* ── Secondary worklists ────────────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Revisions to redo */}
@@ -523,31 +632,48 @@ const DesignerDashboardPage = () => {
               ) : emptyHint(CheckCircle2, 'No revision requests. Nice.')}
             </Section>
 
-            {/* Waiting on others */}
-            <Section icon={Hourglass} title="Waiting on Others" count={blockedTasks.length + drawingsInReview.length} color="var(--text-muted)">
+            {/* Waiting on others — read-only awareness, lightest weight */}
+            <Section icon={Hourglass} title="Waiting on Others" count={blockedTasks.length + drawingsInReview.length} color="var(--text-muted)"
+              className="opacity-95">
               {(blockedTasks.length || drawingsInReview.length) ? (
-                <div>
-                  {blockedTasks.map((t) => (
-                    <div key={t._id} className="flex items-center gap-3 py-2.5 border-b border-[var(--border)] last:border-0">
-                      <Lock size={14} className="text-[var(--error)] shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{t.title}</p>
-                        <p className="text-xs text-[var(--text-muted)] truncate">{t.projectId?.name || '—'} · blocked by approval gate</p>
-                      </div>
-                      <button type="button" onClick={() => t.projectId?._id && navigate(`/projects/${t.projectId._id}`)}
-                        className="text-xs text-[var(--primary)] hover:underline font-semibold shrink-0">View</button>
+                <div className="space-y-3">
+                  {blockedTasks.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-0.5">
+                        Blocked ({blockedTasks.length})
+                      </p>
+                      {blockedTasks.map((t) => (
+                        <div key={t._id} className="flex items-center gap-2.5 py-2 border-b border-[var(--border)] last:border-0">
+                          <Lock size={13} className="text-[var(--text-muted)] shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[var(--text-secondary)] truncate">{t.title}</p>
+                            <p className="text-xs text-[var(--text-muted)] truncate">{t.projectId?.name || '—'} · approval gate</p>
+                          </div>
+                          <AgeChip ts={t.updatedAt} />
+                          <button type="button" onClick={() => t.projectId?._id && navigate(`/projects/${t.projectId._id}`)}
+                            className="text-xs text-[var(--primary)] hover:underline font-semibold shrink-0">View</button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  {drawingsInReview.map((d) => (
-                    <div key={d._id} className="flex items-center gap-3 py-2.5 border-b border-[var(--border)] last:border-0">
-                      <Hourglass size={14} className="text-[var(--warning)] shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{d.title}</p>
-                        <p className="text-xs text-[var(--text-muted)] truncate">{d.projectId?.name || '—'} · v{d.version} · awaiting approval</p>
-                      </div>
-                      <DrawingStatusBadge status={d.status} />
+                  )}
+                  {drawingsInReview.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-0.5">
+                        In review ({drawingsInReview.length})
+                      </p>
+                      {drawingsInReview.map((d) => (
+                        <div key={d._id} className="flex items-center gap-2.5 py-2 border-b border-[var(--border)] last:border-0">
+                          <Hourglass size={13} className="text-[var(--text-muted)] shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[var(--text-secondary)] truncate">{d.title}</p>
+                            <p className="text-xs text-[var(--text-muted)] truncate">{d.projectId?.name || '—'} · v{d.version}</p>
+                          </div>
+                          <AgeChip ts={d.updatedAt} />
+                          <DrawingStatusBadge status={d.status} />
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               ) : emptyHint(Hourglass, 'Nothing waiting on anyone else.')}
             </Section>
@@ -592,7 +718,7 @@ const DesignerDashboardPage = () => {
 
             <Section icon={MapPin} title="Site Visits" count={todaysSiteVisits.length} color="var(--accent-teal)"
               action={
-                <button type="button" onClick={() => navigate('/calendar')}
+                <button type="button" onClick={() => navigate('/pms/calendar')}
                   className="flex items-center gap-1 text-xs text-[var(--primary)] hover:underline font-semibold">
                   Calendar <ArrowRight size={11} />
                 </button>
@@ -601,16 +727,31 @@ const DesignerDashboardPage = () => {
                 <div>
                   {todaysSiteVisits.map((v) => {
                     const key = `visit:${v._id}`;
-                    const today = new Date(v.visitDate) <= endOfToday();
+                    const dt = new Date(v.visitDate);
+                    const today = dt <= endOfToday();
                     return (
-                      <div key={v._id} className="flex items-center gap-3 py-2.5 border-b border-[var(--border)] last:border-0">
+                      <div key={v._id} className="flex items-center gap-3 py-2 border-b border-[var(--border)] last:border-0">
+                        <div
+                          className="w-11 h-11 rounded-lg border flex flex-col items-center justify-center shrink-0"
+                          style={{
+                            borderColor: today ? 'color-mix(in srgb, var(--warning) 40%, transparent)' : 'var(--border)',
+                            background: today ? 'color-mix(in srgb, var(--warning) 10%, transparent)' : 'var(--bg)',
+                          }}
+                        >
+                          <span className="text-base font-black leading-none" style={{ color: today ? 'var(--warning)' : 'var(--text-primary)' }}>
+                            {dt.getDate()}
+                          </span>
+                          <span className="text-[8px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                            {dt.toLocaleDateString('en-IN', { month: 'short' })}
+                          </span>
+                        </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{v.purpose}</p>
-                          <p className="text-xs text-[var(--text-muted)] truncate">{v.projectId?.name || '—'}</p>
+                          <p className="text-xs text-[var(--text-muted)] truncate">
+                            {v.projectId?.name || '—'}
+                            {today && <span className="text-[var(--warning)] font-semibold"> · Today</span>}
+                          </p>
                         </div>
-                        <span className={`text-xs font-semibold shrink-0 ${today ? 'text-[var(--warning)]' : 'text-[var(--text-muted)]'}`}>
-                          {today ? 'Today' : fmt(v.visitDate)}
-                        </span>
                         <ActionBtn icon={CheckCircle2} label="Done" busy={busy === key}
                           onClick={() => runAction(key, () => pmsService.updateSiteVisit(v._id, { status: 'completed' }), 'Visit marked complete')} />
                       </div>
@@ -638,6 +779,9 @@ const DesignerDashboardPage = () => {
               </div>
             </Section>
           )}
+
+          {/* ── My Action Queue — full-width list, placed last ─────────────── */}
+          {actionQueueSection}
         </>
       )}
     </div>

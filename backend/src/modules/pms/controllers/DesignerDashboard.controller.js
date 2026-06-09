@@ -49,7 +49,7 @@ const getDesignerDashboard = async (req, res) => {
 
       // All tasks assigned to me (drives stats + action queue + blocked lane)
       Task.find({ assignedTo: userId })
-        .select("status taskType title dueDate priority projectId gateStatus planning.progressPercent")
+        .select("status taskType title dueDate priority projectId gateStatus planning.progressPercent updatedAt")
         .populate("projectId", "name trackingId status")
         .lean(),
 

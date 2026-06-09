@@ -31,6 +31,10 @@ const Sidebar = ({
   };
 
   const filterItem = (item) => {
+    // Role exclusion takes precedence — used to hide items that a role *could*
+    // access by permission but shouldn't see (e.g. dedupe a designer's calendar
+    // which already lives in their own Design panel group).
+    if (item.excludeRoles && item.excludeRoles.includes(user?.role)) return false;
     if (item.roles && Array.isArray(item.roles)) {
       return item.roles.includes(user?.role);
     }
@@ -48,6 +52,28 @@ const Sidebar = ({
       return { ...item, children: visibleChildren };
     })
     .filter(Boolean);
+
+  // ── Flat-nav roles ──────────────────────────────────────────────────────────
+  // A designer has only a handful of destinations, so collapsible groups add
+  // friction. For these roles every destination is promoted to a single
+  // top-level row (no sub-items). Group children are flattened in this order so
+  // the role's own panel appears before general project items.
+  const FLAT_NAV_ROLES   = new Set(['designer']);
+  const FLAT_GROUP_ORDER = ['design-drawing', 'projects'];
+
+  const navItems = FLAT_NAV_ROLES.has(user?.role)
+    ? (() => {
+        const singles = filteredNavItems.filter((i) => !i.children);
+        const groups  = new Map(
+          filteredNavItems.filter((i) => i.children).map((g) => [g.id, g.children]),
+        );
+        const orderedGroupIds = [
+          ...FLAT_GROUP_ORDER.filter((id) => groups.has(id)),
+          ...[...groups.keys()].filter((id) => !FLAT_GROUP_ORDER.includes(id)),
+        ];
+        return [...singles, ...orderedGroupIds.flatMap((id) => groups.get(id))];
+      })()
+    : filteredNavItems;
 
   const renderSidebar = (collapsed) => (
     <aside
@@ -122,7 +148,7 @@ const Sidebar = ({
           ${collapsed ? 'px-[15px]' : 'px-3'}
         `}
       >
-        {filteredNavItems.map((item) =>
+        {navItems.map((item) =>
           item.children ? (
             <SidebarGroup
               key={item.id}

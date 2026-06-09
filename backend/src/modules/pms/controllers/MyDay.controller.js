@@ -26,7 +26,7 @@ const TASK_DONE_STATUSES = ["approved", "released_to_site", "completed"];
  */
 const getMyDay = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id || req.user._id;
     const now = new Date();
     const in7Days = new Date(now.getTime() + 7 * 86400000);
 

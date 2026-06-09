@@ -10,6 +10,8 @@ import {
   FolderOpen,
   MessagesSquare,
   Crown,
+  CheckSquare,
+  CalendarDays,
 } from 'lucide-react';
 
 // Each item has an optional `permission` key.
@@ -86,6 +88,8 @@ export const NAV_ITEMS = [
     icon: UserCheck,
     path: '/clients',
     permission: 'clients.read',
+    // Designers work from their own Design panel — the CRM client list is noise.
+    excludeRoles: ['designer'],
   },
   {
     id: 'projects',
@@ -93,12 +97,14 @@ export const NAV_ITEMS = [
     icon: Briefcase,
     permission: 'projects.read',
     children: [
-      { id: 'dashboard',         label: 'Dashboard',                path: '/pms/dashboard',         permission: 'projects.read' },
-      { id: 'projects',          label: 'All Projects',             path: '/projects' },
+      // Designers get their own My Dashboard + My Calendar under the Design group,
+      // so hide the managerial PMS dashboard and the duplicate calendar for them.
+      { id: 'dashboard',         label: 'Dashboard',                path: '/pms/dashboard',         permission: 'projects.read', excludeRoles: ['designer'] },
+      { id: 'projects',          icon: Briefcase,  label: 'Projects',                 path: '/projects' },
       { id: 'assign-task',       label: 'Assign Task',              path: '/pms/assign-task',       permission: 'projects.tab.assign' },
       { id: 'review-design',     label: 'Approval / Review Design', path: '/pms/review-design',     permission: 'projects.tab.review' },
-      { id: 'calendar',          label: 'Calendar',                 path: '/pms/calendar',          permission: 'calendar.read' },
-      { id: 'documents',         label: 'Document Repository',      path: '/pms/documents',         permission: 'projects.read' },
+      { id: 'calendar',          label: 'Calendar',                 path: '/pms/calendar',          permission: 'calendar.read', excludeRoles: ['designer'] },
+      { id: 'documents',         icon: FolderOpen, label: 'Documents',                path: '/pms/documents',         permission: 'projects.read' },
       { id: 'whatsapp-groups',   label: 'WhatsApp Groups',          path: '/pms/whatsapp-groups',   permission: 'pms.whatsapp.manage' },
       { id: 'vendors',           label: 'Vendor Directory',         path: '/vendors',                permission: 'vendor.read' },
     ],
@@ -112,9 +118,14 @@ export const NAV_ITEMS = [
     // project drawings — don't see this sidebar group.
     permission: 'designer.dashboard',
     children: [
-      { id: 'designer-dashboard', label: 'My Dashboard',    path: '/designer/dashboard', permission: 'designer.dashboard' },
-      { id: 'tasks',              label: 'My Task',          path: '/tasks',              permission: 'tasks.submit' },
-      { id: 'drawings',           label: 'Drawing Library', path: '/drawings',           permission: 'drawings.read' },
+      // Icons are used only when the sidebar is flattened (designer role) and
+      // collapsed to the icon rail; grouped/expanded views render labels only.
+      { id: 'designer-dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/designer/dashboard', permission: 'designer.dashboard' },
+      { id: 'tasks',              icon: CheckSquare,     label: 'Tasks',     path: '/tasks',              permission: 'tasks.submit' },
+      { id: 'drawings',           icon: FileText,        label: 'Drawings',  path: '/drawings',           permission: 'drawings.read' },
+      // Self-scoped calendar (backend returns only the designer's own events).
+      // id 'calendar' matches the last URL segment so it highlights when active.
+      { id: 'calendar',           icon: CalendarDays,    label: 'Calendar',  path: '/pms/calendar',       permission: 'calendar.read' },
     ],
   },
   {

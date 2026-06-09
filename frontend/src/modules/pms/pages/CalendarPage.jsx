@@ -42,9 +42,15 @@ const isSameDay = (a, b) => startOfDay(a).getTime() === startOfDay(b).getTime();
 const isPastDay = (date, today) => startOfDay(date) < startOfDay(today);
 const isEventDone = (e) => DONE_STATUSES.has(String(e.status || '').toLowerCase());
 
+// Mirrors the backend: these roles get the whole-org calendar; everyone else
+// (designers, supervisors, …) sees a self-scoped calendar, so the per-user
+// filter and procurement legend are hidden for them.
+const FULL_VIEW_ROLES = new Set(['admin', 'md', 'manager']);
+
 const CalendarPage = () => {
   const { error: toastError } = useToast();
   const { user: currentUser } = useAuth() || {};
+  const isScoped = !FULL_VIEW_ROLES.has(currentUser?.role);
 
   const [today]    = useState(new Date());
   const [current,  setCurrent]  = useState(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -151,9 +157,13 @@ const CalendarPage = () => {
     <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-extrabold text-[var(--text-primary)]">Project Calendar</h1>
+        <h1 className="text-xl font-extrabold text-[var(--text-primary)]">
+          {isScoped ? 'My Calendar' : 'Project Calendar'}
+        </h1>
         <p className="text-xs text-[var(--text-muted)] mt-0.5">
-          Deadlines, milestones, deliveries and site visits across all users
+          {isScoped
+            ? 'Your tasks, milestones, site visits and project deadlines'
+            : 'Deadlines, milestones, deliveries and site visits across all users'}
         </p>
       </div>
 
@@ -181,22 +191,25 @@ const CalendarPage = () => {
           <Filter size={12} /> Filters
         </div>
 
-        {/* User filter */}
-        <label className="flex items-center gap-2">
-          <Users size={12} className="text-[var(--text-muted)]" />
-          <select
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            className="bg-[var(--bg)] border border-[var(--border)] rounded-md px-2 py-1 text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-          >
-            <option value="all">All users</option>
-            {currentUser?._id && <option value="mine">Mine only</option>}
-            {userOptions.length > 0 && <option disabled>──────────</option>}
-            {userOptions.map((u) => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-        </label>
+        {/* User filter — only for full-view roles; scoped users see only
+            their own events, so a per-user picker is meaningless. */}
+        {!isScoped && (
+          <label className="flex items-center gap-2">
+            <Users size={12} className="text-[var(--text-muted)]" />
+            <select
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              className="bg-[var(--bg)] border border-[var(--border)] rounded-md px-2 py-1 text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+            >
+              <option value="all">All users</option>
+              {currentUser?._id && <option value="mine">Mine only</option>}
+              {userOptions.length > 0 && <option disabled>──────────</option>}
+              {userOptions.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {/* Project filter */}
         <label className="flex items-center gap-2">
@@ -227,12 +240,14 @@ const CalendarPage = () => {
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-        {Object.entries(EVENT_TYPE_LABELS).map(([type, label]) => (
-          <div key={type} className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${EVENT_COLORS[type]?.dot}`} />
-            <span className="text-xs text-[var(--text-muted)]">{label}</span>
-          </div>
-        ))}
+        {Object.entries(EVENT_TYPE_LABELS)
+          .filter(([type]) => !(isScoped && type === 'po_delivery'))
+          .map(([type, label]) => (
+            <div key={type} className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${EVENT_COLORS[type]?.dot}`} />
+              <span className="text-xs text-[var(--text-muted)]">{label}</span>
+            </div>
+          ))}
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-[var(--error)]/15 border border-[var(--error)]/40" />
           <span className="text-xs text-[var(--text-muted)]">Overdue day</span>
