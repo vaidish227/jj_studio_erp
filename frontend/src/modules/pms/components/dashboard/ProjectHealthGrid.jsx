@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, Calendar, MapPin, Briefcase, ArrowRight, AlertTriangle } from 'lucide-react';
 
 /**
- * ProjectHealthGrid â€” card grid of projects sorted by health (delayed â†’ blocked
- * â†’ at_risk â†’ on_hold â†’ on_track). Mirrors the ProjectCard layout from
+ * ProjectHealthGrid — card grid of projects sorted by health (delayed → blocked
+ * → at_risk → on_hold → on_track). Mirrors the ProjectCard layout from
  * ProjectsPage so the MD sees the same visual language across surfaces.
  */
 
@@ -132,7 +132,7 @@ const ProjectCard = ({ project }) => {
           )}
           {project.projectType && (
             <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-secondary)] bg-[var(--bg)] border border-[var(--border)] rounded-md px-1.5 py-0.5">
-              <Briefcase size={9} /> {project.projectType}{project.area ? ` Â· ${project.area} sqft` : ''}
+              <Briefcase size={9} /> {project.projectType}{project.area ? ` · ${project.area} sqft` : ''}
             </span>
           )}
         </div>
@@ -187,7 +187,7 @@ const ProjectHealthGrid = React.forwardRef(({ projects = [], healthSummary }, re
         <div className="flex items-center gap-2 min-w-0">
           <Heart size={16} className="text-[var(--primary)]" />
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Project Health â€” Needs Your Attention</h3>
+            <h3 className="text-sm font-bold text-[var(--text-primary)]">Project Health — Needs Your Attention</h3>
             <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Delayed and at-risk projects first</p>
           </div>
         </div>
