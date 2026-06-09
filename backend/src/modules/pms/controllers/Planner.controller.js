@@ -12,12 +12,15 @@ const Drawing     = require("../models/Drawing.model");
 const Project     = require("../models/Project.model");
 const ProjectPlan = require("../models/ProjectPlan.model");
 const WorkflowTemplate = require("../models/WorkflowTemplate.model");
+const User        = require("../../auth/models/user.model");
 const ApprovalGate = (() => {
   try { return require("../models/ApprovalGate.model"); }
   catch { return null; }
 })();
 
 const { logActivity } = require("../../../shared/activityLogger");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
+const { dispatchTaskNotifications } = require("../services/taskNotifier");
 const {
   createRowSchema,
   patchRowSchema,
@@ -69,6 +72,62 @@ async function recomputePlanTotals(projectId) {
     { $set: { totalPlannedHours: plannedHours, totalActualHours: actualHours, totalPlannedDays } },
     { upsert: true }
   );
+}
+
+/**
+ * Post-activation safety net — when a designer is changed (or first assigned)
+ * via the Master Sheet AFTER the plan is effective, notify the new owner so
+ * they don't get a silent task drop. Reuses the channels the manager picked
+ * during activation. No-op when the plan is still in draft (effectiveAt null).
+ *
+ * Best-effort: failures are logged, never thrown.
+ */
+async function notifyTaskDelegation({ task, projectId, actorId, actorName }) {
+  try {
+    if (!task?.assignedTo) return;
+    const plan = await ProjectPlan.findOne({ projectId })
+      .select("effectiveAt effectiveNotifyChannels")
+      .lean();
+    if (!plan?.effectiveAt) return; // plan still in draft → planner edits stay silent
+
+    const project = await Project.findById(projectId).select("name trackingId").lean();
+    if (!project) return;
+
+    const assignedUser = await User.findById(task.assignedTo).select("_id name email phone").lean();
+    if (!assignedUser) return;
+
+    const notifyMail     = !!plan.effectiveNotifyChannels?.mail;
+    const notifyWhatsApp = !!plan.effectiveNotifyChannels?.whatsapp;
+
+    notify({
+      type: "task.assigned",
+      module: "pms",
+      priority: "high",
+      title: `New task assigned: ${task.title}`,
+      message: `Project: ${project.name}${task.dueDate ? ` · Due ${new Date(task.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}`,
+      link: `/tasks/${task._id}`,
+      recipients: [task.assignedTo],
+      actor: actorId ? { _id: actorId, name: actorName } : undefined,
+      relatedTo: { module: "pms", recordId: task._id },
+      metadata: { taskTitle: task.title, projectName: project.name, viaPlannerReassign: true },
+    });
+
+    if (notifyMail || notifyWhatsApp) {
+      await dispatchTaskNotifications({
+        task,
+        project,
+        assignedUser,
+        actorId,
+        notifyMail,
+        notifyWhatsApp,
+      });
+    }
+
+    // Stamp delegatedAt so the activation preview / counters stay correct
+    await Task.updateOne({ _id: task._id }, { $set: { delegatedAt: new Date() } });
+  } catch (e) {
+    console.error("[Planner.notifyTaskDelegation]", e.message);
+  }
 }
 
 /** Derive planner-displayed stage from Task + Drawing state. */
@@ -203,6 +262,7 @@ exports.getMasterSheet = async (req, res) => {
       .populate({ path: "planning.designLeadId", select: "name email" })
       .populate({ path: "planning.reviewerId",   select: "name email" })
       .populate({ path: "planning.coordinatorId",select: "name email" })
+      .select("+checklist")
       .sort({ "planning.plannedStartDate": 1, createdAt: 1 })
       .lean();
 
@@ -264,6 +324,10 @@ exports.getMasterSheet = async (req, res) => {
         stage,
         priority:  t.priority,
         assignedTo: t.assignedTo,
+        delegatedAt: t.delegatedAt || null,
+        checklist: Array.isArray(t.checklist)
+          ? t.checklist.map((c) => ({ item: c.item, isCompleted: !!c.isCompleted, completedAt: c.completedAt || null }))
+          : [],
         // Workflow phase (e.g. "kickoff" / "design") so the master-sheet UI
         // can group rows under phase headers. Empty string when unknown
         // (existing pre-phase projects or ad-hoc rows added without one).
@@ -352,6 +416,9 @@ exports.getMasterSheet = async (req, res) => {
         totalActualHours:  plan.totalActualHours,
         baselineDate:      plan.baselineDate,
         deadlineOverride:  plan.deadlineOverride,
+        effectiveAt:       plan.effectiveAt || null,
+        effectiveBy:       plan.effectiveBy || null,
+        effectiveNotifyChannels: plan.effectiveNotifyChannels || { mail: false, whatsapp: false },
       },
       counters,
       rows: filtered,
@@ -421,6 +488,10 @@ exports.patchRow = async (req, res) => {
       return res.status(409).json({ code: "STALE_ROW", message: "Row changed since last load", current: task });
     }
 
+    // Snapshot previous assignee so we can detect a change AFTER save and
+    // notify the new owner if the plan is already effective.
+    const previousAssignee = task.assignedTo ? String(task.assignedTo) : "";
+
     // Top-level patchable fields (NOT status / dependsOn — those go through existing
     // controllers so workflowEngine + gateEnforcement run).
     for (const f of ["title", "taskType", "assignedTo", "priority", "notes", "delayReason"]) {
@@ -429,6 +500,27 @@ exports.patchRow = async (req, res) => {
     // dependsOn is allowed here for planner use (Phase 1 keeps it simple; the
     // gate-enforcement middleware still blocks unmet deps at action time).
     if (value.dependsOn !== undefined) task.dependsOn = value.dependsOn;
+
+    // Whole-checklist replacement from the master-sheet checklist modal.
+    // Auto-stamps completedAt when an item is newly marked done; clears it
+    // when un-marked. Order is preserved as-sent.
+    if (value.checklist !== undefined) {
+      const now = new Date();
+      const prevByItem = new Map(
+        (task.checklist || []).map((c) => [c.item, c])
+      );
+      task.checklist = value.checklist.map((c) => {
+        const prev = prevByItem.get(c.item);
+        const isCompleted = !!c.isCompleted;
+        let completedAt = null;
+        if (isCompleted) {
+          completedAt = prev?.isCompleted && prev?.completedAt
+            ? prev.completedAt
+            : (c.completedAt || now);
+        }
+        return { item: c.item, isCompleted, completedAt };
+      });
+    }
 
     if (value.planning) {
       const p = task.planning || {};
@@ -457,6 +549,18 @@ exports.patchRow = async (req, res) => {
       description: `Planner row updated: ${task.title}`,
       metadata: { fields: Object.keys(value) },
     });
+
+    // Post-activation auto-delegation: if assignedTo changed to a real user
+    // AND the plan is effective, notify the new owner so they hear about it.
+    const newAssignee = task.assignedTo ? String(task.assignedTo) : "";
+    if (newAssignee && newAssignee !== previousAssignee) {
+      await notifyTaskDelegation({
+        task,
+        projectId: task.projectId,
+        actorId:   req.user?._id,
+        actorName: req.user?.name,
+      });
+    }
 
     res.json({ taskId: task._id, updatedAt: task.updatedAt });
   } catch (err) {
@@ -550,11 +654,38 @@ exports.bulkAssign = async (req, res) => {
     const { value, error } = bulkAssignSchema.validate(req.body, { stripUnknown: true });
     if (error) return res.status(400).json({ message: error.message });
 
+    const newAssignee = String(value.assignedTo || "");
+
+    // Fetch existing tasks so we can compute which rows actually changed owner.
+    const before = await Task.find({ _id: { $in: value.taskIds } })
+      .select("_id projectId title dueDate assignedTo")
+      .lean();
+
+    const changed = before.filter(
+      (t) => String(t.assignedTo || "") !== newAssignee && newAssignee
+    );
+
     const result = await Task.updateMany(
       { _id: { $in: value.taskIds } },
       { $set: { assignedTo: value.assignedTo } }
     );
-    res.json({ matched: result.matchedCount, modified: result.modifiedCount });
+
+    // Post-activation auto-delegation — fire per changed task (no-op if any of
+    // the affected projects are still in draft state).
+    for (const t of changed) {
+      await notifyTaskDelegation({
+        task: { _id: t._id, title: t.title, dueDate: t.dueDate, assignedTo: newAssignee, priority: t.priority, notes: t.notes },
+        projectId: t.projectId,
+        actorId:   req.user?._id,
+        actorName: req.user?.name,
+      });
+    }
+
+    res.json({
+      matched: result.matchedCount,
+      modified: result.modifiedCount,
+      delegated: changed.length,
+    });
   } catch (err) {
     console.error("[Planner.bulkAssign]", err);
     res.status(500).json({ message: "Failed to bulk assign" });
@@ -709,5 +840,205 @@ exports.autoSchedule = async (req, res) => {
   } catch (err) {
     console.error("[Planner.autoSchedule]", err);
     res.status(500).json({ message: "Failed to auto-schedule" });
+  }
+};
+
+/**
+ * GET /api/pms/planner/:projectId/activation-preview
+ *
+ * Lightweight read used by the "Make Plan Effective" confirmation modal so
+ * the UI can show what's about to happen before the user commits:
+ *   { toDelegate, alreadyDelegated, withoutAssignee, total, uniqueAssignees }
+ */
+exports.getActivationPreview = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!isOid(projectId)) return res.status(400).json({ message: "Invalid projectId" });
+
+    const plan = await ProjectPlan.findOne({ projectId })
+      .select("effectiveAt effectiveBy effectiveNotifyChannels")
+      .lean();
+
+    const tasks = await Task.find({ projectId })
+      .select("assignedTo delegatedAt")
+      .lean();
+
+    const assignees = new Set();
+    let toDelegate = 0;
+    let alreadyDelegated = 0;
+    let withoutAssignee = 0;
+
+    for (const t of tasks) {
+      if (!t.assignedTo) { withoutAssignee++; continue; }
+      assignees.add(String(t.assignedTo));
+      if (t.delegatedAt) alreadyDelegated++;
+      else toDelegate++;
+    }
+
+    res.json({
+      total:            tasks.length,
+      toDelegate,
+      alreadyDelegated,
+      withoutAssignee,
+      uniqueAssignees:  assignees.size,
+      alreadyEffective: !!plan?.effectiveAt,
+      effectiveAt:      plan?.effectiveAt || null,
+    });
+  } catch (err) {
+    console.error("[Planner.getActivationPreview]", err);
+    res.status(500).json({ message: "Failed to load activation preview" });
+  }
+};
+
+/**
+ * POST /api/pms/planner/:projectId/activate
+ *
+ * "Make Plan Effective" — commits the draft project plan by notifying every
+ * assignee that hasn't been notified yet, then locking the plan with an
+ * effectiveAt stamp. Re-activation is blocked once set.
+ *
+ * Body:
+ *   { notifyMail?: boolean, notifyWhatsApp?: boolean }
+ *
+ * Side-effects:
+ *   - In-app `task.assigned` for each (assignee, task) pair not yet delegated
+ *   - Optional mail + WhatsApp via dispatchTaskNotifications
+ *   - task.delegatedAt = now (so a second activate is a no-op for these tasks)
+ *   - plan.effectiveAt / effectiveBy / effectiveNotifyChannels set
+ */
+exports.activatePlan = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!isOid(projectId)) return res.status(400).json({ message: "Invalid projectId" });
+
+    const notifyMail     = Boolean(req.body?.notifyMail);
+    const notifyWhatsApp = Boolean(req.body?.notifyWhatsApp);
+
+    const project = await Project.findById(projectId)
+      .select("name trackingId")
+      .lean();
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    const plan = await getOrCreatePlan(projectId, req.user?._id);
+    if (plan.effectiveAt) {
+      return res.status(409).json({
+        code: "PLAN_ALREADY_EFFECTIVE",
+        message: `This plan was already activated on ${new Date(plan.effectiveAt).toLocaleDateString("en-IN")}.`,
+        effectiveAt: plan.effectiveAt,
+      });
+    }
+
+    // Pull every task that has an assignee and hasn't been delegated yet.
+    const tasks = await Task.find({
+      projectId,
+      assignedTo: { $exists: true, $ne: null },
+      $or: [{ delegatedAt: { $exists: false } }, { delegatedAt: null }],
+    })
+      .select("_id title priority dueDate notes assignedTo")
+      .lean();
+
+    if (!tasks.length) {
+      return res.status(422).json({
+        code: "NOTHING_TO_DELEGATE",
+        message: "No tasks have an assignee — assign team members before activating the plan.",
+      });
+    }
+
+    // Batch-load assignee user docs (one query, not N).
+    const userIds = [...new Set(tasks.map((t) => String(t.assignedTo)))];
+    const users = await User.find({ _id: { $in: userIds } })
+      .select("_id name email phone")
+      .lean();
+    const userById = new Map(users.map((u) => [String(u._id), u]));
+
+    let notifiedCount = 0;
+    const channelStats = { mail: { sent: 0, skipped: 0 }, whatsapp: { sent: 0, skipped: 0 } };
+    const delegatedTaskIds = [];
+
+    // Sequential per task — keeps mail/WhatsApp rate-limits sane. Volume per
+    // project is small (typically <50 tasks) so this is fine.
+    for (const task of tasks) {
+      const assignedUser = userById.get(String(task.assignedTo));
+      if (!assignedUser) continue;
+
+      // In-app — always fire (cheap, async).
+      notify({
+        type: "task.assigned",
+        module: "pms",
+        priority: "high",
+        title: `New task assigned: ${task.title}`,
+        message: `Project: ${project.name}${task.dueDate ? ` · Due ${new Date(task.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}`,
+        link: `/tasks/${task._id}`,
+        recipients: [task.assignedTo],
+        actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+        relatedTo: { module: "pms", recordId: task._id },
+        metadata: { taskTitle: task.title, projectName: project.name, viaPlanActivation: true },
+      });
+
+      // Mail + WhatsApp — opt-in per activation.
+      if (notifyMail || notifyWhatsApp) {
+        const r = await dispatchTaskNotifications({
+          task,
+          project,
+          assignedUser,
+          actorId: req.user?._id,
+          notifyMail,
+          notifyWhatsApp,
+        });
+        if (notifyMail)     r.mail?.sent     ? channelStats.mail.sent++     : channelStats.mail.skipped++;
+        if (notifyWhatsApp) r.whatsapp?.sent ? channelStats.whatsapp.sent++ : channelStats.whatsapp.skipped++;
+      }
+
+      delegatedTaskIds.push(task._id);
+      notifiedCount++;
+    }
+
+    // Stamp delegatedAt on the tasks we just notified
+    if (delegatedTaskIds.length) {
+      const now = new Date();
+      await Task.updateMany(
+        { _id: { $in: delegatedTaskIds } },
+        { $set: { delegatedAt: now } }
+      );
+    }
+
+    // Lock the plan
+    const effectiveAt = new Date();
+    await ProjectPlan.updateOne(
+      { projectId },
+      {
+        $set: {
+          effectiveAt,
+          effectiveBy: req.user?._id,
+          effectiveNotifyChannels: { mail: notifyMail, whatsapp: notifyWhatsApp },
+          updatedBy: req.user?._id,
+        },
+      },
+      { upsert: true }
+    );
+
+    await logActivity({
+      projectId, actorId: req.user?._id,
+      entityType: "project", entityId: projectId,
+      action: "planner.activated",
+      description: `Plan activated — ${notifiedCount} task(s) delegated to ${userIds.length} team member(s)`,
+      metadata: {
+        notified: notifiedCount,
+        uniqueAssignees: userIds.length,
+        channels: { inApp: true, mail: notifyMail, whatsapp: notifyWhatsApp },
+        channelStats,
+      },
+    });
+
+    res.json({
+      ok: true,
+      effectiveAt,
+      notified: notifiedCount,
+      uniqueAssignees: userIds.length,
+      channelStats,
+    });
+  } catch (err) {
+    console.error("[Planner.activatePlan]", err);
+    res.status(500).json({ message: "Failed to activate plan" });
   }
 };

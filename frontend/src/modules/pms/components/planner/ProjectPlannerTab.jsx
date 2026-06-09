@@ -5,7 +5,7 @@ import {
   Eye, History as HistoryIcon, X, ExternalLink, FileText, RotateCcw,
   UserCog, CalendarRange, ArrowLeftRight, Zap, CheckSquare, Square,
   Upload, Replace, Calendar as CalendarIcon, UserPlus, MessageSquare,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, Rocket, Lock,
 } from 'lucide-react';
 import { pmsService } from '../../../../shared/services/pmsService';
 import DatePicker from '../../../../shared/components/DatePicker/DatePicker';
@@ -92,7 +92,7 @@ const DelayBadge = ({ days }) => {
   );
 };
 
-const PlannerHeader = ({ project, plan, counters, onRefresh, onAddRow, onAutoSchedule, refreshing }) => (
+const PlannerHeader = ({ project, plan, counters, onRefresh, onAddRow, onAutoSchedule, onActivate, refreshing }) => (
   <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
     <div className="flex items-start justify-between gap-3 mb-4">
       <div>
@@ -105,6 +105,11 @@ const PlannerHeader = ({ project, plan, counters, onRefresh, onAddRow, onAutoSch
           {project?.startDate ? fmt(project.startDate) : '—'} → {fmt(project?.estimatedCompletionDate)}
           {' · Phase: '}<span className="font-semibold text-[var(--text-secondary)]">{project?.phase || '—'}</span>
         </p>
+        {plan?.effectiveAt && (
+          <p className="text-[11px] text-[var(--success)] mt-1.5 inline-flex items-center gap-1">
+            <Lock size={11} /> Plan is effective — designer changes here will auto-notify the new owner.
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <button
@@ -123,6 +128,23 @@ const PlannerHeader = ({ project, plan, counters, onRefresh, onAddRow, onAutoSch
         >
           <Zap size={13} /> Auto-Schedule
         </button>
+        {plan?.effectiveAt ? (
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--success)] border border-[var(--success)]/40 bg-[var(--success)]/10 rounded-lg"
+            title={`Plan locked on ${fmtDateTime(plan.effectiveAt)}`}
+          >
+            <Lock size={13} /> Plan Effective · {fmt(plan.effectiveAt)}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onActivate}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-white bg-[var(--success)] rounded-lg hover:opacity-90"
+            title="Delegate every assigned task and lock the plan baseline"
+          >
+            <Rocket size={13} /> Make Plan Effective
+          </button>
+        )}
         <button
           type="button"
           onClick={onAddRow}
@@ -375,6 +397,160 @@ const NotesModal = ({ open, row, onClose, onSave, busy }) => {
           <button type="button" onClick={() => onSave(text)} disabled={busy}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50">
             {busy && <Loader2 size={12} className="animate-spin" />} Save Notes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Full checklist editor — toggle, add, remove items. Saves the entire
+ * checklist array back via the planner patch endpoint (server diffs to set
+ * completedAt timestamps appropriately).
+ */
+const ChecklistModal = ({ open, row, onClose, onSave, busy }) => {
+  const [items, setItems]   = useState([]);
+  const [newItem, setNewItem] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setItems(
+      Array.isArray(row?.checklist)
+        ? row.checklist.map((c) => ({ item: c.item, isCompleted: !!c.isCompleted, completedAt: c.completedAt || null }))
+        : []
+    );
+    setNewItem('');
+  }, [open, row]);
+
+  if (!open || !row) return null;
+
+  const toggle = (idx) => {
+    setItems((prev) => prev.map((c, i) => (i === idx ? { ...c, isCompleted: !c.isCompleted } : c)));
+  };
+  const remove = (idx) => {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+  const updateText = (idx, text) => {
+    setItems((prev) => prev.map((c, i) => (i === idx ? { ...c, item: text } : c)));
+  };
+  const add = () => {
+    const trimmed = newItem.trim();
+    if (!trimmed) return;
+    setItems((prev) => [...prev, { item: trimmed, isCompleted: false, completedAt: null }]);
+    setNewItem('');
+  };
+
+  const done = items.filter((i) => i.isCompleted).length;
+  const total = items.length;
+  const canSave = items.every((c) => c.item.trim().length > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 w-full max-w-lg max-h-[85vh] flex flex-col"
+      >
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div>
+            <h3 className="text-sm font-extrabold text-[var(--text-primary)] flex items-center gap-1.5">
+              <ListChecks size={15} /> Checklist — {row.title}
+            </h3>
+            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+              {total === 0 ? 'No items yet — add one below.' : `${done} of ${total} completed`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded"
+            disabled={busy}
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Items list */}
+        <div className="flex-1 overflow-y-auto mt-3 -mx-1 px-1">
+          {items.length === 0 ? (
+            <div className="text-[11px] text-[var(--text-muted)] italic text-center py-6">
+              No checklist items yet. Use the field below to add one.
+            </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {items.map((c, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-center gap-2 group rounded-md hover:bg-[var(--bg)] px-1 py-0.5"
+                >
+                  <input
+                    type="checkbox"
+                    checked={c.isCompleted}
+                    onChange={() => toggle(idx)}
+                    className="accent-[var(--primary)] flex-shrink-0"
+                    disabled={busy}
+                  />
+                  <input
+                    type="text"
+                    value={c.item}
+                    onChange={(e) => updateText(idx, e.target.value)}
+                    disabled={busy}
+                    className={`flex-1 bg-transparent text-xs px-1 py-1 border-b border-transparent focus:border-[var(--primary)] focus:outline-none ${c.isCompleted ? 'line-through text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => remove(idx)}
+                    disabled={busy}
+                    className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--error)] p-1 rounded"
+                    title="Remove item"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Add new */}
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            type="text"
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+            placeholder="New checklist item…"
+            disabled={busy}
+            className="flex-1 px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--primary)]"
+          />
+          <button
+            type="button"
+            onClick={add}
+            disabled={busy || !newItem.trim()}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-[var(--primary)] border border-[var(--primary)]/40 bg-[var(--primary)]/10 rounded-md hover:bg-[var(--primary)]/15 disabled:opacity-50"
+          >
+            <Plus size={12} /> Add
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-[var(--border)]">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave(items.map((c) => ({ item: c.item.trim(), isCompleted: !!c.isCompleted, completedAt: c.completedAt || null })))}
+            disabled={busy || !canSave}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50"
+          >
+            {busy && <Loader2 size={12} className="animate-spin" />} Save Checklist
           </button>
         </div>
       </div>
@@ -983,8 +1159,59 @@ const groupRowsByPhase = (rows) => {
   }));
 };
 
+/**
+ * Compact checklist chip — shows "N/M done" plus a thin progress bar. Clicking
+ * the chip opens the full ChecklistModal where items can be toggled, added,
+ * or removed. Empty checklist renders an "Add…" affordance.
+ */
+const ChecklistCell = ({ row, onOpen }) => {
+  const items = Array.isArray(row?.checklist) ? row.checklist : [];
+  const total = items.length;
+  const done  = items.filter((i) => i.isCompleted).length;
+  const pct   = total ? Math.round((done / total) * 100) : 0;
+  const allDone = total > 0 && done === total;
+
+  if (total === 0) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="inline-flex items-center gap-1 text-[10px] text-[var(--text-muted)] border border-dashed border-[var(--border)] rounded px-1.5 py-0.5 hover:border-[var(--primary)] hover:text-[var(--primary)]"
+        title="Add checklist items"
+      >
+        <ListChecks size={11} /> Add…
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex flex-col gap-0.5 min-w-[90px] text-left group"
+      title="Open checklist"
+    >
+      <div className="flex items-center gap-1.5">
+        <ListChecks
+          size={11}
+          className={allDone ? 'text-[var(--success)]' : 'text-[var(--text-muted)] group-hover:text-[var(--primary)]'}
+        />
+        <span className={`text-[11px] font-bold ${allDone ? 'text-[var(--success)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--primary)]'}`}>
+          {done}/{total}
+        </span>
+      </div>
+      <div className="h-1 w-full bg-[var(--border)] rounded-full overflow-hidden">
+        <div
+          className={`h-full ${allDone ? 'bg-[var(--success)]' : 'bg-[var(--primary)]'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </button>
+  );
+};
+
 const MasterSheetGrid = ({
-  rows, onPatch, onDelete, onViewDrawing, onShowVersions, onUpload, onOpenNotes,
+  rows, onPatch, onDelete, onViewDrawing, onShowVersions, onUpload, onOpenNotes, onOpenChecklist,
   uploadingTaskId, selectedTaskIds, onToggleRow, onToggleAll, onAddToPhase,
   // Inline version-history dropdown
   expandedVersionsTaskId, versionsCache, onToggleVersionsExpand, onViewVersion,
@@ -1049,6 +1276,7 @@ const MasterSheetGrid = ({
             <th className="px-3 py-2">Actual Hrs</th>
             <th className="px-3 py-2">Progress</th>
             <th className="px-3 py-2">Delay</th>
+            <th className="px-3 py-2 min-w-[110px]">Checklist</th>
             <th className="px-3 py-2">Drawing</th>
             <th className="px-3 py-2 min-w-[70px]">Actions</th>
           </tr>
@@ -1197,6 +1425,9 @@ const MasterSheetGrid = ({
                 </td>
                 <td className="px-3 py-2"><DelayBadge days={r.delayDays} /></td>
                 <td className="px-3 py-2">
+                  <ChecklistCell row={r} onOpen={() => onOpenChecklist(r)} />
+                </td>
+                <td className="px-3 py-2">
                   <DrawingCell
                     drawing={r.drawing}
                     onView={() => onViewDrawing(r)}
@@ -1221,7 +1452,7 @@ const MasterSheetGrid = ({
                     </button>
                     <button
                     type="button"
-                    onClick={() => onDelete(r.taskId, r.title)}
+                    onClick={() => onDelete(r.taskId, r.title, r)}
                     className="text-[var(--text-muted)] hover:text-[var(--error)] p-1 rounded hover:bg-[var(--error)]/10"
                     title="Delete row"
                   >
@@ -1415,6 +1646,149 @@ const AutoScheduleModal = ({ open, projectStartDate, onClose, onConfirm, busy })
   );
 };
 
+/**
+ * Confirmation modal for the "Make Plan Effective" action.
+ *
+ * Loads the preview synchronously when opened so the user can see what's
+ * about to happen — how many tasks will be delegated, how many designers
+ * will be notified, how many rows have no assignee yet. Mail + WhatsApp
+ * are opt-in via checkboxes; in-app notifications always fire.
+ */
+const ActivatePlanModal = ({ open, projectId, onClose, onConfirm, busy }) => {
+  const [preview, setPreview]       = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState(null);
+  const [notifyMail, setNotifyMail] = useState(true);
+  const [notifyWhatsApp, setNotifyWhatsApp] = useState(false);
+
+  useEffect(() => {
+    if (!open || !projectId) return;
+    setPreview(null);
+    setError(null);
+    setLoading(true);
+    setNotifyMail(true);
+    setNotifyWhatsApp(false);
+    pmsService.getPlanActivationPreview(projectId)
+      .then(setPreview)
+      .catch((e) => setError(e?.message || 'Failed to load preview'))
+      .finally(() => setLoading(false));
+  }, [open, projectId]);
+
+  if (!open) return null;
+
+  const canConfirm = !loading && !error && preview && preview.toDelegate > 0 && !preview.alreadyEffective;
+
+  return (
+    <ModalShell
+      title="Make Plan Effective?"
+      subtitle="This will delegate every assigned task to its owner and lock the project plan."
+      onClose={onClose}
+      footer={(
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canConfirm || busy}
+            onClick={() => onConfirm({ notifyMail, notifyWhatsApp })}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--success)] rounded-lg hover:opacity-90 disabled:opacity-50"
+          >
+            {busy && <Loader2 size={12} className="animate-spin" />}
+            <Rocket size={12} /> Confirm & Activate
+          </button>
+        </>
+      )}
+    >
+      {loading && (
+        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] py-3">
+          <Loader2 size={14} className="animate-spin" /> Loading preview…
+        </div>
+      )}
+
+      {error && (
+        <div className="text-xs text-[var(--error)] bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-lg p-2.5">
+          {error}
+        </div>
+      )}
+
+      {preview && preview.alreadyEffective && (
+        <div className="text-xs text-[var(--warning)] bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-lg p-2.5">
+          This plan was already activated on {fmtDateTime(preview.effectiveAt)}. You can't activate it twice.
+        </div>
+      )}
+
+      {preview && !preview.alreadyEffective && (
+        <>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-2.5">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mb-1">Will Delegate</div>
+              <div className="text-lg font-extrabold text-[var(--success)]">{preview.toDelegate}</div>
+              <div className="text-[10px] text-[var(--text-muted)]">tasks → {preview.uniqueAssignees} team member{preview.uniqueAssignees !== 1 ? 's' : ''}</div>
+            </div>
+            <div className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-2.5">
+              <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider mb-1">Unassigned</div>
+              <div className={`text-lg font-extrabold ${preview.withoutAssignee > 0 ? 'text-[var(--warning)]' : 'text-[var(--text-muted)]'}`}>{preview.withoutAssignee}</div>
+              <div className="text-[10px] text-[var(--text-muted)]">tasks (will be skipped)</div>
+            </div>
+          </div>
+
+          {preview.toDelegate === 0 && (
+            <p className="text-xs text-[var(--error)] mt-3">
+              No tasks have an assignee yet. Assign team members in the master sheet before activating.
+            </p>
+          )}
+
+          {preview.toDelegate > 0 && (
+            <div className="mt-4">
+              <div className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
+                Notification Channels
+              </div>
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked
+                    disabled
+                    className="accent-[var(--primary)]"
+                  />
+                  In-app notification (always sent)
+                </label>
+                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifyMail}
+                    onChange={(e) => setNotifyMail(e.target.checked)}
+                    className="accent-[var(--primary)]"
+                  />
+                  Send Email
+                </label>
+                <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifyWhatsApp}
+                    onChange={(e) => setNotifyWhatsApp(e.target.checked)}
+                    className="accent-[var(--primary)]"
+                  />
+                  Send WhatsApp
+                </label>
+              </div>
+              <p className="text-[10px] text-[var(--text-muted)] mt-2">
+                Once activated, the plan is locked. Future re-assignments will use the regular reassign flow.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </ModalShell>
+  );
+};
+
 // ─── Bulk action toolbar ─────────────────────────────────────────────────────
 const BulkToolbar = ({ selectedCount, onAssign, onSetDates, onShiftDates, onClear }) => (
   <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-lg p-3 flex flex-wrap items-center gap-2">
@@ -1468,11 +1842,15 @@ const ProjectPlannerTab = ({ project }) => {
   const [setDatesOpen, setSetDatesOpen] = useState(false);
   const [shiftOpen,    setShiftOpen]    = useState(false);
   const [autoOpen,     setAutoOpen]     = useState(false);
+  const [activateOpen, setActivateOpen] = useState(false);
+  const [activateBusy, setActivateBusy] = useState(false);
 
   // Inline upload + notes
   const [uploadingTaskId, setUploadingTaskId] = useState(null);
   const [notesRow,        setNotesRow]        = useState(null);
   const [notesBusy,       setNotesBusy]       = useState(false);
+  const [checklistRow,    setChecklistRow]    = useState(null);
+  const [checklistBusy,   setChecklistBusy]   = useState(false);
 
   const projectId = project?._id;
 
@@ -1528,8 +1906,13 @@ const ProjectPlannerTab = ({ project }) => {
     }
   }, [fetchSheet]);
 
-  const handleDelete = useCallback(async (taskId, title) => {
-    if (!window.confirm(`Delete planner row "${title}"? Attached drawings will be detached but kept for audit.`)) return;
+  const handleDelete = useCallback(async (taskId, title, row) => {
+    const assigneeName = row?.assignedTo?.name;
+    const wasDelegated = !!row?.delegatedAt;
+    const message = wasDelegated
+      ? `This task was already delegated${assigneeName ? ` to ${assigneeName}` : ''} on ${fmt(row.delegatedAt)}.\n\nDelete "${title}" anyway? They will not be notified about the removal.\n\nAttached drawings will be detached but kept for audit.`
+      : `Delete planner row "${title}"? Attached drawings will be detached but kept for audit.`;
+    if (!window.confirm(message)) return;
     try {
       await pmsService.deletePlannerRow(taskId);
       fetchSheet(true);
@@ -1771,6 +2154,20 @@ const ProjectPlannerTab = ({ project }) => {
     }
   }, [notesRow, fetchSheet]);
 
+  const handleSaveChecklist = useCallback(async (items) => {
+    if (!checklistRow) return;
+    setChecklistBusy(true);
+    try {
+      await pmsService.patchPlannerRow(checklistRow.taskId, { checklist: items });
+      setChecklistRow(null);
+      fetchSheet(true);
+    } catch (err) {
+      alert(err?.message || 'Failed to save checklist');
+    } finally {
+      setChecklistBusy(false);
+    }
+  }, [checklistRow, fetchSheet]);
+
   const handleAutoSchedule = useCallback(async ({ defaultDurationDays, overwriteExisting }) => {
     if (!projectId) return;
     setBulkBusy(true);
@@ -1785,6 +2182,22 @@ const ProjectPlannerTab = ({ project }) => {
       alert(err?.message || 'Auto-schedule failed');
     }
   }, [projectId, finishBulk]);
+
+  // ── Make Plan Effective ───────────────────────────────────────────────────
+  const handleActivatePlan = useCallback(async ({ notifyMail, notifyWhatsApp }) => {
+    if (!projectId) return;
+    setActivateBusy(true);
+    try {
+      const res = await pmsService.activatePlan(projectId, { notifyMail, notifyWhatsApp });
+      toast.success(`Plan activated — ${res.notified} task${res.notified !== 1 ? 's' : ''} delegated to ${res.uniqueAssignees} team member${res.uniqueAssignees !== 1 ? 's' : ''}`);
+      setActivateOpen(false);
+      fetchSheet(true);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to activate plan');
+    } finally {
+      setActivateBusy(false);
+    }
+  }, [projectId, fetchSheet, toast]);
 
   const zones = useMemo(() => {
     const set = new Set();
@@ -1817,6 +2230,7 @@ const ProjectPlannerTab = ({ project }) => {
         onRefresh={() => fetchSheet(true)}
         onAddRow={() => { setAddPhase(''); setShowAdd(true); }}
         onAutoSchedule={() => setAutoOpen(true)}
+        onActivate={() => setActivateOpen(true)}
         refreshing={refreshing}
       />
       <FilterBar filters={filters} setFilters={setFilters} zones={zones} designers={designers} />
@@ -1837,6 +2251,7 @@ const ProjectPlannerTab = ({ project }) => {
         onShowVersions={handleShowVersions}
         onUpload={handleInlineUpload}
         onOpenNotes={setNotesRow}
+        onOpenChecklist={setChecklistRow}
         uploadingTaskId={uploadingTaskId}
         selectedTaskIds={selectedTaskIds}
         onToggleRow={toggleRow}
@@ -1898,6 +2313,20 @@ const ProjectPlannerTab = ({ project }) => {
         onClose={() => !notesBusy && setNotesRow(null)}
         onSave={handleSaveNotes}
         busy={notesBusy}
+      />
+      <ActivatePlanModal
+        open={activateOpen}
+        projectId={projectId}
+        onClose={() => !activateBusy && setActivateOpen(false)}
+        onConfirm={handleActivatePlan}
+        busy={activateBusy}
+      />
+      <ChecklistModal
+        open={!!checklistRow}
+        row={checklistRow}
+        onClose={() => !checklistBusy && setChecklistRow(null)}
+        onSave={handleSaveChecklist}
+        busy={checklistBusy}
       />
     </div>
   );

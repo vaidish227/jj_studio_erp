@@ -150,34 +150,11 @@ const CalendarPage = () => {
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-extrabold text-[var(--text-primary)]">Project Calendar</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            Deadlines, milestones, deliveries and site visits across all users
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={goToToday}
-            className="px-3 py-1.5 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--bg)] transition-colors"
-          >
-            Today
-          </button>
-          <button onClick={prevMonth} className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)] transition-colors text-[var(--text-muted)]">
-            <ChevronLeft size={16} />
-          </button>
-          <span className="min-w-[140px] text-center text-sm font-bold text-[var(--text-primary)]">
-            {MONTHS[month]} {year}
-          </span>
-          <button onClick={nextMonth} className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)] transition-colors text-[var(--text-muted)]">
-            <ChevronRight size={16} />
-          </button>
-          <button onClick={fetchEvents} className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)] transition-colors text-[var(--text-muted)]" title="Refresh">
-            <RefreshCw size={14} />
-          </button>
-        </div>
+      <div>
+        <h1 className="text-xl font-extrabold text-[var(--text-primary)]">Project Calendar</h1>
+        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+          Deadlines, milestones, deliveries and site visits across all users
+        </p>
       </div>
 
       {/* Month summary chips */}
@@ -357,6 +334,33 @@ const CalendarPage = () => {
         <div className="flex justify-center py-16"><Loader label="Loading calendar…" /></div>
       ) : (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
+          {/* Month toolbar */}
+          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--border)]">
+            <div className="flex items-center gap-2">
+              <button onClick={prevMonth} className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)] transition-colors text-[var(--text-muted)]" title="Previous month">
+                <ChevronLeft size={16} />
+              </button>
+              <h2 className="min-w-[160px] text-center text-base font-extrabold text-[var(--text-primary)]">
+                {MONTHS[month]} {year}
+              </h2>
+              <button onClick={nextMonth} className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)] transition-colors text-[var(--text-muted)]" title="Next month">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goToToday}
+                className="px-3 py-1.5 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--bg)] transition-colors"
+              >
+                Today
+              </button>
+              <button onClick={fetchEvents} className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)] transition-colors text-[var(--text-muted)]" title="Refresh">
+                <RefreshCw size={14} />
+              </button>
+            </div>
+          </div>
+
           {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-[var(--border)]">
             {DAYS.map((d) => (
