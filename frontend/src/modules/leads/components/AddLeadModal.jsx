@@ -5,6 +5,7 @@ import Button from '../../../shared/components/Button/Button';
 import FormField from '../../../shared/components/FormField/FormField';
 import Select from '../../../shared/components/Select/Select';
 import { Phone, MapPin, User, FileText } from 'lucide-react';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const PRIORITY_OPTIONS = [
   { value: 'high',   label: 'High Priority' },
@@ -18,6 +19,8 @@ const AddLeadModal = ({ isOpen, onClose, onSubmit }) => {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  // Backstop: adding a lead is a CRM create action.
+  const canCreate = usePermission('crm.create');
 
   if (!isOpen) return null;
 
@@ -147,9 +150,11 @@ const AddLeadModal = ({ isOpen, onClose, onSubmit }) => {
               <Button type="button" variant="ghost" onClick={onClose} className="flex-1" fullWidth>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" isLoading={isLoading} className="flex-1" fullWidth>
-                Add Lead
-              </Button>
+              {canCreate && (
+                <Button type="submit" variant="primary" isLoading={isLoading} className="flex-1" fullWidth>
+                  Add Lead
+                </Button>
+              )}
             </div>
           </form>
         </div>

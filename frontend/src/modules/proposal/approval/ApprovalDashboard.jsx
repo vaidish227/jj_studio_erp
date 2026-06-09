@@ -99,7 +99,7 @@ const ApprovalDashboard = () => {
   // Apply reusable filter system
   const filteredProposals = process(proposals);
 
-  // 25/page pagination â€” page resets to 1 when filters change.
+  // 25/page pagination — page resets to 1 when filters change.
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => { setCurrentPage(1); }, [filters]);
   const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
@@ -111,7 +111,7 @@ const ApprovalDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="border-l-4 border-[var(--primary)] pl-4">
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Manager Approval</h1>
@@ -125,7 +125,7 @@ const ApprovalDashboard = () => {
         </Button>
       </div>
 
-      {/* â”€â”€ Advanced Filter System â”€â”€ */}
+      {/* ── Advanced Filter System ── */}
       <AdvancedFilter
         filters={filters}
         filterConfig={filterConfig}
@@ -137,7 +137,7 @@ const ApprovalDashboard = () => {
         compact={false}
       />
 
-      {/* â”€â”€ Table â”€â”€ */}
+      {/* ── Table ── */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -202,7 +202,7 @@ const ApprovalDashboard = () => {
                     {/* Amount */}
                     <td className="px-6 py-4 text-right">
                       <p className="text-sm font-bold text-[var(--text-primary)]">
-                        â‚¹{Number(p.finalAmount || 0).toLocaleString('en-IN')}
+                        ₹{Number(p.finalAmount || 0).toLocaleString('en-IN')}
                       </p>
                       <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mt-0.5">
                         Incl. GST
@@ -229,7 +229,7 @@ const ApprovalDashboard = () => {
                           title="View Proposal"
                         />
 
-                        {/* Edit / Reject / Approve â€” for non-finalized proposals */}
+                        {/* Edit / Reject / Approve — for non-finalized proposals */}
                         {!isFinal(p.status) && (
                           <>
                             <ActionIcon
@@ -285,14 +285,14 @@ const ApprovalDashboard = () => {
         {totalPages > 1 && (
           <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]/20">
             <p className="text-xs text-[var(--text-muted)] font-medium">
-              Showing {pageStart + 1}â€“{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+              Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
             </p>
             <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
           </div>
         )}
       </div>
 
-      {/* â”€â”€ Confirmation Modal â”€â”€ */}
+      {/* ── Confirmation Modal ── */}
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
@@ -310,7 +310,7 @@ const ApprovalDashboard = () => {
   );
 };
 
-// â”€â”€ Small icon button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Small icon button ──────────────────────────────────────────────────────────
 const ActionIcon = ({ icon, onClick, title, danger = false, success = false }) => (
   <button
     onClick={onClick}

@@ -25,6 +25,7 @@ import Button from '../../../shared/components/Button/Button';
 import { useCRM } from '../context/CRMContext';
 import useClientInfo from '../../../shared/hooks/useClientInfo';
 import { useLeadStatusManager, LEAD_ACTIONS } from '../../../shared/hooks/useLeadStatusManager';
+import usePermission from '../../../shared/hooks/usePermission';
 
 /* ─── Skeleton loader shown while fetching existing client data ─── */
 const FieldSkeleton = () => (
@@ -98,8 +99,15 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
     },
   });
 
-  // Edit mode: new clients start editable; existing clients start in view mode
-  const [isEditing, setIsEditing] = useState(!stateClientId);
+  // Editing client info is a CRM update action. The public client-portal flow
+  // (isPublic) is the client filling their own form — never gated by internal
+  // CRM permissions.
+  const canUpdate = usePermission('crm.update');
+  const canEdit = isPublic || canUpdate;
+
+  // Edit mode: new clients start editable (only if allowed); existing clients
+  // start in view mode.
+  const [isEditing, setIsEditing] = useState(!stateClientId && canEdit);
   // Success state management
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
@@ -227,14 +235,16 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
                   Cancel Edit
                 </Button>
               ) : (
-                <Button
-                  variant="outline"
-                  type="button"
-                  onClick={() => { setIsEditing(true); setUpdateSuccess(false); }}
-                >
-                  <Pencil size={16} />
-                  Edit Info
-                </Button>
+                canEdit && (
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => { setIsEditing(true); setUpdateSuccess(false); }}
+                  >
+                    <Pencil size={16} />
+                    Edit Info
+                  </Button>
+                )
               )
             )}
 
@@ -596,8 +606,21 @@ const ClientInfoFormPage = ({ isPublic = false }) => {
             </div>
           )}
 
+          {/* Read-only notice — internal users without CRM update permission */}
+          {!isPublic && !canEdit && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 pb-20 border-t border-[var(--border)]">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+                <AlertCircle size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span>You don't have permission to edit client information. This profile is view-only.</span>
+              </div>
+              <Button variant="outline" type="button" onClick={() => navigate(-1)}>
+                ← Back
+              </Button>
+            </div>
+          )}
+
           {/* View mode back button */}
-          {!isEditing && isUpdate && !isPublic && (
+          {!isEditing && isUpdate && !isPublic && canEdit && (
             <div className="flex justify-start pt-4 pb-20 border-t border-[var(--border)]">
               <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                 ← Back to Lead

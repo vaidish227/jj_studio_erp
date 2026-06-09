@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Inbox, FileText, ClipboardCheck, ShoppingBag, ArrowRight } from 'lucide-react';
 
 /**
- * PendingMyApprovalList â€” items waiting for the current user's sign-off:
+ * PendingMyApprovalList — items waiting for the current user's sign-off:
  * Drawings (sent_for_approval), Tasks (pending_review), Vendor quotations.
  *
  * Items are sorted oldest-first (worst-aged on top) by the controller.
@@ -46,7 +46,7 @@ const Item = ({ item }) => {
           {item.title}
         </p>
         <p className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">
-          {item.subtitle || 'â€”'}
+          {item.subtitle || '—'}
         </p>
       </div>
       <span className={`shrink-0 text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${age.cls}`}>

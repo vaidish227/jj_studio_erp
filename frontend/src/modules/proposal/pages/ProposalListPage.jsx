@@ -53,7 +53,7 @@ const ProposalListPage = () => {
   const milestoneScoped = filterByMilestone(proposals, milestone);
   const filteredProposals = process(milestoneScoped);
 
-  // 25/page pagination â€” page resets to 1 when filters or milestone change.
+  // 25/page pagination — page resets to 1 when filters or milestone change.
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => { setCurrentPage(1); }, [filters, milestone]);
   const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
@@ -155,7 +155,7 @@ const ProposalListPage = () => {
                         Items: {countLineItems(proposal)}
                       </span>
                       <span className="flex items-center gap-1 text-[var(--primary)]">
-                        Total: â‚¹{Number(proposal.finalAmount || 0).toLocaleString('en-IN')}
+                        Total: ₹{Number(proposal.finalAmount || 0).toLocaleString('en-IN')}
                       </span>
                     </div>
                   </div>
@@ -206,7 +206,7 @@ const ProposalListPage = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between gap-3 pt-2">
               <p className="text-xs text-[var(--text-muted)] font-medium">
-                Showing {pageStart + 1}â€“{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+                Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
               </p>
               <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
             </div>

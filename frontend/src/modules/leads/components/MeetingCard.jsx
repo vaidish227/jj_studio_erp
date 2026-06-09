@@ -13,6 +13,7 @@ import {
 import Badge from '../../../shared/components/Badge/Badge';
 import Button from '../../../shared/components/Button/Button';
 import Select from '../../../shared/components/Select/Select';
+import usePermission from '../../../shared/hooks/usePermission';
 
 export const statusVariants = {
   scheduled:   'primary',
@@ -87,6 +88,8 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule, onR
   const date = new Date(meeting.date);
   const hasMOM = !!meeting.mom?.recordedAt;
   const isCompleted = meeting.status === 'completed';
+  // Status change, reschedule and MOM are CRM writes — hidden for read-only roles.
+  const canUpdate = usePermission('crm.update');
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 hover:border-[var(--primary)] hover:shadow-lg hover:shadow-[var(--primary)]/5 transition-all duration-300 group shadow-sm">
@@ -167,33 +170,37 @@ const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule, onR
           )}
 
           <div className="flex flex-col lg:flex-row gap-2 pt-1 items-stretch">
-            <Select
-              value={meeting.status || 'scheduled'}
-              onChange={(value) => onStatusChange(meeting._id, value)}
-              options={[
-                { value: 'scheduled',   label: 'Scheduled' },
-                { value: 'rescheduled', label: 'Rescheduled' },
-                { value: 'completed',   label: 'Completed' },
-                { value: 'cancelled',   label: 'Cancelled' },
-              ]}
-              className="lg:w-44"
-            />
-            {meeting.status !== 'completed' && meeting.status !== 'cancelled' && (
-              <Button variant="outline" size="sm" className="justify-center text-xs font-bold" onClick={() => onReschedule(meeting)}>
-                <RotateCcw size={14} className="mr-1.5" />
-                Reschedule
-              </Button>
-            )}
-            {isCompleted && onRecordMOM && (
-              <Button
-                variant={hasMOM ? 'outline' : 'secondary'}
-                size="sm"
-                className="justify-center text-xs font-bold"
-                onClick={() => onRecordMOM(meeting)}
-              >
-                <FileText size={14} className="mr-1.5" />
-                {hasMOM ? 'View / Edit MOM' : 'Record MOM'}
-              </Button>
+            {canUpdate && (
+              <>
+                <Select
+                  value={meeting.status || 'scheduled'}
+                  onChange={(value) => onStatusChange(meeting._id, value)}
+                  options={[
+                    { value: 'scheduled',   label: 'Scheduled' },
+                    { value: 'rescheduled', label: 'Rescheduled' },
+                    { value: 'completed',   label: 'Completed' },
+                    { value: 'cancelled',   label: 'Cancelled' },
+                  ]}
+                  className="lg:w-44"
+                />
+                {meeting.status !== 'completed' && meeting.status !== 'cancelled' && (
+                  <Button variant="outline" size="sm" className="justify-center text-xs font-bold" onClick={() => onReschedule(meeting)}>
+                    <RotateCcw size={14} className="mr-1.5" />
+                    Reschedule
+                  </Button>
+                )}
+                {isCompleted && onRecordMOM && (
+                  <Button
+                    variant={hasMOM ? 'outline' : 'secondary'}
+                    size="sm"
+                    className="justify-center text-xs font-bold"
+                    onClick={() => onRecordMOM(meeting)}
+                  >
+                    <FileText size={14} className="mr-1.5" />
+                    {hasMOM ? 'View / Edit MOM' : 'Record MOM'}
+                  </Button>
+                )}
+              </>
             )}
             <Button variant="primary" size="sm" className="lg:ml-auto justify-center text-xs font-bold" onClick={onViewDetails}>
               View Lead Details

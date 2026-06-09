@@ -16,6 +16,7 @@ import { Pagination } from '../../../shared/components';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 import ImportClientsModal from '../components/ImportClientsModal';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const PAGE_SIZE = 25;
 
@@ -54,6 +55,9 @@ const ClientsListPage = () => {
   const [loading, setLoading] = useState(true);
   const [importOpen, setImportOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Import + New Enquiry are CRM create actions — hidden for read-only roles.
+  const canCreate = usePermission('crm.create');
 
   const {
     filters,
@@ -119,14 +123,18 @@ const ClientsListPage = () => {
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </button>
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload size={16} className="mr-2" />
-            Import
-          </Button>
-          <Button variant="primary" onClick={() => navigate('/crm/forms/enquiry')}>
-            <Plus size={16} className="mr-2" />
-            New Enquiry
-          </Button>
+          {canCreate && (
+            <>
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Upload size={16} className="mr-2" />
+                Import
+              </Button>
+              <Button variant="primary" onClick={() => navigate('/crm/forms/enquiry')}>
+                <Plus size={16} className="mr-2" />
+                New Enquiry
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

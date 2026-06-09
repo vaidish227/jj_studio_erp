@@ -13,6 +13,7 @@ import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const TEMPLATE_COLUMNS = [
   { key: 'name', required: true, example: 'Rajesh Kumar' },
@@ -111,6 +112,8 @@ const parseFile = (file) =>
 
 const ImportClientsModal = ({ isOpen, onClose, onImported }) => {
   const toast = useToast();
+  // Backstop: bulk import is a CRM create action.
+  const canCreate = usePermission('crm.create');
   const fileInputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [parsedRows, setParsedRows] = useState([]);
@@ -382,7 +385,7 @@ const ImportClientsModal = ({ isOpen, onClose, onImported }) => {
           >
             {result ? 'Close' : 'Cancel'}
           </Button>
-          {!result && (
+          {!result && canCreate && (
             <Button
               variant="primary"
               onClick={handleImport}

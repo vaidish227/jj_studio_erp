@@ -53,7 +53,7 @@ const ProposalTemplatesPage = () => {
   // Apply reusable filter system
   const filteredTemplates = process(templates);
 
-  // 25/page pagination â€” page resets to 1 when filters change.
+  // 25/page pagination — page resets to 1 when filters change.
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => { setCurrentPage(1); }, [filters]);
   const totalPages = Math.max(1, Math.ceil(filteredTemplates.length / PAGE_SIZE));
@@ -176,7 +176,7 @@ const ProposalTemplatesPage = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-[var(--bg)] border border-[var(--border)] text-xs font-bold text-[var(--text-secondary)]">
-                          {columnsCount} Cols Ã— {rowsCount} Rows
+                          {columnsCount} Cols × {rowsCount} Rows
                         </span>
                       </td>
                       <td className="px-6 py-4 text-[var(--text-muted)] font-medium flex items-center gap-2 h-full py-6">
@@ -218,7 +218,7 @@ const ProposalTemplatesPage = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]/20">
               <p className="text-xs text-[var(--text-muted)] font-medium">
-                Showing {pageStart + 1}â€“{Math.min(pageStart + PAGE_SIZE, filteredTemplates.length)} of {filteredTemplates.length}
+                Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredTemplates.length)} of {filteredTemplates.length}
               </p>
               <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
             </div>

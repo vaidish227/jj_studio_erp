@@ -3,10 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Trophy, Star, ArrowRight } from 'lucide-react';
 
 /**
- * DesignerKRAScoreboard â€” performance leaderboard the MD can rank designers by.
+ * DesignerKRAScoreboard — performance leaderboard the MD can rank designers by.
  *
- * Columns: Designer Â· Active Â· Done Â· On-Time % Â· KRA Score (0â€“5)
- * KRA = 0.45 Ã— on-time + 0.35 Ã— first-pass + 0.20 Ã— throughput (normalised).
+ * Columns: Designer · Active · Done · On-Time % · KRA Score (0–5)
+ * KRA = 0.45 × on-time + 0.35 × first-pass + 0.20 × throughput (normalised).
  */
 
 const ROLE_LABEL = {
@@ -63,7 +63,7 @@ const Row = ({ d, rank, onOpen }) => {
           <div className="min-w-0">
             <p className="text-sm font-bold text-[var(--text-primary)] truncate">{d.name}</p>
             <p className="text-[10px] text-[var(--text-muted)] capitalize">
-              {ROLE_LABEL[d.role] || d.role || 'â€”'}
+              {ROLE_LABEL[d.role] || d.role || '—'}
             </p>
           </div>
         </div>
@@ -123,7 +123,7 @@ const DesignerKRAScoreboard = ({ designers = [], period = 'month' }) => {
           <div>
             <h3 className="text-sm font-bold text-[var(--text-primary)]">Designer KPI / KRA Scoreboard</h3>
             <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-              {periodLabel} Â· auto-calculated Â· ranked by KRA score
+              {periodLabel} · auto-calculated · ranked by KRA score
             </p>
           </div>
         </div>
@@ -163,10 +163,10 @@ const DesignerKRAScoreboard = ({ designers = [], period = 'month' }) => {
       {/* Legend */}
       <div className="px-5 py-2.5 border-t border-[var(--border)] bg-[var(--bg)]/30 flex items-center justify-end gap-3 text-[10px] text-[var(--text-muted)]">
         <span className="inline-flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[var(--success)]" /> â‰¥ 4.0
+          <span className="w-2 h-2 rounded-full bg-[var(--success)]" /> ≥ 4.0
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[var(--warning)]" /> 3.0â€“3.9
+          <span className="w-2 h-2 rounded-full bg-[var(--warning)]" /> 3.0–3.9
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-[var(--error)]" /> &lt; 3.0

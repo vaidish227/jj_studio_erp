@@ -65,7 +65,7 @@ const MeetingsCalendarView = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Left â€” compact month calendar */}
+      {/* Left — compact month calendar */}
       <div className="lg:col-span-4">
         <Card className="p-5">
           <div className="flex items-center justify-between mb-5 gap-2">
@@ -110,7 +110,7 @@ const MeetingsCalendarView = ({
             ))}
           </div>
 
-          {/* Day cells â€” number + a small count badge for days with meetings */}
+          {/* Day cells — number + a small count badge for days with meetings */}
           <div className="grid grid-cols-7 gap-1">
             {calendarDays.map((day, index) => {
               const isSelected = sameDay(day.date, selectedDate);
@@ -144,7 +144,7 @@ const MeetingsCalendarView = ({
         </Card>
       </div>
 
-      {/* Right â€” selected day's meetings */}
+      {/* Right — selected day's meetings */}
       <div className="lg:col-span-8">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -174,10 +174,12 @@ const MeetingsCalendarView = ({
               <p className="text-sm text-[var(--text-muted)] font-medium">
                 No meetings scheduled on this day.
               </p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={() => onScheduleForDay(selectedDate)}>
-                <Plus size={14} className="mr-1.5" />
-                Schedule for this day
-              </Button>
+              {onScheduleForDay && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => onScheduleForDay(selectedDate)}>
+                  <Plus size={14} className="mr-1.5" />
+                  Schedule for this day
+                </Button>
+              )}
             </div>
           )}
         </div>

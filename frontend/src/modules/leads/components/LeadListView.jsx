@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import LeadCard from './LeadCard';
 import Button from '../../../shared/components/Button/Button';
 import { formatDateFull } from '../../../shared/utils/dateUtils';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const PAGE_SIZE = 25;
 
-// Compact numbered pager with prev/next. Window: first, last, current Â±1, ellipsis for gaps.
+// Compact numbered pager with prev/next. Window: first, last, current ±1, ellipsis for gaps.
 const Pagination = ({ currentPage, totalPages, onChange }) => {
   const goto = (p) => onChange(Math.min(Math.max(1, p), totalPages));
 
@@ -22,7 +23,7 @@ const Pagination = ({ currentPage, totalPages, onChange }) => {
 
   const withEllipses = [];
   pages.forEach((p, i) => {
-    if (i > 0 && p - pages[i - 1] > 1) withEllipses.push('â€¦');
+    if (i > 0 && p - pages[i - 1] > 1) withEllipses.push('…');
     withEllipses.push(p);
   });
 
@@ -44,8 +45,8 @@ const Pagination = ({ currentPage, totalPages, onChange }) => {
       </button>
 
       {withEllipses.map((item, i) =>
-        item === 'â€¦' ? (
-          <span key={`e-${i}`} className="px-1 text-xs text-[var(--text-muted)]">â€¦</span>
+        item === '…' ? (
+          <span key={`e-${i}`} className="px-1 text-xs text-[var(--text-muted)]">…</span>
         ) : (
           <button
             key={item}
@@ -72,7 +73,7 @@ const Pagination = ({ currentPage, totalPages, onChange }) => {
 };
 
 /**
- * Reusable leads list UI â€” used by all pipeline pages.
+ * Reusable leads list UI — used by all pipeline pages.
  * Paginates client-side at PAGE_SIZE per page, resets to page 1 when the
  * filtered set changes (e.g. user applies a filter).
  */
@@ -92,9 +93,13 @@ const LeadListView = ({
 }) => {
   const navigate = useNavigate();
 
+  // Only roles with CRM create can add an enquiry; hide the button otherwise.
+  const canCreate = usePermission('crm.create');
+  const showAdd = showAddButton && canCreate;
+
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reset to page 1 whenever the filtered count changes â€” otherwise the user
+  // Reset to page 1 whenever the filtered count changes — otherwise the user
   // could be stranded on page 4 of a list that now only has 2 pages.
   useEffect(() => { setCurrentPage(1); }, [leads.length]);
 
@@ -115,12 +120,12 @@ const LeadListView = ({
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">{title}</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
             {isLoading ? 'Fetching leads...' : `${leads.length} leads found`}
-            {subtitle && <span className="ml-2 text-[var(--text-muted)]">â€¢ {subtitle}</span>}
+            {subtitle && <span className="ml-2 text-[var(--text-muted)]">• {subtitle}</span>}
           </p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           {headerExtra}
-          {showAddButton && (
+          {showAdd && (
             <Button
               variant="primary"
               className="w-full sm:w-auto"
@@ -162,7 +167,7 @@ const LeadListView = ({
             <p className="text-[var(--text-muted)] text-sm">
               {emptyMessage}
             </p>
-            {showAddButton && (
+            {showAdd && (
               <Button
                 variant="ghost"
                 className="mt-4 text-[var(--primary)]"
@@ -175,13 +180,13 @@ const LeadListView = ({
         )}
       </div>
 
-      {/* Pagination footer â€” only when there's more than a page of results */}
+      {/* Pagination footer — only when there's more than a page of results */}
       {!isLoading && leads.length > PAGE_SIZE && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
           <p className="text-xs font-bold text-[var(--text-muted)]">
             Showing{' '}
             <span className="text-[var(--text-primary)]">{pageStart + 1}</span>
-            {'â€“'}
+            {'–'}
             <span className="text-[var(--text-primary)]">{pageEnd}</span>{' '}
             of <span className="text-[var(--text-primary)]">{leads.length}</span>
           </p>

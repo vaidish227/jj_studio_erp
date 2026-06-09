@@ -15,6 +15,7 @@ import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
 import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
 import MeetingsListView from '../components/MeetingsListView';
 import MeetingsCalendarView from '../components/MeetingsCalendarView';
+import usePermission from '../../../shared/hooks/usePermission';
 import {
   EMPTY_ATTENDEES,
   seedClientAttendeesForLead,
@@ -63,6 +64,9 @@ const ViewToggle = ({ view, onChange }) => {
 const MeetingsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
+
+  // CRM write permissions (coarse — aligned with backend alias model).
+  const canCreate = usePermission('crm.create');
 
   const [view, setView] = useState('calendar'); // default to Calendar
   const [meetings, setMeetings] = useState([]);
@@ -288,15 +292,17 @@ const MeetingsPage = () => {
         <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
           <AskAIButton label="Ask AI" variant="soft" actions={resolveEntry('meetings').actions} />
           <ViewToggle view={view} onChange={setView} />
-          <Button variant="primary" onClick={() => openScheduleModal()} className="w-full md:w-auto px-6 whitespace-nowrap">
-            <Plus size={18} />
-            Schedule Meeting
-          </Button>
+          {canCreate && (
+            <Button variant="primary" onClick={() => openScheduleModal()} className="w-full md:w-auto px-6 whitespace-nowrap">
+              <Plus size={18} />
+              Schedule Meeting
+            </Button>
+          )}
         </div>
       </div>
 
       {view === 'calendar' ? (
-        <MeetingsCalendarView {...viewProps} onScheduleForDay={openScheduleModal} />
+        <MeetingsCalendarView {...viewProps} onScheduleForDay={canCreate ? openScheduleModal : undefined} />
       ) : (
         <MeetingsListView {...viewProps} />
       )}

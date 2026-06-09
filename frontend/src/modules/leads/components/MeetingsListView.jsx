@@ -12,7 +12,7 @@ import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 import MeetingCard from './MeetingCard';
 
-// Compact clickable stat â€” half the height of DashboardCard, still acts as a
+// Compact clickable stat — half the height of DashboardCard, still acts as a
 // quick filter. Designed so a row of 6 fits comfortably on one line at lg+.
 const StatChip = ({ label, value, icon: Icon, iconCls, isActive, onClick }) => (
   <button
@@ -105,7 +105,7 @@ const MeetingsListView = ({
 
   return (
     <div className="space-y-5">
-      {/* Advanced Filter System â€” inline because only 4 controls fit easily */}
+      {/* Advanced Filter System — inline because only 4 controls fit easily */}
       <AdvancedFilter
         filters={filters}
         filterConfig={filterConfig}
@@ -118,7 +118,7 @@ const MeetingsListView = ({
         inlineSearch
       />
 
-      {/* Stat chips â€” clickable quick filters (compact one-row tiles) */}
+      {/* Stat chips — clickable quick filters (compact one-row tiles) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         <StatChip
           label="Total"

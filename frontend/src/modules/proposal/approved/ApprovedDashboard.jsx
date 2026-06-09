@@ -54,7 +54,7 @@ const ApprovedDashboard = () => {
   // Apply reusable filter system
   const filteredProposals = process(proposals);
 
-  // 25/page pagination â€” page resets to 1 when filters change.
+  // 25/page pagination — page resets to 1 when filters change.
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => { setCurrentPage(1); }, [filters]);
   const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
@@ -210,7 +210,7 @@ const ApprovedDashboard = () => {
             <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] border-b border-[var(--border)] bg-[var(--bg)]/40">
               <div className="col-span-4">Client / Proposal</div>
               <div className="col-span-2">Status</div>
-              <div className="col-span-2">eSign Â· Advance</div>
+              <div className="col-span-2">eSign · Advance</div>
               <div className="col-span-2">Created</div>
               <div className="col-span-2 text-right">Action</div>
             </div>
@@ -226,9 +226,9 @@ const ApprovedDashboard = () => {
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-[var(--text-primary)] truncate">
-                        {p.clientId?.name || p.leadId?.name || 'â€”'}
+                        {p.clientId?.name || p.leadId?.name || '—'}
                       </p>
-                      <p className="text-xs text-[var(--text-muted)] truncate">{p.title || 'â€”'}</p>
+                      <p className="text-xs text-[var(--text-muted)] truncate">{p.title || '—'}</p>
                     </div>
                   </div>
 
@@ -238,7 +238,7 @@ const ApprovedDashboard = () => {
 
                   <div className="md:col-span-2 flex items-center gap-2 text-[var(--success)] text-[11px] font-bold">
                     <span className="inline-flex items-center gap-1"><CheckCircle2 size={12} /> eSign</span>
-                    <span className="text-[var(--border)]">Â·</span>
+                    <span className="text-[var(--border)]">·</span>
                     <span className="inline-flex items-center gap-1"><CheckCircle2 size={12} /> Paid</span>
                   </div>
 
@@ -279,7 +279,7 @@ const ApprovedDashboard = () => {
         {totalPages > 1 && (
           <div className="flex items-center justify-between gap-3 pt-4">
             <p className="text-xs text-[var(--text-muted)] font-medium">
-              Showing {pageStart + 1}â€“{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+              Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
             </p>
             <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
           </div>

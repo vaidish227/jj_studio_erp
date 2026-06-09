@@ -4,32 +4,18 @@ import {
   Shield, Save, RotateCcw, Check, Minus, Plus, Lock,
   Trash2, Settings2, LayoutDashboard, UserCheck, Briefcase, CheckSquare,
   BarChart2, FileText, MessageCircle, DollarSign, Store,
-  Globe, UserCog, ChevronLeft, ChevronRight, Zap, Search, Eye,
-  Users, FolderOpen, PenTool, Flag, Package, ShoppingCart,
+  Globe, UserCog, ChevronLeft, ChevronDown, Zap, Search, Eye,
+  Users, FolderOpen, Flag, Package, ShoppingCart,
   Activity, Calendar, Mail, MessageSquare, ThumbsUp, MapPin,
-  ClipboardList, User, MoreHorizontal, Copy, AlertTriangle, X,
-  Layers, UserX, KeyRound,
+  ClipboardList, MoreHorizontal, Copy, AlertTriangle, X,
+  Layers, UserX, KeyRound, Sparkles,
 } from 'lucide-react';
 import { useRolesPermissions } from '../hooks/useRolesPermissions';
-import { PERMISSION_MODULES, FEATURE_AREAS, ROLE_OPTIONS } from '../../../shared/constants/permissions';
+import { ROLE_OPTIONS } from '../../../shared/constants/permissions';
 import { settingsService } from '../../../shared/services/settingsService';
+import PresetApply from '../components/PresetApply';
 
-// Quick lookup so we can resolve a feature area's bundled module defs once.
-const MODULE_BY_KEY = Object.fromEntries(PERMISSION_MODULES.map((m) => [m.key, m]));
-
-// Build the resolved (modules-attached) feature-area list once at module load.
-const RESOLVED_FEATURE_AREAS = FEATURE_AREAS.map((area) => ({
-  ...area,
-  modules: area.modules.map((k) => MODULE_BY_KEY[k]).filter(Boolean),
-}));
-
-// Flatten all permissions an area cares about (actions + tabs across every bundled module).
-const allAreaPerms = (area) => area.modules.flatMap((m) => [
-  ...m.actions.map((a) => `${m.key}.${a}`),
-  ...((m.tabs || []).map((t) => t.permission)),
-]);
-
-// ─── Module icons ─────────────────────────────────────────────────────────────
+// ─── Module icons (keyed by registry module.icon) ─────────────────────────────
 const MODULE_ICONS = {
   dashboard:       LayoutDashboard,
   crm:             Users,
@@ -47,9 +33,6 @@ const MODULE_ICONS = {
   activity:        Activity,
   calendar:        Calendar,
   drawings:        FolderOpen,
-  design:          PenTool,
-  designer:        User,
-  approvals:       ThumbsUp,
   mail:            Mail,
   whatsapp:        MessageSquare,
   communication:   Settings2,
@@ -59,42 +42,37 @@ const MODULE_ICONS = {
   users:           UserCog,
   vendor:          Store,
   client_portal:   Globe,
+  approvals:       ThumbsUp,
+  ai:              Sparkles,
 };
 
-const ACTION_LABELS = {
-  read: 'Read', create: 'Create', update: 'Update', delete: 'Delete',
-  approve: 'Approve', export: 'Export', manage: 'Manage',
-  submit: 'Submit', upload: 'Upload', release: 'Release',
-  reassign: 'Reassign', respond: 'Respond', send: 'Send',
-  comment: 'Comment', dashboard: 'Dashboard',
+// ─── Permission-set helpers ───────────────────────────────────────────────────
+const sectionPerms = (sec) => sec.actions.map((act) => act.permission);
+const modulePerms  = (mod) => mod.sections.flatMap(sectionPerms);
+
+// Filter a module by a search query, returning a trimmed copy (or null).
+const filterModule = (mod, q) => {
+  if (!q) return mod;
+  const modHit = mod.label.toLowerCase().includes(q) || (mod.description || '').toLowerCase().includes(q);
+  if (modHit) return mod;
+  const sections = mod.sections
+    .map((sec) => {
+      const secHit = sec.label.toLowerCase().includes(q);
+      if (secHit) return sec;
+      const actions = sec.actions.filter(
+        (act) => act.label.toLowerCase().includes(q) || act.permission.toLowerCase().includes(q),
+      );
+      return actions.length ? { ...sec, actions } : null;
+    })
+    .filter(Boolean);
+  return sections.length ? { ...mod, sections } : null;
 };
 
-const ACTION_COLORS = {
-  read:      { on: 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/50 hover:text-[var(--accent-teal)]' },
-  create:    { on: 'bg-[var(--primary)] text-black border-[var(--primary)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]' },
-  update:    { on: 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-blue)]/50 hover:text-[var(--accent-blue)]' },
-  delete:    { on: 'bg-[var(--error)] text-white border-[var(--error)]',     off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--error)]/50 hover:text-[var(--error)]' },
-  approve:   { on: 'bg-[var(--success)] text-white border-[var(--success)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--success)]/50 hover:text-[var(--success)]' },
-  export:    { on: 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/50 hover:text-[var(--accent-teal)]' },
-  manage:    { on: 'bg-[var(--warning)] text-black border-[var(--warning)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)]' },
-  submit:    { on: 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-blue)]/50 hover:text-[var(--accent-blue)]' },
-  upload:    { on: 'bg-[var(--primary)] text-black border-[var(--primary)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]' },
-  release:   { on: 'bg-[var(--success)] text-white border-[var(--success)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--success)]/50 hover:text-[var(--success)]' },
-  reassign:  { on: 'bg-[var(--warning)] text-black border-[var(--warning)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)]' },
-  respond:   { on: 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/50 hover:text-[var(--accent-teal)]' },
-  send:      { on: 'bg-[var(--primary)] text-black border-[var(--primary)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]' },
-  comment:   { on: 'bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]',              off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-blue)]/50 hover:text-[var(--accent-blue)]' },
-  dashboard: { on: 'bg-[var(--primary)] text-black border-[var(--primary)]', off: 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]' },
-};
-
-// ─── Action chip ──────────────────────────────────────────────────────────────
-const Chip = ({ action, active, isWildcard, onChange }) => {
-  const label  = ACTION_LABELS[action] || action;
-  const colors = ACTION_COLORS[action] || ACTION_COLORS.read;
-
+// ─── Role-mode action toggle ──────────────────────────────────────────────────
+const ActionToggle = ({ label, active, isWildcard, onClick }) => {
   if (isWildcard) {
     return (
-      <span className={`inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border select-none ${colors.on} opacity-80`}>
+      <span className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--primary)] text-black border-[var(--primary)] opacity-80 select-none">
         <Zap size={9} />{label}
       </span>
     );
@@ -102,39 +80,237 @@ const Chip = ({ action, active, isWildcard, onChange }) => {
   return (
     <button
       type="button"
-      onClick={onChange}
+      onClick={onClick}
       className={`inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border transition-all duration-100 ${
-        active ? colors.on : colors.off
+        active
+          ? 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]'
+          : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/60 hover:text-[var(--accent-teal)]'
       }`}
     >
-      {active && <Check size={9} />}
-      {label}
+      {active ? <Check size={9} /> : <Plus size={9} />}{label}
     </button>
   );
 };
 
-// ─── Tab / section chip ───────────────────────────────────────────────────────
-const TabChip = ({ label, active, isWildcard, onChange }) => {
-  if (isWildcard) {
+// ─── Override-mode action toggle (inherited / custom / ungranted) ─────────────
+const OverrideToggle = ({ label, permStr, rolePerms, overrideDraft, onClick }) => {
+  const isInherited = rolePerms.includes(permStr) || rolePerms.includes('*');
+  const isCustom    = !isInherited && overrideDraft.includes(permStr);
+
+  if (isInherited) {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-[4px] rounded-full text-[10px] font-semibold border bg-[var(--primary)]/20 text-[var(--primary)] border-[var(--primary)]/30 select-none">
-        <Eye size={8} />{label}
+      <span
+        title="Inherited from role"
+        className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--accent-teal)]/12 text-[var(--accent-teal)] border-[var(--accent-teal)]/30 select-none"
+      >
+        <Lock size={8} />{label}
       </span>
+    );
+  }
+  if (isCustom) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title="Custom override — click to remove"
+        className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--warning)]/12 text-[var(--warning)] border-[var(--warning)]/40 hover:bg-[var(--warning)]/20 transition-colors"
+      >
+        <KeyRound size={8} />{label}<X size={8} className="ml-0.5 opacity-60" />
+      </button>
     );
   }
   return (
     <button
       type="button"
-      onClick={onChange}
-      className={`inline-flex items-center gap-1 px-2.5 py-[4px] rounded-full text-[10px] font-semibold border transition-all duration-100 ${
-        active
-          ? 'bg-[var(--primary)] text-black border-[var(--primary)]'
-          : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/60 hover:text-[var(--primary)]'
-      }`}
+      onClick={onClick}
+      title="Click to add as custom override"
+      className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)] transition-colors"
     >
-      {active && <Eye size={8} />}
-      {label}
+      <Plus size={8} />{label}
     </button>
+  );
+};
+
+// ─── Module accordion row ─────────────────────────────────────────────────────
+const ModuleRow = ({
+  mod, expanded, onToggleExpand,
+  mode, isWildcard,
+  draftPermissions, rolePerms, overrideDraft,
+  onToggle, onToggleSet,
+}) => {
+  const Icon   = MODULE_ICONS[mod.icon] || Shield;
+  const accent = mod.color || '#D4B76C';
+  const perms  = modulePerms(mod);
+
+  const grantedFor = (list) => {
+    if (mode === 'override') {
+      return list.filter((p) => rolePerms.includes(p) || rolePerms.includes('*') || overrideDraft.includes(p)).length;
+    }
+    return isWildcard ? list.length : list.filter((p) => draftPermissions.includes(p)).length;
+  };
+
+  const granted   = grantedFor(perms);
+  const total     = perms.length;
+  const allActive = isWildcard || (total > 0 && granted === total);
+  const someActive = !allActive && granted > 0;
+
+  return (
+    <div className={`bg-[var(--surface)] border rounded-2xl shadow-sm overflow-hidden transition-colors ${
+      granted > 0 ? 'border-[var(--primary)]/30' : 'border-[var(--border)]'
+    }`}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button type="button" onClick={onToggleExpand} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${accent}1A` }}>
+            <Icon size={18} style={{ color: accent }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-[var(--text-primary)] leading-tight truncate">{mod.label}</p>
+            {mod.description && <p className="text-[11px] text-[var(--text-muted)] truncate">{mod.description}</p>}
+          </div>
+        </button>
+
+        <span className={`text-[12px] font-bold tabular-nums shrink-0 ${granted > 0 ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
+          {isWildcard ? '∞' : granted}<span className="font-normal opacity-50">/{total}</span>
+        </span>
+
+        {/* Grant / Revoke all (role mode only) */}
+        {mode === 'role' && !isWildcard && onToggleSet && (
+          <button
+            type="button"
+            onClick={() => onToggleSet(perms)}
+            title={allActive ? 'Revoke all' : 'Grant all'}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all shrink-0 ${
+              allActive
+                ? 'bg-[var(--primary)] border-[var(--primary)] text-black'
+                : someActive
+                  ? 'bg-[var(--primary)]/15 border-[var(--primary)]/40 text-[var(--primary)]'
+                  : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]'
+            }`}
+          >
+            {allActive ? <Check size={10} /> : someActive ? <Minus size={10} /> : <Plus size={10} />}
+            {allActive ? 'Revoke' : 'Grant all'}
+          </button>
+        )}
+
+        <button type="button" onClick={onToggleExpand} className="p-1 rounded-lg hover:bg-[var(--bg)] text-[var(--text-muted)] shrink-0">
+          <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {/* Sections */}
+      {expanded && (
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-[var(--border)]">
+          {mod.sections.map((sec) => {
+            const sPerms = sectionPerms(sec);
+            const sGranted = grantedFor(sPerms);
+            const sAll = isWildcard || (sPerms.length > 0 && sGranted === sPerms.length);
+            return (
+              <div key={sec.key} className="pt-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-secondary)]">{sec.label}</p>
+                  <span className="text-[10px] text-[var(--text-muted)] tabular-nums">{isWildcard ? '∞' : sGranted}/{sPerms.length}</span>
+                  {sec.description && <span className="text-[10px] text-[var(--text-muted)] truncate hidden sm:inline">· {sec.description}</span>}
+                  <div className="flex-1" />
+                  {mode === 'role' && !isWildcard && onToggleSet && sPerms.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleSet(sPerms)}
+                      className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors shrink-0"
+                    >
+                      {sAll ? 'Revoke all' : 'Grant all'}
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sec.actions.map((act) =>
+                    mode === 'override' ? (
+                      <OverrideToggle
+                        key={act.permission}
+                        label={act.label}
+                        permStr={act.permission}
+                        rolePerms={rolePerms}
+                        overrideDraft={overrideDraft}
+                        onClick={() => onToggle(act.permission)}
+                      />
+                    ) : (
+                      <ActionToggle
+                        key={act.permission}
+                        label={act.label}
+                        active={isWildcard || draftPermissions.includes(act.permission)}
+                        isWildcard={isWildcard}
+                        onClick={() => onToggle(act.permission)}
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Permission matrix (grouped accordion) ────────────────────────────────────
+const PermissionMatrix = ({
+  registry, query,
+  mode, isWildcard,
+  draftPermissions = [], rolePerms = [], overrideDraft = [],
+  onToggle, onToggleSet,
+}) => {
+  const q = query.toLowerCase().trim();
+  const [expanded, setExpanded] = useState({});
+
+  // Apply search filter
+  const filtered = useMemo(
+    () => registry.map((m) => filterModule(m, q)).filter(Boolean),
+    [registry, q],
+  );
+
+  if (filtered.length === 0) {
+    return (
+      <div className="py-16 text-center bg-[var(--surface)] border border-[var(--border)] rounded-2xl">
+        <Search size={24} className="text-[var(--border)] mx-auto mb-3" />
+        <p className="text-sm text-[var(--text-muted)]">No permissions match &ldquo;{query}&rdquo;</p>
+      </div>
+    );
+  }
+
+  // Group by module.group, preserving registry order
+  const groups = [];
+  for (const mod of filtered) {
+    let g = groups.find((x) => x.name === mod.group);
+    if (!g) { g = { name: mod.group, modules: [] }; groups.push(g); }
+    g.modules.push(mod);
+  }
+
+  return (
+    <div className="space-y-5">
+      {groups.map((group) => (
+        <div key={group.name}>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-2 px-1">{group.name}</p>
+          <div className="space-y-2.5">
+            {group.modules.map((mod) => (
+              <ModuleRow
+                key={mod.key}
+                mod={mod}
+                expanded={!!q || !!expanded[mod.key]}
+                onToggleExpand={() => setExpanded((prev) => ({ ...prev, [mod.key]: !prev[mod.key] }))}
+                mode={mode}
+                isWildcard={isWildcard}
+                draftPermissions={draftPermissions}
+                rolePerms={rolePerms}
+                overrideDraft={overrideDraft}
+                onToggle={onToggle}
+                onToggleSet={onToggleSet}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -234,12 +410,13 @@ const OverrideUserCard = ({ user, isSelected, onClick }) => {
 };
 
 // ─── Create / Clone modal ─────────────────────────────────────────────────────
-const CreateRoleModal = ({ isOpen, onClose, cloneSource, onSubmit, isBusy }) => {
+const CreateRoleModal = ({ isOpen, onClose, cloneSource, onSubmit, isBusy, presets = [] }) => {
   const [name,        setName]        = useState('');
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [color,       setColor]       = useState('#6B6B6B');
   const [errors,      setErrors]      = useState({});
+  const [picked,      setPicked]      = useState([]); // selected preset keys
 
   React.useEffect(() => {
     if (isOpen) {
@@ -250,11 +427,18 @@ const CreateRoleModal = ({ isOpen, onClose, cloneSource, onSubmit, isBusy }) => 
       } else {
         setDisplayName(''); setDescription(''); setColor('#6B6B6B');
       }
-      setName(''); setErrors({});
+      setName(''); setErrors({}); setPicked([]);
     }
   }, [isOpen, cloneSource]);
 
   if (!isOpen) return null;
+
+  const togglePreset = (key) =>
+    setPicked((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
+
+  const seedPermissions = [...new Set(
+    presets.filter((p) => picked.includes(p.key)).flatMap((p) => p.permissions || [])
+  )];
 
   const submit = (e) => {
     e.preventDefault();
@@ -263,7 +447,7 @@ const CreateRoleModal = ({ isOpen, onClose, cloneSource, onSubmit, isBusy }) => 
     else if (!/^[a-z0-9_]+$/.test(name.trim())) errs.name = 'Lowercase, numbers, underscores only';
     if (!displayName.trim()) errs.displayName = 'Required';
     if (Object.keys(errs).length) { setErrors(errs); return; }
-    onSubmit({ name: name.trim(), displayName: displayName.trim(), description, color, cloneFrom: cloneSource?._id });
+    onSubmit({ name: name.trim(), displayName: displayName.trim(), description, color, cloneFrom: cloneSource?._id, seedPermissions });
   };
 
   return (
@@ -309,6 +493,39 @@ const CreateRoleModal = ({ isOpen, onClose, cloneSource, onSubmit, isBusy }) => 
             <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-8 rounded-lg border border-[var(--border)] cursor-pointer p-0.5 bg-transparent" />
             <code className="text-xs text-[var(--text-muted)]">{color}</code>
           </div>
+
+          {!cloneSource && presets.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-[var(--text-secondary)]">
+                Start from template <span className="text-[var(--text-muted)] font-normal">(optional — combine any)</span>
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {presets.map((p) => {
+                  const on = picked.includes(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => togglePreset(p.key)}
+                      title={p.description}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                        on
+                          ? 'bg-[var(--primary)] text-black border-[var(--primary)]'
+                          : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]'
+                      }`}
+                    >
+                      {on && <Check size={9} />}{p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {seedPermissions.length > 0 && (
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  Seeds <span className="font-bold text-[var(--primary)]">{seedPermissions.length}</span> permission{seedPermissions.length !== 1 ? 's' : ''} — editable after creation.
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-[var(--border)]">
             <button type="button" onClick={onClose} disabled={isBusy} className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]">Cancel</button>
             <button type="submit" disabled={isBusy} className="flex items-center gap-2 px-5 py-2 bg-[var(--primary)] text-black text-sm font-bold rounded-xl hover:opacity-90 disabled:opacity-60">
@@ -371,367 +588,22 @@ const SaveBar = ({ isDirty, saving, onSave, onDiscard, label = 'Unsaved changes'
   );
 };
 
-// ─── FeatureAreaCard ──────────────────────────────────────────────────────────
-// One top-level card per sidebar-style feature area (CRM, Project Management,
-// Design & Drawings, …). Aggregates permission counts across all bundled modules.
-const FeatureAreaCard = ({
-  area, draftPermissions, isWildcard,
-  variant = 'role', rolePerms = [], overrideDraft = [],
-  onOpen,
-}) => {
-  const Icon = MODULE_ICONS[area.icon] || Shield;
-  const accent = area.color || '#D4B76C';
-  const allPerms = allAreaPerms(area);
-
-  let granted = 0;
-  let inherited = 0;
-  let custom = 0;
-  if (variant === 'override') {
-    inherited = allPerms.filter((p) => rolePerms.includes(p)).length;
-    custom    = allPerms.filter((p) => !rolePerms.includes(p) && overrideDraft.includes(p)).length;
-  } else {
-    granted = isWildcard ? allPerms.length : allPerms.filter((p) => draftPermissions.includes(p)).length;
-  }
-  const anyActive = isWildcard || granted > 0 || inherited > 0 || custom > 0;
-
-  const actionCount  = area.modules.reduce((n, m) => n + m.actions.length, 0);
-  const sectionCount = area.modules.reduce((n, m) => n + ((m.tabs || []).length), 0);
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={`group text-left w-full p-5 bg-[var(--surface)] border-2 rounded-2xl shadow-sm transition-all duration-200
-        ${anyActive
-          ? 'border-[var(--primary)]/40 hover:border-[var(--primary)] hover:shadow-md'
-          : 'border-[var(--border)] hover:border-[var(--primary)] hover:shadow-md'}`}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-          style={{ backgroundColor: `${accent}1A` }}
-        >
-          <Icon size={22} style={{ color: accent }} />
-        </div>
-        <div className="flex items-center gap-2 shrink-0 mt-1">
-          {isWildcard ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--primary)]/15 text-[var(--primary)]">
-              <Zap size={9} />Full
-            </span>
-          ) : allPerms.length > 0 ? (
-            variant === 'override' ? (
-              <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                {inherited > 0 && (
-                  <span className="inline-flex items-center gap-0.5 text-[var(--accent-teal)]"><Lock size={9} />{inherited}</span>
-                )}
-                {custom > 0 && (
-                  <span className="inline-flex items-center gap-0.5 text-[var(--warning)]"><KeyRound size={9} />{custom}</span>
-                )}
-                {inherited === 0 && custom === 0 && (
-                  <span className="text-[var(--text-muted)] tabular-nums">0/{allPerms.length}</span>
-                )}
-              </div>
-            ) : (
-              <span className={`text-[11px] font-bold tabular-nums ${anyActive ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
-                {granted}<span className="font-normal opacity-50">/{allPerms.length}</span>
-              </span>
-            )
-          ) : null}
-          <ChevronRight
-            size={16}
-            className="text-[var(--border)] group-hover:text-[var(--primary)] group-hover:translate-x-0.5 transition-all"
-          />
-        </div>
-      </div>
-      <h3 className="font-bold text-[var(--text-primary)] text-[15px] mb-1 leading-tight">{area.label}</h3>
-      {area.description && (
-        <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2">{area.description}</p>
-      )}
-      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-[var(--border)] text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-        {actionCount > 0 && (
-          <span>{actionCount} Action{actionCount !== 1 ? 's' : ''}</span>
-        )}
-        {sectionCount > 0 && (
-          <span>{sectionCount} Section{sectionCount !== 1 ? 's' : ''}</span>
-        )}
-        {area.modules.length > 1 && (
-          <span>{area.modules.length} Modules</span>
-        )}
-      </div>
-    </button>
-  );
-};
-
-// ─── FeatureAreaDetailPanel (role mode) ───────────────────────────────────────
-// One focused page that shows every bundled module's actions + sections in
-// dedicated subsections. Includes a "Grant all" master toggle at the top.
-const FeatureAreaDetailPanel = ({
-  area, draftPermissions, isWildcard,
-  togglePermission, togglePermissionSet, onBack,
-}) => {
-  const Icon = MODULE_ICONS[area.icon] || Shield;
-  const accent = area.color || '#D4B76C';
-  const allPerms = allAreaPerms(area);
-
-  const granted    = isWildcard ? allPerms.length : allPerms.filter((p) => draftPermissions.includes(p)).length;
-  const allActive  = isWildcard || (allPerms.length > 0 && allPerms.every((p) => draftPermissions.includes(p)));
-  const someActive = !allActive && allPerms.some((p) => draftPermissions.includes(p));
-
-  const showModuleHeaders = area.modules.length > 1;
-
-  return (
-    <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
-      <div className="h-1 w-full" style={{ backgroundColor: accent }} />
-
-      <div className="px-5 pt-4 pb-2 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg)]"
-        >
-          <ChevronLeft size={14} /> Back to modules
-        </button>
-        <div className="flex-1" />
-        {!isWildcard && allPerms.length > 0 && (
-          <button
-            type="button"
-            onClick={() => togglePermissionSet(allPerms)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-              allActive
-                ? 'bg-[var(--primary)] border-[var(--primary)] text-black'
-                : someActive
-                  ? 'bg-[var(--primary)]/15 border-[var(--primary)]/40 text-[var(--primary)]'
-                  : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]'
-            }`}
-            title={allActive ? 'Revoke all' : someActive ? 'Grant remaining' : 'Grant all'}
-          >
-            {allActive ? <Check size={11} /> : someActive ? <Minus size={11} /> : <Plus size={11} />}
-            {allActive ? 'Revoke all' : someActive ? 'Grant remaining' : 'Grant all'}
-          </button>
-        )}
-      </div>
-
-      <div className="px-5 pb-5 pt-2">
-        <div className="flex items-start gap-4">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
-            style={{ backgroundColor: `${accent}1A` }}
-          >
-            <Icon size={26} style={{ color: accent }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-extrabold text-[var(--text-primary)] leading-tight">{area.label}</h2>
-            {area.description && (
-              <p className="text-sm text-[var(--text-muted)] mt-1 leading-relaxed">{area.description}</p>
-            )}
-          </div>
-          <div className="shrink-0 text-right">
-            {isWildcard ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--primary)]/15 text-[var(--primary)]">
-                <Zap size={10} />Full access
-              </span>
-            ) : allPerms.length > 0 ? (
-              <>
-                <p className="text-2xl font-black text-[var(--primary)] leading-none tabular-nums">{granted}</p>
-                <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)] mt-0.5">/ {allPerms.length} permissions</p>
-              </>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="h-px bg-[var(--border)] my-4" />
-
-        {/* One subsection per bundled module */}
-        <div className="space-y-5">
-          {area.modules.map((mod) => {
-            const hasActions = mod.actions.length > 0;
-            const hasTabs    = mod.tabs && mod.tabs.length > 0;
-            if (!hasActions && !hasTabs) return null;
-            return (
-              <div key={mod.key}>
-                {showModuleHeaders && (
-                  <div className="flex items-center justify-between mb-2.5">
-                    <h4 className="text-sm font-bold text-[var(--text-primary)]">{mod.label}</h4>
-                    {mod.description && (
-                      <p className="text-[11px] text-[var(--text-muted)] ml-3 truncate hidden sm:block flex-1 text-right">{mod.description}</p>
-                    )}
-                  </div>
-                )}
-                {hasActions && (
-                  <div className="mb-2">
-                    {showModuleHeaders ? null : (
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Actions</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {mod.actions.map((action) => (
-                        <Chip
-                          key={`${mod.key}.${action}`}
-                          action={action}
-                          active={isWildcard || draftPermissions.includes(`${mod.key}.${action}`)}
-                          isWildcard={isWildcard}
-                          onChange={() => togglePermission(`${mod.key}.${action}`)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {hasTabs && (
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1.5">Sections</p>
-                    <div className="flex flex-wrap gap-2">
-                      {mod.tabs.map((tab) => (
-                        <TabChip
-                          key={tab.permission}
-                          label={tab.label}
-                          active={isWildcard || draftPermissions.includes(tab.permission)}
-                          isWildcard={isWildcard}
-                          onChange={() => togglePermission(tab.permission)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── FeatureAreaDetailPanel (override mode) ───────────────────────────────────
-const OverrideFeatureAreaDetailPanel = ({
-  area, rolePerms, overrideDraft, toggleOverridePermission, onBack,
-}) => {
-  const Icon = MODULE_ICONS[area.icon] || Shield;
-  const accent = area.color || '#D4B76C';
-  const allPerms = allAreaPerms(area);
-
-  const inheritedCount = allPerms.filter((p) => rolePerms.includes(p)).length;
-  const customCount    = allPerms.filter((p) => !rolePerms.includes(p) && overrideDraft.includes(p)).length;
-  const showModuleHeaders = area.modules.length > 1;
-
-  const renderChip = (permStr, label, isTab = false) => {
-    const isInherited = rolePerms.includes(permStr);
-    const isCustom    = !isInherited && overrideDraft.includes(permStr);
-    const shape       = isTab ? 'rounded-full' : 'rounded-lg';
-
-    if (isInherited) {
-      return (
-        <span
-          key={permStr}
-          title="Inherited from role"
-          className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border bg-[var(--accent-teal)]/12 text-[var(--accent-teal)] border-[var(--accent-teal)]/30 select-none`}
-        >
-          <Lock size={8} />{label}
-        </span>
-      );
-    }
-    if (isCustom) {
-      return (
-        <button
-          key={permStr}
-          type="button"
-          onClick={() => toggleOverridePermission(permStr)}
-          title="Custom override — click to remove"
-          className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border bg-[var(--warning)]/12 text-[var(--warning)] border-[var(--warning)]/40 hover:bg-[var(--warning)]/20 transition-colors`}
-        >
-          <KeyRound size={8} />{label}<X size={8} className="ml-0.5 opacity-60" />
-        </button>
-      );
-    }
-    return (
-      <button
-        key={permStr}
-        type="button"
-        onClick={() => toggleOverridePermission(permStr)}
-        title="Click to add as custom override"
-        className={`inline-flex items-center gap-1 px-2.5 py-[5px] ${shape} text-[11px] font-semibold border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)] transition-colors`}
-      >
-        <Plus size={8} />{label}
-      </button>
-    );
-  };
-
-  return (
-    <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
-      <div className="h-1 w-full" style={{ backgroundColor: accent }} />
-
-      <div className="px-5 pt-4 pb-2 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg)]"
-        >
-          <ChevronLeft size={14} /> Back to modules
-        </button>
-      </div>
-
-      <div className="px-5 pb-5 pt-2">
-        <div className="flex items-start gap-4">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
-            style={{ backgroundColor: `${accent}1A` }}
-          >
-            <Icon size={26} style={{ color: accent }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-extrabold text-[var(--text-primary)] leading-tight">{area.label}</h2>
-            {area.description && (
-              <p className="text-sm text-[var(--text-muted)] mt-1 leading-relaxed">{area.description}</p>
-            )}
-          </div>
-          <div className="shrink-0 flex items-center gap-4 text-right">
-            <div>
-              <p className="text-xl font-black text-[var(--accent-teal)] leading-none tabular-nums">{inheritedCount}</p>
-              <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">Inherited</p>
-            </div>
-            <div>
-              <p className="text-xl font-black text-[var(--warning)] leading-none tabular-nums">{customCount}</p>
-              <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">Custom</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="h-px bg-[var(--border)] my-4" />
-
-        <div className="space-y-5">
-          {area.modules.map((mod) => {
-            const hasActions = mod.actions.length > 0;
-            const hasTabs    = mod.tabs && mod.tabs.length > 0;
-            if (!hasActions && !hasTabs) return null;
-            return (
-              <div key={mod.key}>
-                {showModuleHeaders && (
-                  <h4 className="text-sm font-bold text-[var(--text-primary)] mb-2.5">{mod.label}</h4>
-                )}
-                {hasActions && (
-                  <div className="mb-2">
-                    {!showModuleHeaders && (
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Actions</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {mod.actions.map((action) => renderChip(`${mod.key}.${action}`, ACTION_LABELS[action] || action, false))}
-                    </div>
-                  </div>
-                )}
-                {hasTabs && (
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1.5">Sections</p>
-                    <div className="flex flex-wrap gap-2">
-                      {mod.tabs.map((tab) => renderChip(tab.permission, tab.label, true))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
+// ─── Search bar ───────────────────────────────────────────────────────────────
+const SearchBar = ({ value, onChange, placeholder }) => (
+  <div className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-sm flex-1">
+    <Search size={13} className="text-[var(--text-muted)] shrink-0" />
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none w-full"
+    />
+    {value && (
+      <button type="button" onClick={() => onChange('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0"><X size={13} /></button>
+    )}
+  </div>
+);
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 const RolesPermissionsPage = () => {
@@ -740,6 +612,8 @@ const RolesPermissionsPage = () => {
   const {
     roles, selectedRole, draftPermissions,
     isDirty, loading, saving,
+    registry, registryLoading,
+    presets, applyPreset,
     selectRole, togglePermission, togglePermissionSet,
     savePermissions, discardChanges,
     createModalOpen, setCreateModalOpen,
@@ -754,17 +628,10 @@ const RolesPermissionsPage = () => {
   } = useRolesPermissions();
 
   const [mode,         setMode]         = useState('roles');
-  const [moduleSearch, setModuleSearch] = useState('');
+  const [permSearch,   setPermSearch]   = useState('');
   const [users,        setUsers]        = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearch,   setUserSearch]   = useState('');
-  // When set, the right panel shows the focused detail editor for that feature
-  // area (CRM, Project Management, …) instead of the clean Settings-style card grid.
-  const [selectedAreaKey, setSelectedAreaKey] = useState(null);
-
-  // Reset area focus when the role / user / mode changes so the user lands
-  // back on the clean grid each time.
-  useEffect(() => { setSelectedAreaKey(null); }, [selectedRole?._id, overrideUser?._id, mode]);
 
   useEffect(() => {
     if (mode === 'overrides' && users.length === 0) {
@@ -774,28 +641,16 @@ const RolesPermissionsPage = () => {
         .catch(() => {})
         .finally(() => setLoadingUsers(false));
     }
-  }, [mode]);
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isWildcard   = draftPermissions.includes('*');
   const grantedCount = isWildcard ? '∞' : draftPermissions.length;
-  const query        = moduleSearch.toLowerCase().trim();
 
   const filteredUsers = useMemo(() => {
     const q = userSearch.toLowerCase().trim();
     if (!q) return users;
     return users.filter((u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
   }, [users, userSearch]);
-
-  // Search filters feature areas (top-level cards) by label / description.
-  const searchResults = query
-    ? RESOLVED_FEATURE_AREAS.filter((a) =>
-        a.label.toLowerCase().includes(query) ||
-        (a.description || '').toLowerCase().includes(query) ||
-        a.modules.some((m) => m.label.toLowerCase().includes(query)))
-    : null;
-
-  // Resolve the focused area (when user has drilled in)
-  const selectedArea = selectedAreaKey ? RESOLVED_FEATURE_AREAS.find((a) => a.key === selectedAreaKey) : null;
 
   if (loading) {
     return (
@@ -872,102 +727,73 @@ const RolesPermissionsPage = () => {
             </div>
           </div>
 
-          {/* Right: Permission card grid */}
+          {/* Right: Permission matrix */}
           {selectedRole ? (
             <div className="space-y-4 min-w-0">
 
-              {/* Role summary */}
-              <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] px-5 py-4 shadow-sm">
-                <div className="flex items-center gap-4">
-                  {(() => {
-                    const meta  = ROLE_OPTIONS.find((r) => r.value === selectedRole.name);
-                    const color = meta?.color || selectedRole.color || '#6B6B6B';
-                    return (
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-sm shrink-0" style={{ backgroundColor: color }}>
-                        {selectedRole.displayName.charAt(0)}
+              {/* Sticky role summary + search */}
+              <div className="lg:sticky lg:top-4 z-20 space-y-3 bg-[var(--bg)] pb-1">
+                <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] px-5 py-4 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    {(() => {
+                      const meta  = ROLE_OPTIONS.find((r) => r.value === selectedRole.name);
+                      const color = meta?.color || selectedRole.color || '#6B6B6B';
+                      return (
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-sm shrink-0" style={{ backgroundColor: color }}>
+                          {selectedRole.displayName.charAt(0)}
+                        </div>
+                      );
+                    })()}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-[var(--text-primary)]">{selectedRole.displayName}</h3>
+                        {selectedRole.isSystem && (
+                          <span className="px-2 py-0.5 bg-[var(--bg)] border border-[var(--border)] rounded-full text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wide">System</span>
+                        )}
+                        {isDirty && (
+                          <span className="px-2 py-0.5 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-full text-[11px] text-[var(--warning)] font-semibold">Unsaved</span>
+                        )}
                       </div>
-                    );
-                  })()}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-[var(--text-primary)]">{selectedRole.displayName}</h3>
-                      {selectedRole.isSystem && (
-                        <span className="px-2 py-0.5 bg-[var(--bg)] border border-[var(--border)] rounded-full text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wide">System</span>
-                      )}
-                      {isDirty && (
-                        <span className="px-2 py-0.5 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-full text-[11px] text-[var(--warning)] font-semibold">Unsaved</span>
+                      {selectedRole.description && (
+                        <p className="text-sm text-[var(--text-muted)] mt-0.5 line-clamp-1">{selectedRole.description}</p>
                       )}
                     </div>
-                    {selectedRole.description && (
-                      <p className="text-sm text-[var(--text-muted)] mt-0.5">{selectedRole.description}</p>
-                    )}
+                    <PresetApply
+                      presets={presets}
+                      draftPermissions={draftPermissions}
+                      isWildcard={isWildcard}
+                      onApply={applyPreset}
+                    />
+                    <div className="shrink-0 text-right">
+                      <p className="text-2xl font-black text-[var(--primary)] leading-none">{grantedCount}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)] mt-0.5">permissions</p>
+                    </div>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-2xl font-black text-[var(--primary)] leading-none">{grantedCount}</p>
-                    <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)] mt-0.5">permissions</p>
-                  </div>
-                </div>
-                {isWildcard && (
-                  <div className="flex items-center gap-2.5 mt-3 px-3 py-2 rounded-xl bg-[var(--primary)]/8 border border-[var(--primary)]/20">
-                    <Zap size={13} className="text-[var(--primary)] shrink-0" />
-                    <p className="text-xs text-[var(--primary)] font-medium">Wildcard — unrestricted access to all modules.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Search */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-sm flex-1">
-                  <Search size={13} className="text-[var(--text-muted)] shrink-0" />
-                  <input
-                    type="text"
-                    value={moduleSearch}
-                    onChange={(e) => setModuleSearch(e.target.value)}
-                    placeholder="Search modules…"
-                    className="bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none w-full"
-                  />
-                  {moduleSearch && (
-                    <button type="button" onClick={() => setModuleSearch('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0"><X size={13} /></button>
+                  {isWildcard && (
+                    <div className="flex items-center gap-2.5 mt-3 px-3 py-2 rounded-xl bg-[var(--primary)]/8 border border-[var(--primary)]/20">
+                      <Zap size={13} className="text-[var(--primary)] shrink-0" />
+                      <p className="text-xs text-[var(--primary)] font-medium">Wildcard — unrestricted access to all modules.</p>
+                    </div>
                   )}
                 </div>
-                {/* Legend pills */}
-                <div className="hidden xl:flex items-center gap-2 shrink-0 text-[10px]">
-                  <span className="flex items-center gap-1 text-[var(--text-muted)]"><span className="w-2.5 h-2.5 rounded-full bg-[var(--primary)] inline-block" />Sections</span>
-                  <span className="flex items-center gap-1 text-[var(--text-muted)]"><span className="w-2.5 h-2.5 rounded bg-[var(--accent-teal)] inline-block" />Actions</span>
-                </div>
+                <SearchBar value={permSearch} onChange={setPermSearch} placeholder="Search permissions, sections, or actions…" />
               </div>
 
-              {/* ── Focused detail panel — one feature area at a time ───────── */}
-              {selectedArea ? (
-                <FeatureAreaDetailPanel
-                  area={selectedArea}
-                  draftPermissions={draftPermissions}
-                  isWildcard={isWildcard}
-                  togglePermission={togglePermission}
-                  togglePermissionSet={togglePermissionSet}
-                  onBack={() => setSelectedAreaKey(null)}
-                />
+              {/* Matrix */}
+              {registryLoading ? (
+                <div className="py-16 flex justify-center">
+                  <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                </div>
               ) : (
-                <>
-                  {searchResults && searchResults.length === 0 ? (
-                    <div className="py-16 text-center bg-[var(--surface)] border border-[var(--border)] rounded-2xl">
-                      <Search size={24} className="text-[var(--border)] mx-auto mb-3" />
-                      <p className="text-sm text-[var(--text-muted)]">No modules match &ldquo;{moduleSearch}&rdquo;</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {(searchResults || RESOLVED_FEATURE_AREAS).map((area) => (
-                        <FeatureAreaCard
-                          key={area.key}
-                          area={area}
-                          draftPermissions={draftPermissions}
-                          isWildcard={isWildcard}
-                          onOpen={() => setSelectedAreaKey(area.key)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </>
+                <PermissionMatrix
+                  registry={registry}
+                  query={permSearch}
+                  mode="role"
+                  isWildcard={isWildcard}
+                  draftPermissions={draftPermissions}
+                  onToggle={togglePermission}
+                  onToggleSet={togglePermissionSet}
+                />
               )}
             </div>
           ) : (
@@ -1049,7 +875,7 @@ const RolesPermissionsPage = () => {
             </div>
           </div>
 
-          {/* Right: Override card grid */}
+          {/* Right: Override matrix */}
           {!overrideUser ? (
             <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-16 flex flex-col items-center justify-center text-center shadow-sm">
               <div className="w-14 h-14 bg-[var(--bg)] rounded-2xl flex items-center justify-center mb-4">
@@ -1068,62 +894,58 @@ const RolesPermissionsPage = () => {
           ) : effectivePerms ? (
             <div className="space-y-4 min-w-0">
 
-              {/* User summary */}
-              <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] px-5 py-4 shadow-sm">
-                <div className="flex items-center gap-4">
-                  {(() => {
-                    const meta  = ROLE_OPTIONS.find((r) => r.value === overrideUser.role);
-                    const color = meta?.color || '#6B6B6B';
-                    return (
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold shrink-0" style={{ backgroundColor: color }}>
-                        {overrideUser.name?.charAt(0)?.toUpperCase() || '?'}
+              {/* Sticky user summary + search */}
+              <div className="lg:sticky lg:top-4 z-20 space-y-3 bg-[var(--bg)] pb-1">
+                <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] px-5 py-4 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    {(() => {
+                      const meta  = ROLE_OPTIONS.find((r) => r.value === overrideUser.role);
+                      const color = meta?.color || '#6B6B6B';
+                      return (
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold shrink-0" style={{ backgroundColor: color }}>
+                          {overrideUser.name?.charAt(0)?.toUpperCase() || '?'}
+                        </div>
+                      );
+                    })()}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-[var(--text-primary)]">{overrideUser.name}</h3>
+                        {overrideDirty && (
+                          <span className="px-2 py-0.5 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-full text-[11px] text-[var(--warning)] font-semibold">Unsaved</span>
+                        )}
                       </div>
-                    );
-                  })()}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-[var(--text-primary)]">{overrideUser.name}</h3>
-                      {overrideDirty && (
-                        <span className="px-2 py-0.5 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-full text-[11px] text-[var(--warning)] font-semibold">Unsaved</span>
-                      )}
+                      <p className="text-sm text-[var(--text-muted)] line-clamp-1">{overrideUser.email}</p>
                     </div>
-                    <p className="text-sm text-[var(--text-muted)]">{overrideUser.email}</p>
-                  </div>
-                  <div className="shrink-0 flex items-center gap-5 text-right">
-                    <div>
-                      <p className="text-xl font-black text-[var(--accent-teal)] leading-none">{effectivePerms.rolePermissions.length}</p>
-                      <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">inherited</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-black text-[var(--warning)] leading-none">{overrideDraft.length}</p>
-                      <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">custom</p>
+                    <div className="shrink-0 flex items-center gap-5 text-right">
+                      <div>
+                        <p className="text-xl font-black text-[var(--accent-teal)] leading-none">{effectivePerms.rolePermissions.length}</p>
+                        <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">inherited</p>
+                      </div>
+                      <div>
+                        <p className="text-xl font-black text-[var(--warning)] leading-none">{overrideDraft.length}</p>
+                        <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">custom</p>
+                      </div>
                     </div>
                   </div>
                 </div>
+                <SearchBar value={permSearch} onChange={setPermSearch} placeholder="Search permissions, sections, or actions…" />
               </div>
 
-              {/* Feature-area grid — same flow as Role mode */}
-              {selectedArea ? (
-                <OverrideFeatureAreaDetailPanel
-                  area={selectedArea}
+              {/* Matrix */}
+              {registryLoading ? (
+                <div className="py-16 flex justify-center">
+                  <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <PermissionMatrix
+                  registry={registry}
+                  query={permSearch}
+                  mode="override"
+                  isWildcard={false}
                   rolePerms={effectivePerms.rolePermissions}
                   overrideDraft={overrideDraft}
-                  toggleOverridePermission={toggleOverridePermission}
-                  onBack={() => setSelectedAreaKey(null)}
+                  onToggle={toggleOverridePermission}
                 />
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {RESOLVED_FEATURE_AREAS.map((area) => (
-                    <FeatureAreaCard
-                      key={area.key}
-                      area={area}
-                      variant="override"
-                      rolePerms={effectivePerms.rolePermissions}
-                      overrideDraft={overrideDraft}
-                      onOpen={() => setSelectedAreaKey(area.key)}
-                    />
-                  ))}
-                </div>
               )}
             </div>
           ) : null}
@@ -1151,6 +973,7 @@ const RolesPermissionsPage = () => {
         cloneSource={cloneTarget}
         onSubmit={handleCreateRole}
         isBusy={roleActionBusy}
+        presets={presets}
       />
       <DeleteRoleConfirm
         role={deleteTarget}

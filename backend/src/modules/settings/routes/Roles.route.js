@@ -5,6 +5,8 @@ const {
   getAllRoles,
   getRoleById,
   getAllPermissions,
+  getRegistry,
+  getPresets,
   createRole,
   updateRole,
   deleteRole,
@@ -20,6 +22,8 @@ router.use(verifyToken, requireRole("admin", "md"));
 
 // ─── Static routes first (must come before /:id to avoid being swallowed) ─────
 router.get("/permissions/all", getAllPermissions);
+router.get("/registry", getRegistry);
+router.get("/presets", getPresets);
 router.get("/users/list", getAllUsers);
 router.get("/users/:userId/effective-permissions", getEffectivePermissions);
 router.patch("/users/:userId/role",           requireRole("admin"), updateUserRole);

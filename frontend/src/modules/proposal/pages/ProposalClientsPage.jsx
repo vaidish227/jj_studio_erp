@@ -51,7 +51,7 @@ const ProposalClientsPage = () => {
   // Apply reusable filter system
   const filteredLeads = process(leads);
 
-  // 25/page pagination â€” page resets to 1 when filters change.
+  // 25/page pagination — page resets to 1 when filters change.
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => { setCurrentPage(1); }, [filters]);
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
@@ -59,13 +59,13 @@ const ProposalClientsPage = () => {
   const pageStart = (safePage - 1) * PAGE_SIZE;
   const paginatedLeads = filteredLeads.slice(pageStart, pageStart + PAGE_SIZE);
 
-  // Multi-select state â€” chosen client IDs that will be sent in bulk to
+  // Multi-select state — chosen client IDs that will be sent in bulk to
   // CreateProposalPage via ?leadIds=id1,id2,...
   const [selectedIds, setSelectedIds] = useState([]);
   const toggleSelect = (id) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const clearSelection = () => setSelectedIds([]);
-  // "Select all on this page" â€” toggles between empty and the full visible page.
+  // "Select all on this page" — toggles between empty and the full visible page.
   const pageIds = paginatedLeads.map((l) => l._id);
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
   const togglePageSelection = () => {
@@ -111,7 +111,7 @@ const ProposalClientsPage = () => {
         compact={false}
       />
 
-      {/* Bulk Action Bar â€” sticky-feeling primary bar that appears when â‰¥1 client is ticked. */}
+      {/* Bulk Action Bar — sticky-feeling primary bar that appears when ≥1 client is ticked. */}
       {selectedIds.length > 0 && (
         <div className="bg-[var(--primary)] text-black p-4 rounded-2xl flex items-center justify-between shadow-lg animate-in slide-in-from-top-4 duration-300">
           <div className="flex items-center gap-4">
@@ -173,7 +173,7 @@ const ProposalClientsPage = () => {
               `}
               onClick={() => navigate(`/proposal/create?leadId=${lead._id}`)}
             >
-              {/* Checkbox â€” selection only; doesn't navigate */}
+              {/* Checkbox — selection only; doesn't navigate */}
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); toggleSelect(lead._id); }}
@@ -250,7 +250,7 @@ const ProposalClientsPage = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between gap-3 pt-2">
               <p className="text-xs text-[var(--text-muted)] font-medium">
-                Showing {pageStart + 1}â€“{Math.min(pageStart + PAGE_SIZE, filteredLeads.length)} of {filteredLeads.length}
+                Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredLeads.length)} of {filteredLeads.length}
               </p>
               <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
             </div>

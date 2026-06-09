@@ -82,7 +82,7 @@ const NotificationRow = ({ n, onClick, onDismiss }) => {
           <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{n.message}</p>
         )}
         <p className="text-[10px] text-[var(--text-muted)] mt-1 uppercase tracking-widest font-bold">
-          {formatRelativeTime(n.createdAt)} â€¢ {n.module}
+          {formatRelativeTime(n.createdAt)} • {n.module}
         </p>
       </div>
       <button

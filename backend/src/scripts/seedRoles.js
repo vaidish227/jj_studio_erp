@@ -25,6 +25,8 @@ const DEFAULT_ROLES = [
     // review actions work end-to-end without exposing other modules.
     description: "Project Management focus — MD dashboard, project approvals, and reviews.",
     permissions: [
+      // Phase 2 Stage 2 — read-only CRM access (project creation client picker)
+      "crm.lead.read",
       // MD-only executive cross-module dashboard
       "md.dashboard.read",
 
@@ -70,6 +72,9 @@ const DEFAULT_ROLES = [
       // Analytics + downloadable reports (Project Analytics page, Designer
       // detail page, KPI / project summary Excel exports)
       "reports.read", "reports.export",
+
+      // AI Assistant rollout — chat + knowledge base read
+      "ai.chat", "ai.docs.read",
     ],
     isSystem: true,
     color: "#3A6EA5",
@@ -80,12 +85,18 @@ const DEFAULT_ROLES = [
     description: "Manages CRM pipeline, proposal approvals, team tasks, and drawing reviews.",
     permissions: [
       "dashboard.read",
-      "crm.read", "crm.create", "crm.update",
+      // Phase 2 Stage 4 — `crm.delete` added so the Manager retains lead/meeting/
+      // follow-up delete after write enforcement (the delete granular perms alias
+      // to `crm.delete`). create/update writes stay covered by crm.create/update.
+      "crm.read", "crm.create", "crm.update", "crm.delete",
       "crm.tab.clients", "crm.tab.leads", "crm.tab.meetings", "crm.tab.converted", "crm.tab.lost",
       "kit.read", "kit.create", "kit.update", "kit.manage",
       "kit.tab.templates",
       "proposal.read", "proposal.create", "proposal.update", "proposal.approve",
+      "proposal.send",
       "proposal.tab.templates", "proposal.tab.approval",
+      // Phase 2 Stage 2 — quotation template management
+      "template.read", "template.create", "template.update", "template.delete",
       "clients.read", "clients.update",
       "projects.read", "projects.create", "projects.update",
       "projects.tab.assign", "projects.tab.review",
@@ -115,6 +126,9 @@ const DEFAULT_ROLES = [
       "communication.settings.manage",
       "planner.read", "planner.edit", "planner.assign", "planner.delete",
       "planner.import", "planner.export", "planner.baseline", "planner.dashboard",
+
+      // AI Assistant rollout — chat + knowledge base read & manage
+      "ai.chat", "ai.docs.read", "ai.docs.manage",
     ],
     isSystem: true,
     color: "#4A8F7C",
@@ -129,11 +143,17 @@ const DEFAULT_ROLES = [
       "crm.tab.clients", "crm.tab.leads", "crm.tab.meetings", "crm.tab.converted", "crm.tab.lost",
       "kit.read", "kit.create", "kit.update",
       "proposal.read", "proposal.create", "proposal.update",
+      "proposal.send",
       "proposal.tab.templates",
+      // Phase 2 Stage 2 — read-only quotation templates
+      "template.read",
       "clients.read",
       "tasks.read",
       "mail.send", "mail.read",
       "whatsapp.send", "whatsapp.read",
+
+      // AI Assistant rollout — chat + knowledge base read
+      "ai.chat", "ai.docs.read",
     ],
     isSystem: true,
     color: "#D4B76C",
@@ -160,6 +180,9 @@ const DEFAULT_ROLES = [
       "calendar.read",
       "clients.read",
       "planner.read",
+
+      // AI Assistant rollout — chat + knowledge base read
+      "ai.chat", "ai.docs.read",
     ],
     isSystem: true,
     color: "#9B59B6",
@@ -184,6 +207,9 @@ const DEFAULT_ROLES = [
       "calendar.read",
       "clients.read",
       "planner.read",
+
+      // AI Assistant rollout — chat + knowledge base read
+      "ai.chat", "ai.docs.read",
     ],
     isSystem: true,
     color: "#E67E22",
@@ -195,9 +221,14 @@ const DEFAULT_ROLES = [
     permissions: [
       "dashboard.read",
       "proposal.read",
+      // Phase 2 Stage 2 — read-only quotation templates
+      "template.read",
       "clients.read",
       "finance.read", "finance.create", "finance.update",
       "reports.read", "reports.export",
+
+      // AI Assistant rollout — chat + knowledge base read
+      "ai.chat", "ai.docs.read",
     ],
     isSystem: true,
     color: "#27AE60",
