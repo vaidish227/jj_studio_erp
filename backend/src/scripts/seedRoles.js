@@ -81,7 +81,10 @@ const DEFAULT_ROLES = [
     description: "Manages CRM pipeline, proposal approvals, team tasks, and drawing reviews.",
     permissions: [
       "dashboard.read",
-      "crm.read", "crm.create", "crm.update",
+      // Phase 2 Stage 4 — `crm.delete` added so the Manager retains lead/meeting/
+      // follow-up delete after write enforcement (the delete granular perms alias
+      // to `crm.delete`). create/update writes stay covered by crm.create/update.
+      "crm.read", "crm.create", "crm.update", "crm.delete",
       "crm.tab.clients", "crm.tab.leads", "crm.tab.meetings", "crm.tab.converted", "crm.tab.lost",
       "kit.read", "kit.create", "kit.update", "kit.manage",
       "kit.tab.templates",

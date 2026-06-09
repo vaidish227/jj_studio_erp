@@ -44,6 +44,7 @@ import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
 import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const EMPTY_ATTENDEES = { internal: [], client: [] };
 
@@ -122,6 +123,12 @@ const LeadDetailsPage = () => {
   const { meetings, followups, proposals, timeline, refreshRelatedData, scheduleAutomations } =
     useLeadFlow(id);
   const { transitionStatus } = useLeadStatusManager();
+
+  // CRM write permissions (coarse — aligned with backend alias model).
+  // Read-only roles (Designer/Supervisor/MD/Accounts) get none of these, so the
+  // write controls below are hidden while all read sections stay intact.
+  const canCreate = usePermission('crm.create');
+  const canUpdate = usePermission('crm.update');
 
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
@@ -448,14 +455,18 @@ const LeadDetailsPage = () => {
             variant="soft"
             actions={resolveEntry('leadDetails', { leadName: lead.name, trackingId: lead.trackingId }).actions}
           />
-          <Button variant="primary" onClick={openMeetingModal}>
-            <Calendar size={16} />
-            Schedule Meeting
-          </Button>
-          <Button variant="outline" onClick={handleOpenClientInfo}>
-            <UserPlus size={16} />
-            Client Info
-          </Button>
+          {canCreate && (
+            <Button variant="primary" onClick={openMeetingModal}>
+              <Calendar size={16} />
+              Schedule Meeting
+            </Button>
+          )}
+          {canUpdate && (
+            <Button variant="outline" onClick={handleOpenClientInfo}>
+              <UserPlus size={16} />
+              Client Info
+            </Button>
+          )}
         </div>
       </div>
 
@@ -523,16 +534,20 @@ const LeadDetailsPage = () => {
 
           <Card className="space-y-5">
             <SectionTitle title="KIT Notes & Interaction History" icon={Activity} />
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Add internal notes, client mood, requirement changes, or call outcomes..."
-              rows={4}
-              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
-            />
-            <Button variant="primary" onClick={handleSaveNote} isLoading={actionLoading}>
-              Save Note
-            </Button>
+            {canUpdate && (
+              <>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Add internal notes, client mood, requirement changes, or call outcomes..."
+                  rows={4}
+                  className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+                />
+                <Button variant="primary" onClick={handleSaveNote} isLoading={actionLoading}>
+                  Save Note
+                </Button>
+              </>
+            )}
 
             <div className="space-y-3">
               {(lead.interactionHistory || []).slice().reverse().map((entry, index) => (
@@ -551,25 +566,29 @@ const LeadDetailsPage = () => {
 
           <Card className="space-y-5">
             <SectionTitle title="Follow-ups" icon={Clock} />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input
-                type="date"
-                value={followupDate}
-                onChange={(e) => setFollowupDate(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-              />
-              <textarea
-                value={followupNote}
-                onChange={(e) => setFollowupNote(e.target.value)}
-                rows={2}
-                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
-                placeholder="Add follow-up reminder or KIT interaction"
-              />
-            </div>
-            <Button variant="primary" onClick={handleCreateFollowup} isLoading={actionLoading}>
-              <Plus size={16} />
-              Add Follow-up
-            </Button>
+            {canCreate && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input
+                    type="date"
+                    value={followupDate}
+                    onChange={(e) => setFollowupDate(e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                  />
+                  <textarea
+                    value={followupNote}
+                    onChange={(e) => setFollowupNote(e.target.value)}
+                    rows={2}
+                    className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+                    placeholder="Add follow-up reminder or KIT interaction"
+                  />
+                </div>
+                <Button variant="primary" onClick={handleCreateFollowup} isLoading={actionLoading}>
+                  <Plus size={16} />
+                  Add Follow-up
+                </Button>
+              </>
+            )}
 
             <div className="space-y-3">
               {followups.length ? followups.map((item) => (
@@ -590,6 +609,7 @@ const LeadDetailsPage = () => {
 
           <Card className="space-y-6">
             <SectionTitle title="Show Project" icon={FileImage} />
+            {canUpdate && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Select
                 value={showcaseType}
@@ -641,9 +661,12 @@ const LeadDetailsPage = () => {
                 </FormField>
               </div>
             </div>
-            <Button variant="primary" onClick={handleShowProject} isLoading={actionLoading}>
-              Save Showcase Step
-            </Button>
+            )}
+            {canUpdate && (
+              <Button variant="primary" onClick={handleShowProject} isLoading={actionLoading}>
+                Save Showcase Step
+              </Button>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {projectAssets.length ? projectAssets.map((asset, index) => (
@@ -679,6 +702,7 @@ const LeadDetailsPage = () => {
               Based on the project showcase and KIT interactions, determine if the client is interested in moving forward with a formal proposal.
             </p>
 
+            {canUpdate && (
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 disabled={actionLoading || lead.lifecycleStage === 'interested' || lead.status === 'converted'}
@@ -718,6 +742,7 @@ const LeadDetailsPage = () => {
                 </div>
               </button>
             </div>
+            )}
 
             {lead.lifecycleStage === 'interested' && (
               <div className="pt-2 animate-in slide-in-from-top duration-500">
@@ -738,8 +763,25 @@ const LeadDetailsPage = () => {
         <div className="space-y-6">
           <Card className="space-y-4">
             <SectionTitle title="Lead Controls" icon={Clock} />
-            <Select label="Lead Status" value={lead.status || 'new'} onChange={handleStatusChange} options={STATUS_OPTIONS} />
-            <Select label="Priority" value={lead.priority || 'medium'} onChange={handlePriorityChange} options={PRIORITY_OPTIONS} />
+            {canUpdate ? (
+              <>
+                <Select label="Lead Status" value={lead.status || 'new'} onChange={handleStatusChange} options={STATUS_OPTIONS} />
+                <Select label="Priority" value={lead.priority || 'medium'} onChange={handlePriorityChange} options={PRIORITY_OPTIONS} />
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-[var(--bg)] border border-[var(--border)] p-4 space-y-1 text-sm">
+                  <p className="text-[var(--text-muted)] text-xs">Lead Status</p>
+                  <p className="font-semibold text-[var(--text-primary)]">
+                    {STATUS_OPTIONS.find((o) => o.value === (lead.status || 'new'))?.label || lead.status}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-[var(--bg)] border border-[var(--border)] p-4 space-y-1 text-sm">
+                  <p className="text-[var(--text-muted)] text-xs">Priority</p>
+                  <p className="font-semibold text-[var(--text-primary)] capitalize">{lead.priority || 'medium'}</p>
+                </div>
+              </div>
+            )}
             <div className="rounded-xl bg-[var(--bg)] border border-[var(--border)] p-4 space-y-2 text-sm">
               <p className="text-[var(--text-muted)]">Current lifecycle stage</p>
               <p className="font-semibold text-[var(--text-primary)]">{lifecycleLabels[lead.lifecycleStage] || lead.lifecycleStage}</p>
@@ -749,12 +791,14 @@ const LeadDetailsPage = () => {
           <Card className="space-y-4">
             <div className="flex items-center justify-between">
               <SectionTitle title="Meetings" icon={Calendar} />
-              <button
-                onClick={openMeetingModal}
-                className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
-              >
-                <Plus size={12} /> Schedule
-              </button>
+              {canCreate && (
+                <button
+                  onClick={openMeetingModal}
+                  className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
+                >
+                  <Plus size={12} /> Schedule
+                </button>
+              )}
             </div>
             {meetings.length ? meetings.map((meeting) => (
               <div key={meeting._id} className="rounded-xl border border-[var(--border)] px-4 py-3 space-y-2">
@@ -807,7 +851,7 @@ const LeadDetailsPage = () => {
                 )}
 
                 {/* Actions for active (non-completed, non-cancelled) meetings */}
-                {['scheduled', 'rescheduled'].includes(meeting.status) && (
+                {canUpdate && ['scheduled', 'rescheduled'].includes(meeting.status) && (
                   <div className="flex items-center gap-3 pt-1">
                     <button
                       onClick={() => openRescheduleModal(meeting)}

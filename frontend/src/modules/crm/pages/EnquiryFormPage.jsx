@@ -25,10 +25,14 @@ import FormField from '../../../shared/components/FormField/FormField';
 import useLead from '../hooks/useLead';
 import { Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const EnquiryFormPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  // Creating an enquiry is a CRM create action. Read-only roles can still open
+  // and view the form, but the submit is replaced with a permission notice.
+  const canCreate = usePermission('crm.create');
   const {
     formData,
     errors,
@@ -324,24 +328,36 @@ const EnquiryFormPage = () => {
           <p className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">
             Ensure all required fields (*) are filled
           </p>
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate(-1)}
-              className="flex-1 md:flex-none px-8"
-            >
-              Discard
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              isLoading={isLoading}
-              className="flex-1 md:flex-none px-12 shadow-lg shadow-[var(--primary)]/20"
-            >
-              Register Enquiry
-            </Button>
-          </div>
+          {canCreate ? (
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate(-1)}
+                className="flex-1 md:flex-none px-8"
+              >
+                Discard
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isLoading}
+                className="flex-1 md:flex-none px-12 shadow-lg shadow-[var(--primary)]/20"
+              >
+                Register Enquiry
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+                <AlertCircle size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span>You don't have permission to create enquiries. This form is view-only.</span>
+              </div>
+              <Button type="button" variant="outline" onClick={() => navigate(-1)} className="px-8">
+                Back
+              </Button>
+            </div>
+          )}
         </div>
       </form>
 

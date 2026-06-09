@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Clock, MessageSquare, Calendar, FileText } from 
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
 import FormField from '../../../shared/components/FormField/FormField';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const INTEREST_OPTIONS = [
   {
@@ -35,6 +36,8 @@ const INTEREST_OPTIONS = [
 ];
 
 const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave, onRecordMOM }) => {
+  // Backstop: recording an outcome is a CRM update action.
+  const canUpdate = usePermission('crm.update');
   const [clientInterested, setClientInterested] = useState(null);
   const [outcome, setOutcome] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
@@ -216,13 +219,15 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave, onRecordMOM }) 
           <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            isLoading={isSubmitting}
-            disabled={clientInterested === null}
-          >
-            {recordMOMAfter ? 'Save & Record MOM' : 'Save Outcome'}
-          </Button>
+          {canUpdate && (
+            <Button
+              onClick={handleSave}
+              isLoading={isSubmitting}
+              disabled={clientInterested === null}
+            >
+              {recordMOMAfter ? 'Save & Record MOM' : 'Save Outcome'}
+            </Button>
+          )}
         </div>
       </div>
     </Modal>

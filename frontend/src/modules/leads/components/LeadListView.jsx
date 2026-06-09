@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import LeadCard from './LeadCard';
 import Button from '../../../shared/components/Button/Button';
 import { formatDateFull } from '../../../shared/utils/dateUtils';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const PAGE_SIZE = 25;
 
@@ -92,6 +93,10 @@ const LeadListView = ({
 }) => {
   const navigate = useNavigate();
 
+  // Only roles with CRM create can add an enquiry; hide the button otherwise.
+  const canCreate = usePermission('crm.create');
+  const showAdd = showAddButton && canCreate;
+
   const [currentPage, setCurrentPage] = useState(1);
 
   // Reset to page 1 whenever the filtered count changes â€” otherwise the user
@@ -120,7 +125,7 @@ const LeadListView = ({
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           {headerExtra}
-          {showAddButton && (
+          {showAdd && (
             <Button
               variant="primary"
               className="w-full sm:w-auto"
@@ -162,7 +167,7 @@ const LeadListView = ({
             <p className="text-[var(--text-muted)] text-sm">
               {emptyMessage}
             </p>
-            {showAddButton && (
+            {showAdd && (
               <Button
                 variant="ghost"
                 className="mt-4 text-[var(--primary)]"

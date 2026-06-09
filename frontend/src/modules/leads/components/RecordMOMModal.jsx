@@ -18,6 +18,7 @@ import useAssignableUsers from '../../pms/hooks/useAssignableUsers';
 import { crmService } from '../../../shared/services/crmService';
 import { polishText } from '../../ai/services/aiService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const emptyAction = () => ({ description: '', assignedTo: null, dueDate: '' });
 
@@ -32,6 +33,8 @@ const sectionHeader = (Icon, title, accent) => (
 
 const RecordMOMModal = ({ isOpen, onClose, meeting, onSaved }) => {
   const toast = useToast();
+  // Backstop: recording/updating MOM is a CRM update action.
+  const canUpdate = usePermission('crm.update');
   const { users } = useAssignableUsers();
 
   const [staffIds, setStaffIds] = useState([]);
@@ -451,19 +454,21 @@ const RecordMOMModal = ({ isOpen, onClose, meeting, onSaved }) => {
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Saving
-              </>
-            ) : (
-              <>
-                <FileText size={14} />
-                {hasExisting ? 'Update MOM' : 'Save MOM'}
-              </>
-            )}
-          </Button>
+          {canUpdate && (
+            <Button variant="primary" onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Saving
+                </>
+              ) : (
+                <>
+                  <FileText size={14} />
+                  {hasExisting ? 'Update MOM' : 'Save MOM'}
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </Modal>

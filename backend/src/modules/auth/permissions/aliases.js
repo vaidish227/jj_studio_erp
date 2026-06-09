@@ -19,6 +19,24 @@ const PERMISSION_ALIASES = {
   // Every internal role already holds `clients.read` or `crm.read`, so read
   // enforcement produces zero 403s for internal users.
   "crm.lead.read": ["clients.read", "crm.read"],
+
+  // Phase 2 Stage 4 — CRM write enforcement.
+  // Each granular write is satisfied by the coarse `crm.create` / `crm.update`
+  // / `crm.delete` it splits from, so any role holding the legacy coarse
+  // permission keeps working without a role change.
+  "crm.lead.create": ["crm.create"],
+  "crm.lead.update": ["crm.update"],
+  "crm.lead.delete": ["crm.delete"],
+  "crm.lead.qualify": ["crm.update"],
+  "crm.lead.convert": ["crm.update"],
+  "crm.lead.import": ["crm.create"],
+  "crm.meeting.create": ["crm.create"],
+  "crm.meeting.update": ["crm.update"],
+  "crm.meeting.delete": ["crm.delete"],
+  "crm.mom.create": ["crm.update"],
+  "crm.followup.create": ["crm.create"],
+  "crm.followup.update": ["crm.update"],
+  "crm.followup.delete": ["crm.delete"],
 };
 
 /** Return the legacy aliases that also satisfy `permission` (or []). */

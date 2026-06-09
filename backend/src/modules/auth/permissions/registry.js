@@ -73,6 +73,36 @@ const PERMISSION_REGISTRY = [
           a("crm.create", "Create"),
           a("crm.update", "Edit"),
           a("crm.delete", "Delete"),
+          // Granular API-enforced writes (Phase 2 Stage 4). Backward-compatible:
+          // satisfied by the legacy `crm.create` / `crm.update` / `crm.delete`
+          // via the alias map.
+          a("crm.lead.create", "Create (API)"),
+          a("crm.lead.update", "Edit (API)"),
+          a("crm.lead.delete", "Delete (API)"),
+          a("crm.lead.qualify", "Qualify (API)"),
+          a("crm.lead.convert", "Convert (API)"),
+          a("crm.lead.import", "Bulk Import (API)"),
+        ],
+      },
+      {
+        key: "meetings_actions",
+        label: "Meetings & MOM",
+        description: "Meeting scheduling and minutes-of-meeting (API-enforced — Phase 2 Stage 4)",
+        actions: [
+          a("crm.meeting.create", "Create (API)"),
+          a("crm.meeting.update", "Edit (API)"),
+          a("crm.meeting.delete", "Delete (API)"),
+          a("crm.mom.create", "Record MOM (API)"),
+        ],
+      },
+      {
+        key: "followups_actions",
+        label: "Follow-ups",
+        description: "Follow-up tasks (API-enforced — Phase 2 Stage 4)",
+        actions: [
+          a("crm.followup.create", "Create (API)"),
+          a("crm.followup.update", "Edit (API)"),
+          a("crm.followup.delete", "Delete (API)"),
         ],
       },
       { key: "all_clients", label: "All Clients", actions: [a("crm.tab.clients", "View")] },
