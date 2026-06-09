@@ -228,6 +228,8 @@ export const pmsService = {
   bulkDatesPlanner:      (data)              => apiClient.post(`/pms/planner/rows/bulk/dates`, data),
   freezePlannerBaseline: (projectId)         => apiClient.post(`/pms/planner/${projectId}/baseline`),
   autoSchedulePlanner:   (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/auto-schedule`, data),
+  getPlanActivationPreview: (projectId)      => apiClient.get(`/pms/planner/${projectId}/activation-preview`),
+  activatePlan:          (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/activate`, data),
 
   // ─── DDMS — Designer Dashboard ────────────────────────────────────────────
   getDesignerDashboard:  ()                  => apiClient.get('/pms/designer/dashboard'),

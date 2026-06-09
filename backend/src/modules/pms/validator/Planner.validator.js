@@ -70,6 +70,16 @@ const createRowSchema = Joi.object({
   planning:  planningPatch.default({}),
 });
 
+// Whole-checklist replacement payload used by the master-sheet checklist
+// modal. Order of items is the order in which they are saved — the existing
+// per-index toggle endpoint (Task.controller.updateChecklistStatus) keeps
+// working for inline checkbox flips elsewhere.
+const checklistItemPatch = Joi.object({
+  item:        Joi.string().trim().min(1).max(300).required(),
+  isCompleted: Joi.boolean().default(false),
+  completedAt: Joi.date().allow(null).optional(),
+});
+
 const patchRowSchema = Joi.object({
   title:      Joi.string().trim().min(1).max(200),
   taskType:   Joi.string().valid(...TASK_TYPES),
@@ -78,6 +88,7 @@ const patchRowSchema = Joi.object({
   notes:      Joi.string().allow("").max(2000),
   delayReason: Joi.string().allow("").max(500),
   dependsOn:  Joi.array().items(OID).max(50),
+  checklist:  Joi.array().items(checklistItemPatch).max(100),
   planning:   planningPatch,
   // Optimistic concurrency
   updatedAt:  Joi.date(),

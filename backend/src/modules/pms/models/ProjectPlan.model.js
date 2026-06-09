@@ -19,6 +19,18 @@ const projectPlanSchema = new mongoose.Schema(
     // Baseline frozen at first save; only re-baselined with planner.baseline perm
     baselineDate: { type: Date },
 
+    // --- Plan activation ("Make Plan Effective") ---
+    // Set when the project manager runs the activation flow. Once set, the
+    // plan is considered committed: assignees have been notified and
+    // re-activation is blocked. Re-assigning a task afterward goes through
+    // the regular reassign flow (which has its own notify path).
+    effectiveAt: { type: Date },
+    effectiveBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    effectiveNotifyChannels: {
+      mail:     { type: Boolean, default: false },
+      whatsapp: { type: Boolean, default: false },
+    },
+
     // Rolling totals — recomputed by planner controller after any row mutation
     totalPlannedDays:  { type: Number, default: 0, min: 0 },
     totalPlannedHours: { type: Number, default: 0, min: 0 },

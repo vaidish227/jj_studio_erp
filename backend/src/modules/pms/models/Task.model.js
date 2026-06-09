@@ -162,6 +162,13 @@ const taskSchema = new mongoose.Schema(
     reassignedAt: Date,
     reassignedReason: String,
 
+    // --- Plan activation ---
+    // Set when this task's assignee was formally notified during the project
+    // plan activation flow ("Make Plan Effective"). Used to skip re-notifying
+    // on subsequent activations. Null = assignment is still a draft as far
+    // as the assignee is concerned.
+    delegatedAt: Date,
+
     // --- Status remarks ---
     holdReason: String,   // required when status → on_hold
     delayReason: String,  // optional note explaining a deadline extension
