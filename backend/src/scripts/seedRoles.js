@@ -64,6 +64,8 @@ const DEFAULT_ROLES = [
       "planner.read", "planner.dashboard",
       // MD can commit a draft plan via "Make Plan Effective"
       "planner.assign",
+      // MD can bulk-import / export the master sheet for reporting
+      "planner.import", "planner.export",
 
       // Analytics + downloadable reports (Project Analytics page, Designer
       // detail page, KPI / project summary Excel exports)
