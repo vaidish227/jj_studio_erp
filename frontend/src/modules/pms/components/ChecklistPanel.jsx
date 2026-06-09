@@ -46,17 +46,17 @@ const ChecklistPanel = ({ taskId, checklist = [], onUpdated }) => {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {/* Progress bar */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="flex-1 h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
+        <div className="flex-1 h-2 rounded-full bg-[var(--border)] overflow-hidden">
           <div
-            className="h-full rounded-full bg-[var(--primary)] transition-all duration-300"
+            className={`h-full rounded-full transition-all duration-500 ${pct === 100 ? 'bg-[var(--success)]' : 'bg-[var(--primary)]'}`}
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="text-[10px] font-black text-[var(--text-muted)] whitespace-nowrap">
-          {completed}/{items.length}
+        <span className="text-[11px] font-black text-[var(--text-secondary)] whitespace-nowrap">
+          {pct}%
         </span>
       </div>
 

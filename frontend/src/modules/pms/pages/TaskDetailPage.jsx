@@ -34,20 +34,6 @@ const fmtTime = (d) => d
   ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   : '—';
 
-// ── Status colour map ────────────────────────────────────────────────────────
-const STATUS_META = {
-  not_started:           { color: 'var(--text-muted)',    bg: 'var(--border)',           label: 'Not Started' },
-  blocked:               { color: 'var(--error)',         bg: 'var(--error)',            label: 'Blocked' },
-  in_progress:           { color: 'var(--accent-blue)',   bg: 'var(--accent-blue)',      label: 'In Progress' },
-  pending_review:        { color: 'var(--warning)',       bg: 'var(--warning)',          label: 'Pending Review' },
-  revision_requested:    { color: 'var(--error)',         bg: 'var(--error)',            label: 'Revision Requested' },
-  pending_client_approval:{ color: 'var(--accent-blue)', bg: 'var(--accent-blue)',      label: 'Client Approval' },
-  approved:              { color: 'var(--success)',       bg: 'var(--success)',          label: 'Approved' },
-  released_to_site:      { color: 'var(--primary)',       bg: 'var(--primary)',          label: 'Released' },
-  completed:             { color: 'var(--success)',       bg: 'var(--success)',          label: 'Completed' },
-  on_hold:               { color: 'var(--warning)',       bg: 'var(--warning)',          label: 'On Hold' },
-};
-
 // ── Drawing mini-row ─────────────────────────────────────────────────────────
 const DrawingRow = ({ drawing }) => (
   <div className="flex items-center gap-3 py-2.5 border-b border-[var(--border)] last:border-0">
@@ -75,6 +61,23 @@ const DrawingRow = ({ drawing }) => (
   </div>
 );
 
+// ── Consistent section header (icon chip + label + optional count) ───────────
+const SectionHeader = ({ icon: Icon, title, count, accent = 'var(--primary)', children }) => (
+  <div className="flex items-center gap-2 mb-3">
+    <div
+      className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+      style={{ background: `color-mix(in srgb, ${accent} 14%, transparent)` }}
+    >
+      <Icon size={13} style={{ color: accent }} />
+    </div>
+    <p className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)]">{title}</p>
+    {count != null && (
+      <span className="text-xs font-bold text-[var(--text-muted)]">{count}</span>
+    )}
+    {children && <div className="ml-auto">{children}</div>}
+  </div>
+);
+
 // ── Revision instructions banner ─────────────────────────────────────────────
 const RevisionBanner = ({ task }) => {
   if (task.status !== 'revision_requested') return null;
@@ -90,25 +93,6 @@ const RevisionBanner = ({ task }) => {
         )}
       </div>
       <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{task.revisionInstructions}</p>
-    </div>
-  );
-};
-
-// ── Submission notes panel ────────────────────────────────────────────────────
-const SubmissionPanel = ({ task }) => {
-  if (!task.submittedAt) return null;
-  return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 space-y-2">
-      <div className="flex items-center gap-2">
-        <Send size={13} className="text-[var(--primary)]" />
-        <p className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)]">Last Submission</p>
-        <span className="ml-auto text-xs text-[var(--text-muted)]">{fmtTime(task.submittedAt)}</span>
-      </div>
-      {task.submissionNotes ? (
-        <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{task.submissionNotes}</p>
-      ) : (
-        <p className="text-xs text-[var(--text-muted)] italic">No notes added</p>
-      )}
     </div>
   );
 };
@@ -177,6 +161,9 @@ const TaskDetailPage = () => {
   const canReassign      = hasPermission('tasks.reassign');
   const cfg              = TASK_TYPE_CONFIG[task.taskType] || {};
   const isOverdue        = task.dueDate && new Date(task.dueDate) < new Date() && !['approved', 'completed', 'released_to_site'].includes(task.status);
+  const checklistTotal   = task.checklist?.length || 0;
+  const checklistDone    = task.checklist?.filter((c) => c.isCompleted).length || 0;
+  const checklistPct     = checklistTotal ? Math.round((checklistDone / checklistTotal) * 100) : 0;
 
   const handleStartTask = async () => {
     setActioning(true);
@@ -310,6 +297,32 @@ const TaskDetailPage = () => {
             <RefreshCw size={14} />
           </button>
         </div>
+
+        {/* ── Summary strip ───────────────────────────────────────────────── */}
+        {(checklistTotal > 0 || drawings.length > 0 || task.submittedAt) && (
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-5 pt-4 border-t border-[var(--border)]">
+            {checklistTotal > 0 && (
+              <div className="flex items-center gap-2.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Checklist</span>
+                <div className="w-24 h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
+                  <div className="h-full rounded-full bg-[var(--primary)] transition-all" style={{ width: `${checklistPct}%` }} />
+                </div>
+                <span className="text-xs font-bold text-[var(--text-primary)]">{checklistDone}/{checklistTotal}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+              <FileText size={13} className="text-[var(--accent-blue)]" />
+              <span className="font-bold text-[var(--text-primary)]">{drawings.length}</span>
+              drawing{drawings.length !== 1 ? 's' : ''}
+            </div>
+            {task.submittedAt && (
+              <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+                <Send size={12} className="text-[var(--accent-green)]" />
+                Submitted {fmt(task.submittedAt)}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Action bar ──────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-[var(--border)]">
@@ -458,86 +471,101 @@ const TaskDetailPage = () => {
       {/* ── Revision instructions banner ─────────────────────────────────── */}
       <RevisionBanner task={task} />
 
-      {/* ── Submission panel ─────────────────────────────────────────────── */}
-      <SubmissionPanel task={task} />
-
       {/* ── Kitchen routing branch (Phase 2) ─────────────────────────────── */}
       {task.taskType === 'kitchen_drawing' && (
         <KitchenRoutingPanel task={task} childTasks={siblingTasks} onUpdated={refresh} />
       )}
 
-      {/* ── Two-column body ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-        {/* Left: Notes + Checklist */}
-        <div className="space-y-4">
-          {task.notes && (
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
-              <p className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)] mb-2">Notes</p>
-              <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{task.notes}</p>
+      {/* ── Details — horizontal stat grid (full width) ──────────────────── */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
+        <SectionHeader icon={Clock} title="Details" accent="var(--text-muted)" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Status',   render: () => <TaskStatusBadge status={task.status} /> },
+            { label: 'Priority', render: () => <PriorityBadge priority={task.priority} /> },
+            { label: 'Start',    value: fmt(task.startDate) },
+            {
+              label: 'Due',
+              value: fmt(task.dueDate),
+              accent: isOverdue ? 'var(--error)' : undefined,
+            },
+            { label: 'Submitted', value: fmtTime(task.submittedAt) },
+            {
+              label: 'Approved',
+              value: task.approvedAt ? fmtTime(task.approvedAt) : '—',
+              sub: task.approvedAt && task.approvedBy?.name ? `by ${task.approvedBy.name}` : null,
+            },
+            { label: 'Reassigned from', value: task.reassignedFrom?.name || '—' },
+            ...(task.submittedAt ? [{
+              label: 'Last Submission',
+              render: () => task.submissionNotes
+                ? <p className="text-sm font-medium text-[var(--text-primary)] leading-snug line-clamp-2" title={task.submissionNotes}>{task.submissionNotes}</p>
+                : <p className="text-sm italic text-[var(--text-muted)]">No notes added</p>,
+            }] : []),
+          ].map(({ label, value, render, sub, accent }) => (
+            <div key={label} className="rounded-xl bg-[var(--bg)]/60 border border-[var(--border)] px-3.5 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">{label}</p>
+              {render ? (
+                render()
+              ) : (
+                <p
+                  className="text-sm font-bold capitalize truncate"
+                  style={{ color: accent || 'var(--text-primary)' }}
+                  title={typeof value === 'string' ? value : undefined}
+                >
+                  {value}
+                </p>
+              )}
+              {sub && <p className="text-[10px] text-[var(--text-muted)] mt-0.5 truncate" title={sub}>{sub}</p>}
             </div>
-          )}
-
-          {(task.checklist?.length > 0) && (
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
-              <p className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)] mb-3">
-                Checklist
-                <span className="ml-2 font-normal text-[var(--text-muted)]">
-                  {task.checklist.filter((c) => c.isCompleted).length}/{task.checklist.length}
-                </span>
-              </p>
-              <ChecklistPanel
-                taskId={task._id}
-                checklist={task.checklist}
-                onUpdated={refresh}
-                disabled={!isMyTask && !hasPermission('tasks.update')}
-              />
-            </div>
-          )}
+          ))}
         </div>
+      </div>
 
-        {/* Right: Drawings + Timeline */}
-        <div className="space-y-4">
-          {/* Drawings */}
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)]">
-                Drawings
-                {drawings.length > 0 && (
-                  <span className="ml-2 font-normal text-[var(--text-muted)]">{drawings.length}</span>
-                )}
-              </p>
-            </div>
-            {drawings.length === 0 ? (
-              <div className="text-center py-6 text-[var(--text-muted)]">
-                <FileText size={22} className="mx-auto mb-2 opacity-20" />
-                <p className="text-xs">No drawings uploaded yet.</p>
-              </div>
-            ) : (
-              drawings.map((d) => <DrawingRow key={d._id} drawing={d} />)
-            )}
-          </div>
+      {/* ── Notes (full width) ───────────────────────────────────────────── */}
+      {task.notes && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
+          <SectionHeader icon={FileText} title="Notes" accent="var(--text-muted)" />
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{task.notes}</p>
+        </div>
+      )}
 
-          {/* Task metadata */}
+      {/* ── Checklist + Drawings ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+
+        {/* Checklist */}
+        {(task.checklist?.length > 0) ? (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
-            <p className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)] mb-3">Details</p>
-            <div className="space-y-2">
-              {[
-                { label: 'Status',    value: STATUS_META[task.status]?.label || task.status },
-                { label: 'Priority',  value: task.priority || '—' },
-                { label: 'Start',     value: fmt(task.startDate) },
-                { label: 'Due',       value: fmt(task.dueDate) },
-                { label: 'Submitted', value: fmtTime(task.submittedAt) },
-                { label: 'Approved',  value: task.approvedAt ? `${fmtTime(task.approvedAt)} by ${task.approvedBy?.name || '—'}` : '—' },
-                { label: 'Reassigned from', value: task.reassignedFrom?.name || '—' },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-start gap-2 text-xs">
-                  <span className="w-28 shrink-0 text-[var(--text-muted)] font-semibold">{label}</span>
-                  <span className="text-[var(--text-secondary)] capitalize">{value}</span>
-                </div>
-              ))}
-            </div>
+            <SectionHeader
+              icon={CheckSquare}
+              title="Checklist"
+              count={`${checklistDone}/${checklistTotal}`}
+            />
+            <ChecklistPanel
+              taskId={task._id}
+              checklist={task.checklist}
+              onUpdated={refresh}
+              disabled={!isMyTask && !hasPermission('tasks.update')}
+            />
           </div>
+        ) : <div className="hidden lg:block" />}
+
+        {/* Drawings */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
+          <SectionHeader
+            icon={FileText}
+            title="Drawings"
+            count={drawings.length > 0 ? drawings.length : null}
+            accent="var(--accent-blue)"
+          />
+          {drawings.length === 0 ? (
+            <div className="text-center py-6 text-[var(--text-muted)]">
+              <FileText size={22} className="mx-auto mb-2 opacity-20" />
+              <p className="text-xs">No drawings uploaded yet.</p>
+            </div>
+          ) : (
+            drawings.map((d) => <DrawingRow key={d._id} drawing={d} />)
+          )}
         </div>
       </div>
 
