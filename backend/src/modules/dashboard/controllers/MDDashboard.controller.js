@@ -13,6 +13,8 @@ const Project = require("../../pms/models/Project.model");
 const Task = require("../../pms/models/Task.model");
 const ApprovalGate = require("../../pms/models/ApprovalGate.model");
 const Approval = require("../../pms/models/Approval.model");
+let User = null;
+try { User = require("../../auth/models/user.model"); } catch (e) { /* optional */ }
 let PurchaseOrder = null;
 try { PurchaseOrder = require("../../pms/models/PurchaseOrder.model"); } catch (e) { /* optional */ }
 
@@ -240,6 +242,111 @@ async function countProjectsStartedPerWeek(weekStarts) {
   });
 }
 
+/**
+ * Designer KPI / KRA rollup for the executive view.
+ *
+ * Mirrors DashboardOverview.getDesignerKRA exactly — same weighting
+ * (0.45 on-time + 0.35 first-pass + 0.20 throughput, mapped to 0–5) and the
+ * same throughput normalisation basis (team max across ALL task-assignees) —
+ * so a designer's kraScore is identical on the MD dashboard and the PMS
+ * leaderboard. We then keep only role === "designer" for display, and roll the
+ * survivors up into a team summary.
+ */
+async function buildDesignerBlock(periodStart) {
+  const ACTIVE = ["in_progress", "pending_review", "revision_requested", "not_started", "blocked"];
+
+  const tasks = await Task.find({
+    assignedTo: { $ne: null },
+    $or: [
+      { createdAt:   { $gte: periodStart } },
+      { completedAt: { $gte: periodStart } },
+      { approvedAt:  { $gte: periodStart } },
+      { status: { $in: ACTIVE } },
+    ],
+  })
+    .select("assignedTo status createdAt approvedAt completedAt dueDate revisionInstructions")
+    .lean();
+
+  const byUser = new Map();
+  for (const t of tasks) {
+    const key = String(t.assignedTo);
+    if (!byUser.has(key)) {
+      byUser.set(key, {
+        userId: t.assignedTo, name: "—", role: "—",
+        active: 0, done: 0, onTimeDone: 0, firstPassDone: 0, throughput: 0,
+      });
+    }
+    const u = byUser.get(key);
+
+    if (ACTIVE.includes(t.status)) u.active++;
+
+    const endTs = t.completedAt || t.approvedAt;
+    if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart) {
+      u.done++;
+      u.throughput++;
+      if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) u.onTimeDone++;
+      if (!t.revisionInstructions) u.firstPassDone++;
+    }
+  }
+
+  // Hydrate names + roles.
+  if (User && byUser.size > 0) {
+    const users = await User.find({ _id: { $in: [...byUser.keys()] } }).select("name role").lean();
+    for (const u of users) {
+      const entry = byUser.get(String(u._id));
+      if (entry) { entry.name = u.name || entry.name; entry.role = u.role || entry.role; }
+    }
+  }
+
+  // Normalise throughput across the whole assignee population (same basis as
+  // the PMS leaderboard) so scores line up across screens.
+  const maxThroughput = Math.max(1, ...[...byUser.values()].map((u) => u.throughput));
+
+  // Designers only, with some activity in the window.
+  const entries = [...byUser.values()].filter(
+    (u) => (u.done > 0 || u.active > 0) && String(u.role || "").toLowerCase() === "designer",
+  );
+
+  const designers = entries
+    .map((u) => {
+      const onTimeRate    = u.done > 0 ? u.onTimeDone / u.done : 0;
+      const firstPassRate = u.done > 0 ? u.firstPassDone / u.done : 0;
+      const throughputNorm = u.throughput / maxThroughput;
+      const score = 0.45 * onTimeRate + 0.35 * firstPassRate + 0.20 * throughputNorm;
+      return {
+        userId:         u.userId,
+        name:           u.name,
+        role:           u.role,
+        active:         u.active,
+        done:           u.done,
+        onTimePct:      Math.round(onTimeRate * 100),
+        firstPassPct:   Math.round(firstPassRate * 100),
+        throughputNorm: Math.round(throughputNorm * 100),
+        kraScore:       Math.round(score * 5 * 10) / 10, // 0–5, 1 decimal
+      };
+    })
+    .sort((a, b) => b.kraScore - a.kraScore);
+
+  // Team summary — weighted by raw counts (not an average of percentages).
+  const delivered     = entries.reduce((s, u) => s + u.done, 0);
+  const onTimeTotal    = entries.reduce((s, u) => s + u.onTimeDone, 0);
+  const firstPassTotal = entries.reduce((s, u) => s + u.firstPassDone, 0);
+  const avgKraScore = designers.length
+    ? Math.round((designers.reduce((s, d) => s + d.kraScore, 0) / designers.length) * 10) / 10
+    : 0;
+
+  return {
+    summary: {
+      onTimePct:       delivered > 0 ? Math.round((onTimeTotal / delivered) * 100) : 0,
+      firstPassPct:    delivered > 0 ? Math.round((firstPassTotal / delivered) * 100) : 0,
+      delivered,
+      activeDesigners: entries.filter((u) => u.active > 0).length,
+      avgKraScore,
+    },
+    designers,
+  };
+}
+
 const getMDOverview = async (req, res) => {
   try {
     const period = String(req.query.period || "month").toLowerCase();
@@ -247,12 +354,13 @@ const getMDOverview = async (req, res) => {
     const periodStart = startOfPeriod(validPeriod);
     const prevWindow  = previousPeriodWindow(validPeriod);
 
-    const [crmBlock, pmsBlock, proposalBlock, profitBlock, weeklyTrend] = await Promise.all([
+    const [crmBlock, pmsBlock, proposalBlock, profitBlock, weeklyTrend, designerBlock] = await Promise.all([
       crmAggregates.getFunnelAndKpis(periodStart, prevWindow),
       buildPMSBlock(periodStart, prevWindow),
       proposalAggregates.getStatusCountsAndCashflow(periodStart, prevWindow),
       buildProfitBlock(),
       buildWeeklyTrend(),
+      buildDesignerBlock(periodStart),
     ]);
 
     res.status(200).json({
@@ -284,6 +392,7 @@ const getMDOverview = async (req, res) => {
         topDelayedProjects:         pmsBlock.alerts.topDelayedProjects,
       },
       weeklyTrend,
+      designerPerformance: designerBlock,
     });
   } catch (err) {
     console.error("[md.dashboard.overview]", err);
