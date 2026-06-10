@@ -33,7 +33,7 @@ const STATUS_CFG = {
 
 const STATUS_CYCLE = ['pending', 'obtained', 'not_applicable'];
 
-const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated, readOnly = false }) => {
+const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated, readOnly = false, layout = 'list' }) => {
   const toast = useToast();
   const [items, setItems] = useState(() =>
     APPROVAL_TYPES.map(({ key }) => {
@@ -128,7 +128,7 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated, 
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className={layout === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-2' : 'space-y-2'}>
         {items.map((item, idx) => {
           const cfg = STATUS_CFG[item.status];
           const { Icon } = cfg;
@@ -150,8 +150,8 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated, 
               : 'bg-[var(--bg)] border-[var(--border)]';
 
           return (
-            <div key={item.type}>
-              <div className={`flex items-center gap-3 p-3 rounded-xl border ${rowBase}`}>
+            <div key={item.type} className={`rounded-xl border overflow-hidden ${rowBase}`}>
+              <div className="flex items-center gap-3 p-3">
                 <Icon size={16} className={`${cfg.color} shrink-0`} />
 
                 {/* Click-to-cycle stays as a power-user fallback so existing
@@ -213,7 +213,7 @@ const ClientApprovalTracker = ({ project, projectId, approvals = [], onUpdated, 
               </div>
 
               {isHybrid && (
-                <div className="flex items-center gap-1.5 px-4 pt-1.5 pb-0.5">
+                <div className="flex items-center flex-wrap gap-1.5 px-3 py-2 border-t border-current/10 bg-black/[0.02]">
                   <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
                     <Users size={10} /> Hybrid:
                   </span>

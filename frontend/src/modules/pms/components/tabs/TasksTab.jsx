@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, List, LayoutGrid, Info, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, List, LayoutGrid, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '../../../../shared/components';
 import PermissionGate from '../../../../shared/components/PermissionGate/PermissionGate';
 import TaskCard from '../TaskCard';
@@ -120,35 +120,23 @@ const ListView = ({ tasks, onTaskUpdated }) => {
   );
 };
 
-// Furniture layout gate indicator — informs PM when sub-tasks can be assigned.
+// Furniture layout gate indicator — surfaces the high-value "all clear" signal
+// once Furniture Layout is approved so the PM knows design sub-tasks (AC, Kitchen,
+// Bathroom, Technical, Concept) are now safe to assign. The pre-approval reminder
+// was removed as noise — experienced PMs already know the convention.
 const FurnitureLayoutBanner = ({ tasks }) => {
   const furnitureTask = tasks.find((t) => t.taskType === 'furniture_layout');
   if (!furnitureTask) return null;
 
   const isApproved = ['approved', 'released_to_site', 'completed'].includes(furnitureTask.status);
-
-  if (isApproved) {
-    return (
-      <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl
-                      bg-[var(--accent-green)]/8 border border-[var(--accent-green)]/25">
-        <CheckCircle2 size={15} className="text-[var(--accent-green)] shrink-0" />
-        <p className="text-xs text-[var(--accent-green)] font-semibold">
-          Furniture Layout approved — all design sub-tasks (AC, Kitchen, Bathroom, Technical, Concept) can now be assigned.
-        </p>
-      </div>
-    );
-  }
-
-  const isBlocking = ['not_started', 'in_progress', 'on_hold', 'pending_review', 'revision_requested', 'pending_client_approval'].includes(furnitureTask.status);
-  if (!isBlocking) return null;
+  if (!isApproved) return null;
 
   return (
     <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl
-                    bg-[var(--warning)]/8 border border-[var(--warning)]/25">
-      <Info size={15} className="text-[var(--warning)] shrink-0" />
-      <p className="text-xs text-[var(--warning)] font-semibold">
-        Furniture Layout is <span className="capitalize">{furnitureTask.status.replace(/_/g, ' ')}</span>
-        {' '}— design sub-tasks are typically assigned after Furniture Layout receives client approval.
+                    bg-[var(--accent-green)]/8 border border-[var(--accent-green)]/25">
+      <CheckCircle2 size={15} className="text-[var(--accent-green)] shrink-0" />
+      <p className="text-xs text-[var(--accent-green)] font-semibold">
+        Furniture Layout approved — all design sub-tasks (AC, Kitchen, Bathroom, Technical, Concept) can now be assigned.
       </p>
     </div>
   );

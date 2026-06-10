@@ -51,9 +51,13 @@ const ProjectDelayBanner = ({ project, overdueTasks = [], onViewTasks }) => {
       .slice(0, 3);
   }, [overdueTasks]);
 
-  // Nothing to show — render nothing.
+  // Only surface this loud banner when the project is genuinely at risk —
+  // the project itself is past its deadline, OR enough tasks have slipped
+  // that it signals a systemic delay (single-task slippage is tracked on
+  // the Tasks tab and shouldn't trigger a top-level red alert).
+  const OVERDUE_TASK_THRESHOLD = 3;
   if (dismissed) return null;
-  if (daysLate === 0 && overdueTasks.length === 0) return null;
+  if (daysLate === 0 && overdueTasks.length < OVERDUE_TASK_THRESHOLD) return null;
 
   const headline = daysLate > 0
     ? `This project is ${daysLate} day${daysLate === 1 ? '' : 's'} past its deadline`
@@ -71,7 +75,7 @@ const ProjectDelayBanner = ({ project, overdueTasks = [], onViewTasks }) => {
             <p className="text-sm font-extrabold text-[var(--error)] leading-tight">
               {headline}
             </p>
-            {eta && (
+            {eta && daysLate > 0 && (
               <span className="text-[11px] text-[var(--text-muted)]">
                 <Clock size={10} className="inline mr-1 -mt-0.5" />
                 ETA was {fmtDate(eta)}

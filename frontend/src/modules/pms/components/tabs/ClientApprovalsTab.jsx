@@ -5,14 +5,13 @@ const ClientApprovalsTab = ({ project, onUpdated }) => {
   if (!project) return null;
 
   return (
-    <div className="max-w-xl">
-      <ClientApprovalTracker
-        project={project}
-        projectId={project._id}
-        approvals={project.clientApprovals || []}
-        onUpdated={onUpdated}
-      />
-    </div>
+    <ClientApprovalTracker
+      project={project}
+      projectId={project._id}
+      approvals={project.clientApprovals || []}
+      onUpdated={onUpdated}
+      layout="grid"
+    />
   );
 };
 

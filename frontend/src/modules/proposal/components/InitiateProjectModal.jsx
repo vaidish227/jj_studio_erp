@@ -138,7 +138,11 @@ const InitiateProjectModal = ({ isOpen, onClose, proposal, onSuccess }) => {
   const handleQuickInitiate = (e) => {
     e?.preventDefault?.();
     if (!validate()) return;
-    performInitiate(false);
+    // If the user already opened the customizer and edited the plan, preserve
+    // those edits even when they submit from the basics screen. Otherwise the
+    // backend silently falls back to the default template and the master sheet
+    // shows the wrong rows after initiation.
+    performInitiate(!!plan);
   };
 
   const handleGoToCustomize = () => {
@@ -228,9 +232,13 @@ const InitiateProjectModal = ({ isOpen, onClose, proposal, onSuccess }) => {
             <div className="p-3 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 flex items-center gap-3 flex-wrap">
               <Sliders size={16} className="text-[var(--primary)]" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-[var(--text-primary)]">Customize plan for this project</p>
+                <p className="text-sm font-bold text-[var(--text-primary)]">
+                  {plan ? 'Custom plan ready' : 'Customize plan for this project'}
+                </p>
                 <p className="text-[11px] text-[var(--text-secondary)]">
-                  Edit phases, tasks, dates and owners before initiation. Otherwise the default template will be used.
+                  {plan
+                    ? `${plan.tasks?.length || 0} task${(plan.tasks?.length || 0) === 1 ? '' : 's'} across ${plan.phases?.length || 0} phase${(plan.phases?.length || 0) === 1 ? '' : 's'} — will be applied on initiate.`
+                    : 'Edit phases, tasks, dates and owners before initiation. Otherwise the default template will be used.'}
                 </p>
               </div>
               <Button
@@ -240,7 +248,7 @@ const InitiateProjectModal = ({ isOpen, onClose, proposal, onSuccess }) => {
                 onClick={handleGoToCustomize}
                 disabled={submitting}
               >
-                Customize <ChevronRight size={14} />
+                {plan ? 'Edit Plan' : 'Customize'} <ChevronRight size={14} />
               </Button>
             </div>
           )}
@@ -250,7 +258,11 @@ const InitiateProjectModal = ({ isOpen, onClose, proposal, onSuccess }) => {
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={submitting} className="font-bold">
-              {submitting ? 'Initiating…' : (<><ArrowRight size={14} /> Initiate Project</>)}
+              {submitting
+                ? 'Initiating…'
+                : plan
+                  ? (<><ArrowRight size={14} /> Initiate with Custom Plan</>)
+                  : (<><ArrowRight size={14} /> Initiate Project</>)}
             </Button>
           </div>
         </form>
