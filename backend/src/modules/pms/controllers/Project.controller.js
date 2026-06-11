@@ -1,6 +1,7 @@
 const Project = require("../models/Project.model");
 const Task = require("../models/Task.model");
 const Responsibility = require("../models/Responsibility.model");
+const ProjectPlan = require("../models/ProjectPlan.model");
 const {
   createProjectSchema,
   updateProjectSchema,
@@ -39,11 +40,9 @@ const createProject = async (req, res) => {
       });
     }
 
-    // Pull the chosen workflow template (if any) before persisting — the
-    // engine accepts it via `templateId`, but the Project document also
-    // stores `workflowTemplateId` for downstream populate.
-    const requestedTemplateId = value.workflowTemplateId;
-    if (!requestedTemplateId) delete value.workflowTemplateId;
+    // Workflow template can never be set at create time — projects start with
+    // an empty master sheet; a template is applied later via Change Template.
+    delete value.workflowTemplateId;
 
     const project = await Project.create(value);
 
@@ -65,20 +64,6 @@ const createProject = async (req, res) => {
       actor: req.user,
     });
 
-    // Workflow Engine — seed the task graph from the chosen template.
-    // Best-effort: failures are logged but do not block project creation.
-    let workflowSummary = null;
-    if (WORKFLOW_ENGINE_V1) {
-      try {
-        workflowSummary = await workflowEngine.seedProject(project._id, {
-          templateId: requestedTemplateId || undefined,
-          actorId:    req.user._id,
-        });
-      } catch (engineErr) {
-        console.error("[createProject:workflowEngine] seed failed:", engineErr);
-      }
-    }
-
     // Return the project with the populated template so the stepper renders
     // the right phases immediately on redirect.
     const populated = await Project.findById(project._id)
@@ -89,7 +74,6 @@ const createProject = async (req, res) => {
     res.status(201).json({
       message:  "Project created successfully",
       project:  populated || project,
-      workflow: workflowSummary,
     });
   } catch (error) {
     console.error("[createProject]", error);
@@ -147,7 +131,15 @@ const getProjectById = async (req, res) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    res.status(200).json({ project });
+    // Surface the plan activation timestamp so the UI knows whether the
+    // master sheet has been made effective.
+    const plan = await ProjectPlan.findOne({ projectId: project._id })
+      .select("effectiveAt")
+      .lean();
+
+    res.status(200).json({
+      project: { ...project.toObject(), planEffectiveAt: plan?.effectiveAt || null },
+    });
   } catch (error) {
     console.error("[getProjectById]", error);
     res.status(500).json({ message: error.message });

@@ -67,6 +67,7 @@ const PRESETS = [
       "milestones.read",
       "approvals.read", "approvals.create",
       "planner.read",
+      "documents.read", "documents.upload",
     ],
   },
   {
@@ -93,6 +94,7 @@ const PRESETS = [
       "planner.read", "planner.edit", "planner.assign", "planner.delete",
       "planner.import", "planner.export", "planner.baseline", "planner.dashboard",
       "pms.tab.tasks", "pms.tab.drawings", "pms.tab.team", "pms.whatsapp.manage",
+      "documents.read", "documents.upload", "documents.update", "documents.delete",
     ],
   },
   {

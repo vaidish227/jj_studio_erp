@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  ChevronRight, ArrowLeft, Lock, Workflow, AlertTriangle,
+  ArrowLeft, Workflow, AlertTriangle,
   Plus, Edit3, Copy, Trash2, Save, X, Star, Power, Eye, Lightbulb,
+  ClipboardList, ListChecks, Clock, Layers,
 } from 'lucide-react';
 import { Loader, Button, Modal, FormField, ConfirmationModal } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useAuth } from '../../../shared/context/AuthContext';
+import { StatCard, PhaseHeaderRow, AddDashedRow, EditablePriorityCell, PRIORITY_BADGE } from '../components/planner/sheetCells';
 
 // One-shot loader for backend-mapped dropdown options used by the editor.
 const useTemplateOptions = (enabled) => {
@@ -37,32 +39,11 @@ const useTemplateOptions = (enabled) => {
  * initiated. Only new project creations pick up changes.
  */
 
-const APPROVER_BADGE_CLS = {
-  client:                'bg-[var(--accent-blue)]/12 text-[var(--accent-blue)]',
-  manager:               'bg-[var(--text-muted)]/12 text-[var(--text-muted)]',
-  principal_designer:    'bg-[var(--primary)]/12 text-[var(--primary)]',
-  principal_and_client:  'bg-[var(--warning)]/12 text-[var(--warning)]',
-};
-
-const PRIORITY_OPTIONS = [
-  { value: 'low',    label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high',   label: 'High' },
-  { value: 'urgent', label: 'Urgent' },
-];
-
 const PROJECT_TYPE_OPTIONS = [
   { value: 'Any',         label: 'Any' },
   { value: 'Residential', label: 'Residential' },
   { value: 'Commercial',  label: 'Commercial' },
 ];
-
-const PRIORITY_BADGE_CLS = {
-  low:    'bg-[var(--text-muted)]/12 text-[var(--text-muted)]',
-  medium: 'bg-[var(--accent-blue)]/12 text-[var(--accent-blue)]',
-  high:   'bg-[var(--warning)]/12 text-[var(--warning)]',
-  urgent: 'bg-[var(--error)]/12 text-[var(--error)]',
-};
 
 // ─── List view: card with actions ────────────────────────────────────────────
 const TemplateCard = ({ template, onView, onEdit, onDuplicate, onMakeDefault, onToggleActive, onDelete, busyId }) => {
@@ -86,7 +67,7 @@ const TemplateCard = ({ template, onView, onEdit, onDuplicate, onMakeDefault, on
               </span>
             )}
             <span className="text-[10px] text-[var(--text-muted)]">
-              {template.projectType || 'Any'} · {template.phaseCount} phases · {template.taskCount} tasks · {template.gateCount} gates
+              {template.projectType || 'Any'} · {template.phaseCount} phases · {template.taskCount} tasks
             </span>
           </div>
           {template.description && (
@@ -132,10 +113,6 @@ const TemplateDetail = ({ template, onBack, onEdit }) => {
     () => Object.fromEntries((template.tasks || []).map((t) => [t.key, t])),
     [template.tasks]
   );
-  const gateByKey = useMemo(
-    () => Object.fromEntries((template.gates || []).map((g) => [g.key, g])),
-    [template.gates]
-  );
 
   // Friendly labels — fall back to the raw slug when options haven't loaded yet.
   const taskTypeLabel = (slug) =>
@@ -179,7 +156,7 @@ const TemplateDetail = ({ template, onBack, onEdit }) => {
             <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] px-1.5 py-0.5 rounded">INACTIVE</span>
           )}
           <span className="text-[10px] text-[var(--text-muted)] ml-auto">
-            {template.projectType || 'Any'} · {template.phases?.length} phases · {linkedTasks.length} tasks · {template.gates?.length} gates
+            {template.projectType || 'Any'} · {template.phases?.length} phases · {linkedTasks.length} tasks
           </span>
         </div>
         {template.description && <p className="text-sm text-[var(--text-secondary)]">{template.description}</p>}
@@ -208,18 +185,19 @@ const TemplateDetail = ({ template, onBack, onEdit }) => {
       {/* Tabular phases / tasks — read-only mirror of the editor */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse table-fixed">
+          <table className="w-full min-w-[1240px] text-left border-collapse table-fixed">
             <colgroup>
               <col style={{ width: '40px' }} />
-              <col />
-              <col style={{ width: '170px' }} />
+              <col style={{ width: '240px' }} />
+              <col style={{ width: '160px' }} />
               <col style={{ width: '78px' }} />
               <col style={{ width: '78px' }} />
+              <col style={{ width: '70px' }} />
               <col style={{ width: '78px' }} />
               <col style={{ width: '110px' }} />
               <col style={{ width: '170px' }} />
               <col style={{ width: '180px' }} />
-              <col style={{ width: '110px' }} />
+              <col style={{ width: '90px' }} />
             </colgroup>
             <thead>
               <tr className="bg-[var(--bg)] text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] border-b border-[var(--border)]">
@@ -228,6 +206,7 @@ const TemplateDetail = ({ template, onBack, onEdit }) => {
                 <th className="px-2 py-2.5">Category</th>
                 <th className="px-2 py-2.5 text-center">Start Day</th>
                 <th className="px-2 py-2.5 text-center">Days</th>
+                <th className="px-2 py-2.5 text-center" title="Derived — Start Day + Days">Ends</th>
                 <th className="px-2 py-2.5 text-center">Hours</th>
                 <th className="px-2 py-2.5">Priority</th>
                 <th className="px-2 py-2.5">Owner</th>
@@ -237,18 +216,17 @@ const TemplateDetail = ({ template, onBack, onEdit }) => {
             </thead>
             <tbody>
               {(template.phases || []).map((phase, phaseIdx) => {
-                const phaseGates = (phase.gateKeys || []).map((k) => gateByKey[k]).filter(Boolean);
                 return (
                   <React.Fragment key={phaseIdx}>
                     <tr className="bg-[var(--primary)]/8 border-b border-[var(--border)]">
-                      <td colSpan={10} className="px-3 py-2.5">
+                      <td colSpan={11} className="px-3 py-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[10px] font-black w-6 h-6 rounded-full bg-[var(--primary)]/20 text-[var(--primary)] flex items-center justify-center shrink-0">
                             {phase.order}
                           </span>
                           <span className="text-sm font-bold text-[var(--text-primary)] capitalize">{phase.name}</span>
                           <span className="text-[10px] text-[var(--text-muted)] ml-auto">
-                            {phase.taskKeys?.length || 0} task{phase.taskKeys?.length !== 1 ? 's' : ''} · {phase.gateKeys?.length || 0} sign-off{phase.gateKeys?.length !== 1 ? 's' : ''}
+                            {phase.taskKeys?.length || 0} task{phase.taskKeys?.length !== 1 ? 's' : ''}
                           </span>
                         </div>
                       </td>
@@ -257,15 +235,13 @@ const TemplateDetail = ({ template, onBack, onEdit }) => {
                     {(phase.taskKeys || []).map((key, taskIdxInPhase) => {
                       const t = taskByKey[key];
                       if (!t) return null;
-                      const dependsLabel =
-                        (t.dependsOnKeys?.length > 0 ? `${t.dependsOnKeys.length} task${t.dependsOnKeys.length !== 1 ? 's' : ''}` : '') +
-                        (t.dependsOnKeys?.length > 0 && t.requiresGateKeys?.length > 0 ? ' · ' : '') +
-                        (t.requiresGateKeys?.length > 0 ? `${t.requiresGateKeys.length} gate${t.requiresGateKeys.length !== 1 ? 's' : ''}` : '');
-                      const dependsTitle = [
-                        t.dependsOnKeys?.length > 0 && `depends on: ${t.dependsOnKeys.join(', ')}`,
-                        t.requiresGateKeys?.length > 0 && `waits for: ${t.requiresGateKeys.join(', ')}`,
-                      ].filter(Boolean).join('  |  ');
-                      const priorityCls = PRIORITY_BADGE_CLS[t.priority || 'medium'];
+                      const dependsLabel = t.dependsOnKeys?.length > 0
+                        ? `${t.dependsOnKeys.length} task${t.dependsOnKeys.length !== 1 ? 's' : ''}`
+                        : '';
+                      const dependsTitle = t.dependsOnKeys?.length > 0
+                        ? `depends on: ${t.dependsOnKeys.join(', ')}`
+                        : '';
+                      const priorityCls = PRIORITY_BADGE[t.priority || 'medium'] || PRIORITY_BADGE.medium;
                       return (
                         <tr key={key} className="border-b border-[var(--border)]">
                           <td className="px-2 py-2 text-center text-[11px] font-mono text-[var(--text-muted)] tabular-nums">{taskIdxInPhase + 1}</td>
@@ -273,9 +249,12 @@ const TemplateDetail = ({ template, onBack, onEdit }) => {
                           <td className="px-2 py-2 text-[11px] font-bold text-[var(--text-primary)]">{taskTypeLabel(t.taskType)}</td>
                           <td className="px-2 py-2 text-center text-sm tabular-nums text-[var(--text-primary)]">{t.dayOffsetFromProjectStart || 0}</td>
                           <td className="px-2 py-2 text-center text-sm tabular-nums text-[var(--text-primary)]">{t.plannedDays ?? 1}</td>
+                          <td className="px-2 py-2 text-center text-xs tabular-nums text-[var(--text-muted)]" title="Derived — Start Day + Days">
+                            D+{(Number(t.dayOffsetFromProjectStart) || 0) + (Number(t.plannedDays) || 0)}
+                          </td>
                           <td className="px-2 py-2 text-center text-sm tabular-nums text-[var(--text-primary)]">{t.plannedHours ?? 0}</td>
                           <td className="px-2 py-2">
-                            <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded capitalize ${priorityCls}`}>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${priorityCls}`}>
                               {t.priority || 'medium'}
                             </span>
                           </td>
@@ -288,27 +267,6 @@ const TemplateDetail = ({ template, onBack, onEdit }) => {
                       );
                     })}
 
-                    {phaseGates.length > 0 && (
-                      <tr className="bg-[var(--warning)]/5 border-b border-[var(--border)]">
-                        <td colSpan={10} className="px-3 py-2">
-                          <div className="space-y-1.5">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--warning)] flex items-center gap-1">
-                              <Lock size={9} /> Sign-offs required to leave {phase.name || 'this phase'}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {phaseGates.map((g) => {
-                                const badgeCls = APPROVER_BADGE_CLS[g.approverType] || APPROVER_BADGE_CLS.client;
-                                return (
-                                  <span key={g.key} className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded ${badgeCls}`} title={g.gateType}>
-                                    <Lock size={9} /> {g.label}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                   </React.Fragment>
                 );
               })}
@@ -341,14 +299,25 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
     }))
   );
   const [tasks, setTasks] = useState((template.tasks || []).map((t) => ({ ...t })));
-  const [gates, setGates] = useState((template.gates || []).map((g) => ({ ...g })));
+  // Gates are engine data — no longer surfaced in the editor UI (gate
+  // enforcement is disabled), but kept in state so the save payload and
+  // dirty-check stay intact.
+  const [gates] = useState((template.gates || []).map((g) => ({ ...g })));
 
   const [saving, setSaving] = useState(false);
   const [confirmDefault, setConfirmDefault] = useState(false);
 
+  // Per-phase collapse — mirrors the project master sheet accordion. Keyed by
+  // phase index (names are editable mid-session, indexes are stable enough).
+  const [collapsedPhases, setCollapsedPhases] = useState(() => new Set());
+  const togglePhaseCollapse = (idx) => setCollapsedPhases((prev) => {
+    const next = new Set(prev);
+    if (next.has(idx)) next.delete(idx); else next.add(idx);
+    return next;
+  });
+
   // Lookups
   const taskByKey = useMemo(() => Object.fromEntries(tasks.map((t) => [t.key, t])), [tasks]);
-  const gateByKey = useMemo(() => Object.fromEntries(gates.map((g) => [g.key, g])), [gates]);
 
   // Per-taskType filtered checklist templates (so a Civil Drawing task only
   // sees civil_drawing checklists, etc.)
@@ -362,15 +331,9 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
     return map;
   }, [options]);
 
-  const knownPhaseSlugs = options?.knownPhaseSlugs || [];
-  const isSystemPhase   = (n) => knownPhaseSlugs.includes(String(n || '').toLowerCase().trim());
-
   // ── Mutators ────────────────────────────────────────────────────────────
   const setTaskField = (key, field, value) => {
     setTasks((prev) => prev.map((t) => (t.key === key ? { ...t, [field]: value } : t)));
-  };
-  const setGateField = (key, field, value) => {
-    setGates((prev) => prev.map((g) => (g.key === key ? { ...g, [field]: value } : g)));
   };
   const setPhaseName = (idx, newName) => {
     setPhases((prev) => prev.map((p, i) => (i === idx ? { ...p, name: newName } : p)));
@@ -544,17 +507,32 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
   return (
     <div className="space-y-5 pb-24">
       {/* Top bar */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-[var(--primary)] hover:underline">
-          <ArrowLeft size={12} /> Back to templates
-        </button>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onBack} disabled={saving}>
-            <X size={13} /> Cancel
-          </Button>
-          <Button size="sm" onClick={handleSave} isLoading={saving} disabled={!dirty}>
-            <Save size={13} /> Save Changes
-          </Button>
+      <button onClick={onBack} className="flex items-center gap-1 text-xs font-semibold text-[var(--primary)] hover:underline">
+        <ArrowLeft size={12} /> Back to templates
+      </button>
+
+      {/* Header action bar — mirrors the project master sheet's PlannerHeader */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <ClipboardList size={18} className="text-[var(--warning)]" />
+              <h2 className="text-base font-extrabold text-[var(--text-primary)]">Master Template Editor</h2>
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              <span className="font-semibold text-[var(--text-secondary)]">{name || template.name}</span>
+              {' · '}{projectType}
+              {' · edits apply to '}<span className="font-semibold text-[var(--text-secondary)]">new projects only</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="ghost" size="sm" onClick={onBack} disabled={saving}>
+              <X size={13} /> Cancel
+            </Button>
+            <Button size="sm" onClick={handleSave} isLoading={saving} disabled={!dirty}>
+              <Save size={13} /> Save Changes
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -614,33 +592,16 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
         </div>
       </div>
 
-      {/* Summary strip — wall-clock span + aggregate planning estimates */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Total Timeline</p>
-          <p className="text-lg font-extrabold text-[var(--text-primary)] tabular-nums">{timelineSpan} <span className="text-xs font-bold text-[var(--text-muted)]">days</span></p>
+      {/* Summary chips — same StatCard strip the project master sheet uses */}
+      <div>
+        <div className="flex flex-wrap gap-2">
+          <StatCard icon={ListChecks} label="Total Tasks"    value={linkedTasks.length} />
+          <StatCard icon={Clock}      label="Timeline"       value={`${timelineSpan}d`} tone="info" />
+          <StatCard icon={Clock}      label="Planned Effort" value={`${totals.hours}h`} />
+          <StatCard icon={Clock}      label="Task Days"      value={`${totals.days}d`} />
+          <StatCard icon={Layers}     label="Phases"         value={phases.length} />
         </div>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Total Tasks</p>
-          <p className="text-lg font-extrabold text-[var(--text-primary)] tabular-nums">{linkedTasks.length}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Planned Effort</p>
-          <p className="text-lg font-extrabold text-[var(--text-primary)] tabular-nums">{totals.hours} <span className="text-xs font-bold text-[var(--text-muted)]">hrs</span></p>
-        </div>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Sum of Task Days</p>
-          <p className="text-lg font-extrabold text-[var(--text-primary)] tabular-nums">{totals.days} <span className="text-xs font-bold text-[var(--text-muted)]">days</span></p>
-        </div>
-        <div className="col-span-2 md:col-span-4">
-          <div className="h-2 rounded-full bg-[var(--border)] overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent-blue)]"
-              style={{ width: timelineSpan > 0 ? '100%' : '0%' }}
-            />
-          </div>
-          <p className="text-[10px] text-[var(--text-muted)] mt-1 text-right">Last task fires on day {timelineSpan}</p>
-        </div>
+        <p className="text-[10px] text-[var(--text-muted)] mt-1.5 text-right">Last task fires on day {timelineSpan}</p>
       </div>
 
       {/* Suggestion banner — quick guidance for the MD before they start editing */}
@@ -666,18 +627,19 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
       )}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse table-fixed">
+          <table className="w-full min-w-[1280px] text-left border-collapse table-fixed">
             <colgroup>
               <col style={{ width: '40px' }} />        {/* # */}
-              <col />                                   {/* Title — flex */}
-              <col style={{ width: '170px' }} />        {/* Category */}
+              <col style={{ width: '240px' }} />        {/* Title */}
+              <col style={{ width: '160px' }} />        {/* Category */}
               <col style={{ width: '78px' }} />         {/* Start Day */}
               <col style={{ width: '78px' }} />         {/* Days */}
+              <col style={{ width: '70px' }} />         {/* Ends (derived) */}
               <col style={{ width: '78px' }} />         {/* Hours */}
               <col style={{ width: '110px' }} />        {/* Priority */}
               <col style={{ width: '170px' }} />        {/* Owner */}
               <col style={{ width: '180px' }} />        {/* Checklist */}
-              <col style={{ width: '110px' }} />        {/* Waits For */}
+              <col style={{ width: '90px' }} />         {/* Waits For */}
               <col style={{ width: '40px' }} />         {/* Actions */}
             </colgroup>
             <thead>
@@ -687,6 +649,7 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
                 <th className="px-2 py-2.5">Category</th>
                 <th className="px-2 py-2.5 text-center" title="Day offset from project start (0 = day 1)">Start Day</th>
                 <th className="px-2 py-2.5 text-center" title="Estimated duration in days — drives planned end date on the project master sheet">Days</th>
+                <th className="px-2 py-2.5 text-center" title="Derived — Start Day + Days">Ends</th>
                 <th className="px-2 py-2.5 text-center" title="Estimated effort in hours — pre-fills task.planning.plannedHours on every new project">Hours</th>
                 <th className="px-2 py-2.5">Priority</th>
                 <th className="px-2 py-2.5" title="Responsibility / team role that owns this task">Owner</th>
@@ -697,66 +660,58 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
             </thead>
             <tbody>
               {phases.map((phase, phaseIdx) => {
-                const systemPhase = isSystemPhase(phase.name);
-                const phaseGates = phase.gateKeys.map((k) => gateByKey[k]).filter(Boolean);
+                const isCollapsed = collapsedPhases.has(phaseIdx);
                 return (
                   <React.Fragment key={phaseIdx}>
-                    {/* Phase header row — visually like a sticky section divider */}
-                    <tr className="bg-[var(--primary)]/8 border-b border-[var(--border)]">
-                      <td colSpan={11} className="px-3 py-2.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10px] font-black w-6 h-6 rounded-full bg-[var(--primary)]/20 text-[var(--primary)] flex items-center justify-center shrink-0">
-                            {phase.order}
-                          </span>
-                          <input
-                            type="text"
-                            value={phase.name}
-                            onChange={(e) => setPhaseName(phaseIdx, e.target.value)}
-                            className="px-2 py-1 text-sm font-bold rounded-md border border-transparent bg-transparent
-                                       text-[var(--text-primary)] capitalize hover:border-[var(--border)]
-                                       focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--bg)]
-                                       min-w-[140px]"
-                            placeholder="Phase name"
-                          />
-                          {systemPhase && (
-                            <span
-                              className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest
-                                         text-[var(--warning)] bg-[var(--warning)]/10 border border-[var(--warning)]/30 px-1.5 py-0.5 rounded"
-                              title="Engine-recognised phase. Renaming disables auto-advance; tasks still fire."
-                            >
-                              <AlertTriangle size={9} /> System
-                            </span>
-                          )}
-                          <span className="text-[10px] text-[var(--text-muted)] ml-auto">
-                            {phase.taskKeys.length} task{phase.taskKeys.length !== 1 ? 's' : ''} · {phase.gateKeys.length} sign-off{phase.gateKeys.length !== 1 ? 's' : ''}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => deletePhase(phaseIdx)}
-                            disabled={phases.length <= 1}
-                            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10
-                                       disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title={phases.length <= 1 ? 'A template must have at least one phase' : 'Delete this phase (and its draft tasks)'}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    {/* Phase header row — shared accordion header from the master sheet */}
+                    <PhaseHeaderRow
+                      colSpan={12}
+                      order={phase.order}
+                      collapsed={isCollapsed}
+                      onToggle={() => togglePhaseCollapse(phaseIdx)}
+                      nameSlot={(
+                        <input
+                          type="text"
+                          value={phase.name}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setPhaseName(phaseIdx, e.target.value)}
+                          className="px-2 py-1 text-sm font-bold rounded-md border border-transparent bg-transparent
+                                     text-[var(--text-primary)] capitalize hover:border-[var(--border)]
+                                     focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--bg)]
+                                     min-w-[140px]"
+                          placeholder="Phase name"
+                        />
+                      )}
+                      metaSlot={(
+                        <span className="text-[10px] text-[var(--text-muted)] ml-1">
+                          {phase.taskKeys.length} task{phase.taskKeys.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      actionsSlot={(
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); deletePhase(phaseIdx); }}
+                          disabled={phases.length <= 1}
+                          className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10
+                                     disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          title={phases.length <= 1 ? 'A template must have at least one phase' : 'Delete this phase (and its draft tasks)'}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    />
 
                     {/* Task rows for this phase */}
-                    {phase.taskKeys.map((key, taskIdxInPhase) => {
+                    {!isCollapsed && phase.taskKeys.map((key, taskIdxInPhase) => {
                       const t = taskByKey[key];
                       if (!t) return null;
                       const availableChecklists = checklistsByType[t.taskType] || [];
-                      const dependsLabel =
-                        (t.dependsOnKeys?.length > 0 ? `${t.dependsOnKeys.length} task${t.dependsOnKeys.length !== 1 ? 's' : ''}` : '') +
-                        (t.dependsOnKeys?.length > 0 && t.requiresGateKeys?.length > 0 ? ' · ' : '') +
-                        (t.requiresGateKeys?.length > 0 ? `${t.requiresGateKeys.length} gate${t.requiresGateKeys.length !== 1 ? 's' : ''}` : '');
-                      const dependsTitle = [
-                        t.dependsOnKeys?.length > 0 && `depends on: ${t.dependsOnKeys.join(', ')}`,
-                        t.requiresGateKeys?.length > 0 && `waits for: ${t.requiresGateKeys.join(', ')}`,
-                      ].filter(Boolean).join('  |  ');
+                      const dependsLabel = t.dependsOnKeys?.length > 0
+                        ? `${t.dependsOnKeys.length} task${t.dependsOnKeys.length !== 1 ? 's' : ''}`
+                        : '';
+                      const dependsTitle = t.dependsOnKeys?.length > 0
+                        ? `depends on: ${t.dependsOnKeys.join(', ')}`
+                        : '';
                       return (
                         <tr key={key} className="border-b border-[var(--border)] hover:bg-[var(--bg)]/60">
                           <td className="px-2 py-1.5 text-center text-[11px] font-mono text-[var(--text-muted)] tabular-nums">{taskIdxInPhase + 1}</td>
@@ -818,6 +773,12 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
                               title="Estimated duration in days"
                             />
                           </td>
+                          <td
+                            className="px-1 py-1.5 text-center text-xs text-[var(--text-muted)] tabular-nums"
+                            title="Derived deadline — Start Day + Days"
+                          >
+                            D+{(Number(t.dayOffsetFromProjectStart) || 0) + (Number(t.plannedDays) || 0)}
+                          </td>
                           <td className="px-1 py-1.5 text-center">
                             <input
                               type="number"
@@ -833,16 +794,10 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
                             />
                           </td>
                           <td className="px-2 py-1.5">
-                            <select
+                            <EditablePriorityCell
                               value={t.priority || 'medium'}
-                              onChange={(e) => setTaskField(t.key, 'priority', e.target.value)}
-                              className={`w-full px-2 py-1 text-xs font-bold rounded-md border border-transparent
-                                         hover:border-[var(--border)]
-                                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]
-                                         ${PRIORITY_BADGE_CLS[t.priority || 'medium']}`}
-                            >
-                              {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                            </select>
+                              onSave={(v) => setTaskField(t.key, 'priority', v)}
+                            />
                           </td>
                           <td className="px-2 py-1.5">
                             <select
@@ -895,71 +850,21 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
                       );
                     })}
 
-                    {/* "Add task" row */}
-                    <tr className="border-b border-[var(--border)]">
-                      <td colSpan={11} className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => addTaskToPhase(phaseIdx)}
-                          disabled={!options?.taskTypes?.length}
-                          className="w-full px-3 py-1.5 rounded-md border border-dashed border-[var(--border)]
-                                     text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]
-                                     hover:border-[var(--primary)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/5
-                                     transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                        >
-                          <Plus size={12} /> Add task to {phase.name || 'phase'}
-                        </button>
-                      </td>
-                    </tr>
-
-                    {/* Sign-off rows for this phase */}
-                    {phaseGates.length > 0 && (
-                      <tr className="bg-[var(--warning)]/5 border-b border-[var(--border)]">
-                        <td colSpan={11} className="px-3 py-2">
-                          <div className="space-y-1.5">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--warning)] flex items-center gap-1">
-                              <Lock size={9} /> Sign-offs required to leave {phase.name || 'this phase'}
-                            </p>
-                            {phaseGates.map((g) => {
-                              const badgeCls = APPROVER_BADGE_CLS[g.approverType] || APPROVER_BADGE_CLS.client;
-                              return (
-                                <div key={g.key} className="flex items-center gap-2 flex-wrap">
-                                  <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${badgeCls} shrink-0`}>
-                                    {g.approverType?.replace(/_/g, ' ')}
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={g.label}
-                                    onChange={(e) => setGateField(g.key, 'label', e.target.value)}
-                                    className="flex-1 min-w-[200px] px-2 py-1 text-sm rounded-md border border-transparent
-                                               bg-transparent text-[var(--text-primary)] hover:border-[var(--border)]
-                                               focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </td>
-                      </tr>
+                    {/* "Add task" row — gold dashed affordance shared with the master sheet */}
+                    {!isCollapsed && (
+                      <AddDashedRow
+                        colSpan={12}
+                        label={`Add task to ${phase.name || 'phase'}`}
+                        onClick={() => addTaskToPhase(phaseIdx)}
+                        disabled={!options?.taskTypes?.length}
+                      />
                     )}
                   </React.Fragment>
                 );
               })}
 
               {/* "Add phase" footer row */}
-              <tr>
-                <td colSpan={11} className="px-3 py-3 bg-[var(--bg)]/40">
-                  <button
-                    type="button"
-                    onClick={addPhase}
-                    className="w-full px-3 py-2 rounded-lg border border-dashed border-[var(--primary)]/40
-                               text-xs font-bold uppercase tracking-wider text-[var(--primary)]
-                               hover:bg-[var(--primary)]/8 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Plus size={14} /> Add Phase
-                  </button>
-                </td>
-              </tr>
+              <AddDashedRow colSpan={12} label="Add Phase" onClick={addPhase} />
             </tbody>
           </table>
         </div>

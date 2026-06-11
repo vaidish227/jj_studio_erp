@@ -17,6 +17,11 @@ const ApprovalGate = (() => {
   try { return require("../models/ApprovalGate.model"); }
   catch { return null; }
 })();
+const TaskDependency = (() => {
+  try { return require("../models/TaskDependency.model"); }
+  catch { return null; }
+})();
+const workflowEngine = require("../services/workflowEngine");
 
 const { logActivity } = require("../../../shared/activityLogger");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
@@ -28,11 +33,16 @@ const {
   bulkAssignSchema,
   bulkDatesSchema,
   masterQuerySchema,
+  phaseCreateSchema,
+  phaseRenameSchema,
+  phaseDeleteSchema,
 } = require("../validator/Planner.validator");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const isOid = (v) => mongoose.Types.ObjectId.isValid(String(v));
+// Case-insensitive phase-name comparison key
+const phaseKey = (s) => String(s || "").trim().toLowerCase();
 const dayDiff = (a, b) => {
   if (!a || !b) return null;
   return Math.round((new Date(a).getTime() - new Date(b).getTime()) / DAY_MS);
@@ -164,12 +174,24 @@ function computeDelayDays(task) {
  *
  * Tasks added manually via "Add Drawing Row" won't match a template entry and
  * stay phase-less (rendered under the "Other" group). That's by design.
+ *
+ * Source of truth, in order:
+ *   1. project.planSnapshot — the plan frozen on the project at seed time
+ *      (includes any initiation-time customization). Using the snapshot means
+ *      a later edit to the global WorkflowTemplate can NEVER re-shape an
+ *      existing project's master sheet.
+ *   2. live WorkflowTemplate (legacy projects seeded before snapshots existed)
  */
-async function backfillTaskPhases(projectWorkflowTemplateId, tasks) {
+async function backfillTaskPhases(project, tasks) {
   const missing = tasks.filter((t) => !t.phase);
-  if (!missing.length || !projectWorkflowTemplateId) return tasks;
+  if (!missing.length) return tasks;
 
-  const template = await WorkflowTemplate.findById(projectWorkflowTemplateId).lean();
+  let template = null;
+  if (project?.planSnapshot?.phases?.length) {
+    template = project.planSnapshot;
+  } else if (project?.workflowTemplateId) {
+    template = await WorkflowTemplate.findById(project.workflowTemplateId).lean();
+  }
   if (!template) return tasks;
 
   const keyToPhase = new Map();
@@ -208,6 +230,14 @@ async function backfillTaskPhases(projectWorkflowTemplateId, tasks) {
   return tasks;
 }
 
+/** Snapshot phases sorted by order, shaped for API responses. */
+function snapshotPhases(planSnapshot) {
+  return (planSnapshot?.phases || [])
+    .slice()
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .map((p) => ({ name: p.name, order: p.order }));
+}
+
 function buildDrawingSummary(drawing) {
   if (!drawing) return null;
   return {
@@ -242,7 +272,7 @@ exports.getMasterSheet = async (req, res) => {
     if (qErr) return res.status(400).json({ message: qErr.message });
 
     const project = await Project.findById(projectId)
-      .select("name trackingId phase startDate estimatedCompletionDate clientApprovals status workflowTemplateId")
+      .select("name trackingId phase startDate estimatedCompletionDate clientApprovals status workflowTemplateId planSnapshot")
       .lean();
     if (!project) return res.status(404).json({ message: "Project not found" });
 
@@ -255,6 +285,7 @@ exports.getMasterSheet = async (req, res) => {
     if (q.designer) filter.assignedTo           = q.designer;
     if (q.status)   filter.status               = q.status;
     if (q.priority) filter.priority             = q.priority;
+    if (q.workStatus) filter.workStatus         = q.workStatus;
     if (q.search)   filter.title                = { $regex: q.search.trim(), $options: "i" };
 
     const tasks = await Task.find(filter)
@@ -267,8 +298,9 @@ exports.getMasterSheet = async (req, res) => {
       .lean();
 
     // Lazy backfill: pre-phase projects get phase / templateTaskKey filled in
-    // from their workflow template on first open of the master sheet.
-    await backfillTaskPhases(project.workflowTemplateId, tasks);
+    // from the project's plan snapshot (or, for legacy projects, the linked
+    // workflow template) on first open of the master sheet.
+    await backfillTaskPhases(project, tasks);
 
     // Drawing join — latest per task. One IN query is cheaper than N round-trips.
     const taskIds = tasks.map((t) => t._id);
@@ -321,6 +353,8 @@ exports.getMasterSheet = async (req, res) => {
         title:     t.title,
         taskType:  t.taskType,
         status:    t.status,
+        // Manual per-row tracking column — independent of workflow status.
+        workStatus: t.workStatus || "pending",
         stage,
         priority:  t.priority,
         assignedTo: t.assignedTo,
@@ -385,6 +419,27 @@ exports.getMasterSheet = async (req, res) => {
       return true;
     });
 
+    // Which template this project's master sheet is built from. Snapshot is
+    // authoritative; legacy projects (seeded before snapshots) fall back to
+    // the live template reference just to display a name.
+    let templateInfo = null;
+    if (project.planSnapshot?.baseTemplateId) {
+      templateInfo = {
+        baseTemplateId: project.planSnapshot.baseTemplateId,
+        templateName:   project.planSnapshot.templateName || "",
+        appliedAt:      project.planSnapshot.appliedAt || null,
+        customized:     !!project.planSnapshot.customized,
+      };
+    } else if (project.workflowTemplateId) {
+      const tpl = await WorkflowTemplate.findById(project.workflowTemplateId).select("name").lean();
+      templateInfo = {
+        baseTemplateId: project.workflowTemplateId,
+        templateName:   tpl?.name || "",
+        appliedAt:      null,
+        customized:     false,
+      };
+    }
+
     // Counters
     const counters = {
       total:            rows.length,
@@ -420,6 +475,10 @@ exports.getMasterSheet = async (req, res) => {
         effectiveBy:       plan.effectiveBy || null,
         effectiveNotifyChannels: plan.effectiveNotifyChannels || { mail: false, whatsapp: false },
       },
+      template: templateInfo,
+      // Snapshot phase list (sorted) so the UI can render freshly added
+      // EMPTY phase groups that have no rows yet.
+      phases: snapshotPhases(project.planSnapshot),
       counters,
       rows: filtered,
     });
@@ -449,6 +508,7 @@ exports.createRow = async (req, res) => {
       taskType: value.taskType,
       assignedTo: value.assignedTo || undefined,
       priority: value.priority,
+      workStatus: value.workStatus || "pending",
       notes: value.notes || "",
       dependsOn: value.dependsOn || [],
       phase: value.phase || undefined,
@@ -493,8 +553,10 @@ exports.patchRow = async (req, res) => {
     const previousAssignee = task.assignedTo ? String(task.assignedTo) : "";
 
     // Top-level patchable fields (NOT status / dependsOn — those go through existing
-    // controllers so workflowEngine + gateEnforcement run).
-    for (const f of ["title", "taskType", "assignedTo", "priority", "notes", "delayReason"]) {
+    // controllers so workflowEngine + gateEnforcement run). workStatus is the
+    // manual Master Sheet tracking column — safe to patch directly because the
+    // engine never reads it.
+    for (const f of ["title", "taskType", "assignedTo", "priority", "notes", "delayReason", "workStatus"]) {
       if (value[f] !== undefined) task[f] = value[f] === "" ? "" : value[f];
     }
     // dependsOn is allowed here for planner use (Phase 1 keeps it simple; the
@@ -1040,5 +1102,306 @@ exports.activatePlan = async (req, res) => {
   } catch (err) {
     console.error("[Planner.activatePlan]", err);
     res.status(500).json({ message: "Failed to activate plan" });
+  }
+};
+
+/**
+ * POST /api/pms/planner/:projectId/change-template
+ *
+ * Switch THIS project's master sheet to a different workflow template.
+ * Project-specific only — the global default template and other projects are
+ * never touched.
+ *
+ * Body: { templateId }
+ *
+ * What it does:
+ *   1. Deletes the rows that came from the OLD template (templateTaskKey set).
+ *      Ad-hoc rows added via "Add Drawing Row" are kept.
+ *   2. Clears the seed lock (workflowTemplateId + planSnapshot) and re-seeds
+ *      from the new template, which also writes a fresh planSnapshot.
+ *
+ * Refused when the change would destroy real work:
+ *   - plan already effective (locked)
+ *   - any template-seeded task has started / logged hours
+ *   - any template-seeded task has drawings attached
+ */
+exports.changeTemplate = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { templateId } = req.body || {};
+    if (!isOid(projectId))  return res.status(400).json({ message: "Invalid projectId" });
+    if (!isOid(templateId)) return res.status(400).json({ message: "Invalid templateId" });
+
+    const project = await Project.findById(projectId)
+      .select("name trackingId workflowTemplateId planSnapshot")
+      .lean();
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    const template = await WorkflowTemplate.findOne({ _id: templateId, isActive: true })
+      .select("_id name")
+      .lean();
+    if (!template) {
+      return res.status(404).json({ message: "Workflow template not found or inactive" });
+    }
+
+    const currentTemplateId = project.planSnapshot?.baseTemplateId || project.workflowTemplateId;
+    if (currentTemplateId && String(currentTemplateId) === String(templateId)) {
+      return res.status(409).json({
+        code: "TEMPLATE_UNCHANGED",
+        message: "This project already uses that template.",
+      });
+    }
+
+    const plan = await ProjectPlan.findOne({ projectId }).select("effectiveAt").lean();
+    if (plan?.effectiveAt) {
+      return res.status(409).json({
+        code: "PLAN_ALREADY_EFFECTIVE",
+        message: "The plan is already effective — the template can no longer be changed.",
+      });
+    }
+
+    // Rows spawned by the current template. Ad-hoc rows have no templateTaskKey
+    // and survive the switch untouched.
+    const seededTasks = await Task.find({
+      projectId,
+      templateTaskKey: { $exists: true, $nin: [null, ""] },
+    })
+      .select("_id status planning.actualHours")
+      .lean();
+
+    const startedCount = seededTasks.filter(
+      (t) => !["not_started", "blocked"].includes(t.status)
+          || Number(t.planning?.actualHours || 0) > 0
+    ).length;
+    if (startedCount > 0) {
+      return res.status(409).json({
+        code: "TEMPLATE_TASKS_IN_PROGRESS",
+        message: `${startedCount} task(s) from the current template already have work in progress. Changing the template would delete that work.`,
+      });
+    }
+
+    const seededIds = seededTasks.map((t) => t._id);
+    if (seededIds.length && await Drawing.exists({ taskId: { $in: seededIds } })) {
+      return res.status(409).json({
+        code: "TEMPLATE_TASKS_HAVE_DRAWINGS",
+        message: "Drawings are already attached to template tasks — the template can no longer be changed.",
+      });
+    }
+
+    // Tear down the old template's artifacts (gates + deps only ever come
+    // from seeding, so a project-wide delete is safe here).
+    if (TaskDependency) await TaskDependency.deleteMany({ projectId });
+    if (ApprovalGate)   await ApprovalGate.deleteMany({ projectId });
+    if (seededIds.length) await Task.deleteMany({ _id: { $in: seededIds } });
+
+    // Clear the seed lock so seedProject runs again with the new template.
+    await Project.updateOne(
+      { _id: projectId },
+      { $set: { currentGateIds: [] }, $unset: { workflowTemplateId: 1, planSnapshot: 1 } }
+    );
+
+    const summary = await workflowEngine.seedProject(projectId, {
+      templateId,
+      actorId: req.user?._id,
+    });
+    if (summary.skipped) {
+      // Template disappeared between validation and seeding — surface loudly
+      // instead of leaving the project with an empty master sheet.
+      return res.status(422).json({
+        code: "RESEED_FAILED",
+        message: "Could not rebuild the master sheet from the selected template. Please refresh and try again.",
+      });
+    }
+    await recomputePlanTotals(projectId);
+
+    await logActivity({
+      projectId, actorId: req.user?._id,
+      entityType: "project", entityId: projectId,
+      action: "planner.template_changed",
+      description: `Master sheet template changed to "${template.name}" — ${seededIds.length} old row(s) replaced by ${summary.tasksCreated} new row(s)`,
+      metadata: { templateId, templateName: template.name, removedTasks: seededIds.length, tasksCreated: summary.tasksCreated },
+    });
+
+    res.json({
+      ok: true,
+      removedTasks: seededIds.length,
+      tasksCreated: summary.tasksCreated,
+      templateId:   summary.templateId,
+      templateName: template.name,
+    });
+  } catch (err) {
+    console.error("[Planner.changeTemplate]", err);
+    res.status(500).json({ message: "Failed to change master sheet template" });
+  }
+};
+
+/**
+ * POST /api/pms/planner/:projectId/phases
+ *
+ * Add an empty phase to THIS project's plan snapshot. Rows are attached later
+ * by creating/moving tasks with the new phase label — the global template is
+ * never touched.
+ */
+exports.addPhase = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!isOid(projectId)) return res.status(400).json({ message: "Invalid projectId" });
+
+    const { value, error } = phaseCreateSchema.validate(req.body, { stripUnknown: true });
+    if (error) return res.status(400).json({ message: error.message });
+
+    const project = await Project.findById(projectId).select("name planSnapshot");
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (!project.planSnapshot || !Array.isArray(project.planSnapshot.phases) || !project.planSnapshot.phases.length) {
+      return res.status(409).json({ code: "NO_TEMPLATE_APPLIED", message: "Select a template before managing phases." });
+    }
+
+    const name = value.name;
+    const duplicate = project.planSnapshot.phases.some((p) => phaseKey(p.name) === phaseKey(name));
+    if (duplicate) {
+      return res.status(409).json({ code: "PHASE_EXISTS", message: `A phase named "${name}" already exists.` });
+    }
+
+    const maxOrder = project.planSnapshot.phases.reduce((m, p) => Math.max(m, Number(p.order || 0)), 0);
+    project.planSnapshot.phases.push({ name, order: maxOrder + 1, taskKeys: [] });
+    project.markModified("planSnapshot");
+    await project.save();
+
+    await logActivity({
+      projectId, actorId: req.user?._id,
+      entityType: "project", entityId: projectId,
+      action: "planner.phase.added",
+      description: `Planner phase added: ${name}`,
+    });
+
+    res.json({ phases: snapshotPhases(project.planSnapshot) });
+  } catch (err) {
+    console.error("[Planner.addPhase]", err);
+    res.status(500).json({ message: "Failed to add phase" });
+  }
+};
+
+/**
+ * PATCH /api/pms/planner/:projectId/phases/rename
+ *
+ * Rename a snapshot phase and cascade the label to this project's task rows.
+ * Project.phase (the enum-locked workflow stage) is NEVER touched here.
+ */
+exports.renamePhase = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!isOid(projectId)) return res.status(400).json({ message: "Invalid projectId" });
+
+    const { value, error } = phaseRenameSchema.validate(req.body, { stripUnknown: true });
+    if (error) return res.status(400).json({ message: error.message });
+
+    const project = await Project.findById(projectId).select("name planSnapshot");
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (!project.planSnapshot || !Array.isArray(project.planSnapshot.phases) || !project.planSnapshot.phases.length) {
+      return res.status(409).json({ code: "NO_TEMPLATE_APPLIED", message: "Select a template before managing phases." });
+    }
+
+    const { from, to } = value;
+    // Exact name match first, case-insensitive fallback second
+    const phase = project.planSnapshot.phases.find((p) => p.name === from)
+               || project.planSnapshot.phases.find((p) => phaseKey(p.name) === phaseKey(from));
+    if (!phase) {
+      return res.status(404).json({ code: "PHASE_NOT_FOUND", message: `Phase "${from}" not found.` });
+    }
+
+    const collision = project.planSnapshot.phases.find(
+      (p) => p !== phase && phaseKey(p.name) === phaseKey(to)
+    );
+    if (collision) {
+      return res.status(409).json({ code: "PHASE_EXISTS", message: `A phase named "${to}" already exists.` });
+    }
+
+    if (from === to) {
+      // No-op rename — nothing to save or cascade
+      return res.json({ phases: snapshotPhases(project.planSnapshot), tasksUpdated: 0 });
+    }
+
+    const oldExactName = phase.name;
+    phase.name = to;
+    project.markModified("planSnapshot");
+    await project.save();
+
+    // Cascade the label to task rows so master-sheet grouping follows.
+    const r = await Task.updateMany(
+      { projectId, phase: oldExactName },
+      { $set: { phase: to } }
+    );
+
+    await logActivity({
+      projectId, actorId: req.user?._id,
+      entityType: "project", entityId: projectId,
+      action: "planner.phase.renamed",
+      description: `Planner phase renamed: ${oldExactName} → ${to}`,
+      metadata: { from: oldExactName, to, tasksUpdated: r.modifiedCount },
+    });
+
+    res.json({ phases: snapshotPhases(project.planSnapshot), tasksUpdated: r.modifiedCount });
+  } catch (err) {
+    console.error("[Planner.renamePhase]", err);
+    res.status(500).json({ message: "Failed to rename phase" });
+  }
+};
+
+/**
+ * DELETE /api/pms/planner/:projectId/phases?name=<phase>
+ *
+ * Remove an EMPTY snapshot phase. Refused while any task row still carries
+ * the phase label — move or delete those rows first.
+ */
+exports.deletePhase = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!isOid(projectId)) return res.status(400).json({ message: "Invalid projectId" });
+
+    const { value, error } = phaseDeleteSchema.validate(req.query, { stripUnknown: true });
+    if (error) return res.status(400).json({ message: error.message });
+
+    const project = await Project.findById(projectId).select("name planSnapshot");
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (!project.planSnapshot || !Array.isArray(project.planSnapshot.phases) || !project.planSnapshot.phases.length) {
+      return res.status(409).json({ code: "NO_TEMPLATE_APPLIED", message: "Select a template before managing phases." });
+    }
+
+    const phases = project.planSnapshot.phases;
+    const phase = phases.find((p) => p.name === value.name)
+               || phases.find((p) => phaseKey(p.name) === phaseKey(value.name));
+    if (!phase) {
+      return res.status(404).json({ code: "PHASE_NOT_FOUND", message: `Phase "${value.name}" not found.` });
+    }
+
+    const inUse = await Task.countDocuments({ projectId, phase: phase.name });
+    if (inUse > 0) {
+      return res.status(409).json({
+        code: "PHASE_HAS_TASKS",
+        message: `${inUse} task(s) still belong to this phase — move or delete them first.`,
+      });
+    }
+
+    // Drop the phase and renumber survivors contiguously (1..n) so ordering
+    // stays gap-free for the UI.
+    const survivors = phases
+      .filter((p) => p !== phase)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+    survivors.forEach((p, i) => { p.order = i + 1; });
+    project.planSnapshot.phases = survivors;
+    project.markModified("planSnapshot");
+    await project.save();
+
+    await logActivity({
+      projectId, actorId: req.user?._id,
+      entityType: "project", entityId: projectId,
+      action: "planner.phase.deleted",
+      description: `Planner phase deleted: ${phase.name}`,
+    });
+
+    res.json({ phases: snapshotPhases(project.planSnapshot) });
+  } catch (err) {
+    console.error("[Planner.deletePhase]", err);
+    res.status(500).json({ message: "Failed to delete phase" });
   }
 };

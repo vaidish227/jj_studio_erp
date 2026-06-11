@@ -35,6 +35,9 @@ const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const REGION = process.env.AWS_REGION;
 const BUCKET = process.env.S3_BUCKET;
 const PREFIX = (process.env.S3_DRAWINGS_PREFIX || "drawings").replace(/^\/+|\/+$/g, "");
+// Document Repository files live under their own top-level prefix:
+//   <bucket>/<S3_DOCUMENTS_PREFIX>/<projectTrackingId>/<category>/<name>-<ts>.<ext>
+const DOCS_PREFIX = (process.env.S3_DOCUMENTS_PREFIX || "documents").replace(/^\/+|\/+$/g, "");
 
 let _client = null;
 function client() {
@@ -98,6 +101,36 @@ function buildDrawingKey({ projectTrackingId, zoneName, designName, version, ori
     slugify(projectTrackingId, "project"),
     slugify(zoneName,          "general"),
     `${slugify(designName, "design")}-v${Number(version) || 1}-${ts}.${ext}`,
+  ].join("/");
+}
+
+/**
+ * Extract a normalised lowercase extension from a filename ("bin" fallback).
+ */
+function extOf(originalFilename) {
+  const dot = String(originalFilename || "").lastIndexOf(".");
+  if (dot < 0) return "bin";
+  const raw = String(originalFilename).slice(dot + 1).toLowerCase();
+  return raw.replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
+}
+
+/**
+ * Compose the S3 key for a Document Repository file. Pure function (no I/O).
+ *
+ * @param {Object} args
+ * @param {string} args.projectTrackingId   e.g. "PRJ-2026-0003"
+ * @param {string} args.category            e.g. "client_details"
+ * @param {string} args.name                display name ("Signed Agreement")
+ * @param {string} args.originalFilename    used to extract the extension
+ * @returns {string}
+ */
+function buildDocumentKey({ projectTrackingId, category, name, originalFilename }) {
+  const ts = Date.now();
+  return [
+    DOCS_PREFIX,
+    slugify(projectTrackingId, "project"),
+    slugify(category, "documents"),
+    `${slugify(name, "document")}-${ts}.${extOf(originalFilename)}`,
   ].join("/");
 }
 
@@ -190,6 +223,7 @@ function parseS3Url(fileUrl) {
 module.exports = {
   isConfigured,
   buildDrawingKey,
+  buildDocumentKey,
   putObject,
   getSignedDownloadUrl,
   deleteObject,

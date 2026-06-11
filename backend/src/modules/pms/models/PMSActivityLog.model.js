@@ -20,6 +20,7 @@ const activityLogSchema = new mongoose.Schema(
         "project", "task", "drawing", "milestone",
         "approval", "material", "purchase_order",
         "site_visit", "site_log", "whatsapp_group",
+        "document",
       ],
       required: true,
     },

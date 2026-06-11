@@ -230,6 +230,39 @@ function applyCustomizedPlan(template, plan) {
 }
 
 /**
+ * buildPlanSnapshot — freeze the EFFECTIVE template (base template + any
+ * initiation-time customization already applied) into the shape stored on
+ * Project.planSnapshot. The master sheet reads this snapshot instead of the
+ * live WorkflowTemplate, so later edits to the global template cannot change
+ * an already-initiated project's plan.
+ */
+function buildPlanSnapshot(template, { customized = false } = {}) {
+  return {
+    baseTemplateId: template._id,
+    templateName:   template.name || "",
+    appliedAt:      new Date(),
+    customized:     !!customized,
+    phases: (template.phases || []).map((p, i) => ({
+      name:     p.name || "",
+      order:    p.order ?? i + 1,
+      taskKeys: Array.isArray(p.taskKeys) ? p.taskKeys.filter(Boolean) : [],
+    })),
+    tasks: (template.tasks || []).map((t) => ({
+      key:      t.key || "",
+      title:    t.title || "",
+      taskType: t.taskType || "",
+      dayOffsetFromProjectStart: Number(t.dayOffsetFromProjectStart) || 0,
+      plannedDays:  Number(t.plannedDays)  || 0,
+      plannedHours: Number(t.plannedHours) || 0,
+      priority:     t.priority || "medium",
+      responsibilitySlug:    t.responsibilitySlug || t.teamSlot || "",
+      checklistTemplateName: t.checklistTemplateName || "",
+      notes: t.notes || "",
+    })),
+  };
+}
+
+/**
  * seedProject — instantiate the full PDF-accurate task graph on a project.
  *
  * Idempotent: if the project already has tasks created by the engine
@@ -426,7 +459,14 @@ async function seedProject(projectId, opts = {}) {
 
   // 6. Update project: phase, template link, currentGateIds, initial progress
   project.workflowTemplateId = template._id;
-  project.phase = (template.phases?.[0]?.name || "kickoff").toLowerCase();
+  // Per-project plan snapshot — the master sheet renders from this, never
+  // from the live (mutable) WorkflowTemplate document.
+  project.planSnapshot = buildPlanSnapshot(template, {
+    customized: !!opts.customizedPlan,
+  });
+  // project.phase is enum-locked to PHASE_ORDER; custom phase names fall back to kickoff.
+  const firstPhase = (template.phases?.[0]?.name || "kickoff").toLowerCase();
+  project.phase = PHASE_ORDER.includes(firstPhase) ? firstPhase : "kickoff";
   project.currentGateIds = Array.from(gateKeyToDoc.values()).map((g) => g._id);
   project.progressPercent = 0;
   await project.save();
@@ -1038,6 +1078,7 @@ async function recomputeProjectProgress(projectId) {
 
 module.exports = {
   seedProject,
+  buildPlanSnapshot,
   closeGate,
   overrideGate,
   evaluateTaskAccess,

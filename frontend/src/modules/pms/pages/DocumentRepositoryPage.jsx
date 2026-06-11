@@ -1,21 +1,24 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
-  FileText, FileSpreadsheet, FileImage, FileCheck2, BookOpen,
+  FileText, FileSpreadsheet, FileImage, BookOpen,
   Layers, FolderOpen, Search, Plus, Eye, Download, Upload,
-  ChevronRight, ChevronDown, Check, Filter, FileArchive, File as FileIcon,
-  ClipboardList,
+  ChevronDown, Check, FileArchive, File as FileIcon,
+  ClipboardList, Trash2, ExternalLink,
 } from 'lucide-react';
 import { Button, Loader, SearchInput } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import useProjects from '../hooks/useProjects';
 import useProjectMoMs from '../hooks/useProjectMoMs';
+import useProjectDocuments from '../hooks/useProjectDocuments';
 import RecordMoMModal from '../components/RecordMoMModal';
 import MoMPreviewModal from '../components/MoMPreviewModal';
+import UploadDocumentModal from '../components/UploadDocumentModal';
+import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 
 // ─── Category definitions ────────────────────────────────────────────────────
-// The mockup labels: Client Details · Documents · MOM · Design Files · SOP.
-// Each is rendered as a tab that filters the document grid.
+// Client Details · Documents · MOM · Design Files · SOP — each is a tab that
+// filters the document grid.
 const CATEGORIES = [
   { id: 'client_details', label: 'Client Details' },
   { id: 'documents',      label: 'Documents' },
@@ -24,22 +27,13 @@ const CATEGORIES = [
   { id: 'sop',            label: 'SOP' },
 ];
 
-// ─── Demo data ───────────────────────────────────────────────────────────────
-// Until a /pms/documents backend exists, the page shows representative
-// documents per project so MD/PM can validate the UI. Swap MOCK_DOCS for an
-// API call when the backend lands.
-const MOCK_DOCS_TEMPLATE = [
-  { name: 'Agreement.pdf',     ext: 'pdf',  size: '2.1 MB',  status: 'Signed',    category: 'client_details' },
-  { name: 'Client_Info.pdf',   ext: 'pdf',  size: '1.2 MB',  status: 'Verified',  category: 'client_details' },
-  { name: 'BOQ_v2.xlsx',       ext: 'xlsx', size: '480 KB',  status: 'Updated 2d ago', category: 'documents' },
-  { name: 'Quotation.pdf',     ext: 'pdf',  size: '780 KB',  status: 'Approved',  category: 'documents' },
-  { name: 'Kickoff_MOM.docx',  ext: 'docx', size: '210 KB',  status: 'Shared',    category: 'mom' },
-  { name: 'Review_MOM.pdf',    ext: 'pdf',  size: '320 KB',  status: 'Latest',    category: 'mom' },
-  { name: 'Floor_Plan.dwg',    ext: 'dwg',  size: '5.4 MB',  status: 'Rev 3',     category: 'design_files' },
-  { name: '3D_Living.png',     ext: 'png',  size: '1920×1080', status: '',         category: 'design_files' },
-  { name: 'SOP_Washroom.pdf',  ext: 'pdf',  size: 'v1.2 · linked', status: '',      category: 'sop' },
-  { name: 'SOP_Kitchen.pdf',   ext: 'pdf',  size: 'v1.0',    status: '',          category: 'sop' },
-];
+// Badge label per ProjectDocument.status
+const STATUS_LABELS = {
+  uploaded: 'Uploaded',
+  approved: 'Approved',
+  signed:   'Signed',
+  verified: 'Verified',
+};
 
 // ─── File-type styling ───────────────────────────────────────────────────────
 const EXT_META = {
@@ -48,16 +42,44 @@ const EXT_META = {
   docx: { icon: FileText,       bg: 'bg-[var(--accent-blue)]/12', fg: 'text-[var(--accent-blue)]' },
   xls:  { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
   xlsx: { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
+  csv:  { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
   png:  { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
   jpg:  { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
   jpeg: { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
+  webp: { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
   dwg:  { icon: BookOpen,       bg: 'bg-[var(--warning)]/12',     fg: 'text-[var(--warning)]' },
+  dxf:  { icon: BookOpen,       bg: 'bg-[var(--warning)]/12',     fg: 'text-[var(--warning)]' },
   zip:  { icon: FileArchive,    bg: 'bg-[var(--text-muted)]/12',  fg: 'text-[var(--text-muted)]' },
   mom:  { icon: ClipboardList,  bg: 'bg-[var(--primary)]/12',     fg: 'text-[var(--primary)]' },
   default: { icon: FileIcon,    bg: 'bg-[var(--primary)]/12',     fg: 'text-[var(--primary)]' },
 };
 
 const metaFor = (ext) => EXT_META[(ext || '').toLowerCase()] || EXT_META.default;
+
+const formatSize = (n) => {
+  if (!n && n !== 0) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1048576).toFixed(2)} MB`;
+};
+
+// Map a ProjectDocument API record to the card shape the grid renders.
+const toCardDoc = (d) => {
+  const ext = (d.fileName || d.fileUrl || '').split('.').pop()?.toLowerCase() || '';
+  return {
+    id:          d._id,
+    name:        d.name,
+    ext:         ext.length <= 5 ? ext : '',
+    size:        formatSize(d.fileSize),
+    status:      STATUS_LABELS[d.status] || '',
+    category:    d.category,
+    description: d.description,
+    fileName:    d.fileName,
+    uploadedBy:  d.uploadedBy?.name,
+    createdAt:   d.createdAt,
+    source:      d.source,
+  };
+};
 
 // ─── Document Card ───────────────────────────────────────────────────────────
 const DocumentCard = ({ doc, onReview, onDownload }) => {
@@ -111,7 +133,7 @@ const DocumentCard = ({ doc, onReview, onDownload }) => {
 };
 
 // ─── Inline preview panel ────────────────────────────────────────────────────
-const PreviewPanel = ({ doc, onClose }) => {
+const PreviewPanel = ({ doc, onClose, onOpen, onDownload, onDelete }) => {
   if (!doc) {
     return (
       <div className="hidden lg:flex flex-col items-center justify-center h-full bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-2xl p-8 text-center">
@@ -136,7 +158,9 @@ const PreviewPanel = ({ doc, onClose }) => {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-bold text-[var(--text-primary)] truncate">{doc.name}</p>
-            <p className="text-[11px] text-[var(--text-muted)]">{doc.size || '—'}</p>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              {[doc.size, doc.status].filter(Boolean).join(' · ') || '—'}
+            </p>
           </div>
         </div>
         <button
@@ -152,21 +176,43 @@ const PreviewPanel = ({ doc, onClose }) => {
         <div className={`w-24 h-24 rounded-2xl flex items-center justify-center mb-4 ${meta.bg}`}>
           <Icon size={48} className={meta.fg} />
         </div>
-        <p className="text-sm text-[var(--text-secondary)] max-w-sm">
-          Preview not available inline for{' '}
-          <span className="font-bold text-[var(--text-primary)]">.{doc.ext}</span> files.
-          Use Download to open the file locally.
-        </p>
+        {doc.description ? (
+          <p className="text-sm text-[var(--text-secondary)] max-w-sm whitespace-pre-wrap">
+            {doc.description}
+          </p>
+        ) : (
+          <p className="text-sm text-[var(--text-secondary)] max-w-sm">
+            Use <span className="font-bold text-[var(--text-primary)]">Open</span> to view this
+            file in a new tab, or Download to save it locally.
+          </p>
+        )}
+        {(doc.uploadedBy || doc.createdAt) && (
+          <p className="text-[11px] text-[var(--text-muted)] mt-3">
+            {doc.uploadedBy ? `Added by ${doc.uploadedBy}` : 'Added'}
+            {doc.createdAt ? ` · ${new Date(doc.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-2 pt-4 border-t border-[var(--border)]">
-        <Button variant="primary" size="sm" className="flex-1">
+        <Button variant="primary" size="sm" className="flex-1" onClick={() => onDownload?.(doc)}>
           <Download size={14} />
           Download
         </Button>
-        <Button variant="outline" size="sm" className="flex-1">
-          Share
+        <Button variant="outline" size="sm" className="flex-1" onClick={() => onOpen?.(doc)}>
+          <ExternalLink size={14} />
+          Open
         </Button>
+        <PermissionGate permission={['documents.delete', 'projects.delete']} mode="any">
+          <button
+            type="button"
+            onClick={() => onDelete?.(doc)}
+            className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 transition-colors"
+            title="Delete document"
+          >
+            <Trash2 size={14} />
+          </button>
+        </PermissionGate>
       </div>
     </div>
   );
@@ -183,7 +229,13 @@ const DocumentRepositoryPage = () => {
   const [previewDoc, setPreviewDoc]               = useState(null);
   const [projectOpen, setProjectOpen]             = useState(false);
   const [projectQuery, setProjectQuery]           = useState('');
+  const [uploadOpen, setUploadOpen]               = useState(false);
   const projectRef = useRef(null);
+
+  // Repository documents from the API (manual uploads + auto-filed approvals)
+  const {
+    documents, counts: docCounts, isLoading: docsLoading, refresh,
+  } = useProjectDocuments(selectedProjectId);
 
   // Recorded MoMs (per-project, localStorage-backed) — same data store as DocumentsTab
   const { moms, addMoM, updateMoM, removeMoM } = useProjectMoMs(selectedProjectId);
@@ -214,6 +266,8 @@ const DocumentRepositoryPage = () => {
     [projects, selectedProjectId]
   );
 
+  const cardDocs = useMemo(() => documents.map(toCardDoc), [documents]);
+
   // Map recorded MoMs to the doc shape so they render alongside file uploads.
   const recordedMomDocs = useMemo(() => moms.map((m) => ({
     name:     `${m.title}.mom`,
@@ -227,21 +281,43 @@ const DocumentRepositoryPage = () => {
 
   // Docs for current project, current category, current search.
   const docs = useMemo(() => {
+    const fromApi = cardDocs.filter((d) => d.category === activeCategory);
     const combined = activeCategory === 'mom'
-      ? [...recordedMomDocs, ...MOCK_DOCS_TEMPLATE.filter((d) => d.category === 'mom')]
-      : MOCK_DOCS_TEMPLATE.filter((d) => d.category === activeCategory);
+      ? [...recordedMomDocs, ...fromApi]
+      : fromApi;
     return combined.filter((d) => !search.trim() || d.name.toLowerCase().includes(search.toLowerCase()));
-  }, [activeCategory, search, recordedMomDocs]);
+  }, [cardDocs, activeCategory, search, recordedMomDocs]);
 
   // Per-category counts for tab badges
   const counts = useMemo(() => {
     const map = {};
     for (const c of CATEGORIES) {
-      const base = MOCK_DOCS_TEMPLATE.filter((d) => d.category === c.id).length;
+      const base = docCounts?.[c.id] || 0;
       map[c.id] = c.id === 'mom' ? base + recordedMomDocs.length : base;
     }
     return map;
-  }, [recordedMomDocs]);
+  }, [docCounts, recordedMomDocs]);
+
+  const openSignedUrl = async (doc, kind) => {
+    try {
+      const res = kind === 'download'
+        ? await pmsService.getDocumentDownloadUrl(doc.id)
+        : await pmsService.getDocumentPreviewUrl(doc.id);
+      if (!res?.url) throw new Error('No URL returned');
+      if (kind === 'download') {
+        const a = document.createElement('a');
+        a.href = res.url;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        window.open(res.url, '_blank', 'noopener');
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Could not open the file');
+    }
+  };
 
   const handleReview = (doc) => {
     if (doc.recorded) {
@@ -250,6 +326,7 @@ const DocumentRepositoryPage = () => {
       return;
     }
     setPreviewDoc(doc);
+    openSignedUrl(doc, 'preview');
   };
   const handleDownload = (doc) => {
     if (doc.recorded) {
@@ -257,7 +334,18 @@ const DocumentRepositoryPage = () => {
       if (target) setPreviewMoM(target);
       return;
     }
-    toast.success(`Downloading ${doc.name}…`);
+    openSignedUrl(doc, 'download');
+  };
+  const handleDelete = async (doc) => {
+    if (!window.confirm(`Delete "${doc.name}" from the repository?`)) return;
+    try {
+      await pmsService.deleteProjectDocument(doc.id);
+      toast.success('Document deleted.');
+      setPreviewDoc(null);
+      refresh();
+    } catch (err) {
+      toast.error(err?.message || 'Delete failed');
+    }
   };
 
   const handleSaveMoM = (payload) => {
@@ -462,8 +550,13 @@ const DocumentRepositoryPage = () => {
                   </Button>
                 </PermissionGate>
               )}
-              <PermissionGate permission="projects.read">
-                <Button variant="primary" size="sm">
+              <PermissionGate permission={['documents.upload', 'projects.update', 'drawings.upload']} mode="any">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setUploadOpen(true)}
+                  disabled={!selectedProjectId}
+                >
                   <Upload size={14} />
                   Upload Document
                 </Button>
@@ -477,7 +570,11 @@ const DocumentRepositoryPage = () => {
 
           {/* Documents grid */}
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[320px]">
-            {docs.length === 0 ? (
+            {docsLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader />
+              </div>
+            ) : docs.length === 0 ? (
               <div className="flex flex-col items-center justify-center text-center py-12">
                 <FolderOpen size={28} className="text-[var(--text-muted)] mb-2" />
                 <p className="text-sm font-bold text-[var(--text-secondary)]">No documents</p>
@@ -486,7 +583,7 @@ const DocumentRepositoryPage = () => {
                     ? 'Nothing matches your search.'
                     : activeCategory === 'mom'
                       ? 'Record a meeting minute or upload an MoM file to get started.'
-                      : 'Upload the first document to this category.'}
+                      : 'Upload the first document to this category. Approved proposals and drawings are filed here automatically.'}
                 </p>
                 {!search && activeCategory === 'mom' && (
                   <Button
@@ -504,7 +601,7 @@ const DocumentRepositoryPage = () => {
             ) : (
               <div className="flex flex-wrap gap-3">
                 {docs.map((doc) => (
-                  <div key={doc.name} className="w-[200px]">
+                  <div key={doc.id || doc.momId || doc.name} className="w-[200px]">
                     <DocumentCard
                       doc={doc}
                       onReview={handleReview}
@@ -518,7 +615,13 @@ const DocumentRepositoryPage = () => {
 
           {/* Preview panel — desktop only */}
           <div className="hidden lg:block">
-            <PreviewPanel doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+            <PreviewPanel
+              doc={previewDoc}
+              onClose={() => setPreviewDoc(null)}
+              onOpen={(d) => openSignedUrl(d, 'preview')}
+              onDownload={handleDownload}
+              onDelete={handleDelete}
+            />
           </div>
         </div>
       </section>
@@ -538,6 +641,17 @@ const DocumentRepositoryPage = () => {
         projectName={selectedProject?.name}
         onEdit={handleEditFromPreview}
         onDelete={handleDeleteFromPreview}
+      />
+
+      <UploadDocumentModal
+        isOpen={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        projectId={selectedProjectId}
+        defaultCategory={activeCategory === 'mom' ? 'mom' : activeCategory}
+        onUploaded={(doc) => {
+          refresh();
+          if (doc?.category) setActiveCategory(doc.category);
+        }}
       />
     </div>
   );

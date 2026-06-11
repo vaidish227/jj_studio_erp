@@ -30,6 +30,8 @@ const TASK_STATUSES = new Set([
   "approved", "released_to_site", "completed", "on_hold",
 ]);
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
+// Master Sheet "Work Status" column — keep in sync with Task.model.js workStatus enum
+const WORK_STATUSES = new Set(["pending", "in_progress", "completed", "on_hold", "cancelled"]);
 
 const isOid = (v) => mongoose.Types.ObjectId.isValid(String(v || ""));
 
@@ -41,6 +43,7 @@ const COLUMNS = [
   { key: "title",             header: "Drawing Name",    width: 36, editable: true  },
   { key: "taskType",          header: "Task Type",       width: 20, editable: false },
   { key: "status",            header: "Status",          width: 18, editable: true  },
+  { key: "workStatus",        header: "Work Status",     width: 14, editable: true  },
   { key: "priority",          header: "Priority",        width: 12, editable: true  },
   { key: "zoneName",          header: "Zone",            width: 14, editable: true  },
   { key: "floor",             header: "Floor",           width: 10, editable: true  },
@@ -116,6 +119,7 @@ exports.exportMasterSheet = async (req, res) => {
         title:             t.title || "",
         taskType:          t.taskType || "",
         status:            t.status || "",
+        workStatus:        t.workStatus || "pending",
         priority:          t.priority || "",
         zoneName:          t.planning?.zoneName || "",
         floor:             t.planning?.floor || "",
@@ -177,6 +181,7 @@ const COLUMN_HELP = {
   title:            "Editable. Short name shown in the master sheet. Cannot be empty.",
   taskType:         "Read-only. Task type is fixed once the row is created.",
   status:           "Editable. One of: not_started, blocked, in_progress, pending_review, revision_requested, pending_client_approval, approved, released_to_site, completed, on_hold.",
+  workStatus:       "Editable. Manual tracking status. One of: pending, in_progress, completed, on_hold, cancelled.",
   priority:         "Editable. One of: low, medium, high, urgent.",
   zoneName:         "Editable. Free-text zone label (e.g. Living Room, Master Bath).",
   floor:            "Editable. Free-text floor label (e.g. G, 1, 2).",
@@ -224,6 +229,7 @@ exports.getImportTemplate = async (req, res) => {
       title:             "Living Room — Furniture Layout v2",
       taskType:          "furniture_layout",
       status:            "in_progress",
+      workStatus:        "in_progress",
       priority:          "high",
       zoneName:          "Living Room",
       floor:             "G",
@@ -367,6 +373,11 @@ function buildUpdate(data) {
       const s = String(v).toLowerCase();
       if (!TASK_STATUSES.has(s)) return { error: `Invalid status "${v}"` };
       set.status = s;
+    } else if (key === "workStatus") {
+      // Tolerate the display label form too ("In Progress" → "in_progress")
+      const w = String(v).toLowerCase().trim().replace(/\s+/g, "_");
+      if (!WORK_STATUSES.has(w)) return { error: `Invalid work status "${v}"` };
+      set.workStatus = w;
     } else if (key === "priority") {
       const p = String(v).toLowerCase();
       if (!PRIORITIES.has(p)) return { error: `Invalid priority "${v}"` };
@@ -394,6 +405,13 @@ function buildUpdate(data) {
       if (v < 0 || v > 100) return { error: "Progress % must be 0–100" };
       set["planning.progressPercent"] = v;
     }
+  }
+
+  // Task.bulkWrite bypasses model middleware — mirror the status→workStatus
+  // auto-sync here. An explicit Work Status cell in the same row still wins.
+  if (set.status && !Object.prototype.hasOwnProperty.call(set, "workStatus")) {
+    const ws = Task.WORK_STATUS_FROM_STATUS[set.status];
+    if (ws) set.workStatus = ws;
   }
 
   // Cross-field check

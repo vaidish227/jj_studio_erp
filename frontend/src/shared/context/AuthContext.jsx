@@ -14,6 +14,11 @@ const readLocalStorage = (key, fallback = null) => {
   }
 };
 
+// Auth payloads expose the user id as `id`, but many pages compare ownership
+// against `user._id` (Mongo document shape). Normalize so both always exist —
+// also repairs stale localStorage sessions cached before this fix.
+const normalizeUser = (u) => (u && !u._id && u.id ? { ...u, _id: u.id } : u);
+
 // Read `exp` (seconds since epoch) from a JWT without verifying its signature.
 // Returns null if the token is malformed. We only use this for client-side
 // "when should I redirect" — the server still enforces real validity.
@@ -42,10 +47,11 @@ export const AuthProvider = ({ children }) => {
 
   // Called after a successful login
   const login = useCallback((userData, token, userPermissions = []) => {
+    const normalized = normalizeUser(userData);
     localStorage.setItem('auth_token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('user', JSON.stringify(normalized));
     localStorage.setItem('permissions', JSON.stringify(userPermissions));
-    setUser(userData);
+    setUser(normalized);
     setPermissions(userPermissions);
   }, []);
 
@@ -61,7 +67,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await authService.me();
       if (!data) return;
-      const freshUser = data.user;
+      const freshUser = normalizeUser(data.user);
       const freshPermissions = data.permissions || [];
       if (freshUser) {
         localStorage.setItem('user', JSON.stringify(freshUser));
@@ -89,7 +95,7 @@ export const AuthProvider = ({ children }) => {
         setIsLoading(false);
         return;
       }
-      setUser(savedUser);
+      setUser(normalizeUser(savedUser));
       setPermissions(savedPermissions);
       // Hydrate UI immediately from cache, then refresh from server so any
       // role/permission changes that happened while logged out show up without

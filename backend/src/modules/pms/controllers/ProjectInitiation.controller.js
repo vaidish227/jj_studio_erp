@@ -1,47 +1,11 @@
 const mongoose = require("mongoose");
-const Joi = require("joi");
 const Project  = require("../models/Project.model");
 const Responsibility = require("../models/Responsibility.model");
 const Proposal = require("../../crm/models/Proposal.model");
 const CRMClient = require("../../crm/models/CRMClient.model");
 const { logActivity } = require("../../../shared/activityLogger");
-const { hasPermission } = require("../../../middleware/auth.middleware");
-const workflowEngine = require("../services/workflowEngine");
 const teamResolver = require("../services/teamResolver");
-
-const PRIORITY_VALUES = ["low", "medium", "high", "urgent"];
-
-// Customized plan payload — mirrors the safe-edit boundary used by the global
-// WorkflowTemplate editor. Gate fields and dependency keys are NOT accepted
-// (silently ignored if sent) so engine invariants survive any malformed UI.
-const planTaskSchema = Joi.object({
-  key:      Joi.string().trim().max(80).allow("").optional(),
-  taskType: Joi.string().trim().required(),
-  title:    Joi.string().trim().min(1).max(200).required(),
-  dayOffsetFromProjectStart: Joi.number().integer().min(0).max(730).required(),
-  plannedDays:  Joi.number().min(0).max(730).optional(),
-  plannedHours: Joi.number().min(0).max(10000).optional(),
-  priority: Joi.string().valid(...PRIORITY_VALUES).optional(),
-  responsibilitySlug:    Joi.string().trim().allow("").optional(),
-  checklistTemplateName: Joi.string().trim().allow("").optional(),
-  notes: Joi.string().allow("").max(500).optional(),
-  // Hint from the UI: which phase index this draft task belongs to.
-  __phaseIdx: Joi.number().integer().min(0).optional(),
-}).unknown(false);
-
-const planPhaseSchema = Joi.object({
-  name:     Joi.string().trim().min(1).max(80).required(),
-  taskKeys: Joi.array().items(Joi.string().trim()).optional(),
-}).unknown(false);
-
-const customizedPlanSchema = Joi.object({
-  baseTemplateId: Joi.string().hex().length(24).optional(),
-  phases: Joi.array().items(planPhaseSchema).optional(),
-  tasks:  Joi.array().items(planTaskSchema).optional(),
-}).unknown(false);
-
-const WORKFLOW_ENGINE_V1 =
-  String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
+const documentIngest = require("../services/documentIngest");
 
 const TEAM_POPULATE = teamResolver.assignmentsPopulate();
 
@@ -76,36 +40,10 @@ const initiateFromProposal = async (req, res) => {
       assignments,
       leadDesignerId,
       supervisorId,
-      // Workflow template chosen by the user at initiation time. Falls back to
-      // the active default for the project type when absent.
-      workflowTemplateId,
-      // Per-project plan customization (MD/admin only). Overlays the chosen
-      // template with safe-field edits (task title/dates/owner/checklist + add/
-      // remove tasks + phase rename). Engine gate structure stays intact.
-      customizedPlan,
     } = req.body;
 
     if (!proposalId || !mongoose.Types.ObjectId.isValid(proposalId)) {
       return res.status(400).json({ message: "Valid proposalId is required" });
-    }
-
-    // Permission gate for plan customization — defense in depth.
-    // Frontend hides the customizer UI without this permission; backend
-    // rejects the payload outright if a non-MD user sends one.
-    let validatedPlan = null;
-    if (customizedPlan && typeof customizedPlan === "object") {
-      if (!hasPermission(req.permissions || [], "projects.customize_plan")) {
-        return res.status(403).json({
-          message: "You don't have permission to customize the project plan",
-        });
-      }
-      const { error, value } = customizedPlanSchema.validate(customizedPlan, { abortEarly: false });
-      if (error) {
-        return res.status(400).json({
-          message: "Invalid plan: " + error.details.map((d) => d.message).join("; "),
-        });
-      }
-      validatedPlan = value;
     }
 
     if (startDate && estimatedCompletionDate) {
@@ -233,7 +171,14 @@ const initiateFromProposal = async (req, res) => {
       },
     });
 
-    // 7. Activity log
+    // 7. File the client-approved proposal PDF into the new project's
+    //    Document Repository — fire-and-forget so PDF rendering never delays
+    //    or fails the initiation response.
+    documentIngest
+      .ingestProposalPdf({ project, proposal, client, actorId: req.user?.id || req.user?._id })
+      .catch((err) => console.error("[initiateFromProposal:ingestProposalPdf]", err.message));
+
+    // 8. Activity log
     logActivity({
       projectId:   project._id,
       actorId:     req.user._id,
@@ -244,29 +189,7 @@ const initiateFromProposal = async (req, res) => {
       metadata:    { proposalId: proposal._id, clientId: client._id },
     });
 
-    // 7b. Workflow Engine — auto-seed the PDF-accurate task graph (Phase 1)
-    // Behind WORKFLOW_ENGINE_V1 env flag for safe rollout. Best-effort: failures
-    // are logged but do not block project creation.
-    let workflowSummary = null;
-    if (WORKFLOW_ENGINE_V1) {
-      try {
-        // Plan's baseTemplateId wins over the top-level workflowTemplateId when
-        // both are sent — the customization editor explicitly tracks its base.
-        const effectiveTemplateId =
-          validatedPlan?.baseTemplateId || workflowTemplateId || undefined;
-
-        workflowSummary = await workflowEngine.seedProject(project._id, {
-          templateId:      effectiveTemplateId,
-          actorId:         req.user._id,
-          customizedPlan:  validatedPlan || undefined,
-        });
-      } catch (engineErr) {
-        console.error("[ProjectInitiation:workflowEngine] seed failed:", engineErr);
-        // Do not throw — project is created even if engine fails.
-      }
-    }
-
-    // 8. Populate and return
+    // 9. Populate and return
     const populated = await Project.findById(project._id)
       .populate("clientId",   "name phone email trackingId")
       .populate("proposalId", "title totalAmount finalAmount")
@@ -275,7 +198,6 @@ const initiateFromProposal = async (req, res) => {
     res.status(201).json({
       message: "Project initiated successfully",
       project: populated,
-      workflow: workflowSummary,
     });
   } catch (err) {
     console.error("[initiateFromProposal]", err);

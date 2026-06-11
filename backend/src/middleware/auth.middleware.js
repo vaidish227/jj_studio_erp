@@ -14,7 +14,11 @@ const verifyToken = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey");
 
-    req.user = decoded; // { id, email, role }
+    // JWT payload carries `id`, but controllers across the codebase read
+    // `req.user._id` (Mongo document shape). Expose both so either works —
+    // without this, ownership checks compare against undefined and "my X"
+    // queries silently drop their filter.
+    req.user = { ...decoded, _id: decoded.id };
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {

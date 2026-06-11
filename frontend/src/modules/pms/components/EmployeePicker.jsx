@@ -155,7 +155,7 @@ const EmployeePicker = ({
           <>
             <Avatar name={value.name} />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{value.name}</p>
+              <p className="text-sm font-semibold text-[var(--text-primary)] truncate" title={value.name}>{value.name}</p>
               <p className="text-[10px] text-[var(--text-muted)] truncate">{ROLE_LABELS[value.role] || value.role}</p>
             </div>
             <button
@@ -177,7 +177,7 @@ const EmployeePicker = ({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden">
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 min-w-[300px] bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden">
           {/* Search */}
           <div className="p-2 border-b border-[var(--border)]">
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
@@ -224,8 +224,8 @@ const EmployeePicker = ({
                     >
                       <Avatar name={user.name} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{user.name}</p>
-                        <p className="text-[10px] text-[var(--text-muted)] truncate">{user.email}</p>
+                        <p className="text-sm font-semibold text-[var(--text-primary)] leading-snug break-words">{user.name}</p>
+                        <p className="text-[10px] text-[var(--text-muted)] truncate" title={user.email}>{user.email}</p>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full ${ROLE_COLORS[user.role] || 'bg-[var(--border)] text-[var(--text-muted)]'}`}>

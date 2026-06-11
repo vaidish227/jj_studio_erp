@@ -78,6 +78,42 @@ const projectSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "WorkflowTemplate",
     },
+    // --- Master Sheet plan snapshot (project-specific template config) ---
+    // Frozen copy of the workflow template (AFTER any initiation-time
+    // customization overlay) taken when seedProject runs. The planner reads
+    // THIS instead of the live WorkflowTemplate, so edits to the global
+    // default after initiation can never change an existing project's master
+    // sheet. Replaced only by the explicit per-project "Change Template" flow.
+    planSnapshot: {
+      baseTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: "WorkflowTemplate" },
+      templateName:   { type: String, trim: true },
+      appliedAt:      Date,
+      // true when the MD customized the plan during initiation
+      customized:     { type: Boolean, default: false },
+      phases: [
+        {
+          _id: false,
+          name:     { type: String, trim: true },
+          order:    Number,
+          taskKeys: [String],
+        },
+      ],
+      tasks: [
+        {
+          _id: false,
+          key:      { type: String, trim: true },
+          title:    { type: String, trim: true },
+          taskType: String,
+          dayOffsetFromProjectStart: Number,
+          plannedDays:  Number,
+          plannedHours: Number,
+          priority:     String,
+          responsibilitySlug:    String,
+          checklistTemplateName: String,
+          notes: String,
+        },
+      ],
+    },
     progressPercent: { type: Number, default: 0, min: 0, max: 100 },
     currentGateIds: [
       { type: mongoose.Schema.Types.ObjectId, ref: "ApprovalGate" },

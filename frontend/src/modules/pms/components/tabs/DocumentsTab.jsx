@@ -2,14 +2,17 @@ import React, { useMemo, useState } from 'react';
 import {
   FileText, FileSpreadsheet, FileImage, BookOpen, Layers,
   FolderOpen, Eye, Download, Upload, FileArchive, File as FileIcon,
-  ClipboardList, Plus,
+  ClipboardList, Plus, Trash2,
 } from 'lucide-react';
-import { Button, SearchInput } from '../../../../shared/components';
+import { Button, Loader, SearchInput } from '../../../../shared/components';
 import PermissionGate from '../../../../shared/components/PermissionGate/PermissionGate';
 import { useToast } from '../../../../shared/notifications/ToastProvider';
+import { pmsService } from '../../../../shared/services/pmsService';
 import RecordMoMModal from '../RecordMoMModal';
 import MoMPreviewModal from '../MoMPreviewModal';
+import UploadDocumentModal from '../UploadDocumentModal';
 import useProjectMoMs from '../../hooks/useProjectMoMs';
+import useProjectDocuments from '../../hooks/useProjectDocuments';
 
 // Same category model as the standalone Document Repository page.
 const CATEGORIES = [
@@ -20,19 +23,12 @@ const CATEGORIES = [
   { id: 'sop',            label: 'SOP' },
 ];
 
-// Demo dataset — replace with /pms/documents API when backend lands.
-const MOCK_DOCS = [
-  { name: 'Agreement.pdf',    ext: 'pdf',  size: '2.1 MB',  status: 'Signed',       category: 'client_details' },
-  { name: 'Client_Info.pdf',  ext: 'pdf',  size: '1.2 MB',  status: 'Verified',     category: 'client_details' },
-  { name: 'BOQ_v2.xlsx',      ext: 'xlsx', size: '480 KB',  status: 'Updated 2d ago', category: 'documents' },
-  { name: 'Quotation.pdf',    ext: 'pdf',  size: '780 KB',  status: 'Approved',     category: 'documents' },
-  { name: 'Kickoff_MOM.docx', ext: 'docx', size: '210 KB',  status: 'Shared',       category: 'mom' },
-  { name: 'Review_MOM.pdf',   ext: 'pdf',  size: '320 KB',  status: 'Latest',       category: 'mom' },
-  { name: 'Floor_Plan.dwg',   ext: 'dwg',  size: '5.4 MB',  status: 'Rev 3',        category: 'design_files' },
-  { name: '3D_Living.png',    ext: 'png',  size: '1920×1080', status: '',            category: 'design_files' },
-  { name: 'SOP_Washroom.pdf', ext: 'pdf',  size: 'v1.2',    status: '',             category: 'sop' },
-  { name: 'SOP_Kitchen.pdf',  ext: 'pdf',  size: 'v1.0',    status: '',             category: 'sop' },
-];
+const STATUS_LABELS = {
+  uploaded: 'Uploaded',
+  approved: 'Approved',
+  signed:   'Signed',
+  verified: 'Verified',
+};
 
 const EXT_META = {
   pdf:  { icon: FileText,       bg: 'bg-[var(--error)]/12',       fg: 'text-[var(--error)]' },
@@ -40,17 +36,41 @@ const EXT_META = {
   docx: { icon: FileText,       bg: 'bg-[var(--accent-blue)]/12', fg: 'text-[var(--accent-blue)]' },
   xls:  { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
   xlsx: { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
+  csv:  { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
   png:  { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
   jpg:  { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
   jpeg: { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
+  webp: { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
   dwg:  { icon: BookOpen,       bg: 'bg-[var(--warning)]/12',     fg: 'text-[var(--warning)]' },
+  dxf:  { icon: BookOpen,       bg: 'bg-[var(--warning)]/12',     fg: 'text-[var(--warning)]' },
   zip:  { icon: FileArchive,    bg: 'bg-[var(--text-muted)]/12',  fg: 'text-[var(--text-muted)]' },
   mom:  { icon: ClipboardList,  bg: 'bg-[var(--primary)]/12',     fg: 'text-[var(--primary)]' },
   default: { icon: FileIcon,    bg: 'bg-[var(--primary)]/12',     fg: 'text-[var(--primary)]' },
 };
 const metaFor = (ext) => EXT_META[(ext || '').toLowerCase()] || EXT_META.default;
 
-const DocCard = ({ doc, onReview, onDownload }) => {
+const formatSize = (n) => {
+  if (!n && n !== 0) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1048576).toFixed(2)} MB`;
+};
+
+// Map a ProjectDocument API record to the card shape the grid renders.
+const toCardDoc = (d) => {
+  const ext = (d.fileName || d.fileUrl || '').split('.').pop()?.toLowerCase() || '';
+  return {
+    id:       d._id,
+    name:     d.name,
+    ext:      ext.length <= 5 ? ext : '',
+    size:     formatSize(d.fileSize),
+    status:   STATUS_LABELS[d.status] || '',
+    category: d.category,
+    source:   d.source,
+  };
+};
+
+const DocCard = ({ doc, onReview, onDownload, onDelete }) => {
   const meta = metaFor(doc.ext);
   const Icon = meta.icon;
   return (
@@ -61,6 +81,18 @@ const DocCard = ({ doc, onReview, onDownload }) => {
           <span className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--surface)]/85 text-[var(--text-secondary)] border border-[var(--border)]">
             {doc.status}
           </span>
+        )}
+        {!doc.recorded && onDelete && (
+          <PermissionGate permission={['documents.delete', 'projects.delete']} mode="any">
+            <button
+              type="button"
+              onClick={() => onDelete(doc)}
+              className="absolute top-2 left-2 p-1.5 rounded-lg bg-[var(--surface)]/85 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--error)] transition-all"
+              title="Delete document"
+            >
+              <Trash2 size={12} />
+            </button>
+          </PermissionGate>
         )}
       </div>
       <div className="p-3 flex flex-col gap-3 flex-1">
@@ -95,6 +127,12 @@ const DocumentsTab = ({ project }) => {
   const toast = useToast();
   const [activeCategory, setActiveCategory] = useState('client_details');
   const [search, setSearch]                 = useState('');
+  const [uploadOpen, setUploadOpen]         = useState(false);
+
+  // Repository documents from the API (manual uploads + auto-filed approvals)
+  const {
+    documents, counts: docCounts, isLoading: docsLoading, refresh,
+  } = useProjectDocuments(project?._id);
 
   // Recorded MoMs (persisted in localStorage per project) — these are
   // structured entries created via the Record MoM modal, distinct from
@@ -104,7 +142,9 @@ const DocumentsTab = ({ project }) => {
   const [editingMoM, setEditingMoM]   = useState(null);
   const [previewMoM, setPreviewMoM]   = useState(null);
 
-  // Map recorded MoMs to the same shape as MOCK_DOCS so they render in the grid.
+  const cardDocs = useMemo(() => documents.map(toCardDoc), [documents]);
+
+  // Map recorded MoMs to the same card shape so they render in the grid.
   const recordedMomDocs = useMemo(() => moms.map((m) => ({
     name:     `${m.title}.mom`,
     ext:      'mom',
@@ -116,20 +156,42 @@ const DocumentsTab = ({ project }) => {
   })), [moms]);
 
   const docs = useMemo(() => {
+    const fromApi = cardDocs.filter((d) => d.category === activeCategory);
     const combined = activeCategory === 'mom'
-      ? [...recordedMomDocs, ...MOCK_DOCS.filter((d) => d.category === 'mom')]
-      : MOCK_DOCS.filter((d) => d.category === activeCategory);
+      ? [...recordedMomDocs, ...fromApi]
+      : fromApi;
     return combined.filter((d) => !search.trim() || d.name.toLowerCase().includes(search.toLowerCase()));
-  }, [activeCategory, search, recordedMomDocs]);
+  }, [cardDocs, activeCategory, search, recordedMomDocs]);
 
   const counts = useMemo(() => {
     const map = {};
     for (const c of CATEGORIES) {
-      const base = MOCK_DOCS.filter((d) => d.category === c.id).length;
+      const base = docCounts?.[c.id] || 0;
       map[c.id]  = c.id === 'mom' ? base + recordedMomDocs.length : base;
     }
     return map;
-  }, [recordedMomDocs]);
+  }, [docCounts, recordedMomDocs]);
+
+  const openSignedUrl = async (doc, kind) => {
+    try {
+      const res = kind === 'download'
+        ? await pmsService.getDocumentDownloadUrl(doc.id)
+        : await pmsService.getDocumentPreviewUrl(doc.id);
+      if (!res?.url) throw new Error('No URL returned');
+      if (kind === 'download') {
+        const a = document.createElement('a');
+        a.href = res.url;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        window.open(res.url, '_blank', 'noopener');
+      }
+    } catch (err) {
+      toast.error(err?.message || 'Could not open the file');
+    }
+  };
 
   const handleReview = (doc) => {
     if (doc.recorded) {
@@ -137,7 +199,7 @@ const DocumentsTab = ({ project }) => {
       if (target) setPreviewMoM(target);
       return;
     }
-    toast.info(`Opening ${doc.name}…`);
+    openSignedUrl(doc, 'preview');
   };
   const handleDownload = (doc) => {
     if (doc.recorded) {
@@ -147,7 +209,17 @@ const DocumentsTab = ({ project }) => {
       if (target) setPreviewMoM(target);
       return;
     }
-    toast.success(`Downloading ${doc.name}…`);
+    openSignedUrl(doc, 'download');
+  };
+  const handleDelete = async (doc) => {
+    if (!window.confirm(`Delete "${doc.name}" from the repository?`)) return;
+    try {
+      await pmsService.deleteProjectDocument(doc.id);
+      toast.success('Document deleted.');
+      refresh();
+    } catch (err) {
+      toast.error(err?.message || 'Delete failed');
+    }
   };
 
   const handleSaveMoM = (payload) => {
@@ -206,8 +278,8 @@ const DocumentsTab = ({ project }) => {
                 </Button>
               </PermissionGate>
             )}
-            <PermissionGate permission="projects.read">
-              <Button variant="primary" size="sm">
+            <PermissionGate permission={['documents.upload', 'projects.update', 'drawings.upload']} mode="any">
+              <Button variant="primary" size="sm" onClick={() => setUploadOpen(true)} disabled={!project?._id}>
                 <Upload size={14} />
                 Upload
               </Button>
@@ -244,7 +316,11 @@ const DocumentsTab = ({ project }) => {
 
       {/* Documents grid */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[280px]">
-        {docs.length === 0 ? (
+        {docsLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader />
+          </div>
+        ) : docs.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-12">
             <FolderOpen size={28} className="text-[var(--text-muted)] mb-2" />
             <p className="text-sm font-bold text-[var(--text-secondary)]">No documents</p>
@@ -253,7 +329,7 @@ const DocumentsTab = ({ project }) => {
                 ? 'Nothing matches your search.'
                 : activeCategory === 'mom'
                   ? 'Record a meeting minute or upload an MoM file to get started.'
-                  : 'Upload the first document to this category.'}
+                  : 'Upload the first document to this category. Approved proposals and drawings are filed here automatically.'}
             </p>
             {!search && activeCategory === 'mom' && (
               <Button
@@ -271,10 +347,11 @@ const DocumentsTab = ({ project }) => {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {docs.map((doc) => (
               <DocCard
-                key={doc.momId || doc.name}
+                key={doc.id || doc.momId || doc.name}
                 doc={doc}
                 onReview={handleReview}
                 onDownload={handleDownload}
+                onDelete={handleDelete}
               />
             ))}
           </div>
@@ -296,6 +373,17 @@ const DocumentsTab = ({ project }) => {
         projectName={project?.name}
         onEdit={handleEditFromPreview}
         onDelete={handleDeleteFromPreview}
+      />
+
+      <UploadDocumentModal
+        isOpen={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        projectId={project?._id}
+        defaultCategory={activeCategory}
+        onUploaded={(doc) => {
+          refresh();
+          if (doc?.category) setActiveCategory(doc.category);
+        }}
       />
     </div>
   );

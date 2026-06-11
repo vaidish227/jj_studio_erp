@@ -60,6 +60,20 @@ export const pmsService = {
     apiClient.patch(`/pms/drawing/annotation/${annotationId}`, data),
   deleteDrawingAnnotation:  (annotationId) => apiClient.delete(`/pms/drawing/annotation/${annotationId}`),
 
+  // ─── Document Repository ───────────────────────────────────────────────────
+  // Returns { documents, counts } — counts keyed by category for tab badges.
+  getProjectDocuments:   (projectId, params) => apiClient.get(`/pms/document/project/${projectId}`, { params }),
+  // Multipart manual upload — pass a FormData with file, projectId, name,
+  // description, category. Same content-type trick as uploadDrawingFile.
+  uploadProjectDocument: (formData)          => apiClient.post('/pms/document/upload', formData, {
+    headers: { 'Content-Type': undefined },
+  }),
+  // Signed-URL accessors: { url, source, expiresIn }
+  getDocumentDownloadUrl: (id)               => apiClient.get(`/pms/document/${id}/download`),
+  getDocumentPreviewUrl:  (id)               => apiClient.get(`/pms/document/${id}/preview`),
+  updateProjectDocument:  (id, data)         => apiClient.patch(`/pms/document/${id}`, data),
+  deleteProjectDocument:  (id)               => apiClient.delete(`/pms/document/${id}`),
+
   // ─── Vendors ───────────────────────────────────────────────────────────────
   getVendors:            (params)            => apiClient.get('/pms/vendor/all', { params }),
   createVendor:          (data)              => apiClient.post('/pms/vendor/create', data),
@@ -230,6 +244,15 @@ export const pmsService = {
   autoSchedulePlanner:   (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/auto-schedule`, data),
   getPlanActivationPreview: (projectId)      => apiClient.get(`/pms/planner/${projectId}/activation-preview`),
   activatePlan:          (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/activate`, data),
+  // Switch THIS project's master-sheet template (project-specific; the global
+  // default template is untouched). Blocked once work starts / plan is effective.
+  changePlannerTemplate: (projectId, templateId) =>
+    apiClient.post(`/pms/planner/${projectId}/change-template`, { templateId }),
+  // Per-project phase management — mutates ONLY this project's planSnapshot
+  // (names go in body/query, not the URL path, to dodge encoding issues).
+  addPlannerPhase:    (projectId, data) => apiClient.post(`/pms/planner/${projectId}/phases`, data),            // { name }
+  renamePlannerPhase: (projectId, data) => apiClient.patch(`/pms/planner/${projectId}/phases/rename`, data),    // { from, to }
+  deletePlannerPhase: (projectId, name) => apiClient.delete(`/pms/planner/${projectId}/phases`, { params: { name } }),
   // Excel export — returns a Blob; caller is responsible for triggering download.
   exportPlannerExcel:    (projectId)         => apiClient.get(`/pms/planner/${projectId}/export`, { responseType: 'blob' }),
   // Blank import template (headers + sample row + Instructions sheet) — returns a Blob.

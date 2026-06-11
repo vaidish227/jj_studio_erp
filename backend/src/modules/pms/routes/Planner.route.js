@@ -14,6 +14,10 @@ const {
   autoSchedule,
   getActivationPreview,
   activatePlan,
+  changeTemplate,
+  addPhase,
+  renamePhase,
+  deletePhase,
 } = require("../controllers/Planner.controller");
 const {
   exportMasterSheet,
@@ -60,6 +64,17 @@ router.post("/:projectId/auto-schedule", requirePermission("planner.edit"),     
 // "Make Plan Effective" — preview + commit
 router.get( "/:projectId/activation-preview", requirePermission("planner.read"),   getActivationPreview);
 router.post("/:projectId/activate",           requirePermission("planner.assign"), activatePlan);
+
+// Change THIS project's master-sheet template (re-seeds template rows).
+// Gated on the same permission as initiation-time plan customization — this
+// reshapes the project's plan structure, not just row values.
+router.post("/:projectId/change-template", requirePermission("projects.customize_plan"), changeTemplate);
+
+// Per-project phase management — edits the project's planSnapshot phases
+// (renames cascade to task rows; delete is refused while rows still use it).
+router.post(  "/:projectId/phases",        requirePermission("planner.edit"), addPhase);
+router.patch( "/:projectId/phases/rename", requirePermission("planner.edit"), renamePhase);
+router.delete("/:projectId/phases",        requirePermission("planner.edit"), deletePhase);
 
 // Excel import / export
 // Static segment first so Express doesn't try to match it as a :projectId.

@@ -30,7 +30,7 @@ const loginUser = async (data) => {
   // both proactively redirects when the timer fires AND reactively redirects
   // on any 401, so this single value drives the whole logout-on-expiry flow.
   const token = jwt.sign(
-    { id: user._id, email: user.email, role: user.role },
+    { id: user._id, email: user.email, role: user.role, name: user.name },
     process.env.JWT_SECRET || "secretkey",
     { expiresIn: "7d" }
   );
@@ -39,6 +39,7 @@ const loginUser = async (data) => {
     token,
     user: {
       id: user._id,
+      _id: user._id, // frontend ownership checks compare against `_id`
       name: user.name,
       email: user.email,
       role: user.role,
@@ -64,6 +65,7 @@ const getMe = async (userId) => {
   return {
     user: {
       id: user._id,
+      _id: user._id, // frontend ownership checks compare against `_id`
       name: user.name,
       email: user.email,
       role: user.role,

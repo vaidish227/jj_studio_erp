@@ -37,6 +37,14 @@ const PERMISSION_ALIASES = {
   "crm.followup.create": ["crm.create"],
   "crm.followup.update": ["crm.update"],
   "crm.followup.delete": ["crm.delete"],
+
+  // Document Repository — new module-level permissions. Anyone who can see
+  // projects can browse the repository; PMs (projects.update) and uploaders
+  // (drawings.upload) can add files, so existing roles work without edits.
+  "documents.read":   ["projects.read"],
+  "documents.upload": ["projects.update", "drawings.upload"],
+  "documents.update": ["projects.update"],
+  "documents.delete": ["projects.delete"],
 };
 
 /** Return the legacy aliases that also satisfy `permission` (or []). */

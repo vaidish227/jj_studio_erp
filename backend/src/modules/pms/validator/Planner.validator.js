@@ -14,6 +14,8 @@ const TASK_TYPES = [
 ];
 
 const PRIORITIES = ["low", "medium", "high", "urgent"];
+// Master Sheet "Work Status" column — keep in sync with Task.model.js workStatus enum
+const WORK_STATUSES = ["pending", "in_progress", "completed", "on_hold", "cancelled"];
 const COMPLEXITIES = ["low", "medium", "high"];
 const SITE_MEASUREMENT = ["not_required", "pending", "done"];
 
@@ -62,6 +64,7 @@ const createRowSchema = Joi.object({
   taskType: Joi.string().valid(...TASK_TYPES).default("technical_drawing"),
   assignedTo: OID_OPT,
   priority: Joi.string().valid(...PRIORITIES).default("medium"),
+  workStatus: Joi.string().valid(...WORK_STATUSES).default("pending"),
   notes:    Joi.string().allow("").max(2000),
   dependsOn: Joi.array().items(OID).max(50),
   // Optional phase label so the master-sheet UI can drop the new row under the
@@ -85,6 +88,7 @@ const patchRowSchema = Joi.object({
   taskType:   Joi.string().valid(...TASK_TYPES),
   assignedTo: OID_OPT,
   priority:   Joi.string().valid(...PRIORITIES),
+  workStatus: Joi.string().valid(...WORK_STATUSES),
   notes:      Joi.string().allow("").max(2000),
   delayReason: Joi.string().allow("").max(500),
   dependsOn:  Joi.array().items(OID).max(50),
@@ -112,6 +116,21 @@ const bulkDatesSchema = Joi.object({
   plannedEndDate:   Joi.date().when("mode", { is: "set", then: Joi.required() }),
 });
 
+// Per-project phase management (planSnapshot.phases) — names are free-form
+// labels, capped to keep the master-sheet group headers sane.
+const phaseCreateSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(80).required(),
+});
+
+const phaseRenameSchema = Joi.object({
+  from: Joi.string().trim().min(1).max(80).required(),
+  to:   Joi.string().trim().min(1).max(80).required(),
+});
+
+const phaseDeleteSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(80).required(),
+});
+
 const masterQuerySchema = Joi.object({
   floor:        Joi.string().allow(""),
   zone:         Joi.string().allow(""),
@@ -120,6 +139,7 @@ const masterQuerySchema = Joi.object({
   stage:        Joi.string().allow(""),
   status:       Joi.string().allow(""),
   priority:     Joi.string().valid(...PRIORITIES, ""),
+  workStatus:   Joi.string().valid(...WORK_STATUSES, ""),
   delayedOnly:  Joi.boolean().truthy("true").falsy("false"),
   search:       Joi.string().allow("").max(120),
 }).unknown(true);
@@ -127,10 +147,14 @@ const masterQuerySchema = Joi.object({
 module.exports = {
   TASK_TYPES,
   PRIORITIES,
+  WORK_STATUSES,
   createRowSchema,
   patchRowSchema,
   bulkPatchSchema,
   bulkAssignSchema,
   bulkDatesSchema,
   masterQuerySchema,
+  phaseCreateSchema,
+  phaseRenameSchema,
+  phaseDeleteSchema,
 };

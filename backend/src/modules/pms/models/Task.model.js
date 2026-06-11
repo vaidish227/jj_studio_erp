@@ -57,6 +57,17 @@ const taskSchema = new mongoose.Schema(
       ref: "User", // Can be Designer B, C, or D
     },
 
+    // --- Master Sheet "Work Status" column ---
+    // Manual per-row tracking status set by users on the Master Sheet.
+    // Intentionally independent of the workflow `status` field below — the
+    // engine never reads or writes it, so users can track work freely without
+    // touching gate/approval transitions.
+    workStatus: {
+      type: String,
+      enum: ["pending", "in_progress", "completed", "on_hold", "cancelled"],
+      default: "pending",
+    },
+
     // --- Status & Workflow ---
     status: {
       type: String,
@@ -246,6 +257,64 @@ taskSchema.index({ taskType: 1 });
 // Planner — delay scans and zone filters
 taskSchema.index({ projectId: 1, "planning.plannedEndDate": 1 });
 taskSchema.index({ projectId: 1, "planning.zoneName": 1 });
+
+// --- workStatus auto-sync ---
+// The Master Sheet "Work Status" column auto-follows workflow `status`
+// transitions via the hooks below. An explicit workStatus write in the same
+// operation always wins over the derived value; "cancelled" has no workflow
+// counterpart and stays manual-only.
+const WORK_STATUS_FROM_STATUS = {
+  not_started: "pending",
+  blocked: "pending",
+  in_progress: "in_progress",
+  pending_review: "in_progress",
+  revision_requested: "in_progress",
+  pending_client_approval: "in_progress",
+  approved: "completed",
+  released_to_site: "completed",
+  completed: "completed",
+  on_hold: "on_hold",
+};
+
+// Document middleware — covers task.save() flows (workflow engine, controllers).
+// Mongoose 9: no `next` callback — sync middleware completes on return.
+taskSchema.pre("save", function () {
+  if (this.isModified("status") && !this.isModified("workStatus")) {
+    const ws = WORK_STATUS_FROM_STATUS[this.status];
+    if (ws) this.workStatus = ws;
+  }
+});
+
+// Query middleware — covers findOneAndUpdate/updateOne/updateMany flows
+taskSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function () {
+  const u = this.getUpdate();
+  if (!u || Array.isArray(u)) return; // skip aggregation pipeline updates
+  const status = u.$set?.status ?? u.status;
+  const hasExplicitWS =
+    (u.$set && Object.prototype.hasOwnProperty.call(u.$set, "workStatus")) ||
+    Object.prototype.hasOwnProperty.call(u, "workStatus");
+  if (status && !hasExplicitWS) {
+    const ws = WORK_STATUS_FROM_STATUS[status];
+    if (ws) {
+      // A Mongo update can't mix bare fields with $-operators. Callers that
+      // pass `{ status: "x" }` (no $set) get their bare fields moved into
+      // $set before workStatus is added, so the final update stays valid.
+      if (!u.$set) {
+        u.$set = {};
+        for (const key of Object.keys(u)) {
+          if (key !== "$set" && !key.startsWith("$")) {
+            u.$set[key] = u[key];
+            delete u[key];
+          }
+        }
+      }
+      u.$set.workStatus = ws;
+    }
+  }
+});
+
+// Exposed for code paths that bypass middleware (e.g. Task.bulkWrite in Excel import)
+taskSchema.statics.WORK_STATUS_FROM_STATUS = WORK_STATUS_FROM_STATUS;
 
 
 module.exports = mongoose.model("Task", taskSchema, "pms_tasks");

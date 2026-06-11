@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Info } from 'lucide-react';
 
-// Fallback — used only when the project has no workflow template attached
-// (legacy projects created before the template picker shipped).
+// Fallback — used only for legacy effective projects that have no plan
+// snapshot stored (created before the per-project snapshot shipped).
 const DEFAULT_PHASES = [
   { key: 'kickoff',     label: 'Kickoff'     },
   { key: 'layout',      label: 'Layout'      },
@@ -17,10 +17,12 @@ const DEFAULT_PHASES = [
  * ProjectPhaseStepper — sticky horizontal stepper showing where the project sits
  * in its workflow's phase progression.
  *
- * Phase list is read from `project.workflowTemplateId.phases` so a project
- * built from a custom template (e.g. "Villa Premium" with a "Vastu" phase)
- * displays its own flow. Falls back to the canonical 7-phase list for legacy
- * projects with no template attached.
+ * Phase list is read from `project.planSnapshot.phases` — the per-project
+ * plan snapshot — so a project built from a custom plan (e.g. "Villa Premium"
+ * with a "Vastu" phase) displays its own flow. Falls back to the canonical
+ * 7-phase list for legacy effective projects without a snapshot.
+ *
+ * Hidden entirely (replaced by a hint card) until the plan is made effective.
  */
 const STATUS_FALLBACK = {
   design_phase:    'design',
@@ -32,12 +34,12 @@ const STATUS_FALLBACK = {
 const slugify = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, '_');
 
 const ProjectPhaseStepper = ({ project, className = '' }) => {
-  // Prefer template phases over the hardcoded fallback. Sort by `order` so
+  // Prefer snapshot phases over the hardcoded fallback. Sort by `order` so
   // re-ordered phases render correctly.
   const phases = useMemo(() => {
-    const tplPhases = project?.workflowTemplateId?.phases;
-    if (Array.isArray(tplPhases) && tplPhases.length > 0) {
-      return [...tplPhases]
+    const snapPhases = project?.planSnapshot?.phases;
+    if (Array.isArray(snapPhases) && snapPhases.length > 0) {
+      return [...snapPhases]
         .sort((a, b) => (a.order || 0) - (b.order || 0))
         .map((p) => ({
           key:   slugify(p.name),
@@ -51,7 +53,18 @@ const ProjectPhaseStepper = ({ project, className = '' }) => {
 
   if (!project) return null;
 
-  const currentPhase = project.phase || STATUS_FALLBACK[project.status] || phases[0]?.key || 'kickoff';
+  // Stages are meaningless while the plan is still a draft — show a hint
+  // card instead of the stepper until the plan is made effective.
+  const planEffectiveAt = project?.planEffectiveAt;
+  if (!planEffectiveAt) {
+    return (
+      <div className={`bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-2xl p-3 lg:p-4 ${className}`}>
+        <p className="text-xs text-[var(--text-muted)] italic flex items-center gap-1.5"><Info size={13} /> Stages will appear once the project plan is made effective.</p>
+      </div>
+    );
+  }
+
+  const currentPhase = slugify(project.phase) || STATUS_FALLBACK[project.status] || phases[0]?.key || 'kickoff';
   const currentIdx = Math.max(0, phases.findIndex((p) => p.key === currentPhase));
 
   return (

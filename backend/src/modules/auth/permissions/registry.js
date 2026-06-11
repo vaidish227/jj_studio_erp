@@ -260,6 +260,17 @@ const PERMISSION_REGISTRY = [
           a("planner.export", "Export"),
         ],
       },
+      {
+        key: "documents",
+        label: "Document Repository",
+        description: "Project document store — manual uploads + auto-filed approved proposals/drawings",
+        actions: [
+          a("documents.read", "View"),
+          a("documents.upload", "Upload"),
+          a("documents.update", "Edit"),
+          a("documents.delete", "Delete"),
+        ],
+      },
     ],
   },
 

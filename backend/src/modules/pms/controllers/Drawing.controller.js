@@ -20,6 +20,7 @@ const Approval = require("../models/Approval.model");
 const teamResolver = require("../services/teamResolver");
 // Phase 5 — S3-backed drawing storage
 const s3Storage = require("../services/s3Storage");
+const documentIngest = require("../services/documentIngest");
 
 // Accepted MIME types for direct file upload — must match frontend validator.
 const ALLOWED_DRAWING_MIME = new Set([
@@ -844,6 +845,12 @@ const approveDrawing = async (req, res) => {
       notes:     value.remarks || "",
       actorName: req.user.name || "A reviewer",
     }).catch(() => {});
+
+    // File the approved drawing into the project's Document Repository
+    // (references the same S3 object — no copy). Fire-and-forget.
+    documentIngest
+      .ingestApprovedDrawing({ drawing, actorId: req.user._id || req.user.id })
+      .catch((err) => console.error("[approveDrawing:ingestApprovedDrawing]", err.message));
 
     res.status(200).json({ message: "Drawing approved", drawing });
   } catch (error) {

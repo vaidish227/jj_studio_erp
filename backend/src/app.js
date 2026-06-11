@@ -98,6 +98,9 @@ app.use("/api/pms/task", pmsTaskRoutes);
 const pmsDrawingRoutes = require("./modules/pms/routes/Drawing.route");
 app.use("/api/pms/drawing", pmsDrawingRoutes);
 
+const pmsDocumentRoutes = require("./modules/pms/routes/Document.route");
+app.use("/api/pms/document", pmsDocumentRoutes);
+
 const pmsVendorRoutes = require("./modules/pms/routes/Vendor.route");
 app.use("/api/pms/vendor", pmsVendorRoutes);
 
