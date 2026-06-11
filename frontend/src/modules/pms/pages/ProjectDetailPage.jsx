@@ -37,6 +37,8 @@ import HandoverTab            from '../components/tabs/HandoverTab';
 import ProjectPlannerTab      from '../components/planner/ProjectPlannerTab';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
+import { useAuth } from '../../../shared/context/AuthContext';
+import { canViewProjectTab } from '../constants/projectTabs';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -143,6 +145,15 @@ const ProjectDetailPage = () => {
     isLoading, error,
     refresh, refreshTasks, refreshDrawings,
   } = useProjectDetail(id);
+
+  // ─── Per-tab visibility (RBAC) ──────────────────────────────────────────────
+  // A tab renders only when the role can see it (see constants/projectTabs).
+  const { hasAnyPermission } = useAuth();
+  const canView = (tabId) => canViewProjectTab(tabId, hasAnyPermission);
+  // Forbidden deep-links (?tab=…) or revoked permissions fall back to Overview
+  // (always visible). We derive a safe tab for rendering rather than mutating
+  // state, so nothing forbidden ever renders.
+  const activeTabSafe = canView(activeTab) ? activeTab : 'overview';
 
   if (isLoading) {
     return (
@@ -280,10 +291,11 @@ const ProjectDetailPage = () => {
       {/* Card-driven navigation: top tab bar is hidden. When inside a module, show
           a compact "back to overview" + sub-tabs row instead. */}
       {tabsV2 ? (
-        activeTab !== 'overview' && (
+        activeTabSafe !== 'overview' && (
           <ModuleSubNav
-            activeTab={activeTab}
+            activeTab={activeTabSafe}
             setActiveTab={setActiveTab}
+            canView={canView}
             tasks={tasks}
             drawings={drawings}
             siteLogs={siteLogs}
@@ -291,13 +303,13 @@ const ProjectDetailPage = () => {
         )
       ) : (
         <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--border)] pb-0 -mb-2 scrollbar-hide">
-          {TABS_LEGACY.map((tab) => (
+          {TABS_LEGACY.filter((tab) => canView(tab.id)).map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={`shrink-0 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors
-                ${activeTab === tab.id
+                ${activeTabSafe === tab.id
                   ? 'border-[var(--primary)] text-[var(--primary)]'
                   : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                 }`}
@@ -323,9 +335,10 @@ const ProjectDetailPage = () => {
         </div>
       )}
 
-      {/* Tab content */}
+      {/* Tab content — keyed off activeTabSafe so a forbidden/revoked tab can
+          never render; it collapses to the always-visible Overview. */}
       <div className="mt-2">
-        {activeTab === 'overview'  && (
+        {activeTabSafe === 'overview'  && (
           <OverviewTab
             project={project}
             tasks={tasks}
@@ -334,13 +347,13 @@ const ProjectDetailPage = () => {
             onSwitchToTab={setActiveTab}
           />
         )}
-        {activeTab === 'overview' && import.meta.env.VITE_ENABLE_KIT === 'true' && (
+        {activeTabSafe === 'overview' && import.meta.env.VITE_ENABLE_KIT === 'true' && (
           <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <h3 className="font-black text-sm uppercase tracking-wider text-[var(--text-primary)] mb-3">Communications</h3>
             <CommunicationTimeline entityType="project" entityId={id} />
           </div>
         )}
-        {activeTab === 'tasks'     && (
+        {activeTabSafe === 'tasks'     && (
           <TasksTab
             project={project}
             tasks={tasks}
@@ -348,45 +361,45 @@ const ProjectDetailPage = () => {
             onTaskUpdated={refreshTasks}
           />
         )}
-        {activeTab === 'drawings'  && (
+        {activeTabSafe === 'drawings'  && (
           <DrawingsTab
             project={project}
             drawings={drawings}
             onDrawingUpdated={refreshDrawings}
           />
         )}
-        {activeTab === 'dlr'       && (
+        {activeTabSafe === 'dlr'       && (
           <DLRSheetTab project={project} />
         )}
-        {activeTab === 'logs'      && (
+        {activeTabSafe === 'logs'      && (
           <SiteLogsTab
             project={project}
             siteLogs={siteLogs}
             onLogAdded={refresh}
           />
         )}
-        {activeTab === 'team'      && (
+        {activeTabSafe === 'team'      && (
           <TeamTab project={project} onUpdated={refresh} />
         )}
-        {activeTab === 'approvals' && (
+        {activeTabSafe === 'approvals' && (
           <ClientApprovalsTab
             project={project}
             onUpdated={refresh}
           />
         )}
-        {activeTab === 'planner'           && <ProjectPlannerTab   project={project} onSwitchToTab={setActiveTab} />}
-        {activeTab === 'gantt'             && <GanttTab            project={project} tasks={tasks} />}
-        {activeTab === 'gates'             && <ProjectGatesTab     project={project} />}
-        {activeTab === 'release_log'       && <DrawingReleaseTab   project={project} />}
-        {activeTab === 'handover'          && <HandoverTab         project={project} drawings={drawings} />}
-        {activeTab === 'milestones'        && <MilestonesTab       project={project} />}
-        {activeTab === 'site_visits'       && <SiteVisitsTab       project={project} />}
-        {activeTab === 'materials'         && <MaterialsTab        project={project} />}
-        {activeTab === 'vendor_engagement' && <VendorEngagementTab project={project} />}
-        {activeTab === 'purchase_orders'   && <PurchaseOrdersTab   project={project} />}
-        {activeTab === 'whatsapp'          && <WhatsAppTab         project={project} />}
-        {activeTab === 'documents'         && <DocumentsTab        project={project} />}
-        {activeTab === 'activity'          && <ActivityTab         project={project} />}
+        {activeTabSafe === 'planner'           && <ProjectPlannerTab   project={project} onSwitchToTab={setActiveTab} />}
+        {activeTabSafe === 'gantt'             && <GanttTab            project={project} tasks={tasks} />}
+        {activeTabSafe === 'gates'             && <ProjectGatesTab     project={project} />}
+        {activeTabSafe === 'release_log'       && <DrawingReleaseTab   project={project} />}
+        {activeTabSafe === 'handover'          && <HandoverTab         project={project} drawings={drawings} />}
+        {activeTabSafe === 'milestones'        && <MilestonesTab       project={project} />}
+        {activeTabSafe === 'site_visits'       && <SiteVisitsTab       project={project} />}
+        {activeTabSafe === 'materials'         && <MaterialsTab        project={project} />}
+        {activeTabSafe === 'vendor_engagement' && <VendorEngagementTab project={project} />}
+        {activeTabSafe === 'purchase_orders'   && <PurchaseOrdersTab   project={project} />}
+        {activeTabSafe === 'whatsapp'          && <WhatsAppTab         project={project} />}
+        {activeTabSafe === 'documents'         && <DocumentsTab        project={project} />}
+        {activeTabSafe === 'activity'          && <ActivityTab         project={project} />}
       </div>
     </div>
   );
@@ -404,10 +417,12 @@ const MODULE_TITLES = {
 
 // Card-driven nav: a single compact row shown when the user has drilled into a module.
 // Contains a "back to overview" button + the sub-tabs of the active group (when there are 2+).
-const ModuleSubNav = ({ activeTab, setActiveTab, tasks, drawings, siteLogs }) => {
+const ModuleSubNav = ({ activeTab, setActiveTab, canView, tasks, drawings, siteLogs }) => {
   const activeGroup = findGroupForSubTab(activeTab) || 'overview';
   const group = TABS_V2.find((g) => g.id === activeGroup);
-  const subTabs = (group?.subTabs || []).filter((s) => typeof s !== 'string');
+  const subTabs = (group?.subTabs || [])
+    .filter((s) => typeof s !== 'string')
+    .filter((s) => canView(s.id));
   const moduleTitle = MODULE_TITLES[activeGroup] || group?.label || '';
 
   return (

@@ -24,8 +24,20 @@
  * To make a permission grantable in the UI, add it as an action leaf below.
  */
 
-// Helper to keep the tree terse: action(permission, label)
-const a = (permission, label) => ({ key: permission, permission, label });
+// Helpers to keep the tree terse.
+//   a(permission, label, help)        — a capability backed by ONE permission string
+//   am([permissions], label, help)    — one human capability that grants SEVERAL
+//                                        strings together (e.g. the UI-visibility
+//                                        permission + the API-enforced permission),
+//                                        so the admin sees one clear toggle instead
+//                                        of a confusing coarse/granular pair.
+// `help` is plain-English "what this unlocks for the user" text shown in the UI.
+const a = (permission, label, help) => ({
+  key: permission, permission, permissions: [permission], label, help,
+});
+const am = (permissions, label, help) => ({
+  key: permissions[0], permission: permissions[0], permissions, label, help,
+});
 
 const PERMISSION_REGISTRY = [
   // ─── Core ──────────────────────────────────────────────────────────────────
@@ -64,52 +76,64 @@ const PERMISSION_REGISTRY = [
       {
         key: "leads",
         label: "Leads",
-        description: "Lead records and pipeline",
+        description: "Lead records and the sales pipeline",
         actions: [
-          // Granular API-enforced read (Phase 2 Stage 2). Backward-compatible:
-          // satisfied by the legacy `clients.read` / `crm.read` via the alias map.
-          a("crm.lead.read", "Read (API)"),
-          a("crm.read", "View"),
-          a("crm.create", "Create"),
-          a("crm.update", "Edit"),
-          a("crm.delete", "Delete"),
-          // Granular API-enforced writes (Phase 2 Stage 4). Backward-compatible:
-          // satisfied by the legacy `crm.create` / `crm.update` / `crm.delete`
-          // via the alias map.
-          a("crm.lead.create", "Create (API)"),
-          a("crm.lead.update", "Edit (API)"),
-          a("crm.lead.delete", "Delete (API)"),
-          a("crm.lead.qualify", "Qualify (API)"),
-          a("crm.lead.convert", "Convert (API)"),
-          a("crm.lead.import", "Bulk Import (API)"),
+          am(["crm.read", "crm.lead.read"], "View",
+             "See the CRM menu and open lead records — the lead list, a lead's details, and the CRM dashboard."),
+          am(["crm.create", "crm.lead.create"], "Add",
+             "Show the Add-Lead button and let the user create a new lead / submit the enquiry form."),
+          am(["crm.update", "crm.lead.update"], "Edit",
+             "Edit a lead's details, change its status, and record advance payments."),
+          am(["crm.delete", "crm.lead.delete"], "Delete",
+             "Delete a lead from the pipeline."),
+          a("crm.lead.qualify", "Qualify",
+            "Mark a lead as interested / qualified so it advances in the pipeline."),
+          a("crm.lead.convert", "Convert",
+            "Convert a lead into a client and start a project."),
+          a("crm.lead.import", "Bulk Import",
+            "Import many leads at once from a CSV / Excel file."),
         ],
       },
       {
         key: "meetings_actions",
         label: "Meetings & MOM",
-        description: "Meeting scheduling and minutes-of-meeting (API-enforced — Phase 2 Stage 4)",
+        description: "Schedule meetings and record minutes-of-meeting",
         actions: [
-          a("crm.meeting.create", "Create (API)"),
-          a("crm.meeting.update", "Edit (API)"),
-          a("crm.meeting.delete", "Delete (API)"),
-          a("crm.mom.create", "Record MOM (API)"),
+          am(["crm.create", "crm.meeting.create"], "Schedule meeting",
+             "Schedule a new meeting with a lead or client."),
+          am(["crm.update", "crm.meeting.update"], "Edit meeting",
+             "Reschedule or change the details of a meeting."),
+          am(["crm.delete", "crm.meeting.delete"], "Delete meeting",
+             "Delete a scheduled meeting."),
+          am(["crm.update", "crm.mom.create"], "Record MOM",
+             "Save the minutes-of-meeting (notes & outcome) after a meeting."),
         ],
       },
       {
         key: "followups_actions",
         label: "Follow-ups",
-        description: "Follow-up tasks (API-enforced — Phase 2 Stage 4)",
+        description: "Follow-up tasks and reminders",
         actions: [
-          a("crm.followup.create", "Create (API)"),
-          a("crm.followup.update", "Edit (API)"),
-          a("crm.followup.delete", "Delete (API)"),
+          am(["crm.create", "crm.followup.create"], "Add follow-up",
+             "Create a follow-up task / reminder for a lead."),
+          am(["crm.update", "crm.followup.update"], "Edit follow-up",
+             "Edit a follow-up or mark it complete."),
+          am(["crm.delete", "crm.followup.delete"], "Delete follow-up",
+             "Delete a follow-up task."),
         ],
       },
-      { key: "all_clients", label: "All Clients", actions: [a("crm.tab.clients", "View")] },
-      { key: "new_leads",   label: "New Leads",   actions: [a("crm.tab.leads", "View")] },
-      { key: "meetings",    label: "Meetings",    actions: [a("crm.tab.meetings", "View")] },
-      { key: "converted",   label: "Converted",   actions: [a("crm.tab.converted", "View")] },
-      { key: "lost",        label: "Lost Leads",  actions: [a("crm.tab.lost", "View")] },
+      {
+        key: "menu_tabs",
+        label: "Menu Tabs",
+        description: "Which CRM items appear in the sidebar menu",
+        actions: [
+          a("crm.tab.clients",   "All Leads",  "Show the 'All Leads' list in the CRM menu."),
+          a("crm.tab.leads",     "New Lead",   "Show the 'Create New Lead' form in the CRM menu."),
+          a("crm.tab.meetings",  "Meetings",   "Show the 'Meetings' page in the CRM menu."),
+          a("crm.tab.converted", "Converted",  "Show the 'Converted' leads page in the CRM menu."),
+          a("crm.tab.lost",      "Lost",       "Show the 'Lost' leads page in the CRM menu."),
+        ],
+      },
     ],
   },
   {
@@ -227,16 +251,6 @@ const PERMISSION_REGISTRY = [
         ],
       },
       {
-        key: "detail_tabs",
-        label: "Project Detail Tabs",
-        description: "Which tabs are visible inside a project's detail page",
-        actions: [
-          a("pms.tab.tasks", "Tasks Tab"),
-          a("pms.tab.drawings", "Drawings Tab"),
-          a("pms.tab.team", "Team Tab"),
-        ],
-      },
-      {
         key: "milestones",
         label: "Milestones",
         actions: [
@@ -269,6 +283,76 @@ const PERMISSION_REGISTRY = [
           a("documents.upload", "Upload"),
           a("documents.update", "Edit"),
           a("documents.delete", "Delete"),
+        ],
+      },
+    ],
+  },
+  {
+    key: "pms_tabs",
+    label: "Project Detail Tabs",
+    group: "Project Management",
+    icon: "pms",
+    color: "#4A8F7C",
+    description:
+      "Which tabs appear inside a project's detail page. Each tab also stays " +
+      "visible to any role that already holds the underlying feature permission " +
+      "(e.g. Materials shows with materials.read), so these are additive grants — " +
+      "revoke the feature permission to hide a tab.",
+    sections: [
+      {
+        key: "overview_tabs",
+        label: "Overview & Activity",
+        actions: [
+          a("pms.tab.overview", "Overview"),
+          a("pms.tab.activity", "Activity Log"),
+        ],
+      },
+      {
+        key: "workflow_tabs",
+        label: "Planning & Workflow",
+        actions: [
+          a("pms.tab.planner", "Master Plan"),
+          a("pms.tab.gantt", "Gantt"),
+          a("pms.tab.tasks", "Tasks"),
+          a("pms.tab.approvals", "Client Approvals"),
+          a("pms.tab.handover", "Handover"),
+          a("pms.tab.gates", "Workflow Gates"),
+        ],
+      },
+      {
+        key: "drawing_tabs",
+        label: "Drawings",
+        actions: [
+          a("pms.tab.drawings", "Drawings"),
+          a("pms.tab.dlr", "DLR Sheet"),
+          a("pms.tab.release_log", "Release Log"),
+        ],
+      },
+      {
+        key: "site_tabs",
+        label: "Site & Procurement",
+        actions: [
+          a("pms.tab.site_logs", "Site Logs"),
+          a("pms.tab.site_visits", "Site Visits"),
+          a("pms.tab.materials", "Materials"),
+          a("pms.tab.vendors", "Vendors"),
+          a("pms.tab.purchase_orders", "Purchase Orders"),
+          a("pms.tab.milestones", "Milestones"),
+        ],
+      },
+      {
+        key: "team_tabs",
+        label: "Team & Comms",
+        actions: [
+          a("pms.tab.team", "Team"),
+          a("pms.tab.whatsapp", "WhatsApp"),
+        ],
+      },
+      {
+        key: "document_tabs",
+        label: "Documents",
+        actions: [
+          a("pms.tab.documents", "Documents"),
         ],
       },
     ],
@@ -511,7 +595,10 @@ function flattenPermissions() {
   for (const mod of PERMISSION_REGISTRY) {
     for (const section of mod.sections) {
       for (const action of section.actions) {
-        if (action.permission) out.push(action.permission);
+        // An action may carry one (`permission`) or several (`permissions`)
+        // underlying strings; include them all.
+        const perms = action.permissions || (action.permission ? [action.permission] : []);
+        for (const p of perms) out.push(p);
       }
     }
   }

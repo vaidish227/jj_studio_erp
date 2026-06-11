@@ -4,7 +4,7 @@ import {
   Shield, Save, RotateCcw, Check, Minus, Plus, Lock,
   Trash2, Settings2, LayoutDashboard, UserCheck, Briefcase, CheckSquare,
   BarChart2, FileText, MessageCircle, DollarSign, Store,
-  Globe, UserCog, ChevronLeft, ChevronDown, Zap, Search, Eye,
+  Globe, UserCog, ChevronLeft, ChevronDown, Zap, Search, Eye, Info,
   Users, FolderOpen, Flag, Package, ShoppingCart,
   Activity, Calendar, Mail, MessageSquare, ThumbsUp, MapPin,
   ClipboardList, MoreHorizontal, Copy, AlertTriangle, X,
@@ -46,9 +46,40 @@ const MODULE_ICONS = {
   ai:              Sparkles,
 };
 
-// ─── Permission-set helpers ───────────────────────────────────────────────────
-const sectionPerms = (sec) => sec.actions.map((act) => act.permission);
+// ─── Action / permission helpers ──────────────────────────────────────────────
+// An action maps to one OR several permission strings (a merged human capability,
+// e.g. "Add" grants the UI-visibility perm + the API-enforced perm together).
+const actionPerms  = (act) => act.permissions || (act.permission ? [act.permission] : []);
+const sectionPerms = (sec) => sec.actions.flatMap(actionPerms);
 const modulePerms  = (mod) => mod.sections.flatMap(sectionPerms);
+
+// An action is "on" only when every underlying permission is held.
+const isActionOn = (act, has) => {
+  const perms = actionPerms(act);
+  return perms.length > 0 && perms.every(has);
+};
+
+// ─── Plain-English help fallback ──────────────────────────────────────────────
+// Used when a registry action carries no explicit `help`, so every toggle can
+// still answer "what does this unlock for the user?".
+const VERB_PHRASES = {
+  read: 'See and open', view: 'See', create: 'Add new', upload: 'Upload',
+  update: 'Edit', edit: 'Edit', delete: 'Remove', approve: 'Approve',
+  send: 'Send', manage: 'Manage', export: 'Export', import: 'Import',
+  respond: 'Respond to', release: 'Release', submit: 'Submit',
+  reassign: 'Reassign', comment: 'Comment on', dashboard: 'Open the dashboard for',
+  assign: 'Assign', baseline: 'Set a baseline for', qualify: 'Qualify', convert: 'Convert',
+};
+const fallbackHelp = (act, sectionLabel, moduleLabel) => {
+  const perm = actionPerms(act)[0] || '';
+  if (perm.includes('.tab.')) return `Show the "${act.label}" item in the menu.`;
+  const verb = perm.split('.').pop();
+  const subject = (sectionLabel || moduleLabel || 'this').toLowerCase();
+  const phrase = VERB_PHRASES[verb];
+  return phrase ? `${phrase} ${subject}.` : `Controls "${act.label}" in ${moduleLabel}.`;
+};
+const helpFor = (act, sectionLabel, moduleLabel) =>
+  act.help || fallbackHelp(act, sectionLabel, moduleLabel);
 
 // Filter a module by a search query, returning a trimmed copy (or null).
 const filterModule = (mod, q) => {
@@ -60,7 +91,8 @@ const filterModule = (mod, q) => {
       const secHit = sec.label.toLowerCase().includes(q);
       if (secHit) return sec;
       const actions = sec.actions.filter(
-        (act) => act.label.toLowerCase().includes(q) || act.permission.toLowerCase().includes(q),
+        (act) => act.label.toLowerCase().includes(q)
+          || actionPerms(act).some((p) => p.toLowerCase().includes(q)),
       );
       return actions.length ? { ...sec, actions } : null;
     })
@@ -69,11 +101,15 @@ const filterModule = (mod, q) => {
 };
 
 // ─── Role-mode action toggle ──────────────────────────────────────────────────
-const ActionToggle = ({ label, active, isWildcard, onClick }) => {
+const ActionToggle = ({ label, help, active, isWildcard, onClick, onHover }) => {
+  const base = 'inline-flex items-center gap-1 pl-2.5 pr-2 py-[5px] rounded-lg text-[11px] font-semibold border transition-all duration-100';
   if (isWildcard) {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--primary)] text-black border-[var(--primary)] opacity-80 select-none">
-        <Zap size={9} />{label}
+      <span
+        onMouseEnter={() => onHover?.({ label, help })}
+        className={`${base} bg-[var(--primary)] text-black border-[var(--primary)] opacity-80 select-none`}
+      >
+        <Zap size={9} />{label}<Info size={10} className="opacity-50" />
       </span>
     );
   }
@@ -81,29 +117,37 @@ const ActionToggle = ({ label, active, isWildcard, onClick }) => {
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border transition-all duration-100 ${
+      onMouseEnter={() => onHover?.({ label, help })}
+      onFocus={() => onHover?.({ label, help })}
+      className={`${base} ${
         active
           ? 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]'
           : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/60 hover:text-[var(--accent-teal)]'
       }`}
     >
       {active ? <Check size={9} /> : <Plus size={9} />}{label}
+      <Info size={10} className={active ? 'opacity-70' : 'opacity-40'} />
     </button>
   );
 };
 
 // ─── Override-mode action toggle (inherited / custom / ungranted) ─────────────
-const OverrideToggle = ({ label, permStr, rolePerms, overrideDraft, onClick }) => {
-  const isInherited = rolePerms.includes(permStr) || rolePerms.includes('*');
-  const isCustom    = !isInherited && overrideDraft.includes(permStr);
+const OverrideToggle = ({ label, help, perms, rolePerms, overrideDraft, onClick, onHover }) => {
+  const inherited   = (p) => rolePerms.includes(p) || rolePerms.includes('*');
+  const isInherited = perms.every(inherited);
+  const isOn        = perms.every((p) => inherited(p) || overrideDraft.includes(p));
+  const isCustom    = !isInherited && isOn;
+  const base = 'inline-flex items-center gap-1 pl-2.5 pr-2 py-[5px] rounded-lg text-[11px] font-semibold border transition-colors';
+  const hover = () => onHover?.({ label, help });
 
   if (isInherited) {
     return (
       <span
         title="Inherited from role"
-        className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--accent-teal)]/12 text-[var(--accent-teal)] border-[var(--accent-teal)]/30 select-none"
+        onMouseEnter={hover}
+        className={`${base} bg-[var(--accent-teal)]/12 text-[var(--accent-teal)] border-[var(--accent-teal)]/30 select-none`}
       >
-        <Lock size={8} />{label}
+        <Lock size={8} />{label}<Info size={10} className="opacity-50" />
       </span>
     );
   }
@@ -112,8 +156,10 @@ const OverrideToggle = ({ label, permStr, rolePerms, overrideDraft, onClick }) =
       <button
         type="button"
         onClick={onClick}
+        onMouseEnter={hover}
+        onFocus={hover}
         title="Custom override — click to remove"
-        className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--warning)]/12 text-[var(--warning)] border-[var(--warning)]/40 hover:bg-[var(--warning)]/20 transition-colors"
+        className={`${base} bg-[var(--warning)]/12 text-[var(--warning)] border-[var(--warning)]/40 hover:bg-[var(--warning)]/20`}
       >
         <KeyRound size={8} />{label}<X size={8} className="ml-0.5 opacity-60" />
       </button>
@@ -123,10 +169,12 @@ const OverrideToggle = ({ label, permStr, rolePerms, overrideDraft, onClick }) =
     <button
       type="button"
       onClick={onClick}
+      onMouseEnter={hover}
+      onFocus={hover}
       title="Click to add as custom override"
-      className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)] transition-colors"
+      className={`${base} border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)]`}
     >
-      <Plus size={8} />{label}
+      <Plus size={8} />{label}<Info size={10} className="opacity-40" />
     </button>
   );
 };
@@ -136,22 +184,25 @@ const ModuleRow = ({
   mod, expanded, onToggleExpand,
   mode, isWildcard,
   draftPermissions, rolePerms, overrideDraft,
-  onToggle, onToggleSet,
+  onToggleAction, onToggleSet,
 }) => {
   const Icon   = MODULE_ICONS[mod.icon] || Shield;
   const accent = mod.color || '#D4B76C';
-  const perms  = modulePerms(mod);
+  const [hovered, setHovered] = useState(null); // { sectionKey, label, help }
 
-  const grantedFor = (list) => {
-    if (mode === 'override') {
-      return list.filter((p) => rolePerms.includes(p) || rolePerms.includes('*') || overrideDraft.includes(p)).length;
-    }
-    return isWildcard ? list.length : list.filter((p) => draftPermissions.includes(p)).length;
+  // Is a single permission string held under the current mode?
+  const has = (p) => {
+    if (isWildcard) return true;
+    if (mode === 'override') return rolePerms.includes(p) || rolePerms.includes('*') || overrideDraft.includes(p);
+    return draftPermissions.includes(p);
   };
 
-  const granted   = grantedFor(perms);
-  const total     = perms.length;
-  const allActive = isWildcard || (total > 0 && granted === total);
+  // Counts are ACTION-based so the number matches the toggles the admin sees.
+  const countOn    = (actions) => actions.filter((act) => isActionOn(act, has)).length;
+  const allActions = mod.sections.flatMap((s) => s.actions);
+  const granted    = countOn(allActions);
+  const total      = allActions.length;
+  const allActive  = isWildcard || (total > 0 && granted === total);
   const someActive = !allActive && granted > 0;
 
   return (
@@ -178,7 +229,7 @@ const ModuleRow = ({
         {mode === 'role' && !isWildcard && onToggleSet && (
           <button
             type="button"
-            onClick={() => onToggleSet(perms)}
+            onClick={() => onToggleSet(modulePerms(mod))}
             title={allActive ? 'Revoke all' : 'Grant all'}
             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all shrink-0 ${
               allActive
@@ -202,20 +253,21 @@ const ModuleRow = ({
       {expanded && (
         <div className="px-4 pb-4 pt-1 space-y-3 border-t border-[var(--border)]">
           {mod.sections.map((sec) => {
-            const sPerms = sectionPerms(sec);
-            const sGranted = grantedFor(sPerms);
-            const sAll = isWildcard || (sPerms.length > 0 && sGranted === sPerms.length);
+            const sGranted = countOn(sec.actions);
+            const sTotal   = sec.actions.length;
+            const sAll     = isWildcard || (sTotal > 0 && sGranted === sTotal);
+            const secHover = hovered && hovered.sectionKey === sec.key ? hovered : null;
             return (
-              <div key={sec.key} className="pt-2">
+              <div key={sec.key} className="pt-2" onMouseLeave={() => setHovered(null)}>
                 <div className="flex items-center gap-2 mb-2">
                   <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-secondary)]">{sec.label}</p>
-                  <span className="text-[10px] text-[var(--text-muted)] tabular-nums">{isWildcard ? '∞' : sGranted}/{sPerms.length}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] tabular-nums">{isWildcard ? '∞' : sGranted}/{sTotal}</span>
                   {sec.description && <span className="text-[10px] text-[var(--text-muted)] truncate hidden sm:inline">· {sec.description}</span>}
                   <div className="flex-1" />
-                  {mode === 'role' && !isWildcard && onToggleSet && sPerms.length > 1 && (
+                  {mode === 'role' && !isWildcard && onToggleSet && sTotal > 1 && (
                     <button
                       type="button"
-                      onClick={() => onToggleSet(sPerms)}
+                      onClick={() => onToggleSet(sectionPerms(sec))}
                       className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors shrink-0"
                     >
                       {sAll ? 'Revoke all' : 'Grant all'}
@@ -223,26 +275,43 @@ const ModuleRow = ({
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {sec.actions.map((act) =>
-                    mode === 'override' ? (
+                  {sec.actions.map((act) => {
+                    const perms   = actionPerms(act);
+                    const help    = helpFor(act, sec.label, mod.label);
+                    const onHover = (h) => setHovered({ sectionKey: sec.key, ...h });
+                    return mode === 'override' ? (
                       <OverrideToggle
-                        key={act.permission}
+                        key={act.key || perms[0]}
                         label={act.label}
-                        permStr={act.permission}
+                        help={help}
+                        perms={perms}
                         rolePerms={rolePerms}
                         overrideDraft={overrideDraft}
-                        onClick={() => onToggle(act.permission)}
+                        onHover={onHover}
+                        onClick={() => onToggleAction(perms)}
                       />
                     ) : (
                       <ActionToggle
-                        key={act.permission}
+                        key={act.key || perms[0]}
                         label={act.label}
-                        active={isWildcard || draftPermissions.includes(act.permission)}
+                        help={help}
+                        active={isActionOn(act, has)}
                         isWildcard={isWildcard}
-                        onClick={() => onToggle(act.permission)}
+                        onHover={onHover}
+                        onClick={() => onToggleAction(perms)}
                       />
-                    ),
-                  )}
+                    );
+                  })}
+                </div>
+
+                {/* Live help strip — explains what the hovered permission unlocks */}
+                <div className={`mt-2 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] leading-snug transition-colors ${
+                  secHover ? 'bg-[var(--accent-teal)]/8 text-[var(--text-secondary)]' : 'bg-[var(--bg)] text-[var(--text-muted)]'
+                }`}>
+                  <Info size={12} className={`mt-[1px] shrink-0 ${secHover ? 'text-[var(--accent-teal)]' : 'opacity-50'}`} />
+                  {secHover
+                    ? <span><span className="font-bold">{secHover.label}:</span> {secHover.help}</span>
+                    : <span className="italic">Hover a permission to see what it unlocks for the user.</span>}
                 </div>
               </div>
             );
@@ -258,7 +327,7 @@ const PermissionMatrix = ({
   registry, query,
   mode, isWildcard,
   draftPermissions = [], rolePerms = [], overrideDraft = [],
-  onToggle, onToggleSet,
+  onToggleAction, onToggleSet,
 }) => {
   const q = query.toLowerCase().trim();
   const [expanded, setExpanded] = useState({});
@@ -303,7 +372,7 @@ const PermissionMatrix = ({
                 draftPermissions={draftPermissions}
                 rolePerms={rolePerms}
                 overrideDraft={overrideDraft}
-                onToggle={onToggle}
+                onToggleAction={onToggleAction}
                 onToggleSet={onToggleSet}
               />
             ))}
@@ -614,7 +683,7 @@ const RolesPermissionsPage = () => {
     isDirty, loading, saving,
     registry, registryLoading,
     presets, applyPreset,
-    selectRole, togglePermission, togglePermissionSet,
+    selectRole, togglePermissionSet,
     savePermissions, discardChanges,
     createModalOpen, setCreateModalOpen,
     cloneTarget,     setCloneTarget,
@@ -626,6 +695,21 @@ const RolesPermissionsPage = () => {
     loadOverrideUser, clearOverrideUser,
     toggleOverridePermission, saveOverrides, discardOverrides,
   } = useRolesPermissions();
+
+  // Toggle a whole action (one or more permission strings) in override mode.
+  // Inherited strings can't be overridden; the rest are added/removed together.
+  const toggleOverrideSet = (perms) => {
+    const inherited = (p) =>
+      effectivePerms?.rolePermissions?.includes(p) || effectivePerms?.rolePermissions?.includes('*');
+    const togglable = perms.filter((p) => !inherited(p));
+    if (togglable.length === 0) return;
+    const allOn = togglable.every((p) => overrideDraft.includes(p));
+    togglable.forEach((p) => {
+      const on = overrideDraft.includes(p);
+      if (allOn && on) toggleOverridePermission(p);        // turn the action off
+      else if (!allOn && !on) toggleOverridePermission(p); // fill in the missing
+    });
+  };
 
   const [mode,         setMode]         = useState('roles');
   const [permSearch,   setPermSearch]   = useState('');
@@ -791,7 +875,7 @@ const RolesPermissionsPage = () => {
                   mode="role"
                   isWildcard={isWildcard}
                   draftPermissions={draftPermissions}
-                  onToggle={togglePermission}
+                  onToggleAction={togglePermissionSet}
                   onToggleSet={togglePermissionSet}
                 />
               )}
@@ -944,7 +1028,7 @@ const RolesPermissionsPage = () => {
                   isWildcard={false}
                   rolePerms={effectivePerms.rolePermissions}
                   overrideDraft={overrideDraft}
-                  onToggle={toggleOverridePermission}
+                  onToggleAction={toggleOverrideSet}
                 />
               )}
             </div>
