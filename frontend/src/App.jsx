@@ -36,6 +36,8 @@ import ProfilePage from './modules/profile/pages/ProfilePage';
 import SettingsPage from './modules/settings/pages/SettingsPage';
 import UserManagementPage from './modules/settings/pages/UserManagementPage';
 import RolesPermissionsPage from './modules/settings/pages/RolesPermissionsPage';
+import RolePermissionDetailPage from './modules/settings/pages/RolePermissionDetailPage';
+import UserOverrideDetailPage from './modules/settings/pages/UserOverrideDetailPage';
 // Phase 3b — Template admin
 import ChecklistTemplatesPage from './modules/pms/pages/ChecklistTemplatesPage';
 import WorkflowTemplatesPage from './modules/pms/pages/WorkflowTemplatesPage';
@@ -209,7 +211,9 @@ export default function App() {
                 {/* Settings */}
                 <Route path="/settings"                    element={<SettingsPage />} />
                 <Route path="/settings/users"              element={<UserManagementPage />} />
-                <Route path="/settings/roles-permissions"  element={<RolesPermissionsPage />} />
+                <Route path="/settings/roles-permissions"           element={<RolesPermissionsPage />} />
+                <Route path="/settings/roles-permissions/role/:roleId" element={<RolePermissionDetailPage />} />
+                <Route path="/settings/roles-permissions/user/:userId" element={<UserOverrideDetailPage />} />
                 <Route path="/settings/checklist-templates" element={<ChecklistTemplatesPage />} />
                 <Route path="/settings/workflow-templates"  element={<WorkflowTemplatesPage />} />
                 <Route path="/settings/responsibilities"    element={<ResponsibilitiesPage />} />

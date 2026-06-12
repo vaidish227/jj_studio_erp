@@ -163,8 +163,10 @@ export const useRolesPermissions = () => {
       setCloneTarget(null);
       success('Role created');
       selectRole(res.data);
+      return res.data;
     } catch (err) {
       error(err || 'Failed to create role');
+      return null;
     } finally {
       setRoleActionBusy(false);
     }
