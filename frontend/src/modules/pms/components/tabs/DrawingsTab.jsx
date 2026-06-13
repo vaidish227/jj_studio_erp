@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { FileText, Plus, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileText, Plus, Filter, LayoutGrid, List } from 'lucide-react';
 import { Button, Select } from '../../../../shared/components';
 import PermissionGate from '../../../../shared/components/PermissionGate/PermissionGate';
 import DrawingCard, { DRAWING_TYPE_LABELS } from '../DrawingCard';
+import DrawingListItem from '../DrawingListItem';
 import UploadDrawingModal from '../UploadDrawingModal';
 import ReviseDrawingModal from '../ReviseDrawingModal';
 import ApproveDrawingModal from '../ApproveDrawingModal';
@@ -34,6 +35,13 @@ const DrawingsTab = ({ project, drawings: allDrawings, onDrawingUpdated }) => {
   const [approving,    setApproving]      = useState(null);
   const [releasing,    setReleasing]      = useState(null);
   const [sendingId,    setSendingId]      = useState(null);
+  const [view,         setView]           = useState(
+    () => (typeof window !== 'undefined' && localStorage.getItem('drawingsView')) || 'grid'
+  );
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('drawingsView', view);
+  }, [view]);
 
   const drawings = allDrawings.filter((d) => {
     if (statusFilter && d.status !== statusFilter) return false;
@@ -89,12 +97,41 @@ const DrawingsTab = ({ project, drawings: allDrawings, onDrawingUpdated }) => {
             </button>
           ))}
         </div>
-        <div className="ml-auto w-44">
-          <Select
-            value={typeFilter}
-            onChange={(val) => setTypeFilter(val)}
-            options={DRAWING_TYPE_OPTIONS}
-          />
+        <div className="ml-auto flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center gap-0.5 p-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+            <button
+              type="button"
+              onClick={() => setView('grid')}
+              title="Grid view"
+              className={`p-1.5 rounded-md transition-colors ${
+                view === 'grid'
+                  ? 'bg-[var(--primary)] text-black'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <LayoutGrid size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('list')}
+              title="List view"
+              className={`p-1.5 rounded-md transition-colors ${
+                view === 'list'
+                  ? 'bg-[var(--primary)] text-black'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <List size={14} />
+            </button>
+          </div>
+          <div className="w-44">
+            <Select
+              value={typeFilter}
+              onChange={(val) => setTypeFilter(val)}
+              options={DRAWING_TYPE_OPTIONS}
+            />
+          </div>
         </div>
       </div>
 
@@ -109,10 +146,23 @@ const DrawingsTab = ({ project, drawings: allDrawings, onDrawingUpdated }) => {
             <p className="text-xs mt-1">Upload the first drawing to get started.</p>
           )}
         </div>
-      ) : (
+      ) : view === 'grid' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
           {drawings.map((d) => (
             <DrawingCard
+              key={d._id}
+              drawing={d}
+              onSendForApproval={handleSendForApproval}
+              onApprove={(dr) => setApproving(dr)}
+              onRelease={(dr) => setReleasing(dr)}
+              onRevise={(dr) => setRevising(dr)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {drawings.map((d) => (
+            <DrawingListItem
               key={d._id}
               drawing={d}
               onSendForApproval={handleSendForApproval}

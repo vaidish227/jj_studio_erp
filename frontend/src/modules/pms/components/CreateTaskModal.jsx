@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { PlusCircle, Trash2, Mail, MessageSquare, Save, CheckCircle2 } from 'lucide-react';
-import { Modal, Button, FormField, Input, Select } from '../../../shared/components';
+import { Modal, Button, FormField, Input, Select, PhoneInput } from '../../../shared/components';
 import useTaskForm from '../hooks/useTaskForm';
 import { TASK_TYPE_CONFIG } from './TaskTypeIcon';
 import EmployeePicker from './EmployeePicker';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import { useAuth } from '../../../shared/context/AuthContext';
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 const TASK_TYPE_OPTIONS = [
@@ -18,6 +19,13 @@ const PRIORITY_OPTIONS = [
   { value: 'medium', label: 'Medium' },
   { value: 'high',   label: 'High' },
   { value: 'urgent', label: 'Urgent' },
+];
+
+// Phase 1 — Workflow Engine: Kitchen In-House vs Outsourced routing
+const KITCHEN_ROUTING_OPTIONS = [
+  { value: '',           label: 'Not decided yet' },
+  { value: 'in_house',   label: 'In-House — Designer D continues with detail elevation + 3D + technicals' },
+  { value: 'outsourced', label: 'Outsourced — Send to vendor through Purchase, get tentative quote' },
 ];
 
 // ─── Inline contact save panel ────────────────────────────────────────────────
@@ -84,11 +92,10 @@ const ContactFillPanel = ({ assignee, notifyMail, notifyWhatsApp, onSaved }) => 
 
       {needsPhone && (
         <FormField label={`WhatsApp number for ${assignee.name}`}>
-          <Input
-            type="tel"
+          <PhoneInput
             value={phoneInput}
             onChange={(e) => setPhoneInput(e.target.value)}
-            placeholder="+91 98765 43210"
+            placeholder="98765 43210"
             disabled={saved}
           />
         </FormField>
@@ -109,11 +116,17 @@ const ContactFillPanel = ({ assignee, notifyMail, notifyWhatsApp, onSaved }) => 
 
 // ─── Main modal ───────────────────────────────────────────────────────────────
 const CreateTaskModal = ({ isOpen, onClose, projectId, onCreated }) => {
+  const { user, hasPermission } = useAuth();
   const [selectedAssignee, setSelectedAssignee]   = useState(null);
   const [notifyMail, setNotifyMail]               = useState(false);
   const [notifyWhatsApp, setNotifyWhatsApp]       = useState(false);
   const [projectOptions, setProjectOptions]       = useState([]);
   const [projectsLoading, setProjectsLoading]     = useState(false);
+
+  // Phase 3a — Designers don't pick task types; the engine seeds them.
+  // PMs / managers / admins still see the dropdown for the rare case of a
+  // manually-created custom task outside the workflow template.
+  const canPickTaskType = hasPermission('projects.update') || hasPermission('tasks.approve') || user?.role === 'admin';
 
   // Load projects for the selector only when opened without a fixed projectId
   useEffect(() => {
@@ -186,14 +199,20 @@ const CreateTaskModal = ({ isOpen, onClose, projectId, onCreated }) => {
           </FormField>
         )}
 
-        {/* ── Task Type ── */}
-        <FormField label="Task Type" error={errors.taskType} required>
-          <Select
-            value={form.taskType}
-            onChange={(value) => setField('taskType', value)}
-            options={TASK_TYPE_OPTIONS}
-          />
-        </FormField>
+        {/* ── Task Type — hidden for designers (Phase 3a) ── */}
+        {canPickTaskType ? (
+          <FormField label="Task Type" error={errors.taskType} required>
+            <Select
+              value={form.taskType}
+              onChange={(value) => setField('taskType', value)}
+              options={TASK_TYPE_OPTIONS}
+            />
+          </FormField>
+        ) : (
+          // Designer view: default to "other" / no task type — they're rarely creating
+          // tasks anyway, and the workflow engine seeds the standard ones.
+          <input type="hidden" value={form.taskType || 'other'} />
+        )}
 
         {/* ── Title ── */}
         <FormField label="Title" error={errors.title} required>
@@ -231,6 +250,20 @@ const CreateTaskModal = ({ isOpen, onClose, projectId, onCreated }) => {
             <Input type="date" value={form.dueDate} onChange={(e) => setField('dueDate', e.target.value)} />
           </FormField>
         </div>
+
+        {/* ── Kitchen routing (Phase 1) — branching of sub-tasks lands in Phase 2 ── */}
+        {form.taskType === 'kitchen_drawing' && (
+          <FormField label="Kitchen Routing">
+            <Select
+              value={form.routing}
+              onChange={(value) => setField('routing', value)}
+              options={KITCHEN_ROUTING_OPTIONS}
+            />
+            <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+              Records the In-House vs Outsourced decision. Sub-task auto-spawn lands in Phase 2.
+            </p>
+          </FormField>
+        )}
 
         {/* ── Notes ── */}
         <FormField label="Notes">

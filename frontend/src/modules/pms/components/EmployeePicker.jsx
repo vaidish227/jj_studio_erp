@@ -11,11 +11,11 @@ const ROLE_LABELS = {
 };
 
 const ROLE_COLORS = {
-  admin:      'bg-purple-100 text-purple-700',
-  md:         'bg-blue-100 text-blue-700',
-  manager:    'bg-indigo-100 text-indigo-700',
+  admin:      'bg-[var(--error)]/10 text-[var(--error)]',
+  md:         'bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]',
+  manager:    'bg-[var(--accent-teal)]/10 text-[var(--accent-teal)]',
   designer:   'bg-[var(--primary)]/10 text-[var(--primary)]',
-  supervisor: 'bg-amber-100 text-amber-700',
+  supervisor: 'bg-[var(--warning)]/10 text-[var(--warning)]',
 };
 
 const WorkloadDot = ({ count }) => {
@@ -39,8 +39,9 @@ const Avatar = ({ name, size = 'sm' }) => {
  * EmployeePicker — searchable employee selector with workload indicator.
  *
  * Props:
- *   value        — selected user object { _id, name, email, role, activeTasks } or null
- *   onChange     — (user | null) => void
+ *   value        — single mode: User | null. Multi mode: User[].
+ *   onChange     — single: (user|null) => void. Multi: (User[]) => void.
+ *   multi        — boolean. When true, selected users render as chips.
  *   placeholder  — string (optional)
  *   filterRoles  — string[] to restrict visible roles (optional)
  *   disabled     — boolean
@@ -48,6 +49,7 @@ const Avatar = ({ name, size = 'sm' }) => {
 const EmployeePicker = ({
   value,
   onChange,
+  multi = false,
   placeholder = 'Select employee...',
   filterRoles,
   disabled = false,
@@ -70,26 +72,47 @@ const EmployeePicker = ({
   }, []);
 
   const filtered = users.filter((u) => {
-    if (filterRoles && !filterRoles.includes(u.role)) return false;
+    if (filterRoles && filterRoles.length && !filterRoles.includes(u.role)) return false;
     if (!query) return true;
     const q = query.toLowerCase();
     return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
   });
 
+  const selectedArr = multi ? (Array.isArray(value) ? value : []) : [];
+  const isSelected = (user) =>
+    multi
+      ? selectedArr.some((u) => String(u._id) === String(user._id))
+      : value?._id === user._id;
+
   const handleSelect = (user) => {
-    onChange(user);
-    setOpen(false);
-    setQuery('');
+    if (multi) {
+      if (isSelected(user)) {
+        onChange(selectedArr.filter((u) => String(u._id) !== String(user._id)));
+      } else {
+        onChange([...selectedArr, user]);
+      }
+      setQuery('');
+      // Keep dropdown open in multi mode so the user can pick more
+    } else {
+      onChange(user);
+      setOpen(false);
+      setQuery('');
+    }
+  };
+
+  const handleRemoveChip = (e, user) => {
+    e.stopPropagation();
+    onChange(selectedArr.filter((u) => String(u._id) !== String(user._id)));
   };
 
   const handleClear = (e) => {
     e.stopPropagation();
-    onChange(null);
+    onChange(multi ? [] : null);
   };
 
   return (
     <div ref={wrapperRef} className="relative">
-      {/* Trigger — div instead of button so the clear button inside is valid HTML */}
+      {/* Trigger — div instead of button so child remove buttons stay valid HTML */}
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -100,11 +123,39 @@ const EmployeePicker = ({
           ${open ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20' : ''}
         `}
       >
-        {value ? (
+        {multi ? (
+          selectedArr.length > 0 ? (
+            <div className="flex-1 flex flex-wrap items-center gap-1.5 min-h-[24px]">
+              {selectedArr.map((u) => (
+                <span
+                  key={u._id}
+                  className="inline-flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-full bg-[var(--primary)]/10 text-[11px] font-semibold text-[var(--primary)]"
+                >
+                  <Avatar name={u.name} />
+                  <span className="truncate max-w-[120px]">{u.name}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemoveChip(e, u)}
+                    className="shrink-0 p-0.5 rounded hover:bg-[var(--primary)]/20"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+              <ChevronDown size={14} className={`ml-auto text-[var(--text-muted)] transition-transform ${open ? 'rotate-180' : ''}`} />
+            </div>
+          ) : (
+            <>
+              <User size={15} className="text-[var(--text-muted)] shrink-0" />
+              <span className="flex-1 text-[var(--text-muted)]">{placeholder}</span>
+              <ChevronDown size={14} className={`text-[var(--text-muted)] transition-transform ${open ? 'rotate-180' : ''}`} />
+            </>
+          )
+        ) : value ? (
           <>
             <Avatar name={value.name} />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{value.name}</p>
+              <p className="text-sm font-semibold text-[var(--text-primary)] truncate" title={value.name}>{value.name}</p>
               <p className="text-[10px] text-[var(--text-muted)] truncate">{ROLE_LABELS[value.role] || value.role}</p>
             </div>
             <button
@@ -126,7 +177,7 @@ const EmployeePicker = ({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden">
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 min-w-[300px] bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden">
           {/* Search */}
           <div className="p-2 border-b border-[var(--border)]">
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
@@ -150,38 +201,44 @@ const EmployeePicker = ({
               <p className="text-xs text-[var(--text-muted)] text-center py-4">No employees found</p>
             ) : (
               <>
-                {/* Clear option */}
-                {value && (
+                {/* Clear option — single mode shows when something selected; multi mode shows when any chips */}
+                {((!multi && value) || (multi && selectedArr.length > 0)) && (
                   <button
                     type="button"
-                    onClick={() => handleSelect(null)}
+                    onClick={handleClear}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--bg)] transition-colors border-b border-[var(--border)]"
                   >
-                    <X size={13} /> Clear selection
+                    <X size={13} /> Clear {multi ? 'all' : 'selection'}
                   </button>
                 )}
-                {filtered.map((user) => (
-                  <button
-                    key={user._id}
-                    type="button"
-                    onClick={() => handleSelect(user)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--bg)] transition-colors text-left
-                      ${value?._id === user._id ? 'bg-[var(--primary)]/5' : ''}
-                    `}
-                  >
-                    <Avatar name={user.name} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{user.name}</p>
-                      <p className="text-[10px] text-[var(--text-muted)] truncate">{user.email}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full ${ROLE_COLORS[user.role] || 'bg-[var(--border)] text-[var(--text-muted)]'}`}>
-                        {ROLE_LABELS[user.role] || user.role}
-                      </span>
-                      <WorkloadDot count={user.activeTasks || 0} />
-                    </div>
-                  </button>
-                ))}
+                {filtered.map((user) => {
+                  const selected = isSelected(user);
+                  return (
+                    <button
+                      key={user._id}
+                      type="button"
+                      onClick={() => handleSelect(user)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--bg)] transition-colors text-left
+                        ${selected ? 'bg-[var(--primary)]/5' : ''}
+                      `}
+                    >
+                      <Avatar name={user.name} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[var(--text-primary)] leading-snug break-words">{user.name}</p>
+                        <p className="text-[10px] text-[var(--text-muted)] truncate" title={user.email}>{user.email}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full ${ROLE_COLORS[user.role] || 'bg-[var(--border)] text-[var(--text-muted)]'}`}>
+                          {ROLE_LABELS[user.role] || user.role}
+                        </span>
+                        <WorkloadDot count={user.activeTasks || 0} />
+                      </div>
+                      {multi && selected && (
+                        <span className="ml-1 text-[var(--primary)] text-xs font-bold">✓</span>
+                      )}
+                    </button>
+                  );
+                })}
               </>
             )}
           </div>

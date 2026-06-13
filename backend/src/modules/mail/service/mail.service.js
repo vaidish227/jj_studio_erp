@@ -30,6 +30,7 @@ const getProviderConfig = (settings, providerName) => {
 const sendImmediate = async ({
   to, cc, bcc, subject, html, text,
   templateId, templateVariables,
+  attachments,
   relatedTo, createdBy,
 }) => {
   const settings = await getSettings();
@@ -70,6 +71,7 @@ const sendImmediate = async ({
       subject: finalSubject,
       html:    finalHtml,
       text,
+      attachments,
       config,
     });
 

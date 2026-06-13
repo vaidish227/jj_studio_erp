@@ -28,8 +28,14 @@ const useProjectDetail = (projectId) => {
     ])
       .then(([projRes, taskRes, drawRes, logRes]) => {
         if (cancelled) return;
-        setProject(projRes.project);
-        setActiveProject(projRes.project);
+        // Carry planEffectiveAt through regardless of response shape — the
+        // phase stepper gates on it.
+        const proj = {
+          ...projRes.project,
+          planEffectiveAt: projRes.project?.planEffectiveAt ?? projRes.planEffectiveAt ?? null,
+        };
+        setProject(proj);
+        setActiveProject(proj);
         setTasks(taskRes.tasks   || []);
         setDrawings(drawRes.drawings || []);
         setSiteLogs(logRes.logs  || []);

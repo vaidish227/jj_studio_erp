@@ -20,6 +20,8 @@ const useFilters = (module, entity, initialFilters = {}) => {
       dateRange: null,
       priority: '',
       amountRange: null,
+      lifecycleStage: '',
+      source: '',
       ...initialFilters
     };
     
@@ -87,6 +89,8 @@ const useFilters = (module, entity, initialFilters = {}) => {
       dateRange: null,
       priority: '',
       amountRange: null,
+      lifecycleStage: '',
+      source: '',
       ...initialFilters
     });
   }, [initialFilters]);
@@ -154,7 +158,19 @@ const useFilters = (module, entity, initialFilters = {}) => {
       if (filters.priority) {
         if (item.priority !== filters.priority) return false;
       }
-      
+
+      // Lifecycle stage filter (CRM-specific)
+      if (filters.lifecycleStage) {
+        const field = filterConfig[FILTER_TYPES.LIFECYCLE_STAGE]?.field || 'lifecycleStage';
+        if (getNestedValue(item, field) !== filters.lifecycleStage) return false;
+      }
+
+      // Source filter (lead/client origin channel)
+      if (filters.source) {
+        const field = filterConfig[FILTER_TYPES.SOURCE]?.field || 'source';
+        if (getNestedValue(item, field) !== filters.source) return false;
+      }
+
       // Date range filter
       if (filters.dateRange) {
         const dateField = filterConfig[FILTER_TYPES.DATE_RANGE]?.field || 'createdAt';

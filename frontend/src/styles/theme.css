@@ -1,50 +1,94 @@
 :root {
+   /* =========================================================
+     🎨 JJ STUDIO — "MODERN LUXE" THEME
+     Premium interior-design identity (warm gold + espresso)
+     with enterprise-grade legibility (cooler greige surfaces,
+     deepened ink, AA-tuned status colors).
+
+     NOTE: Variable NAMES are intentionally unchanged — only
+     values are updated — so every component/JS reference
+     (4,600+ across the app) keeps working untouched.
+  ========================================================= */
+
    /* =========================
-     🌟 PRIMARY BRAND
+     🌟 PRIMARY BRAND — signature gold
+     Used with dark text (luxe, high-contrast). Richer & more
+     saturated than the previous soft gold (#D4B76C).
   ========================= */
-   --primary: #D4B76C;
-   --primary-hover: #C5A85F;
-   --primary-active: #B89B52;
+   --primary: #C19A45;
+   --primary-hover: #AD8638;
+   --primary-active: #98762F;
+   /* space-separated RGB of --primary, for rgba(var(--primary-rgb) / a) tints
+      (e.g. sidebar active highlight). MUST track --primary. */
+   --primary-rgb: 193 154 69;
 
    /* =========================
      🌞 LIGHT BACKGROUNDS
+     Warm greige page bg + near-white card surface gives the
+     surface separation the old cream-on-cream lacked.
   ========================= */
-   --bg: #F8F7F3;
-   --surface: #FFFFFF;
+   --bg: #EFEAE2;
+   --surface: #FCFAF6;
+   /* recessed/inset field background (alias of page bg) */
+   --background: #EFEAE2;
 
    /* =========================
-     🌑 SIDEBAR (DARK UI)
+     🌑 SIDEBAR (DARK UI) — deep espresso instead of neutral gray,
+     aligning the navigation with the luxury brown identity.
   ========================= */
-   --sidebar-bg: #2F2F2F;
-   --sidebar-hover: #3A3A3A;
-   --sidebar-active: #D4B76C;
+   --sidebar-bg: #241B12;
+   --sidebar-hover: #34281C;
+   --sidebar-active: #C19A45;
 
-   --sidebar-text: #EAEAEA;
-   --sidebar-text-muted: #A0A0A0;
-
-   /* =========================
-     📦 BORDERS
-  ========================= */
-   --border: #E5E2D8;
-   --divider: #D6D1C4;
+   --sidebar-text: #EDE4D3;
+   --sidebar-text-muted: #B7A88E;
 
    /* =========================
-     📝 TEXT
+     📦 BORDERS — warm greige hairlines
   ========================= */
-   --text-primary: #2E2E2E;
-   --text-secondary: #6B6B6B;
-   --text-muted: #A0A0A0;
+   --border: #E6DECE;
+   --divider: #D9D0BF;
 
    /* =========================
-     🎯 ACCENTS
+     📝 TEXT — warm espresso scale, deepened for readability.
+     --text-muted holds ~4.6:1 on surfaces (WCAG AA body).
   ========================= */
-   --accent-blue: #3A6EA5;
-   --accent-teal: #4A8F7C;
+   --text-primary: #2A2017;
+   --text-secondary: #574B3C;
+   --text-muted: #7C6B56;
+   /* alias of --text-primary (some components reference --text) */
+   --text: #2A2017;
+
+   /* =========================
+     🎯 ACCENTS — deepened for contrast on light tints
+  ========================= */
+   --accent-blue: #356293;
+   --accent-teal: #3F7E6C;
+   /* green accent for approved / completed states */
+   --accent-green: #5E7A50;
 
    /* =========================
      ✅ STATUS COLORS
+     Tuned to read as TEXT on their own /10 tint (badge pattern).
+     Previous --warning (#F4B400 bright yellow) was ~1.7:1 — fixed.
   ========================= */
-   --success: #4CAF50;
-   --warning: #F4B400;
-   --error: #D93025;
+   --success: #3C8A4D;
+   --warning: #A87320;
+   --error: #C23B28;
+}
+
+/* =========================
+   🔤 GLOBAL TYPOGRAPHY
+   Inter is the single brand font across the entire app.
+   Loaded from Google Fonts in /index.html.
+========================= */
+html, body, #root {
+   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
+   -webkit-font-smoothing: antialiased;
+   -moz-osx-font-smoothing: grayscale;
+   text-rendering: optimizeLegibility;
+}
+
+button, input, select, textarea {
+   font-family: inherit;
 }

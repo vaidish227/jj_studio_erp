@@ -5,6 +5,8 @@ const sendEmail = require("../utils/sendEmail");
 const getLeadTemplate = require("../utils/Template/leadTemplate");
 const getReferrerTemplate = require("../utils/Template/referrerTemplate");
 const { sendWhatsAppMessage } = require("../../whatspp/services/whatsapp.service");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
+const kitEvents = require("../../kit/services/kitEvents");
 
 
 // ─── Helper: Append to interaction timeline ──────────────────────────
@@ -136,6 +138,27 @@ const createClientEnquiry = async (req, res) => {
         );
       }
     }
+
+    notify({
+      type: "lead.created",
+      module: "crm",
+      priority: "high",
+      title: `New lead: ${client.name}`,
+      message: `${client.projectType || "Interior"} enquiry${client.city ? ` from ${client.city}` : ""}${client.source ? ` (via ${client.source})` : ""}.`,
+      link: `/crm/leads/${client._id}`,
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "crm", recordId: client._id },
+      metadata: { leadName: client.name, trackingId: client.trackingId, source: client.source },
+    });
+
+    // KIT automation trigger (fire-and-forget).
+    kitEvents.emit("lead.created", {
+      sourceModule: "crm",
+      entityType: "lead",
+      entityId: client._id,
+      payload: { status: client.status, projectType: client.projectType, source: client.source },
+      actor: req.user,
+    });
 
     return res.status(201).json({
       success: true,
@@ -358,6 +381,25 @@ const updateClientStatus = async (req, res) => {
 
     console.log("Client status updated:", client._id, client.status);
 
+    // KIT automation triggers (fire-and-forget).
+    if (status && status !== oldStatus) {
+      kitEvents.emit("lead.status_changed", {
+        sourceModule: "crm", entityType: "lead", entityId: client._id,
+        payload: { status: client.status, oldStatus, lifecycleStage: client.lifecycleStage }, actor: req.user,
+      });
+      if (client.status === "converted") {
+        kitEvents.emit("lead.won", {
+          sourceModule: "crm", entityType: "lead", entityId: client._id,
+          payload: { status: client.status, oldStatus }, actor: req.user,
+        });
+      } else if (client.status === "lost") {
+        kitEvents.emit("lead.lost", {
+          sourceModule: "crm", entityType: "lead", entityId: client._id,
+          payload: { status: client.status, oldStatus }, actor: req.user,
+        });
+      }
+    }
+
     res.status(200).json({
       message: "Client status updated successfully",
       client,
@@ -558,6 +600,18 @@ const recordAdvancePayment = async (req, res) => {
 
     await client.save();
 
+    notify({
+      type: "payment.advance_recorded",
+      module: "crm",
+      priority: "high",
+      title: `Advance payment received from ${client.name}`,
+      message: `₹${Number(amount || 0).toLocaleString("en-IN")} recorded.${note ? ` ${note}` : ""} Ready for project handoff.`,
+      link: `/crm/leads/${client._id}`,
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "crm", recordId: client._id },
+      metadata: { leadName: client.name, amount, trackingId: client.trackingId },
+    });
+
     res.status(200).json({
       message: "Advance payment recorded successfully",
       client,
@@ -594,6 +648,18 @@ const convertClient = async (req, res) => {
     });
 
     await client.save();
+
+    notify({
+      type: "lead.converted",
+      module: "crm",
+      priority: "high",
+      title: `${client.name} converted`,
+      message: "Client moved into the converted / project-ready stage.",
+      link: `/crm/leads/${client._id}`,
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "crm", recordId: client._id },
+      metadata: { leadName: client.name, trackingId: client.trackingId },
+    });
 
     res.json({
       message: "Client converted successfully",
@@ -639,6 +705,18 @@ const markInterested = async (req, res) => {
 
     await client.save();
 
+    notify({
+      type: "lead.interested",
+      module: "crm",
+      priority: "high",
+      title: `${client.name} marked Interested`,
+      message: note || "Client interest confirmed. Ready for proposal creation.",
+      link: `/crm/leads/${client._id}`,
+      actor: req.user ? { _id: req.user.id, name: req.user.name } : undefined,
+      relatedTo: { module: "crm", recordId: client._id },
+      metadata: { leadName: client.name, trackingId: client.trackingId },
+    });
+
     res.status(200).json({
       message: "Client marked as interested",
       client,
@@ -647,6 +725,148 @@ const markInterested = async (req, res) => {
   } catch (error) {
     console.log("Error marking client as interested:", error.message);
     res.status(500).json({ message: error.message });
+  }
+};
+
+// =====================================================================
+//  BULK IMPORT CLIENTS (CSV / Excel)
+//  Accepts an array of normalized client records (parsed client-side).
+//  Skips records with existing phone or email; reports per-row outcome.
+// =====================================================================
+const bulkImportClients = async (req, res) => {
+  try {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : null;
+
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({ message: "No rows provided for import" });
+    }
+
+    if (rows.length > 2000) {
+      return res.status(400).json({
+        message: "Import limit exceeded. Please upload at most 2000 rows per file.",
+      });
+    }
+
+    const validProjectTypes = ["Residential", "Commercial"];
+    const validSources = ["walk_in", "referral", "website", "instagram", "whatsapp", "other"];
+
+    // Pre-fetch existing phones / emails in one query for dedup
+    const phones = [...new Set(rows.map(r => String(r.phone || "").trim()).filter(Boolean))];
+    const emails = [...new Set(rows.map(r => String(r.email || "").trim().toLowerCase()).filter(Boolean))];
+
+    const existing = await CRMClient.find({
+      $or: [
+        ...(phones.length ? [{ phone: { $in: phones } }] : []),
+        ...(emails.length ? [{ email: { $in: emails } }] : []),
+      ],
+    }).select("phone email trackingId").lean();
+
+    const existingPhones = new Set(existing.map(c => String(c.phone || "").trim()).filter(Boolean));
+    const existingEmails = new Set(existing.map(c => String(c.email || "").trim().toLowerCase()).filter(Boolean));
+
+    // Track phone/email within the file itself to skip in-file duplicates
+    const seenPhones = new Set();
+    const seenEmails = new Set();
+
+    const created = [];
+    const skipped = [];
+    const errors = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {};
+      const rowNum = i + 2; // +1 for header, +1 for 1-based count
+
+      const name = String(row.name || "").trim();
+      const phone = String(row.phone || "").trim();
+      const email = String(row.email || "").trim().toLowerCase();
+
+      if (!name || !phone) {
+        errors.push({ row: rowNum, reason: "Missing required field (name or phone)" });
+        continue;
+      }
+
+      if (!/^\d{10}$/.test(phone.replace(/\D/g, ""))) {
+        errors.push({ row: rowNum, reason: `Invalid phone number: ${phone}` });
+        continue;
+      }
+
+      if (email && !/\S+@\S+\.\S+/.test(email)) {
+        errors.push({ row: rowNum, reason: `Invalid email: ${email}` });
+        continue;
+      }
+
+      if (existingPhones.has(phone) || (email && existingEmails.has(email))) {
+        skipped.push({ row: rowNum, name, phone, reason: "Already exists" });
+        continue;
+      }
+
+      if (seenPhones.has(phone) || (email && seenEmails.has(email))) {
+        skipped.push({ row: rowNum, name, phone, reason: "Duplicate within file" });
+        continue;
+      }
+
+      const projectType = row.projectType && validProjectTypes.includes(String(row.projectType).trim())
+        ? String(row.projectType).trim()
+        : undefined;
+
+      const source = row.source && validSources.includes(String(row.source).trim().toLowerCase())
+        ? String(row.source).trim().toLowerCase()
+        : "other";
+
+      const clientData = {
+        name,
+        phone,
+        email: email || undefined,
+        projectType,
+        source,
+        city: row.city ? String(row.city).trim() : undefined,
+        area: row.area && !isNaN(Number(row.area)) ? Number(row.area) : undefined,
+        budget: row.budget && !isNaN(Number(row.budget)) ? Number(row.budget) : undefined,
+        notes: row.notes ? String(row.notes).trim() : undefined,
+        referredBy: row.referredBy ? String(row.referredBy).trim() : undefined,
+        referrerPhone: row.referrerPhone ? String(row.referrerPhone).trim() : undefined,
+        status: "new",
+        lifecycleStage: "enquiry",
+        clientInfoCompleted: false,
+        whatsappSent: false,
+        interactionHistory: [
+          {
+            type: "migration",
+            title: "Imported via bulk upload",
+            description: "Record was added through the CRM bulk import tool.",
+          },
+        ],
+      };
+
+      if (row.siteAddress) {
+        clientData.siteAddress = { fullAddress: String(row.siteAddress).trim() };
+      }
+
+      try {
+        const client = await CRMClient.create(clientData);
+        created.push({ row: rowNum, _id: client._id, trackingId: client.trackingId, name: client.name });
+        seenPhones.add(phone);
+        if (email) seenEmails.add(email);
+      } catch (createErr) {
+        errors.push({ row: rowNum, reason: createErr.message || "Failed to create record" });
+      }
+    }
+
+    return res.status(200).json({
+      message: "Bulk import completed",
+      summary: {
+        total: rows.length,
+        created: created.length,
+        skipped: skipped.length,
+        errors: errors.length,
+      },
+      created,
+      skipped,
+      errors,
+    });
+  } catch (error) {
+    console.log("Error bulk importing clients:", error.message);
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -686,4 +906,5 @@ module.exports = {
   convertClient,
   markInterested,
   getStats,
+  bulkImportClients,
 };

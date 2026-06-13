@@ -1,21 +1,26 @@
-import React, { useEffect, useState } from 'react';
-import { FileText, Loader2, ExternalLink, Mail, CheckCircle2, XCircle, Clock, Send, Eye, Edit3 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+﻿import React, { useEffect, useState } from 'react';
+import { FileText, Loader2, ExternalLink, Mail, CheckCircle2, XCircle, Clock, Send, Eye, Edit3, X } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
 import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import { crmService } from '../../../shared/services/crmService';
 import { formatDateShort } from '../../../shared/utils/dateUtils';
 import { useToast } from '../../../shared/notifications/ToastProvider';
-import { Loader } from '../../../shared/components';
+import { Loader, Pagination } from '../../../shared/components';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+import { filterByMilestone, MILESTONE_LABELS } from '../utils/milestoneFilter';
+
+const PAGE_SIZE = 25;
 
 const ProposalListPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [proposals, setProposals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const milestone = searchParams.get('milestone'); // pending_approval | approved | rejected | sent | esign | advance
 
   const fetchProposals = async () => {
     setIsLoading(true);
@@ -43,8 +48,33 @@ const ProposalListPage = () => {
     process
   } = useFilters('proposal', 'proposals');
 
-  // Apply filters to proposals
-  const filteredProposals = process(proposals);
+  // Apply ?milestone= first (from dashboard card clicks), then the saved
+  // AdvancedFilter system on top so search/date/etc still work.
+  const milestoneScoped = filterByMilestone(proposals, milestone);
+  const filteredProposals = process(milestoneScoped);
+
+  // 25/page pagination — page resets to 1 when filters or milestone change.
+  const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => { setCurrentPage(1); }, [filters, milestone]);
+  const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const paginated = filteredProposals.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const clearMilestone = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('milestone');
+    setSearchParams(next, { replace: true });
+  };
+
+  // Count real line items from the dynamic content structure
+  // (content.sections[].structure.rows, excluding group-header rows).
+  const countLineItems = (proposal) =>
+    (proposal.content?.sections || []).reduce(
+      (total, section) =>
+        total + (section.structure?.rows || []).filter((row) => !row.isGroupHeader).length,
+      0
+    );
 
   const handleSendEmail = async (id) => {
     try {
@@ -67,6 +97,25 @@ const ProposalListPage = () => {
         </div>
       </div>
 
+      {milestone && MILESTONE_LABELS[milestone] && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--primary)]/5 border border-[var(--primary)]/20">
+          <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Showing</span>
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] text-xs font-bold">
+            {MILESTONE_LABELS[milestone]}
+            <button
+              onClick={clearMilestone}
+              className="rounded-full hover:bg-[var(--primary)]/20 p-0.5"
+              title="Clear this filter"
+            >
+              <X size={12} />
+            </button>
+          </span>
+          <span className="text-xs text-[var(--text-muted)]">
+            ({filteredProposals.length} of {proposals.length})
+          </span>
+        </div>
+      )}
+
       <AdvancedFilter
         filters={filters}
         filterConfig={filterConfig}
@@ -80,7 +129,7 @@ const ProposalListPage = () => {
         <Loader label="Fetching proposals..." />
       ) : filteredProposals.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
-          {filteredProposals.map((proposal) => (
+          {paginated.map((proposal) => (
             <Card 
               key={proposal._id} 
               className="hover:shadow-md transition-shadow cursor-pointer group"
@@ -96,14 +145,14 @@ const ProposalListPage = () => {
                       <p className="text-base font-bold text-[var(--text-primary)]">
                         {proposal.clientId?.name || proposal.leadId?.name || 'Unknown Client'}
                       </p>
-                      <span className="text-xs text-[var(--text-muted)]">#{proposal._id.slice(-6).toUpperCase()}</span>
+                      <span className="text-xs text-[var(--text-muted)]">#{String(proposal._id || '').slice(-6).toUpperCase()}</span>
                     </div>
                     <p className="text-sm text-[var(--text-muted)]">
                       Created on {formatDateShort(proposal.createdAt)}
                     </p>
                     <div className="flex items-center gap-4 text-xs font-medium mt-2">
                       <span className="flex items-center gap-1 text-[var(--text-secondary)]">
-                        Items: {proposal.items?.length || 0}
+                        Items: {countLineItems(proposal)}
                       </span>
                       <span className="flex items-center gap-1 text-[var(--primary)]">
                         Total: ₹{Number(proposal.finalAmount || 0).toLocaleString('en-IN')}
@@ -153,10 +202,19 @@ const ProposalListPage = () => {
               </div>
             </Card>
           ))}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <p className="text-xs text-[var(--text-muted)] font-medium">
+                Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+              </p>
+              <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-24 bg-[var(--surface)] rounded-2xl border border-dashed border-[var(--border)]">
-          <FileText size={48} className="text-[var(--text-muted)] opacity-20 mx-auto mb-4" />
+          <FileText size={48} className="text-[var(--text-muted)] opacity-60 mx-auto mb-4" />
           <p className="text-[var(--text-muted)] text-sm">
             No proposals found.
           </p>

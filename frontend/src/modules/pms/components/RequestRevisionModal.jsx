@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { GitBranch, X, UserCheck } from 'lucide-react';
-import { Button } from '../../../shared/components';
+import { GitBranch, X, ArrowLeft } from 'lucide-react';
+import { Button, DatePicker } from '../../../shared/components';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import AIInlinePolish from '../../ai/components/AIInlinePolish';
 
-const RequestRevisionModal = ({ task, isOpen, onClose, onRevisionRequested }) => {
+// onBack (optional): renders a "Back to drawing" action — used by
+// RequestRevisionFlow to return to the markup editor.
+const RequestRevisionModal = ({ task, isOpen, onClose, onRevisionRequested, onBack }) => {
   const toast = useToast();
   const [instructions, setInstructions] = useState('');
   const [deadline, setDeadline]         = useState('');
@@ -92,6 +95,13 @@ const RequestRevisionModal = ({ task, isOpen, onClose, onRevisionRequested }) =>
             {errors.instructions && (
               <p className="text-[11px] text-[var(--error)]">{errors.instructions}</p>
             )}
+            <AIInlinePolish
+              value={instructions}
+              onAccept={(t) => { setInstructions(t); setErrors((p) => ({ ...p, instructions: '' })); }}
+              acceptLabel="Use this"
+              emptyMessage="Write the instructions first, then let AI refine them."
+              rows={4}
+            />
           </div>
 
           {/* Revision deadline */}
@@ -99,13 +109,12 @@ const RequestRevisionModal = ({ task, isOpen, onClose, onRevisionRequested }) =>
             <label className="block text-xs font-semibold text-[var(--text-secondary)]">
               Revision Deadline <span className="font-normal text-[var(--text-muted)]">(optional)</span>
             </label>
-            <input
-              type="date"
+            <DatePicker
+              name="revisionDeadline"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
               min={new Date().toISOString().split('T')[0]}
-              className="w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--border)] bg-[var(--bg)]
-                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--warning)]"
+              placeholder="Select deadline"
             />
           </div>
         </div>
@@ -114,12 +123,17 @@ const RequestRevisionModal = ({ task, isOpen, onClose, onRevisionRequested }) =>
           The designer will be notified via email and WhatsApp. All submitted drawings will be marked as rejected with these instructions.
         </p>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-end gap-2">
+          {onBack && (
+            <Button variant="ghost" onClick={onBack} disabled={saving} className="mr-auto">
+              <ArrowLeft size={14} className="mr-1.5" /> Back to drawing
+            </Button>
+          )}
           <Button variant="ghost" onClick={handleClose} disabled={saving}>Cancel</Button>
           <Button
             onClick={handleSubmit}
             disabled={saving}
-            className="bg-[var(--warning)] hover:bg-[var(--warning)]/90 text-black"
+            className="bg-[var(--warning)] hover:opacity-90 text-white shadow-sm hover:shadow-md hover:shadow-[var(--warning)]/25"
           >
             <GitBranch size={14} className="mr-1.5" />
             {saving ? 'Sending…' : 'Request Revision'}

@@ -48,15 +48,14 @@ const signProposal = async (req, res) => {
       return res.status(404).json({ message: "ESign not found" });
     }
 
-    // update sign
     esign.status = "signed";
     esign.signatureUrl = signatureUrl;
 
     await esign.save();
 
-    // update proposal status
     await Proposal.findByIdAndUpdate(esign.proposalId, {
-      status: "client_approved",
+      status: "esign_received",
+      esign: { status: "received", signed_at: new Date() },
     });
 
     res.status(200).json({

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Calendar, X } from 'lucide-react';
+import DatePicker from '../components/DatePicker/DatePicker';
 
 /**
  * Date range filter component with calendar picker
@@ -67,7 +68,7 @@ const DateRangeFilter = ({
   const hasValue = value && (value.start || value.end);
 
   return (
-    <div className={`relative w-64 ${className}`} ref={dropdownRef}>
+    <div className={`relative w-52 ${className}`} ref={dropdownRef}>
       {/* Trigger Button */}
       <button
         type="button"
@@ -105,23 +106,24 @@ const DateRangeFilter = ({
         </div>
       </button>
 
-      {/* Dropdown Content */}
+      {/* Dropdown Content — width must comfortably contain the DatePicker
+          calendar popover (300px) so it doesn't visually overflow. */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] 
-          border border-[var(--border)] rounded-lg shadow-lg z-50 p-4">
-          
+        <div className="absolute top-full left-0 mt-1 bg-[var(--surface)]
+          border border-[var(--border)] rounded-lg shadow-lg z-50 p-4 w-[340px]">
+
           <div className="space-y-3">
-            {/* Start Date */}
+            {/* Start Date — uses the same DatePicker as the Enquiry form */}
             <div>
               <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
                 Start Date
               </label>
-              <input
-                type="date"
+              <DatePicker
+                name="start"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-2 py-1 text-sm bg-[var(--bg)] border border-[var(--border)]
-                  rounded focus:outline-none focus:border-[var(--primary)]"
+                placeholder="Pick a start date"
+                max={endDate || undefined}
               />
             </div>
 
@@ -130,13 +132,12 @@ const DateRangeFilter = ({
               <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
                 End Date
               </label>
-              <input
-                type="date"
+              <DatePicker
+                name="end"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                min={startDate}
-                className="w-full px-2 py-1 text-sm bg-[var(--bg)] border border-[var(--border)]
-                  rounded focus:outline-none focus:border-[var(--primary)]"
+                placeholder="Pick an end date"
+                min={startDate || undefined}
               />
             </div>
 
@@ -144,14 +145,14 @@ const DateRangeFilter = ({
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleApply}
-                className="flex-1 px-3 py-1 text-xs font-medium bg-[var(--primary)] 
-                  text-black rounded hover:bg-[var(--primary-hover)] transition-colors"
+                className="flex-1 px-3 py-1.5 text-xs font-bold bg-[var(--primary)]
+                  text-black rounded hover:opacity-90 transition-opacity"
               >
                 Apply
               </button>
               <button
                 onClick={handleClear}
-                className="px-3 py-1 text-xs font-medium bg-[var(--bg)] 
+                className="px-3 py-1.5 text-xs font-bold bg-[var(--bg)]
                   text-[var(--text-muted)] rounded hover:bg-[var(--border)] transition-colors"
               >
                 Clear

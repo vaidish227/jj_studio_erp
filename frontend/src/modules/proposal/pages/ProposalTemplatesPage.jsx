@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Loader2, Edit3, Trash2, Calendar, LayoutGrid, Eye, X } from 'lucide-react';
+import { FileText, Plus, Loader2, Edit3, Trash2, Calendar, LayoutGrid, Eye, X, Upload } from 'lucide-react';
 import Button from '../../../shared/components/Button/Button';
 import Card from '../../../shared/components/Card/Card';
 import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import { crmService } from '../../../shared/services/crmService';
 import TemplatePreviewModal from '../components/TemplatePreviewModal';
+import ImportTemplateModal from '../components/ImportTemplateModal';
 import { useToast } from '../../../shared/notifications/ToastProvider';
-import { Loader, ConfirmationModal } from '../../../shared/components';
+import { Loader, ConfirmationModal, Pagination } from '../../../shared/components';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+
+const PAGE_SIZE = 25;
 
 const ProposalTemplatesPage = () => {
   const navigate = useNavigate();
@@ -19,6 +22,7 @@ const ProposalTemplatesPage = () => {
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const {
     filters,
@@ -49,6 +53,14 @@ const ProposalTemplatesPage = () => {
   // Apply reusable filter system
   const filteredTemplates = process(templates);
 
+  // 25/page pagination — page resets to 1 when filters change.
+  const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => { setCurrentPage(1); }, [filters]);
+  const totalPages = Math.max(1, Math.ceil(filteredTemplates.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const paginatedTemplates = filteredTemplates.slice(pageStart, pageStart + PAGE_SIZE);
+
   const handleDelete = async () => {
     if (!deleteId) return;
 
@@ -75,10 +87,16 @@ const ProposalTemplatesPage = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
           </p>
         </div>
-        <Button variant="primary" onClick={() => navigate('/proposal/templates/create')} className="px-6 py-3 shadow-lg shadow-[var(--primary)]/20">
-          <Plus size={18} />
-          Create New Template
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={() => setImportOpen(true)} className="px-6 py-3">
+            <Upload size={18} />
+            Import
+          </Button>
+          <Button variant="primary" onClick={() => navigate('/proposal/templates/create')} className="px-6 py-3 shadow-lg shadow-[var(--primary)]/20">
+            <Plus size={18} />
+            Create New Template
+          </Button>
+        </div>
       </div>
 
       {/* Advanced Filter System */}
@@ -101,7 +119,7 @@ const ProposalTemplatesPage = () => {
       ) : filteredTemplates.length === 0 ? (
         <div className="bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-3xl p-16 text-center">
           <div className="w-20 h-20 bg-[var(--bg)] rounded-full flex items-center justify-center mx-auto mb-6">
-            <LayoutGrid size={32} className="text-[var(--text-muted)] opacity-30" />
+            <LayoutGrid size={32} className="text-[var(--text-muted)] opacity-60" />
           </div>
           <h2 className="text-xl font-black text-[var(--text-primary)]">No Templates Found</h2>
           <p className="text-[var(--text-muted)] max-w-sm mx-auto mt-2 font-medium">
@@ -129,7 +147,7 @@ const ProposalTemplatesPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {filteredTemplates.map((template) => {
+                {paginatedTemplates.map((template) => {
                   const structure = template.structure || {};
                   const columnsCount = structure.columns?.length || 0;
                   const rowsCount = structure.rows?.length || 0;
@@ -196,6 +214,15 @@ const ProposalTemplatesPage = () => {
               </tbody>
             </table>
           </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]/20">
+              <p className="text-xs text-[var(--text-muted)] font-medium">
+                Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredTemplates.length)} of {filteredTemplates.length}
+              </p>
+              <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
+            </div>
+          )}
         </Card>
       )}
 
@@ -204,6 +231,15 @@ const ProposalTemplatesPage = () => {
         isOpen={!!previewTemplate}
         onClose={() => setPreviewTemplate(null)}
         template={previewTemplate}
+      />
+
+      <ImportTemplateModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onParsed={(payload) => {
+          setImportOpen(false);
+          navigate('/proposal/templates/create', { state: { imported: payload } });
+        }}
       />
 
       <ConfirmationModal

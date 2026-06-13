@@ -22,7 +22,7 @@ const mailLogSchema = new mongoose.Schema(
     lastAttemptAt:  { type: Date },
     sentAt:         { type: Date },
     relatedTo: {
-      module:   { type: String, enum: ["crm", "proposal", "pms", "manual", "system"] },
+      module:   { type: String, enum: ["crm", "proposal", "pms", "kit", "manual", "system"] },
       recordId: { type: ObjectId },
     },
     createdBy: { type: ObjectId, ref: "User" },

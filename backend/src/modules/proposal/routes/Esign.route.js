@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requirePermission } = require("../../../middleware/auth.middleware");
 
 const {
   createESign,
@@ -8,8 +9,8 @@ const {
 } = require("../controllers/Esign.controller");
 
 
-router.post("/create", createESign);
-router.put("/sign/:id", signProposal);
-router.get("/:proposalId", getESignByProposal);
+router.get("/:proposalId", requirePermission("proposal.read"),   getESignByProposal);
+router.post("/create",     requirePermission("proposal.update"), createESign);
+router.put("/sign/:id",    requirePermission("proposal.update"), signProposal);
 
 module.exports = router;

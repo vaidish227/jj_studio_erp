@@ -81,7 +81,7 @@ const getAllBOQ = async (req, res) => {
         }
 
         const boq = await BOQ.find(filter)
-            .populate("proposalId")
+            .populate("proposalId", "title status leadId finalAmount")
             .sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, data: boq });
@@ -99,7 +99,7 @@ const getBOQById = async (req, res) => {
             return res.status(400).json({ message: "Invalid BOQ id" });
         }
 
-        const boq = await BOQ.findById(id).populate("proposalId");
+        const boq = await BOQ.findById(id).populate("proposalId", "title status leadId finalAmount");
 
         if (!boq) {
             return res.status(404).json({ message: "BOQ not found" });

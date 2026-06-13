@@ -41,8 +41,8 @@ const getProjectDashboard = async (req, res) => {
 
     const project = await Project.findById(projectId)
       .populate("clientId", "name phone")
-      .populate("primaryDesigner", "name")
-      .populate("supervisor", "name");
+      .populate("assignments.responsibilityId", "slug name icon color")
+      .populate("assignments.users", "name email role");
 
     if (!project) return res.status(404).json({ message: "Project not found" });
 

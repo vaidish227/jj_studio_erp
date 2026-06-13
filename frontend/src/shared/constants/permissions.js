@@ -7,11 +7,30 @@ export const PERMISSIONS = {
   // Dashboard
   DASHBOARD_READ: 'dashboard.read',
 
+  // MD Dashboard — cross-module executive overview
+  MD_DASHBOARD_READ: 'md.dashboard.read',
+
   // CRM
   CRM_READ:   'crm.read',
+  // Phase 2 Stage 2 — granular API-enforced lead read (alias: clients.read / crm.read)
+  CRM_LEAD_READ: 'crm.lead.read',
   CRM_CREATE: 'crm.create',
   CRM_UPDATE: 'crm.update',
   CRM_DELETE: 'crm.delete',
+  // Phase 2 Stage 4 — granular API-enforced writes (aliases: crm.create/update/delete)
+  CRM_LEAD_CREATE:     'crm.lead.create',
+  CRM_LEAD_UPDATE:     'crm.lead.update',
+  CRM_LEAD_DELETE:     'crm.lead.delete',
+  CRM_LEAD_QUALIFY:    'crm.lead.qualify',
+  CRM_LEAD_CONVERT:    'crm.lead.convert',
+  CRM_LEAD_IMPORT:     'crm.lead.import',
+  CRM_MEETING_CREATE:  'crm.meeting.create',
+  CRM_MEETING_UPDATE:  'crm.meeting.update',
+  CRM_MEETING_DELETE:  'crm.meeting.delete',
+  CRM_MOM_CREATE:      'crm.mom.create',
+  CRM_FOLLOWUP_CREATE: 'crm.followup.create',
+  CRM_FOLLOWUP_UPDATE: 'crm.followup.update',
+  CRM_FOLLOWUP_DELETE: 'crm.followup.delete',
   // CRM tabs
   CRM_TAB_CLIENTS:   'crm.tab.clients',
   CRM_TAB_LEADS:     'crm.tab.leads',
@@ -24,6 +43,7 @@ export const PERMISSIONS = {
   KIT_CREATE: 'kit.create',
   KIT_UPDATE: 'kit.update',
   KIT_DELETE: 'kit.delete',
+  KIT_MANAGE: 'kit.manage',
   // KIT tabs
   KIT_TAB_TEMPLATES: 'kit.tab.templates',
 
@@ -48,18 +68,22 @@ export const PERMISSIONS = {
   PROJECTS_CREATE: 'projects.create',
   PROJECTS_UPDATE: 'projects.update',
   PROJECTS_DELETE: 'projects.delete',
+  // Per-project plan customization at initiation time (MD/admin)
+  PROJECTS_CUSTOMIZE_PLAN: 'projects.customize_plan',
   // Project management nav tabs
   PROJECTS_TAB_ASSIGN: 'projects.tab.assign',
   PROJECTS_TAB_REVIEW: 'projects.tab.review',
 
   // Tasks
-  TASKS_READ:     'tasks.read',
-  TASKS_CREATE:   'tasks.create',
-  TASKS_UPDATE:   'tasks.update',
-  TASKS_DELETE:   'tasks.delete',
-  TASKS_SUBMIT:   'tasks.submit',
-  TASKS_APPROVE:  'tasks.approve',
-  TASKS_REASSIGN: 'tasks.reassign',
+  TASKS_READ:          'tasks.read',
+  TASKS_CREATE:        'tasks.create',
+  TASKS_UPDATE:        'tasks.update',
+  TASKS_DELETE:        'tasks.delete',
+  TASKS_SUBMIT:        'tasks.submit',
+  TASKS_APPROVE:       'tasks.approve',
+  TASKS_REASSIGN:      'tasks.reassign',
+  // Phase 1 — Workflow Engine
+  TASKS_OVERRIDE_GATE: 'tasks.override_gate',
 
   // PMS project-detail tabs
   PMS_TAB_TASKS:    'pms.tab.tasks',
@@ -149,8 +173,37 @@ export const PERMISSIONS = {
   USERS_DELETE:    'users.delete',
   USERS_MANAGE:    'users.manage',
   // Settings tabs
-  SETTINGS_TAB_USERS: 'settings.tab.users',
-  SETTINGS_TAB_ROLES: 'settings.tab.roles',
+  SETTINGS_TAB_USERS:      'settings.tab.users',
+  SETTINGS_TAB_ROLES:      'settings.tab.roles',
+  // Phase 1 — Workflow / Checklist template administration (UI lands in Phase 3)
+  SETTINGS_CHECKLISTS_MANAGE: 'settings.checklists.manage',
+  SETTINGS_WORKFLOWS_MANAGE:  'settings.workflows.manage',
+
+  // Phase 1 — Principal Designer review pathway
+  PD_REVIEW_RESPOND: 'pd.review.respond',
+
+  // ── Reconciled (existed on routes/seed/backend but missing here) ────────────
+  // Proposal send
+  PROPOSAL_SEND: 'proposal.send',
+  // Quotation template records
+  TEMPLATE_READ:   'template.read',
+  TEMPLATE_CREATE: 'template.create',
+  TEMPLATE_UPDATE: 'template.update',
+  TEMPLATE_DELETE: 'template.delete',
+  // Planner (PMS master sheet)
+  PLANNER_READ:      'planner.read',
+  PLANNER_EDIT:      'planner.edit',
+  PLANNER_ASSIGN:    'planner.assign',
+  PLANNER_DELETE:    'planner.delete',
+  PLANNER_BASELINE:  'planner.baseline',
+  PLANNER_DASHBOARD: 'planner.dashboard',
+  PLANNER_IMPORT:    'planner.import',
+  PLANNER_EXPORT:    'planner.export',
+  // AI Assistant
+  AI_CHAT:        'ai.chat',
+  AI_ADMIN:       'ai.admin',
+  AI_DOCS_READ:   'ai.docs.read',
+  AI_DOCS_MANAGE: 'ai.docs.manage',
 };
 
 // ─── Module groupings for Roles & Permissions UI ──────────────────────────────
@@ -170,6 +223,13 @@ export const PERMISSION_MODULES = [
     actions:     ['read'],
   },
   {
+    key:         'md-dashboard',
+    label:       'MD Dashboard',
+    description: 'Executive cross-module overview — CRM, proposals, projects, finance',
+    group:       'Leadership',
+    actions:     ['read'],
+  },
+  {
     key:         'crm',
     label:       'CRM',
     description: 'Client relationship management — leads, meetings, pipeline',
@@ -186,9 +246,9 @@ export const PERMISSION_MODULES = [
   {
     key:         'kit',
     label:       'KIT (Keep In Touch)',
-    description: 'Scheduled follow-ups and communication templates',
+    description: 'Communication automation — follow-ups, templates, campaigns, and workflows',
     group:       'Sales',
-    actions:     ['read', 'create', 'update', 'delete'],
+    actions:     ['read', 'create', 'update', 'delete', 'manage'],
     tabs: [
       { key: 'templates', label: 'Templates (WA + Mail)', permission: 'kit.tab.templates' },
     ],
@@ -377,6 +437,147 @@ export const PERMISSION_MODULES = [
     description: 'Create and manage user accounts, roles, and custom permissions',
     group:       'Administration',
     actions:     ['read', 'create', 'update', 'delete', 'manage'],
+  },
+];
+
+// ─── Feature areas — top-level cards in Roles & Permissions UI ────────────────
+// A feature area is what the user thinks of as "one thing" in the sidebar (CRM,
+// Proposal, Project Management, …). Each area bundles one or more permission
+// modules so the role editor shows ONE clean card per area instead of dozens
+// of small modules.
+//
+// To add a new module to an existing area: append its key to that area's
+// `modules` array. To add a new top-level area: append a new entry below.
+//
+// `color` drives the accent on the card / detail panel header.
+export const FEATURE_AREAS = [
+  {
+    key:         'dashboard',
+    label:       'Dashboard',
+    description: 'Main overview with KPIs and recent activity',
+    icon:        'dashboard',
+    color:       '#6B7280',
+    modules:     ['dashboard'],
+  },
+  {
+    key:         'leadership',
+    label:       'Leadership',
+    description: 'Executive MD Dashboard — cross-module rollup for senior leadership',
+    icon:        'dashboard',
+    color:       '#3A6EA5',
+    modules:     ['md-dashboard'],
+  },
+  {
+    key:         'crm',
+    label:       'CRM',
+    description: 'Client relationships, leads, meetings, and conversion pipeline',
+    icon:        'crm',
+    color:       '#D4B76C',
+    modules:     ['crm'],
+  },
+  {
+    key:         'proposal',
+    label:       'Proposal & Quotation',
+    description: 'Create, send, and approve client proposals and quotations',
+    icon:        'proposal',
+    color:       '#D4B76C',
+    modules:     ['proposal'],
+  },
+  {
+    key:         'clients',
+    label:       'Clients',
+    description: 'Converted client profiles and contact management',
+    icon:        'clients',
+    color:       '#D4B76C',
+    modules:     ['clients'],
+  },
+  {
+    key:         'kit',
+    label:       'KIT (Keep In Touch)',
+    description: 'Scheduled follow-ups and templated communications',
+    icon:        'kit',
+    color:       '#D4B76C',
+    modules:     ['kit'],
+  },
+  {
+    key:         'project_management',
+    label:       'Project Management',
+    description: 'Projects, tasks, milestones, and project detail tabs',
+    icon:        'projects',
+    color:       '#4A8F7C',
+    modules:     ['projects', 'tasks', 'pms', 'milestones'],
+  },
+  {
+    key:         'design',
+    label:       'Design & Drawings',
+    description: 'Drawing uploads, reviews, collaboration, and client approvals',
+    icon:        'drawings',
+    color:       '#9B59B6',
+    modules:     ['drawings', 'design', 'designer', 'approvals'],
+  },
+  {
+    key:         'site_operations',
+    label:       'Site Operations',
+    description: 'Site logs, visits, materials, and purchase orders',
+    icon:        'site_logs',
+    color:       '#E67E22',
+    modules:     ['site_logs', 'site_visits', 'materials', 'purchase_orders'],
+  },
+  {
+    key:         'activity_calendar',
+    label:       'Activity & Calendar',
+    description: 'Audit log and team calendar',
+    icon:        'calendar',
+    color:       '#E67E22',
+    modules:     ['activity', 'calendar'],
+  },
+  {
+    key:         'communication',
+    label:       'Communication',
+    description: 'Mail and WhatsApp messaging',
+    icon:        'mail',
+    color:       '#3A6EA5',
+    modules:     ['mail', 'whatsapp'],
+  },
+  {
+    key:         'vendor',
+    label:       'Vendor Directory',
+    description: 'Manage vendor profiles and contacts',
+    icon:        'vendor',
+    color:       '#7F8C8D',
+    modules:     ['vendor'],
+  },
+  {
+    key:         'client_portal',
+    label:       'Client Portal',
+    description: 'External client portal access',
+    icon:        'client_portal',
+    color:       '#7F8C8D',
+    modules:     ['client_portal'],
+  },
+  {
+    key:         'reports',
+    label:       'Reports',
+    description: 'Business intelligence reports and exports',
+    icon:        'reports',
+    color:       '#27AE60',
+    modules:     ['reports'],
+  },
+  {
+    key:         'finance',
+    label:       'Finance',
+    description: 'Payments, invoices, and financial summaries',
+    icon:        'finance',
+    color:       '#27AE60',
+    modules:     ['finance'],
+  },
+  {
+    key:         'settings',
+    label:       'Settings',
+    description: 'System configuration, users, and roles',
+    icon:        'settings',
+    color:       '#D93025',
+    modules:     ['settings', 'users'],
   },
 ];
 

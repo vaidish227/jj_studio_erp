@@ -2,6 +2,8 @@ const bcrypt = require("bcrypt");
 const Role = require("../../auth/models/Role.model");
 const User = require("../../auth/models/user.model");
 const { ALL_PERMISSIONS } = require("../../auth/models/Role.model");
+const { PERMISSION_REGISTRY, listGroups } = require("../../auth/permissions/registry");
+const { PRESETS, PRESETS_VERSION } = require("../../auth/permissions/presets");
 
 // ─── GET /api/roles ───────────────────────────────────────────────────────────
 const getAllRoles = async (req, res) => {
@@ -31,6 +33,36 @@ const getAllPermissions = async (req, res) => {
   try {
     return res.status(200).json({ message: "Permissions list", data: ALL_PERMISSIONS });
   } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── GET /api/roles/registry ──────────────────────────────────────────────────
+// Structured Module → Section → Action catalogue that drives the Roles &
+// Permissions UI. Derived from the single source of truth (permissions/registry).
+const getRegistry = async (req, res) => {
+  try {
+    return res.status(200).json({
+      message: "Permission registry",
+      data: { groups: listGroups(), modules: PERMISSION_REGISTRY },
+    });
+  } catch (err) {
+    console.error("[getRegistry]", err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// ─── GET /api/roles/presets ───────────────────────────────────────────────────
+// Curated role templates (permission bundles) used as starting points in the
+// Roles & Permissions UI. Read-only convenience — does not alter any role.
+const getPresets = async (req, res) => {
+  try {
+    return res.status(200).json({
+      message: "Permission presets",
+      data: { version: PRESETS_VERSION, presets: PRESETS },
+    });
+  } catch (err) {
+    console.error("[getPresets]", err);
     return res.status(500).json({ message: err.message });
   }
 };
@@ -248,6 +280,8 @@ module.exports = {
   getAllRoles,
   getRoleById,
   getAllPermissions,
+  getRegistry,
+  getPresets,
   createRole,
   updateRole,
   deleteRole,

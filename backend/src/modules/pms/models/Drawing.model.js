@@ -18,6 +18,19 @@ const drawingSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    // Physical area the drawing covers ("Master Bedroom", "Kitchen").
+    // Drives S3 folder structure and revision auto-numbering.
+    zoneName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    // Long-form notes about what's in the drawing — shown on the card +
+    // sent in approval emails. Separate from internal `notes`.
+    description: {
+      type: String,
+      default: "",
+    },
     drawingType: {
       type: String,
       enum: [
@@ -50,6 +63,10 @@ const drawingSchema = new mongoose.Schema(
     },
     fileType: String,
     fileSize: Number,
+    // S3 storage metadata. Present when the file was uploaded via the new
+    // multipart endpoint; absent for legacy URL-only drawings.
+    s3Bucket: String,
+    s3Key:    String,
     version: {
       type: Number,
       default: 1,
@@ -62,6 +79,8 @@ const drawingSchema = new mongoose.Schema(
         version: Number,
         fileUrl: String,
         fileName: String,
+        s3Bucket: String,
+        s3Key:    String,
         uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         uploadedAt: { type: Date, default: Date.now },
         notes: String,
@@ -132,5 +151,7 @@ drawingSchema.index({ taskId: 1 });
 drawingSchema.index({ status: 1 });
 drawingSchema.index({ isReleased: 1 });
 drawingSchema.index({ drawingType: 1 });
+// Supports the auto-revision lookup (next version per project+zone+name).
+drawingSchema.index({ projectId: 1, zoneName: 1, title: 1, version: -1 });
 
 module.exports = mongoose.model("Drawing", drawingSchema, "pms_drawings");

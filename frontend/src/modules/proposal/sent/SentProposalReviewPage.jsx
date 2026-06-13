@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Phone, MapPin, FileText, CreditCard, Clock, PlayCircle, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, MapPin, FileText, CreditCard, Clock, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { Button, Loader, StatusBadge } from '../../../shared/components';
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
@@ -11,7 +11,6 @@ const SentProposalReviewPage = () => {
   const toast = useToast();
   const [proposal, setProposal] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => { fetchData(); }, [id]);
 
@@ -22,16 +21,6 @@ const SentProposalReviewPage = () => {
       setProposal(res.proposal);
     } catch { toast.error('Failed to load proposal'); }
     finally { setIsLoading(false); }
-  };
-
-  const handleAction = async (status, extra = {}) => {
-    setActionLoading(true);
-    try {
-      await crmService.updateProposalStatus(id, { status, ...extra });
-      toast.success('Status updated!');
-      fetchData();
-    } catch { toast.error('Action failed'); }
-    finally { setActionLoading(false); }
   };
 
   if (isLoading) return <Loader fullPage label="Loading proposal detail..." />;
@@ -46,8 +35,6 @@ const SentProposalReviewPage = () => {
   const client = proposal.clientId || proposal.leadId || {};
   const esignDone = proposal.esign?.status === 'received';
   const paymentDone = proposal.payments?.status === 'received';
-  const isReady = proposal.status === 'project_ready';
-  const isStarted = proposal.status === 'project_started';
   const sections = proposal.content?.sections || [];
 
   const methodLabel = {
@@ -57,33 +44,6 @@ const SentProposalReviewPage = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Top Banner */}
-      {(isReady || isStarted) && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center text-xl">🚀</div>
-            <div>
-              <p className="text-base font-bold text-[var(--text-primary)]">
-                {isStarted ? 'Project is underway!' : 'Ready to start the project?'}
-              </p>
-              <p className="text-sm text-[var(--text-muted)] mt-0.5">
-                {isStarted ? 'Project has been officially initiated.' : 'Finalise the sales process and transition to official project management.'}
-              </p>
-            </div>
-          </div>
-          {isReady && (
-            <Button variant="primary" onClick={() => handleAction('project_started', { remarks: 'Project officially started.' })} isLoading={actionLoading} className="font-bold shrink-0">
-              <PlayCircle size={16} /> PROJECT INITIATED →
-            </Button>
-          )}
-          {isStarted && (
-            <div className="flex items-center gap-2 text-[var(--success)] font-bold text-sm shrink-0">
-              <CheckCircle2 size={18} /> Started
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center gap-4">
         <button onClick={() => navigate('/proposal/sent')} className="p-2 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)] text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors">

@@ -6,6 +6,12 @@ export const crmService = {
   createLead: (data) => apiClient.post('/clients/create', data),
   createClient: (data) => apiClient.post('/clients/create', data),
 
+  // BULK IMPORT: CSV / Excel — body: { rows: [...] }
+  bulkImportClients: (rows) => apiClient.post('/clients/bulk-import', { rows }),
+
+  // CRM DASHBOARD: aggregated analytics for the dedicated CRM dashboard page
+  getCRMDashboard: (range = '3m') => apiClient.get(`/clients/dashboard?range=${range}`),
+
   // READ: List clients (with optional filters)
   getLeads: (params) => {
     const query = new URLSearchParams(params).toString();
@@ -55,6 +61,10 @@ export const crmService = {
   completeMeeting: (id, outcomeData) =>
     apiClient.put(`/metting/update/${id}`, { status: 'completed', ...outcomeData }),
 
+  // ─── Minutes of Meeting (MOM) ─────────────────────────────────────
+  recordMOM: (id, momData) => apiClient.put(`/metting/mom/${id}`, momData),
+  getMOM: (id) => apiClient.get(`/metting/mom/${id}`),
+
   // ─── Follow-ups / KIT ─────────────────────────────────────────────
   createFollowup: (followupData) => apiClient.post('/followup/create', followupData),
   getFollowups: () => apiClient.get('/followup/get'),
@@ -74,6 +84,8 @@ export const crmService = {
   updateProposalStatus: (id, data) =>
     apiClient.patch(`/proposal/updatestatus/${id}`, data),
   sendProposal: (id) => apiClient.post(`/proposal/send/${id}`),
+  downloadProposalPdf: (id) =>
+    apiClient.get(`/proposal/pdf/${id}`, { responseType: 'blob' }),
 
   // ─── Templates ─────────────────────────────────────────────────────
   createTemplate: (data) => apiClient.post('/Template/create', data),

@@ -19,7 +19,8 @@ const AdvancedFilter = ({
   activeFilterCount,
   className = '',
   showSearch = true,
-  compact = false
+  compact = false,
+  inlineSearch = false,
 }) => {
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
@@ -33,17 +34,17 @@ const AdvancedFilter = ({
     if (!showSearch || !filterConfig[FILTER_TYPES.SEARCH]) return null;
 
     return (
-      <div className="relative group flex-1 max-w-md">
+      <div className="relative group w-full min-w-0">
         <Search
-          size={18}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
+          size={16}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--primary)] transition-colors"
         />
         <input
           type="text"
           placeholder={filterConfig[FILTER_TYPES.SEARCH].placeholder}
           value={filters.search}
           onChange={(e) => updateFilter('search', e.target.value)}
-          className="w-full pl-11 pr-4 py-3 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all duration-200"
+          className="w-full pl-10 pr-4 py-2 text-sm rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all duration-200"
         />
       </div>
     );
@@ -75,7 +76,7 @@ const AdvancedFilter = ({
           onChange={(value) => updateFilter('status', value)}
           multiSelect
           searchable
-          width="w-40"
+          width="w-32"
         />
       );
     }
@@ -89,7 +90,35 @@ const AdvancedFilter = ({
           options={filterConfig[FILTER_TYPES.CATEGORY].options}
           value={filters.category}
           onChange={(value) => updateFilter('category', value)}
-          width="w-36"
+          width="w-32"
+        />
+      );
+    }
+
+    // Lifecycle stage filter (CRM)
+    if (filterConfig[FILTER_TYPES.LIFECYCLE_STAGE]) {
+      controls.push(
+        <FilterDropdown
+          key="lifecycleStage"
+          placeholder={filterConfig[FILTER_TYPES.LIFECYCLE_STAGE].label || 'Lifecycle Stage'}
+          options={filterConfig[FILTER_TYPES.LIFECYCLE_STAGE].options}
+          value={filters.lifecycleStage}
+          onChange={(value) => updateFilter('lifecycleStage', value)}
+          width="w-40"
+        />
+      );
+    }
+
+    // Source filter (origin channel)
+    if (filterConfig[FILTER_TYPES.SOURCE]) {
+      controls.push(
+        <FilterDropdown
+          key="source"
+          placeholder={filterConfig[FILTER_TYPES.SOURCE].label || 'Source'}
+          options={filterConfig[FILTER_TYPES.SOURCE].options}
+          value={filters.source}
+          onChange={(value) => updateFilter('source', value)}
+          width="w-28"
         />
       );
     }
@@ -103,7 +132,7 @@ const AdvancedFilter = ({
           options={filterConfig[FILTER_TYPES.PRIORITY].options}
           value={filters.priority}
           onChange={(value) => updateFilter('priority', value)}
-          width="w-32"
+          width="w-28"
         />
       );
     }
@@ -165,15 +194,36 @@ const AdvancedFilter = ({
       );
     }
 
-    return (
-      <div className="flex flex-col lg:flex-row gap-4">
-        <div className="flex flex-col md:flex-row gap-4 flex-1">
-          {renderSearch()}
-          <div className="flex flex-wrap items-center gap-3">
+    // Inline mode: search sits on the same row as the filters (good when
+    // there are only a few filter controls — keeps the section to one line).
+    if (inlineSearch) {
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          {showSearch && filterConfig[FILTER_TYPES.SEARCH] && (
+            <div className="flex-1 min-w-[220px] max-w-md">
+              {renderSearch()}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
             {renderFilterControls()}
           </div>
+          <div className="ml-auto">{renderActions()}</div>
         </div>
-        {renderActions()}
+      );
+    }
+
+    // Default: search on its own row above the filter controls (handles
+    // pages with many filter dimensions where everything-on-one-row would
+    // squash the search input to nothing).
+    return (
+      <div className="flex flex-col gap-2.5">
+        {renderSearch()}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+            {renderFilterControls()}
+          </div>
+          {renderActions()}
+        </div>
       </div>
     );
   };

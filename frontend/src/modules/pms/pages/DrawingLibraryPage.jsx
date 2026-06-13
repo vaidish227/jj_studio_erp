@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FolderOpen, Plus, Filter } from 'lucide-react';
-import { Button, Select, Loader } from '../../../shared/components';
+import { FolderOpen, Plus, Search, LayoutGrid, List as ListIcon, X } from 'lucide-react';
+import { Button, Select, Loader, Pagination } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import useDrawings from '../hooks/useDrawings';
 import DrawingCard, { DRAWING_TYPE_LABELS } from '../components/DrawingCard';
+import DrawingListRow from '../components/DrawingListRow';
 import UploadDrawingModal from '../components/UploadDrawingModal';
 import ReviseDrawingModal from '../components/ReviseDrawingModal';
 import ApproveDrawingModal from '../components/ApproveDrawingModal';
@@ -26,6 +27,20 @@ const DRAWING_TYPE_OPTIONS = [
   ...Object.entries(DRAWING_TYPE_LABELS).map(([value, label]) => ({ value, label })),
 ];
 
+const SORT_OPTIONS = [
+  { value: 'newest',  label: 'Newest first' },
+  { value: 'oldest',  label: 'Oldest first' },
+  { value: 'name',    label: 'Name (A–Z)' },
+  { value: 'version', label: 'Version (high–low)' },
+  { value: 'status',  label: 'Status' },
+];
+
+const readView = () => {
+  try { return localStorage.getItem('drawingsView') || 'grid'; } catch { return 'grid'; }
+};
+
+const PAGE_SIZE = 25;
+
 const DrawingLibraryPage = () => {
   const location  = useLocation();
   const navigate  = useNavigate();
@@ -37,45 +52,99 @@ const DrawingLibraryPage = () => {
     isPendingTab ? { status: 'sent_for_approval' } : {}
   );
 
-  // Sync to pending-approvals route if filter changed externally
   useEffect(() => {
     if (isPendingTab) updateFilter('status', 'sent_for_approval');
   }, [isPendingTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // View-level state (client-side search / project / sort / layout)
+  const [viewMode, setViewMode]         = useState(readView);
+  const [search, setSearch]             = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [sortBy, setSortBy]             = useState('newest');
+
+  const setView = (m) => {
+    setViewMode(m);
+    try { localStorage.setItem('drawingsView', m); } catch { /* ignore */ }
+  };
+
   // Modal state
-  const [showUpload, setShowUpload]   = useState(false);
-  const [revising, setRevising]       = useState(null);
-  const [approving, setApproving]     = useState(null);
-  const [releasing, setReleasing]     = useState(null);
-  const [sendingId, setSendingId]     = useState(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [revising, setRevising]     = useState(null);
+  const [approving, setApproving]   = useState(null);
+  const [releasing, setReleasing]   = useState(null);
 
   const handleSendForApproval = async (drawing) => {
-    setSendingId(drawing._id);
     try {
       await pmsService.sendForApproval(drawing._id);
       toast.success('Sent for approval');
       refresh();
     } catch (err) {
       toast.error(err || 'Failed to send for approval');
-    } finally {
-      setSendingId(null);
     }
   };
 
-  return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+  // Project options derived from the loaded set.
+  const projectOptions = useMemo(() => {
+    const map = new Map();
+    drawings.forEach((d) => { if (d.projectId?._id) map.set(d.projectId._id, d.projectId.name || 'Untitled'); });
+    return [{ value: '', label: 'All Projects' }, ...[...map].map(([value, label]) => ({ value, label }))];
+  }, [drawings]);
 
-      {/* Page header */}
+  // Apply client-side search + project filter + sort.
+  const visibleDrawings = useMemo(() => {
+    let list = drawings;
+    if (projectFilter) list = list.filter((d) => d.projectId?._id === projectFilter);
+
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter((d) =>
+        (d.title || '').toLowerCase().includes(q) ||
+        (d.zoneName || '').toLowerCase().includes(q) ||
+        (DRAWING_TYPE_LABELS[d.drawingType] || d.drawingType || '').toLowerCase().includes(q) ||
+        (d.projectId?.name || '').toLowerCase().includes(q) ||
+        (d.uploadedBy?.name || '').toLowerCase().includes(q)
+      );
+    }
+
+    const sorted = [...list];
+    switch (sortBy) {
+      case 'oldest':  sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)); break;
+      case 'name':    sorted.sort((a, b) => (a.title || '').localeCompare(b.title || '')); break;
+      case 'version': sorted.sort((a, b) => (b.version || 0) - (a.version || 0)); break;
+      case 'status':  sorted.sort((a, b) => (a.status || '').localeCompare(b.status || '')); break;
+      default:        sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    return sorted;
+  }, [drawings, projectFilter, search, sortBy]);
+
+  const hasClientFilters = !!(search.trim() || projectFilter);
+  const clearClientFilters = () => { setSearch(''); setProjectFilter(''); };
+
+  // ── Pagination — 25 per page over the filtered/sorted set ────────────────
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, projectFilter, sortBy, filters, isPendingTab]);
+
+  const pageCount = Math.max(1, Math.ceil(visibleDrawings.length / PAGE_SIZE));
+  const safePage  = Math.min(page, pageCount);
+  const pagedDrawings = useMemo(
+    () => visibleDrawings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [visibleDrawings, safePage]
+  );
+  const rangeStart = visibleDrawings.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd   = Math.min(safePage * PAGE_SIZE, visibleDrawings.length);
+
+  return (
+    <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[var(--accent-blue)]/10 flex items-center justify-center">
             <FolderOpen size={20} className="text-[var(--accent-blue)]" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-[var(--text-primary)]">
-              Drawing Library
-            </h1>
-            <p className="text-xs text-[var(--text-muted)]">Design & Drawing Management</p>
+            <h1 className="text-xl font-extrabold text-[var(--text-primary)]">Drawing Library</h1>
+            <p className="text-xs text-[var(--text-muted)]">Design &amp; Drawing Management</p>
           </div>
         </div>
         <PermissionGate permission="drawings.upload">
@@ -86,7 +155,7 @@ const DrawingLibraryPage = () => {
         </PermissionGate>
       </div>
 
-      {/* Tab bar */}
+      {/* ── Tabs ───────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 border-b border-[var(--border)]">
         <button
           type="button"
@@ -117,62 +186,168 @@ const DrawingLibraryPage = () => {
         </PermissionGate>
       </div>
 
-      {/* Filter bar — only shown on "All" tab */}
-      {!isPendingTab && (
+      {/* ── Toolbar: search · sort · view toggle ───────────────────────────── */}
+      <div className="space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <Filter size={14} className="text-[var(--text-muted)] shrink-0" />
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {STATUS_FILTERS.map((f) => {
-              const isActive = (filters.status || '') === f.value;
-              return (
-                <button
-                  key={f.value}
-                  type="button"
-                  onClick={() => updateFilter('status', f.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
-                    ${isActive
-                      ? 'bg-[var(--primary)] text-black'
-                      : 'bg-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]'}`}
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="ml-auto w-48">
-            <Select
-              value={filters.drawingType || ''}
-              onChange={(val) => updateFilter('drawingType', val)}
-              options={DRAWING_TYPE_OPTIONS}
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search title, zone, type, project…"
+              className="w-full pl-9 pr-8 py-2 text-sm rounded-lg bg-[var(--surface)] border border-[var(--border)]
+                         text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
+                         focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 focus:outline-none transition-colors"
             />
+            {search && (
+              <button type="button" onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                <X size={14} />
+              </button>
+            )}
           </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <div className="w-44">
+              <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} />
+            </div>
+            <div className="flex items-center bg-[var(--surface)] border border-[var(--border)] rounded-lg p-0.5">
+              {[
+                { mode: 'grid', icon: LayoutGrid, label: 'Grid view' },
+                { mode: 'list', icon: ListIcon,   label: 'List view' },
+              ].map(({ mode, icon: Icon, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setView(mode)}
+                  title={label}
+                  aria-label={label}
+                  className={`p-1.5 rounded-md transition-colors
+                    ${viewMode === mode
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                >
+                  <Icon size={16} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Status pills + type + project (All tab only) */}
+        {!isPendingTab && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {STATUS_FILTERS.map((f) => {
+                const isActive = (filters.status || '') === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => updateFilter('status', f.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
+                      ${isActive
+                        ? 'bg-[var(--primary)] text-white border-transparent shadow-sm'
+                        : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--primary)]/40 hover:text-[var(--primary)]'}`}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="ml-auto flex items-center gap-2">
+              <div className="w-44">
+                <Select
+                  value={projectFilter}
+                  onChange={setProjectFilter}
+                  options={projectOptions}
+                />
+              </div>
+              <div className="w-44">
+                <Select
+                  value={filters.drawingType || ''}
+                  onChange={(val) => updateFilter('drawingType', val)}
+                  options={DRAWING_TYPE_OPTIONS}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Result count ───────────────────────────────────────────────────── */}
+      {!isLoading && !error && (
+        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+          <span className="font-semibold text-[var(--text-secondary)]">{visibleDrawings.length}</span>
+          drawing{visibleDrawings.length === 1 ? '' : 's'}
+          {hasClientFilters && (
+            <button type="button" onClick={clearClientFilters}
+              className="ml-1 inline-flex items-center gap-1 text-[var(--primary)] hover:underline font-semibold">
+              <X size={11} /> Clear filters
+            </button>
+          )}
         </div>
       )}
 
-      {/* Content */}
+      {/* ── Content ────────────────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader />
-        </div>
+        <div className="flex items-center justify-center py-24"><Loader /></div>
       ) : error ? (
         <div className="text-center py-16 text-[var(--error)] text-sm">{error}</div>
-      ) : drawings.length === 0 ? (
+      ) : visibleDrawings.length === 0 ? (
         <div className="text-center py-24 text-[var(--text-muted)]">
           <FolderOpen size={40} className="mx-auto mb-4 opacity-20" />
           <p className="text-sm">
-            {isPendingTab ? 'No drawings pending approval.' : 'No drawings found.'}
+            {drawings.length === 0
+              ? (isPendingTab ? 'No drawings pending approval.' : 'No drawings found.')
+              : 'No drawings match your filters.'}
           </p>
-          {!isPendingTab && (
-            <p className="text-xs mt-1">
-              Upload the first drawing to get started.
-            </p>
+          {drawings.length === 0 && !isPendingTab && (
+            <p className="text-xs mt-1">Upload the first drawing to get started.</p>
           )}
+          {hasClientFilters && drawings.length > 0 && (
+            <button type="button" onClick={clearClientFilters}
+              className="mt-3 text-xs text-[var(--primary)] hover:underline font-semibold">
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : viewMode === 'list' ? (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            {/* Column set mirrors DrawingListRow — keep the two in sync */}
+            <table className="w-full text-sm">
+              <thead className="bg-[var(--bg)]/60 text-[var(--text-muted)]">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest">Drawing</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest hidden md:table-cell">Type</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest hidden lg:table-cell">Project</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest hidden xl:table-cell">Uploaded By</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest hidden md:table-cell">Date</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest">Status</th>
+                  <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedDrawings.map((d) => (
+                  <DrawingListRow
+                    key={d._id}
+                    drawing={d}
+                    onSendForApproval={handleSendForApproval}
+                    onApprove={(dr) => setApproving(dr)}
+                    onRelease={(dr) => setReleasing(dr)}
+                    onRevise={(dr) => setRevising(dr)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {drawings.map((d) => (
+          {pagedDrawings.map((d) => (
             <DrawingCard
               key={d._id}
               drawing={d}
@@ -185,28 +360,36 @@ const DrawingLibraryPage = () => {
         </div>
       )}
 
-      {/* Modals */}
+      {/* ── Pagination ─────────────────────────────────────────────────────── */}
+      {!isLoading && !error && visibleDrawings.length > 0 && pageCount > 1 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-xs text-[var(--text-muted)]">
+            Showing <span className="font-semibold text-[var(--text-secondary)]">{rangeStart}–{rangeEnd}</span> of{' '}
+            <span className="font-semibold text-[var(--text-secondary)]">{visibleDrawings.length}</span>
+          </span>
+          <Pagination currentPage={safePage} totalPages={pageCount} onChange={setPage} />
+        </div>
+      )}
+
+      {/* ── Modals ─────────────────────────────────────────────────────────── */}
       <UploadDrawingModal
         isOpen={showUpload}
         onClose={() => setShowUpload(false)}
         projectId={null}
         onUploaded={refresh}
       />
-
       <ReviseDrawingModal
         isOpen={!!revising}
         onClose={() => setRevising(null)}
         drawing={revising}
         onRevised={() => { setRevising(null); refresh(); }}
       />
-
       <ApproveDrawingModal
         isOpen={!!approving}
         onClose={() => setApproving(null)}
         drawing={approving}
         onDone={() => { setApproving(null); refresh(); }}
       />
-
       <ReleaseDrawingModal
         isOpen={!!releasing}
         onClose={() => setReleasing(null)}

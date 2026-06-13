@@ -3,6 +3,7 @@ const MailQueue    = require("../models/MailQueue.model");
 const MailLog      = require("../models/MailLog.model");
 const MailTemplate = require("../models/MailTemplate.model");
 const { renderTemplate, getSettings, getProvider, getProviderConfig } = require("../service/mail.service");
+const scheduleGuard = require("../../communication/service/scheduleGuard");
 
 // ─── Exponential backoff: 5 min, 15 min, 45 min ──────────────────────────────
 const retryDelayMs = (retryCount) => Math.pow(3, retryCount) * 5 * 60 * 1000;
@@ -54,7 +55,24 @@ const processMailQueue = async () => {
     const batchSize = settings.queue?.batchSize || 10;
     const now       = new Date();
 
-    for (let i = 0; i < batchSize; i++) {
+    // Phase 5 — quiet-hours window: skip this tick entirely if outside the
+    // allowed window. Jobs stay pending and flow once the window opens.
+    if (!scheduleGuard.windowAllowsNow(settings.scheduling, now)) return;
+
+    // Phase 5 — rate limit: cap this tick to the remaining hourly/daily budget.
+    let effectiveBatch = batchSize;
+    if (settings.rateLimit?.enabled) {
+      const { hourAgo, dayAgo } = scheduleGuard.rateWindows(now);
+      const [hourCount, dayCount] = await Promise.all([
+        MailLog.countDocuments({ status: "sent", createdAt: { $gte: hourAgo } }),
+        MailLog.countDocuments({ status: "sent", createdAt: { $gte: dayAgo } }),
+      ]);
+      const remaining = scheduleGuard.remainingRate(settings.rateLimit, hourCount, dayCount);
+      if (remaining <= 0) return;
+      effectiveBatch = Math.min(batchSize, remaining);
+    }
+
+    for (let i = 0; i < effectiveBatch; i++) {
       // Atomically claim one pending job — prevents double-processing
       const job = await MailQueue.findOneAndUpdate(
         {

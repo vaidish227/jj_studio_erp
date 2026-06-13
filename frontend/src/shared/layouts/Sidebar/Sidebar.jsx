@@ -31,6 +31,13 @@ const Sidebar = ({
   };
 
   const filterItem = (item) => {
+    // Role exclusion takes precedence — used to hide items that a role *could*
+    // access by permission but shouldn't see (e.g. dedupe a designer's calendar
+    // which already lives in their own Design panel group).
+    if (item.excludeRoles && item.excludeRoles.includes(user?.role)) return false;
+    if (item.roles && Array.isArray(item.roles)) {
+      return item.roles.includes(user?.role);
+    }
     if (hasPermission('*')) return true;
     if (item.permission) return hasPermission(item.permission);
     return true;
@@ -45,6 +52,28 @@ const Sidebar = ({
       return { ...item, children: visibleChildren };
     })
     .filter(Boolean);
+
+  // ── Flat-nav roles ──────────────────────────────────────────────────────────
+  // A designer has only a handful of destinations, so collapsible groups add
+  // friction. For these roles every destination is promoted to a single
+  // top-level row (no sub-items). Group children are flattened in this order so
+  // the role's own panel appears before general project items.
+  const FLAT_NAV_ROLES   = new Set(['designer']);
+  const FLAT_GROUP_ORDER = ['design-drawing', 'projects'];
+
+  const navItems = FLAT_NAV_ROLES.has(user?.role)
+    ? (() => {
+        const singles = filteredNavItems.filter((i) => !i.children);
+        const groups  = new Map(
+          filteredNavItems.filter((i) => i.children).map((g) => [g.id, g.children]),
+        );
+        const orderedGroupIds = [
+          ...FLAT_GROUP_ORDER.filter((id) => groups.has(id)),
+          ...[...groups.keys()].filter((id) => !FLAT_GROUP_ORDER.includes(id)),
+        ];
+        return [...singles, ...orderedGroupIds.flatMap((id) => groups.get(id))];
+      })()
+    : filteredNavItems;
 
   const renderSidebar = (collapsed) => (
     <aside
@@ -119,7 +148,7 @@ const Sidebar = ({
           ${collapsed ? 'px-[15px]' : 'px-3'}
         `}
       >
-        {filteredNavItems.map((item) =>
+        {navItems.map((item) =>
           item.children ? (
             <SidebarGroup
               key={item.id}
@@ -188,7 +217,7 @@ const Sidebar = ({
       {/* ── MOBILE drawer (never collapsed) ── */}
       <div
         className={`
-          fixed top-0 left-0 z-50 h-full shadow-2xl
+          fixed top-0 left-0 z-50 h-full w-64 shadow-2xl
           transition-transform duration-300 ease-in-out lg:hidden
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
         `}

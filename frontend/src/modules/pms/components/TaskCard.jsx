@@ -9,6 +9,7 @@ import PriorityBadge from './PriorityBadge';
 import TaskTypeIcon, { TASK_TYPE_CONFIG } from './TaskTypeIcon';
 import ChecklistPanel from './ChecklistPanel';
 import SubmitForReviewModal from './SubmitForReviewModal';
+import BlockedByChip from './BlockedByChip';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
@@ -29,9 +30,14 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
   const isOverdue  = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
 
   const isMyTask     = String(task.assignedTo?._id || task.assignedTo) === String(user?._id);
-  const canStart     = isMyTask && task.status === 'not_started';
+  const isBlocked    = task.status === 'blocked';
+  const canStart     = isMyTask && task.status === 'not_started' && !isBlocked;
   const canRevision  = isMyTask && task.status === 'revision_requested';
   const canSubmit    = isMyTask && hasPermission('tasks.submit') && ['in_progress', 'revision_requested'].includes(task.status);
+  // Submit needs at least one drawing. drawingCount comes from getMyTasks
+  // (and similar list endpoints). When undefined we don't gate — backend
+  // remains the source of truth.
+  const hasDrawings  = (task.drawingCount ?? 1) > 0;
 
   const handleStatusUpdate = async (status, e) => {
     e.stopPropagation();
@@ -58,22 +64,27 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
         onClick={goToDetail}
       >
         {/* Header row */}
-        <div className="flex items-start gap-3">
+        <div className={`flex items-start gap-${compact ? '2' : '3'}`}>
           <TaskTypeIcon taskType={task.taskType} />
 
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-black uppercase tracking-wider text-[var(--text-muted)] mb-0.5">
+            <p className={`font-black uppercase tracking-wider text-[var(--text-muted)] mb-0.5 truncate
+              ${compact ? 'text-[10px]' : 'text-xs'}`}>
               {cfg.label || task.taskType}
             </p>
-            <p className="text-sm font-semibold text-[var(--text-primary)] leading-snug truncate">
+            <p className={`font-semibold text-[var(--text-primary)] leading-snug
+              ${compact ? 'text-[13px] line-clamp-2' : 'text-sm truncate'}`}>
               {task.title}
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <TaskStatusBadge status={task.status} />
-            <ChevronRight size={13} className="text-[var(--text-muted)] opacity-0 group-hover:opacity-100" />
-          </div>
+          {/* Status badge only in non-compact (kanban column already shows status) */}
+          {!compact && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <TaskStatusBadge status={task.status} />
+              <ChevronRight size={13} className="text-[var(--text-muted)] opacity-0 group-hover:opacity-100" />
+            </div>
+          )}
         </div>
 
         {/* Revision instructions alert */}
@@ -86,29 +97,37 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
           </div>
         )}
 
+        {/* Workflow Engine — blocked-by indicator (Phase 1) */}
+        <BlockedByChip
+          task={task}
+          blockingTasks={task.blockingTasks || []}
+          blockingGates={task.blockingGates || []}
+          onOverridden={onUpdated}
+        />
+
         {/* Meta row */}
-        <div className="flex items-center gap-3 mt-3 flex-wrap">
+        <div className={`flex items-center gap-2 mt-${compact ? '2' : '3'} flex-wrap`}>
           <PriorityBadge priority={task.priority} />
 
           {task.assignedTo && (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-              <div className="w-5 h-5 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[9px] font-black text-[var(--primary)] uppercase">
+            <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] min-w-0">
+              <div className="w-5 h-5 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[9px] font-black text-[var(--primary)] uppercase shrink-0">
                 {task.assignedTo.name?.[0] || <User size={10} />}
               </div>
-              <span>{task.assignedTo.name}</span>
+              <span className="truncate max-w-[100px]">{task.assignedTo.name}</span>
             </div>
           )}
 
           {task.dueDate && (
-            <div className={`flex items-center gap-1 text-xs ${isOverdue ? 'text-[var(--error)]' : 'text-[var(--text-muted)]'}`}>
+            <div className={`flex items-center gap-1 text-xs shrink-0 ${isOverdue ? 'text-[var(--error)]' : 'text-[var(--text-muted)]'}`}>
               <Calendar size={11} />
               <span>{fmt(task.dueDate)}</span>
             </div>
           )}
 
           {totalCount > 0 && (
-            <span className="text-[10px] font-semibold text-[var(--text-muted)] ml-auto">
-              {doneCount}/{totalCount} done
+            <span className="text-[10px] font-semibold text-[var(--text-muted)] ml-auto shrink-0">
+              {doneCount}/{totalCount}
             </span>
           )}
         </div>
@@ -151,12 +170,13 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
             {canSubmit && (
               <button
                 onClick={(e) => { e.stopPropagation(); setShowSubmit(true); }}
-                disabled={actioning}
+                disabled={actioning || !hasDrawings}
+                title={!hasDrawings ? 'Upload a drawing first — a review needs something to review.' : undefined}
                 className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg
                            bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20
-                           transition-colors disabled:opacity-50"
+                           transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Send size={10} /> Submit for Review
+                <Send size={10} /> {hasDrawings ? 'Submit for Review' : 'Upload Drawing First'}
               </button>
             )}
           </div>
@@ -192,6 +212,7 @@ const TaskCard = ({ task, onUpdated, compact = false }) => {
         isOpen={showSubmit}
         onClose={() => setShowSubmit(false)}
         onSubmitted={() => { setShowSubmit(false); onUpdated?.(); }}
+        drawingCount={task.drawingCount ?? null}
       />
     </>
   );

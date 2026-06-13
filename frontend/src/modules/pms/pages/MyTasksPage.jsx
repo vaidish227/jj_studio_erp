@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  CheckSquare, Search, Filter, Play, Send, RotateCcw,
+  CheckSquare, Search, Play, Send, RotateCcw,
   PauseCircle, Calendar, Briefcase, ChevronRight, AlertCircle,
+  X, RefreshCw,
 } from 'lucide-react';
 import { Loader } from '../../../shared/components';
 import { pmsService } from '../../../shared/services/pmsService';
@@ -13,6 +14,8 @@ import PriorityBadge from '../components/PriorityBadge';
 import TaskTypeIcon, { TASK_TYPE_CONFIG } from '../components/TaskTypeIcon';
 import SubmitForReviewModal from '../components/SubmitForReviewModal';
 import TaskStatusUpdateModal from '../components/TaskStatusUpdateModal';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
 
 const fmt = (d) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
@@ -34,12 +37,27 @@ const STATUS_FILTERS = [
 ];
 
 const PRIORITY_FILTERS = [
-  { label: 'All',    value: '' },
+  { label: 'All priorities', value: '' },
   { label: 'Urgent', value: 'urgent' },
   { label: 'High',   value: 'high' },
   { label: 'Medium', value: 'medium' },
   { label: 'Low',    value: 'low' },
 ];
+
+// Status → accent colour (mirrors TaskDetailPage STATUS_META). Drives the
+// left accent stripe on each task card so status reads at a glance.
+const STATUS_COLOR = {
+  not_started:             'var(--text-muted)',
+  blocked:                 'var(--error)',
+  in_progress:             'var(--accent-blue)',
+  pending_review:          'var(--warning)',
+  revision_requested:      'var(--error)',
+  pending_client_approval: 'var(--accent-blue)',
+  approved:                'var(--success)',
+  released_to_site:        'var(--primary)',
+  completed:               'var(--success)',
+  on_hold:                 'var(--warning)',
+};
 
 // ── Task row ─────────────────────────────────────────────────────────────────
 const TaskRow = ({ task, onUpdated }) => {
@@ -53,6 +71,7 @@ const TaskRow = ({ task, onUpdated }) => {
 
   const cfg       = TASK_TYPE_CONFIG[task.taskType] || {};
   const overdue   = isOverdue(task);
+  const accent    = STATUS_COLOR[task.status] || 'var(--border)';
   const isMyTask  = String(task.assignedTo?._id || task.assignedTo) === String(user?._id);
 
   const canStart    = isMyTask && task.status === 'not_started';
@@ -60,6 +79,9 @@ const TaskRow = ({ task, onUpdated }) => {
   const canResumeHold = isMyTask && task.status === 'on_hold';
   const canSubmit   = isMyTask && hasPermission('tasks.submit') && ['in_progress', 'revision_requested'].includes(task.status);
   const canHold     = isMyTask && task.status === 'in_progress';
+  // Submit needs at least one drawing — empty submissions waste the
+  // reviewer's time. Backend rejects 400 as a safety net.
+  const hasDrawings = (task.drawingCount || 0) > 0;
 
   const quickStart = async (status) => {
     setActioning(true);
@@ -77,11 +99,15 @@ const TaskRow = ({ task, onUpdated }) => {
   return (
     <>
       <div
-        className={`bg-[var(--surface)] border rounded-xl p-4 cursor-pointer
-                   hover:border-[var(--primary)]/40 transition-all duration-150 space-y-3
-                   ${overdue ? 'border-[var(--error)]/30' : 'border-[var(--border)]'}`}
+        className={`group relative bg-[var(--surface)] border rounded-2xl pl-5 pr-4 py-4 cursor-pointer space-y-3
+                   overflow-hidden transition-all duration-200
+                   hover:border-[var(--primary)]/50 hover:shadow-[0_4px_16px_-6px_rgba(42,32,23,0.18)] hover:-translate-y-0.5
+                   ${overdue ? 'border-[var(--error)]/40' : 'border-[var(--border)]'}`}
         onClick={() => navigate(`/tasks/${task._id}`)}
       >
+        {/* Status accent stripe */}
+        <span className="absolute left-0 top-0 bottom-0 w-1.5" style={{ background: accent }} aria-hidden />
+
         {/* Top row: type icon + title + status */}
         <div className="flex items-start gap-3">
           <TaskTypeIcon taskType={task.taskType} />
@@ -90,16 +116,34 @@ const TaskRow = ({ task, onUpdated }) => {
             <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-0.5">
               {cfg.label || task.taskType}
             </p>
-            <p className="text-sm font-semibold text-[var(--text-primary)] leading-snug">
+            <p className="text-[15px] font-bold text-[var(--text-primary)] leading-snug truncate">
               {task.title}
             </p>
           </div>
 
-          <div className="shrink-0 flex items-center gap-2">
+          <div className="shrink-0 flex items-center gap-1.5">
             <TaskStatusBadge status={task.status} />
-            <ChevronRight size={13} className="text-[var(--text-muted)]" />
+            <ChevronRight size={16} className="text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" />
           </div>
         </div>
+
+        {/* Blocked-by-dependency alert */}
+        {task.status === 'blocked' && (task.blockingTasks?.length > 0 || task.blockingGates?.length > 0) && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-[var(--error)]/8 border border-[var(--error)]/20"
+            onClick={(e) => e.stopPropagation()}>
+            <AlertCircle size={13} className="text-[var(--error)] shrink-0 mt-0.5" />
+            <p className="text-xs text-[var(--error)] leading-snug">
+              <span className="font-bold">Blocked — </span>
+              {task.blockingTasks?.length > 0 && (
+                <>waiting on <span className="font-semibold">{task.blockingTasks.map((b) => b.title).join(', ')}</span></>
+              )}
+              {task.blockingTasks?.length > 0 && task.blockingGates?.length > 0 && ' · '}
+              {task.blockingGates?.length > 0 && (
+                <>approval: <span className="font-semibold">{task.blockingGates.map((g) => g.label || g.key).join(', ')}</span></>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* On hold / revision alert */}
         {task.status === 'on_hold' && task.holdReason && (
@@ -213,11 +257,12 @@ const TaskRow = ({ task, onUpdated }) => {
             {canSubmit && (
               <button
                 onClick={() => setShowSubmit(true)}
-                disabled={actioning}
+                disabled={actioning || !hasDrawings}
+                title={!hasDrawings ? 'Upload a drawing first — a review needs something to review.' : undefined}
                 className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg
-                           bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors disabled:opacity-50 ml-auto"
+                           bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
               >
-                <Send size={10} /> Submit for Review
+                <Send size={10} /> {hasDrawings ? 'Submit for Review' : 'Upload Drawing First'}
               </button>
             )}
           </div>
@@ -229,6 +274,7 @@ const TaskRow = ({ task, onUpdated }) => {
         isOpen={showSubmit}
         onClose={() => setShowSubmit(false)}
         onSubmitted={() => { setShowSubmit(false); onUpdated?.(); }}
+        drawingCount={task.drawingCount ?? null}
       />
 
       <TaskStatusUpdateModal
@@ -292,6 +338,13 @@ const MyTasksPage = () => {
     overdue:     tasks.filter((t) => isOverdue(t)).length,
   }), [tasks]);
 
+  // Per-status counts that drive the filter-tab badges
+  const statusCounts = useMemo(() => {
+    const m = {};
+    for (const t of tasks) m[t.status] = (m[t.status] || 0) + 1;
+    return m;
+  }, [tasks]);
+
   const anyFilter = search || status || priority || overdue;
 
   if (isLoading) {
@@ -307,113 +360,126 @@ const MyTasksPage = () => {
 
       {/* Page header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center">
+        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[var(--primary)]/25 to-[var(--primary)]/5 border border-[var(--primary)]/20 flex items-center justify-center">
           <CheckSquare size={20} className="text-[var(--primary)]" />
         </div>
         <div>
-          <h1 className="text-xl font-extrabold text-[var(--text-primary)]">My Task</h1>
+          <h1 className="text-xl font-extrabold text-[var(--text-primary)] leading-tight">My Tasks</h1>
           <p className="text-xs text-[var(--text-muted)]">
-            {tasks.length} task{tasks.length !== 1 ? 's' : ''} assigned to you
+            {tasks.length} task{tasks.length !== 1 ? 's' : ''} assigned
+            {counts.overdue > 0 && (
+              <> · <span className="text-[var(--error)] font-bold">{counts.overdue} overdue</span></>
+            )}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          className="ml-auto text-xs text-[var(--text-muted)] hover:text-[var(--primary)] font-semibold transition-colors"
-        >
-          Refresh
-        </button>
-      </div>
-
-      {/* Stat pills */}
-      {tasks.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {[
-            { label: 'Total',      value: counts.total,      color: 'var(--text-muted)',    filter: () => setStatus('') },
-            { label: 'In Progress',value: counts.inProgress, color: 'var(--accent-blue)',   filter: () => setStatus('in_progress') },
-            { label: 'On Hold',    value: counts.onHold,     color: 'var(--warning)',        filter: () => setStatus('on_hold') },
-            { label: 'Revision',   value: counts.revision,   color: 'var(--error)',          filter: () => setStatus('revision_requested') },
-            { label: 'Overdue',    value: counts.overdue,    color: 'var(--error)',          filter: () => setOverdue((v) => !v) },
-          ].map(({ label, value, color, filter }) => value > 0 && (
-            <button
-              key={label}
-              type="button"
-              onClick={filter}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors
-                         hover:border-[var(--primary)]/40 hover:bg-[var(--primary)]/5"
-              style={{ borderColor: `color-mix(in srgb, ${color} 30%, transparent)` }}
-            >
-              <span style={{ color }} className="text-sm font-black">{value}</span>
-              <span className="text-[var(--text-muted)]">{label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Filter bar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] bg-[var(--surface)] border border-[var(--border)]
-                        rounded-xl px-3 py-2">
-          <Search size={14} className="text-[var(--text-muted)] shrink-0" />
-          <input
-            type="text"
-            placeholder="Search tasks or projects…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
-                       outline-none"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Filter size={13} className="text-[var(--text-muted)]" />
-          {STATUS_FILTERS.slice(1).map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setStatus(status === f.value ? '' : f.value)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap
-                ${status === f.value
-                  ? 'bg-[var(--primary)] text-black'
-                  : 'bg-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]'}`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-sm
-                     text-[var(--text-secondary)] outline-none focus:border-[var(--primary)] shrink-0"
-        >
-          {PRIORITY_FILTERS.map((f) => (
-            <option key={f.value} value={f.value}>{f.label}</option>
-          ))}
-        </select>
-
-        <button
-          type="button"
-          onClick={() => setOverdue((v) => !v)}
-          className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap
-            ${overdue
-              ? 'bg-[var(--error)] border-[var(--error)] text-white'
-              : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--error)]/40 hover:text-[var(--error)]'}`}
-        >
-          Overdue Only
-        </button>
-
-        {anyFilter && (
+        <div className="ml-auto flex items-center gap-2">
+          <AskAIButton label="Ask AI" variant="soft" size="sm" actions={resolveEntry('myTasks').actions} />
           <button
             type="button"
-            onClick={() => { setSearch(''); setStatus(''); setPriority(''); setOverdue(false); }}
-            className="text-xs text-[var(--primary)] hover:underline font-semibold shrink-0"
+            onClick={refresh}
+            title="Refresh"
+            className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)]
+                       rounded-xl px-3 py-2 hover:border-[var(--primary)]/40 hover:text-[var(--primary)] transition-colors"
           >
-            Clear filters
+            <RefreshCw size={13} /> Refresh
           </button>
-        )}
+        </div>
       </div>
+
+      {/* ── Filter toolbar ─────────────────────────────────────────────────── */}
+      {tasks.length > 0 && (
+        <div className="space-y-3">
+          {/* Search */}
+          <div className="flex items-center gap-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3.5 py-2.5
+                          transition-colors focus-within:border-[var(--primary)]/50 focus-within:shadow-[0_0_0_3px_var(--primary-soft,rgba(193,154,69,0.12))]">
+            <Search size={15} className="text-[var(--text-muted)] shrink-0" />
+            <input
+              type="text"
+              placeholder="Search tasks or projects…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none"
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch('')}
+                className="p-0.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)] transition-colors">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Status tabs with live counts */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mb-1">
+            {STATUS_FILTERS.map((f) => {
+              const active = status === f.value;
+              const count  = f.value === '' ? counts.total : (statusCounts[f.value] || 0);
+              return (
+                <button
+                  key={f.value || 'all'}
+                  type="button"
+                  onClick={() => setStatus(active ? '' : f.value)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all
+                    ${active
+                      ? 'bg-[var(--primary)] text-black shadow-sm'
+                      : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--primary)]/40 hover:text-[var(--primary)]'}`}
+                >
+                  {f.label}
+                  {count > 0 && (
+                    <span className={`min-w-[18px] text-center px-1.5 rounded-full text-[10px] font-black
+                      ${active ? 'bg-black/15 text-black' : 'bg-[var(--bg)] text-[var(--text-muted)]'}`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            <span className="w-px h-5 bg-[var(--border)] mx-1 shrink-0" />
+
+            {/* Overdue (independent toggle) */}
+            <button
+              type="button"
+              onClick={() => setOverdue((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all
+                ${overdue
+                  ? 'bg-[var(--error)] text-white shadow-sm'
+                  : 'bg-[var(--surface)] border border-[var(--error)]/30 text-[var(--error)] hover:bg-[var(--error)]/5'}`}
+            >
+              <AlertCircle size={12} /> Overdue
+              {counts.overdue > 0 && (
+                <span className={`min-w-[18px] text-center px-1.5 rounded-full text-[10px] font-black
+                  ${overdue ? 'bg-white/25 text-white' : 'bg-[var(--error)]/10 text-[var(--error)]'}`}>
+                  {counts.overdue}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Secondary: priority + clear */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold
+                         text-[var(--text-secondary)] outline-none focus:border-[var(--primary)] transition-colors"
+            >
+              {PRIORITY_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+
+            {anyFilter && (
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setStatus(''); setPriority(''); setOverdue(false); }}
+                className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--error)] font-semibold transition-colors"
+              >
+                <X size={12} /> Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Task list */}
       {tasks.length === 0 ? (

@@ -5,7 +5,7 @@ import {
   Calendar, User, AlertTriangle, CheckCircle2,
   Clock, GitBranch, Layers, Filter,
 } from 'lucide-react';
-import { Button, Loader } from '../../../shared/components';
+import { Button, Loader, Pagination } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { pmsService } from '../../../shared/services/pmsService';
@@ -78,7 +78,7 @@ const TaskRow = ({ task, onClick }) => {
     >
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <TaskTypeIcon taskType={task.taskType} size="sm" />
+          <TaskTypeIcon taskType={task.taskType} size={16} />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors truncate max-w-[200px]">
               {task.title}
@@ -131,7 +131,7 @@ const TaskCard = ({ task, onClick }) => {
                  hover:border-[var(--primary)]/40 transition-all group space-y-3"
     >
       <div className="flex items-start gap-2.5">
-        <TaskTypeIcon taskType={task.taskType} size="sm" />
+        <TaskTypeIcon taskType={task.taskType} size={16} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors leading-snug">
             {task.title}
@@ -242,6 +242,20 @@ const AssignTaskPage = () => {
   const hasFilters = !!(statusFilter || priorityFilter || projectFilter || search);
   const clearFilters = () => { setStatus(''); setPriority(''); setProject(''); setSearch(''); };
 
+  // ── Pagination — 25 per page over the filtered set ──────────────────────
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [statusFilter, priorityFilter, projectFilter, search]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage  = Math.min(page, pageCount);
+  const paged = useMemo(
+    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filtered, safePage]
+  );
+  const rangeStart = filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd   = Math.min(safePage * PAGE_SIZE, filtered.length);
+
   return (
     <div className="space-y-6">
 
@@ -283,41 +297,30 @@ const AssignTaskPage = () => {
       </div>
 
       {/* ── Filter Bar ── */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
-        <div className="flex flex-col gap-3">
-          {/* Row 1: Search + Status pills */}
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-            {/* Search */}
-            <div className="relative flex-1 max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search tasks, projects, designers…"
-                className="pl-9 pr-4 py-2 text-sm rounded-xl border border-[var(--border)] bg-[var(--bg)]
-                           text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
-                           focus:outline-none focus:ring-1 focus:ring-[var(--primary)] w-full"
-              />
-            </div>
-            {hasFilters && (
-              <button
-                onClick={clearFilters}
-                className="text-xs text-[var(--primary)] hover:underline font-semibold shrink-0"
-              >
-                Clear filters
-              </button>
-            )}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-3">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
+          {/* Search */}
+          <div className="relative flex-1 lg:max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search tasks, projects, designers…"
+              className="h-9 pl-9 pr-3 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)]
+                         text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
+                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)]
+                         w-full transition-colors"
+            />
           </div>
 
-          {/* Row 2: Dropdowns */}
-          <div className="flex flex-wrap gap-2">
-            {/* Project */}
+          {/* Dropdowns */}
+          <div className="flex flex-wrap items-center gap-2 flex-1">
             <select
               value={projectFilter}
               onChange={(e) => setProject(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)]
+              className="h-9 px-3 pr-8 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)]
                          text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]
-                         max-w-[200px]"
+                         focus:border-[var(--primary)] min-w-[140px] max-w-[200px] transition-colors cursor-pointer"
             >
               <option value="">All Projects</option>
               {projectOptions.map((p) => (
@@ -325,35 +328,43 @@ const AssignTaskPage = () => {
               ))}
             </select>
 
-            {/* Status */}
             <select
               value={statusFilter}
               onChange={(e) => setStatus(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)]
-                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              className="h-9 px-3 pr-8 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)]
+                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]
+                         focus:border-[var(--primary)] min-w-[130px] transition-colors cursor-pointer"
             >
               {STATUS_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
 
-            {/* Priority */}
             <select
               value={priorityFilter}
               onChange={(e) => setPriority(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--bg)]
-                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+              className="h-9 px-3 pr-8 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg)]
+                         text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]
+                         focus:border-[var(--primary)] min-w-[120px] transition-colors cursor-pointer"
             >
               {PRIORITY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
 
-            {filtered.length > 0 && (
-              <span className="ml-auto self-center text-xs text-[var(--text-muted)] font-semibold">
-                {filtered.length} task{filtered.length !== 1 ? 's' : ''}
-              </span>
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="h-9 px-3 text-xs font-semibold text-[var(--primary)] hover:bg-[var(--primary)]/10
+                           rounded-lg transition-colors"
+              >
+                Clear
+              </button>
             )}
+
+            <span className="ml-auto text-xs text-[var(--text-muted)] font-semibold whitespace-nowrap pr-1">
+              {filtered.length} {filtered.length === 1 ? 'task' : 'tasks'}
+            </span>
           </div>
         </div>
       </div>
@@ -398,7 +409,7 @@ const AssignTaskPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((task) => (
+                  {paged.map((task) => (
                     <TaskRow
                       key={task._id}
                       task={task}
@@ -412,7 +423,7 @@ const AssignTaskPage = () => {
 
           {/* ── Task Cards — mobile ── */}
           <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {filtered.map((task) => (
+            {paged.map((task) => (
               <TaskCard
                 key={task._id}
                 task={task}
@@ -420,6 +431,17 @@ const AssignTaskPage = () => {
               />
             ))}
           </div>
+
+          {/* ── Pagination ── */}
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-xs text-[var(--text-muted)]">
+                Showing <span className="font-semibold text-[var(--text-secondary)]">{rangeStart}–{rangeEnd}</span> of{' '}
+                <span className="font-semibold text-[var(--text-secondary)]">{filtered.length}</span>
+              </span>
+              <Pagination currentPage={safePage} totalPages={pageCount} onChange={setPage} />
+            </div>
+          )}
         </>
       )}
 

@@ -1,13 +1,25 @@
 import React from 'react';
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
-import { Printer, Send } from 'lucide-react';
+import { Printer } from 'lucide-react';
+
+// Excel-style row label: 0→a, 25→z, 26→aa, 27→ab, ...
+const rowLabel = (i) => {
+  let s = '';
+  let x = i;
+  while (true) {
+    s = String.fromCharCode(97 + (x % 26)) + s;
+    x = Math.floor(x / 26) - 1;
+    if (x < 0) break;
+  }
+  return s;
+};
 
 const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
   if (!proposal) return null;
 
   const sections = proposal.content?.sections || [];
-  
+
   const subtotal = proposal.subtotal || 0;
   const gst = proposal.gst || 0;
   const finalAmount = proposal.finalAmount || 0;
@@ -15,16 +27,6 @@ const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
   const handlePrint = () => {
     window.print();
   };
-
-  const { 
-    onSendApproval, 
-    onSendToClient, 
-    onApprove,
-    onReject,
-    onModify,
-    isManager = false, 
-    status = 'draft' 
-  } = proposal;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Proposal Preview" size="4xl">
@@ -35,7 +37,7 @@ const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
           <div>
             <h1 className="text-4xl font-serif text-red-600 font-bold italic mb-1">JJ Studio</h1>
             <p className="text-lg italic font-semibold mb-2">-Reinventing your Interiors</p>
-            <p className="text-sm font-medium">Avani Oxford, Laketwon</p>
+            <p className="text-sm font-medium">Avani Oxford, Laketown</p>
             <p className="text-sm font-medium">Kolkata - 700 055</p>
           </div>
           <div className="text-right text-sm font-medium">
@@ -50,7 +52,7 @@ const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
           <div>
             <p className="font-bold underline mb-1">To</p>
             <p className="font-bold">{client?.name || 'Client Name'}</p>
-            <p className="font-medium">{client?.address || 'Client Address'}</p>
+            <p className="font-medium">{client?.siteAddress?.fullAddress || client?.address || 'Client Address'}</p>
           </div>
           <div>
             <p className="font-bold underline">Dt. {new Date().toLocaleDateString('en-GB').replace(/\//g, '.')}</p>
@@ -99,30 +101,38 @@ const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
                     <tbody>
                       {rows.length === 0 ? (
                         <tr>
-                          <td colSpan={columns.length + 1} className="px-4 py-8 text-center italic text-gray-500">
+                          <td colSpan={columns.length + 1} className="px-4 py-8 text-center italic text-[var(--text-secondary)]">
                             Empty section structure
                           </td>
                         </tr>
                       ) : (
-                        rows.map((row, rIdx) => (
-                          <tr key={row.id} className={`${row.isGroupHeader ? 'bg-gray-100' : ''}`}>
-                            <td className="px-2 py-2 text-center border-b border-r border-gray-300 border-black font-medium text-xs">
-                              {row.isGroupHeader ? '' : `${String.fromCharCode(97 + (rIdx % 26))})`}
-                            </td>
-                            
-                            {row.isGroupHeader ? (
-                              <td colSpan={columns.length} className="px-3 py-2 border-b border-black font-bold">
-                                {row.cells[columns[0]?.id] || 'Unnamed Group'}
-                              </td>
-                            ) : (
-                              columns.map((col, idx) => (
-                                <td key={col.id} className={`px-3 py-2 border-b border-r border-gray-300 border-black font-medium ${col.type === 'number' || idx === columns.length - 1 ? 'text-right' : ''}`}>
-                                  {row.cells[col.id] || ''}
+                        (() => {
+                          // Precompute labels — count only non-header rows and wrap past 'z' via excel-style (#31).
+                          let nonHeaderIdx = -1;
+                          return rows.map((row) => {
+                            if (!row.isGroupHeader) nonHeaderIdx++;
+                            const label = row.isGroupHeader ? '' : `${rowLabel(nonHeaderIdx)})`;
+                            return (
+                              <tr key={row.id} className={`${row.isGroupHeader ? 'bg-gray-100' : ''}`}>
+                                <td className="px-2 py-2 text-center border-b border-r border-gray-300 border-black font-medium text-xs">
+                                  {label}
                                 </td>
-                              ))
-                            )}
-                          </tr>
-                        ))
+
+                                {row.isGroupHeader ? (
+                                  <td colSpan={columns.length} className="px-3 py-2 border-b border-black font-bold">
+                                    {row.cells[columns[0]?.id] || 'Unnamed Group'}
+                                  </td>
+                                ) : (
+                                  columns.map((col, idx) => (
+                                    <td key={col.id} className={`px-3 py-2 border-b border-r border-gray-300 border-black font-medium ${col.type === 'number' || idx === columns.length - 1 ? 'text-right' : ''}`}>
+                                      {row.cells[col.id] || ''}
+                                    </td>
+                                  ))
+                                )}
+                              </tr>
+                            );
+                          });
+                        })()
                       )}
                     </tbody>
                   </table>
@@ -167,24 +177,23 @@ const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
       
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          #proposal-printable-area, #proposal-printable-area * {
-            visibility: visible;
-          }
+          @page { size: A4; margin: 15mm; }
+          body * { visibility: hidden; }
+          #proposal-printable-area, #proposal-printable-area * { visibility: visible; }
           #proposal-printable-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            border: none;
-            box-shadow: none;
-            padding: 0;
+            position: static !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
           }
-          .modal-overlay {
-            background: white !important;
-          }
+          /* Prevent table rows and section headers from splitting mid-row */
+          tr, h3.section-title { page-break-inside: avoid; break-inside: avoid; }
+          thead { display: table-header-group; }
+          .modal-overlay { background: white !important; }
         }
       `}} />
 
@@ -194,34 +203,6 @@ const ProposalPreviewModal = ({ isOpen, onClose, proposal, client }) => {
           <Printer size={18} />
           Print / PDF
         </Button>
-        
-        {onSendApproval && status === 'draft' && (
-          <Button variant="primary" onClick={onSendApproval}>
-            <Send size={18} />
-            Send for Approval
-          </Button>
-        )}
-
-        {isManager && status === 'pending_approval' && (
-          <>
-            <Button variant="outline" onClick={onModify} className="text-blue-500 border-blue-500 hover:bg-blue-50">
-              Modify
-            </Button>
-            <Button variant="outline" onClick={onReject} className="text-red-500 border-red-500 hover:bg-red-50">
-              Reject
-            </Button>
-            <Button variant="primary" onClick={onApprove} className="bg-green-600 hover:bg-green-700">
-              Approve
-            </Button>
-          </>
-        )}
-
-        {onSendToClient && status === 'manager_approved' && (
-          <Button variant="primary" onClick={onSendToClient}>
-            <Send size={18} />
-            Send to Client
-          </Button>
-        )}
       </div>
     </Modal>
   );

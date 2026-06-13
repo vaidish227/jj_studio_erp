@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   ShieldCheck, ClipboardCheck, CheckCircle2, XCircle, Clock,
-  GitBranch, UserCheck, FileText, User, Calendar,
-  ExternalLink, AlertTriangle, ChevronRight, RefreshCw,
+  GitBranch, UserCheck, User, Calendar,
+  AlertTriangle, ChevronRight, RefreshCw,
 } from 'lucide-react';
 import { Button, Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
@@ -12,9 +12,9 @@ import { pmsService } from '../../../shared/services/pmsService';
 import useReviewQueue from '../hooks/useReviewQueue';
 import TaskTypeIcon, { TASK_TYPE_CONFIG } from '../components/TaskTypeIcon';
 import PriorityBadge from '../components/PriorityBadge';
-import DrawingStatusBadge from '../components/DrawingStatusBadge';
-import RequestRevisionModal from '../components/RequestRevisionModal';
+import RequestRevisionFlow from '../components/RequestRevisionFlow';
 import ReassignTaskModal from '../components/ReassignTaskModal';
+import DrawingMosaic from '../components/DrawingMosaic';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
@@ -27,21 +27,6 @@ const fmtTime = (d) => d
 // ═══════════════════════════════════════════════════════════════════════════════
 // REVIEW QUEUE TAB
 // ═══════════════════════════════════════════════════════════════════════════════
-
-const DrawingChip = ({ drawing }) => (
-  <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
-    <FileText size={11} className="text-[var(--accent-blue)] shrink-0" />
-    <span className="text-xs text-[var(--text-secondary)] truncate max-w-[120px]">{drawing.title}</span>
-    <DrawingStatusBadge status={drawing.status} />
-    {drawing.fileUrl && (
-      <a href={drawing.fileUrl} target="_blank" rel="noreferrer"
-        className="text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
-        onClick={(e) => e.stopPropagation()}>
-        <ExternalLink size={11} />
-      </a>
-    )}
-  </div>
-);
 
 const ReviewCard = ({ task, onApproved, onRevision, onReassign }) => {
   const navigate  = useNavigate();
@@ -63,100 +48,115 @@ const ReviewCard = ({ task, onApproved, onRevision, onReassign }) => {
     }
   };
 
+  const drawings = task.drawings || [];
+  const hasDrawings = drawings.length > 0;
+
   return (
     <div
       className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5
                  hover:border-[var(--primary)]/40 transition-all cursor-pointer group"
       onClick={() => navigate(`/tasks/${task._id}`)}
     >
-      {/* Top row */}
-      <div className="flex items-start gap-3 mb-3">
-        <TaskTypeIcon taskType={task.taskType} />
+      <div className={`flex flex-col ${hasDrawings ? 'lg:flex-row' : ''} gap-5`}>
+        {/* ── Left column: content ── */}
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-0.5">
-            {cfg.label || task.taskType}
-          </p>
-          <p className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors truncate">
-            {task.title}
-          </p>
-          {task.projectId && (
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              {task.projectId.name}
-              <span className="ml-1 opacity-60">· {task.projectId.trackingId}</span>
-            </p>
-          )}
-        </div>
-        <PriorityBadge priority={task.priority} />
-        <ChevronRight size={14} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors shrink-0 mt-0.5" />
-      </div>
-
-      {/* Meta */}
-      <div className="flex items-center gap-4 flex-wrap mb-3 text-xs text-[var(--text-muted)]">
-        {task.assignedTo && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[9px] font-black text-[var(--primary)] uppercase shrink-0">
-              {task.assignedTo.name?.[0] || <User size={9} />}
+          {/* Top row */}
+          <div className="flex items-start gap-3 mb-3">
+            <TaskTypeIcon taskType={task.taskType} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-0.5">
+                {cfg.label || task.taskType}
+              </p>
+              <p className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors truncate">
+                {task.title}
+              </p>
+              {task.projectId && (
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  {task.projectId.name}
+                  <span className="ml-1 opacity-60">· {task.projectId.trackingId}</span>
+                </p>
+              )}
             </div>
-            <span>{task.assignedTo.name}</span>
-            <span className="opacity-50">·</span>
-            <span className="capitalize opacity-75">{task.assignedTo.role}</span>
+            <PriorityBadge priority={task.priority} />
+            <ChevronRight size={14} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors shrink-0 mt-0.5" />
+          </div>
+
+          {/* Meta */}
+          <div className="flex items-center gap-4 flex-wrap mb-3 text-xs text-[var(--text-muted)]">
+            {task.assignedTo && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[9px] font-black text-[var(--primary)] uppercase shrink-0">
+                  {task.assignedTo.name?.[0] || <User size={9} />}
+                </div>
+                <span>{task.assignedTo.name}</span>
+                <span className="opacity-50">·</span>
+                <span className="capitalize opacity-75">{task.assignedTo.role}</span>
+              </div>
+            )}
+            {task.submittedAt && (
+              <div className="flex items-center gap-1">
+                <Calendar size={10} />
+                <span>Submitted {fmtTime(task.submittedAt)}</span>
+              </div>
+            )}
+            {task.dueDate && <span>Due {fmt(task.dueDate)}</span>}
+          </div>
+
+          {/* Submission notes */}
+          {task.submissionNotes && (
+            <div className="mb-3 px-3 py-2 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed italic">
+                "{task.submissionNotes}"
+              </p>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div
+            className="flex flex-wrap gap-2 pt-3 border-t border-[var(--border)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button
+              size="sm"
+              onClick={handleApprove}
+              disabled={approving}
+              className="bg-[var(--success)] hover:bg-[var(--success)]/90 text-white"
+            >
+              <CheckCircle2 size={13} className="mr-1" />
+              {approving ? 'Approving…' : 'Approve'}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => { e.stopPropagation(); onRevision(task); }}
+              className="bg-[var(--warning)]/10 hover:bg-[var(--warning)]/20 text-[var(--warning)] border border-[var(--warning)]/30"
+            >
+              <GitBranch size={13} className="mr-1" />
+              Request Revision
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => { e.stopPropagation(); onReassign(task); }}
+            >
+              <UserCheck size={13} className="mr-1" />
+              Reassign
+            </Button>
+          </div>
+        </div>
+
+        {/* ── Right column: drawing mosaic ── */}
+        {hasDrawings && (
+          <div
+            className="shrink-0 lg:border-l lg:border-[var(--border)] lg:pl-5 self-start"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] mb-2">
+              {drawings.length === 1 ? 'Drawing' : `${drawings.length} Drawings`}
+            </p>
+            <DrawingMosaic drawings={drawings} size={200} />
           </div>
         )}
-        {task.submittedAt && (
-          <div className="flex items-center gap-1">
-            <Calendar size={10} />
-            <span>Submitted {fmtTime(task.submittedAt)}</span>
-          </div>
-        )}
-        {task.dueDate && <span>Due {fmt(task.dueDate)}</span>}
-      </div>
-
-      {/* Submission notes */}
-      {task.submissionNotes && (
-        <div className="mb-3 px-3 py-2 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
-          <p className="text-xs text-[var(--text-secondary)] leading-relaxed italic">
-            "{task.submissionNotes}"
-          </p>
-        </div>
-      )}
-
-      {/* Drawings */}
-      {task.drawings?.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {task.drawings.map((d) => <DrawingChip key={d._id} drawing={d} />)}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div
-        className="flex flex-wrap gap-2 pt-3 border-t border-[var(--border)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button
-          size="sm"
-          onClick={handleApprove}
-          disabled={approving}
-          className="bg-[var(--success)] hover:bg-[var(--success)]/90 text-white"
-        >
-          <CheckCircle2 size={13} className="mr-1" />
-          {approving ? 'Approving…' : 'Approve'}
-        </Button>
-        <Button
-          size="sm"
-          onClick={(e) => { e.stopPropagation(); onRevision(task); }}
-          className="bg-[var(--warning)] hover:bg-[var(--warning)]/90 text-black"
-        >
-          <GitBranch size={13} className="mr-1" />
-          Request Revision
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={(e) => { e.stopPropagation(); onReassign(task); }}
-        >
-          <UserCheck size={13} className="mr-1" />
-          Reassign
-        </Button>
       </div>
     </div>
   );
@@ -223,7 +223,7 @@ const ReviewQueueTab = () => {
         </div>
       )}
 
-      <RequestRevisionModal
+      <RequestRevisionFlow
         task={revisionTask}
         isOpen={!!revisionTask}
         onClose={() => setRevisionTask(null)}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, ExternalLink, RefreshCw, Download, CheckCircle2, Clock, AlertCircle, XCircle, Rocket } from 'lucide-react';
 import { pmsService } from '../../../../shared/services/pmsService';
 import DrawingStatusBadge from '../DrawingStatusBadge';
+import DrawingFileLink from '../DrawingFileLink';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
@@ -46,15 +47,13 @@ const DrawingRow = ({ drawing, serial }) => (
     </td>
     <td className="px-3 py-2.5">
       {drawing.fileUrl ? (
-        <a
-          href={drawing.fileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <DrawingFileLink
+          drawing={drawing}
           className="inline-flex items-center gap-1 text-xs text-[var(--primary)] hover:underline font-semibold"
         >
           <ExternalLink size={11} />
           View
-        </a>
+        </DrawingFileLink>
       ) : (
         <span className="text-[10px] text-[var(--text-muted)]">—</span>
       )}
@@ -143,7 +142,7 @@ const DLRSheetTab = ({ project }) => {
       {/* Print header — only visible when printing */}
       <div className="hidden print:block mb-4">
         <h1 className="text-lg font-bold">Drawing List Register — {project.name}</h1>
-        <p className="text-sm text-gray-500">{project.trackingId} · Printed {new Date().toLocaleDateString('en-IN')}</p>
+        <p className="text-sm text-[var(--text-secondary)]">{project.trackingId} · Printed {new Date().toLocaleDateString('en-IN')}</p>
       </div>
 
       {/* Summary stats */}

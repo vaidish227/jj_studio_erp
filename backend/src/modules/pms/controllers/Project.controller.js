@@ -1,4 +1,7 @@
 const Project = require("../models/Project.model");
+const Task = require("../models/Task.model");
+const Responsibility = require("../models/Responsibility.model");
+const ProjectPlan = require("../models/ProjectPlan.model");
 const {
   createProjectSchema,
   updateProjectSchema,
@@ -7,16 +10,14 @@ const {
   clientApprovalSchema,
 } = require("../validator/Project.validator");
 const { logActivity } = require("../../../shared/activityLogger");
+const workflowEngine = require("../services/workflowEngine");
+const kitEvents = require("../../kit/services/kitEvents");
+const teamResolver = require("../services/teamResolver");
 
-const TEAM_POPULATE = [
-  { path: "primaryDesigner", select: "name email role" },
-  { path: "supervisor",      select: "name email role" },
-  { path: "designerB",       select: "name email role" },
-  { path: "designerC",       select: "name email role" },
-  { path: "designerD",       select: "name email role" },
-  { path: "designerE",       select: "name email role" },
-  { path: "contractor",      select: "name email role" },
-];
+const WORKFLOW_ENGINE_V1 =
+  String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
+
+const TEAM_POPULATE = teamResolver.assignmentsPopulate();
 
 /**
  * @route POST /api/pms/project/create
@@ -30,8 +31,6 @@ const createProject = async (req, res) => {
 
     // Strip empty proposalId so Mongoose doesn't try to cast '' → ObjectId
     if (!value.proposalId) delete value.proposalId;
-    if (!value.primaryDesigner) delete value.primaryDesigner;
-    if (!value.supervisor) delete value.supervisor;
 
     const existingProject = await Project.findOne({ proposalId: value.proposalId }).lean();
     if (value.proposalId && existingProject) {
@@ -40,6 +39,10 @@ const createProject = async (req, res) => {
         project: existingProject,
       });
     }
+
+    // Workflow template can never be set at create time — projects start with
+    // an empty master sheet; a template is applied later via Change Template.
+    delete value.workflowTemplateId;
 
     const project = await Project.create(value);
 
@@ -52,9 +55,25 @@ const createProject = async (req, res) => {
       description: `Project "${project.name}" created`,
     });
 
+    // KIT automation trigger (fire-and-forget).
+    kitEvents.emit("project.created", {
+      sourceModule: "pms",
+      entityType: "project",
+      entityId: project._id,
+      payload: { name: project.name, status: project.status },
+      actor: req.user,
+    });
+
+    // Return the project with the populated template so the stepper renders
+    // the right phases immediately on redirect.
+    const populated = await Project.findById(project._id)
+      .populate("clientId",         "name phone email trackingId")
+      .populate("workflowTemplateId", "name phases projectType")
+      .populate(TEAM_POPULATE);
+
     res.status(201).json({
-      message: "Project created successfully",
-      project,
+      message:  "Project created successfully",
+      project:  populated || project,
     });
   } catch (error) {
     console.error("[createProject]", error);
@@ -70,9 +89,9 @@ const getAllProjects = async (req, res) => {
     const { status, projectType, designerId, page = 1, limit = 20 } = req.query;
     const filter = {};
 
-    if (status)      filter.status          = status;
-    if (projectType) filter.projectType     = projectType;
-    if (designerId)  filter.primaryDesigner = designerId;
+    if (status)      filter.status      = status;
+    if (projectType) filter.projectType = projectType;
+    if (designerId)  filter["assignments.users"] = designerId;
 
     const skip  = (Number(page) - 1) * Number(limit);
     const total = await Project.countDocuments(filter);
@@ -105,13 +124,22 @@ const getProjectById = async (req, res) => {
     const project = await Project.findById(req.params.id)
       .populate("clientId")
       .populate("proposalId")
+      .populate("workflowTemplateId", "name phases projectType")
       .populate(TEAM_POPULATE);
 
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    res.status(200).json({ project });
+    // Surface the plan activation timestamp so the UI knows whether the
+    // master sheet has been made effective.
+    const plan = await ProjectPlan.findOne({ projectId: project._id })
+      .select("effectiveAt")
+      .lean();
+
+    res.status(200).json({
+      project: { ...project.toObject(), planEffectiveAt: plan?.effectiveAt || null },
+    });
   } catch (error) {
     console.error("[getProjectById]", error);
     res.status(500).json({ message: error.message });
@@ -216,6 +244,9 @@ const updateKickstart = async (req, res) => {
 
 /**
  * @route PATCH /api/pms/project/team/:id
+ * Body: { assignments: [{ responsibilityId, userIds: [] }] }
+ * Replaces the entire team in one call. Empty userIds = responsibility
+ * listed but unassigned (UI usually drops the row entirely).
  */
 const updateTeam = async (req, res) => {
   try {
@@ -224,15 +255,29 @@ const updateTeam = async (req, res) => {
       return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
     }
 
-    // Convert empty strings to null (clears the assignment)
-    const setFields = {};
-    for (const [key, val] of Object.entries(value)) {
-      setFields[key] = val || null;
+    // Verify every (master) responsibilityId exists. Custom rows skip this.
+    const ids = value.assignments
+      .map((a) => a.responsibilityId)
+      .filter(Boolean);
+    if (ids.length > 0) {
+      const found = await Responsibility.find({ _id: { $in: ids } }, { _id: 1 }).lean();
+      if (found.length !== new Set(ids.map(String)).size) {
+        return res
+          .status(400)
+          .json({ message: "One or more responsibilityId values are invalid" });
+      }
     }
+
+    const assignments = value.assignments.map((a) => {
+      const row = { users: a.userIds || [] };
+      if (a.responsibilityId) row.responsibilityId = a.responsibilityId;
+      if (a.customName)       row.customName       = a.customName.trim();
+      return row;
+    });
 
     const project = await Project.findByIdAndUpdate(
       req.params.id,
-      { $set: setFields },
+      { $set: { assignments } },
       { new: true }
     ).populate(TEAM_POPULATE);
 
@@ -247,7 +292,7 @@ const updateTeam = async (req, res) => {
       entityId:    project._id,
       action:      "team_updated",
       description: `Team updated on project "${project.name}"`,
-      metadata:    value,
+      metadata:    { assignmentCount: assignments.length },
     });
 
     res.status(200).json({ message: "Team updated", project });
@@ -275,6 +320,7 @@ const updateClientApproval = async (req, res) => {
     }
 
     const idx = project.clientApprovals.findIndex((a) => a.type === type);
+    const prevStatus = idx > -1 ? project.clientApprovals[idx].status : null;
     if (idx > -1) {
       if (status     !== undefined) project.clientApprovals[idx].status     = status;
       if (obtainedAt !== undefined) project.clientApprovals[idx].obtainedAt = obtainedAt;
@@ -285,9 +331,43 @@ const updateClientApproval = async (req, res) => {
 
     await project.save();
 
+    // Activity log
+    try {
+      await logActivity({
+        projectId:   project._id,
+        actorId:     req.user?._id,
+        entityType:  "approval",
+        entityId:    project._id,
+        action:      "status_changed",
+        description: `Client approval "${type}" set to "${status || prevStatus || "pending"}"`,
+        metadata:    { type, status, previousStatus: prevStatus },
+      });
+    } catch (e) {
+      // best-effort
+    }
+
+    // Workflow Engine cascade — close matching gates and unblock downstream tasks
+    let cascadeSummary = null;
+    if (WORKFLOW_ENGINE_V1 && status === "obtained") {
+      try {
+        cascadeSummary = await workflowEngine.onClientApprovalObtained({
+          projectId:   project._id,
+          approvalType: type,
+          actorId:     req.user?._id,
+        });
+        await workflowEngine.recomputeProjectPhase(project._id);
+        // Phase 3a — keep progress % fresh
+        await workflowEngine.recomputeProjectProgress(project._id);
+      } catch (engineErr) {
+        console.error("[updateClientApproval:workflowEngine]", engineErr);
+        // Do not fail the user request if the engine misbehaves.
+      }
+    }
+
     res.status(200).json({
       message: "Client approval updated",
       clientApprovals: project.clientApprovals,
+      workflow: cascadeSummary,
     });
   } catch (error) {
     console.error("[updateClientApproval]", error);
@@ -305,15 +385,17 @@ const getMyProjects = async (req, res) => {
     const userId = req.user._id;
     const { status, page = 1, limit = 50 } = req.query;
 
+    // A designer counts as "on a project" if EITHER they're on the project
+    // team roster (assignments[].users) OR they've been assigned a task on
+    // it via the master sheet. Task-level assignment is now the more common
+    // path post Make-Plan-Effective rollout, so we must include it here or
+    // the designer can't navigate to the project from the sidebar.
+    const myTaskProjectIds = await Task.distinct("projectId", { assignedTo: userId });
+
     const filter = {
       $or: [
-        { primaryDesigner: userId },
-        { designerB: userId },
-        { designerC: userId },
-        { designerD: userId },
-        { designerE: userId },
-        { supervisor:  userId },
-        { contractor:  userId },
+        { "assignments.users": userId },
+        { _id: { $in: myTaskProjectIds } },
       ],
     };
 
@@ -337,6 +419,22 @@ const getMyProjects = async (req, res) => {
   }
 };
 
+/**
+ * @route GET /api/pms/project/:id/gates
+ * Phase 2 — surfaces the Workflow Engine's open/closed/overridden gates with
+ * decorated blocking tasks, aging, and linked approvals so the ProjectGatesTab
+ * can render "what is blocking us".
+ */
+const getProjectGates = async (req, res) => {
+  try {
+    const gates = await workflowEngine.listGatesForProject(req.params.id);
+    res.status(200).json({ count: gates.length, gates });
+  } catch (err) {
+    console.error("[getProjectGates]", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   createProject,
   getAllProjects,
@@ -347,4 +445,5 @@ module.exports = {
   updateKickstart,
   updateTeam,
   updateClientApproval,
+  getProjectGates,
 };

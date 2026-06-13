@@ -1,0 +1,13 @@
+#,Phase,Drawing / Task Name,Category,Responsibility / Designer Role,Start Day,Duration (Days),Planned Hours,Priority,Depends On,Requires Gate,Checklist
+1,Kickoff,Collect MEP drawings from client,MEP Collection,Furniture Measurements,D+0,2,4,High,,,mep_collection_v1
+2,Kickoff,Take site measurements per checklist,Site Measurement,Furniture Measurements,D+1,1,6,High,,,site_measurement_v1
+3,Kickoff,Concept making — initial direction,Concept Making,Concept / 3D,D+3,4,16,Medium,,,concept_making_v1
+4,Layout,Make Furniture Layout,Furniture Layout,Lead Designer,D+2,5,20,High,Site Measurement,,furniture_layout_v1
+5,Design,Make Civil Drawing,Civil Drawing,Furniture Measurements,D+6,4,12,Medium,,Furniture Layout — Client Approval,civil_drawing_v1
+6,Design,AC Coordination,AC Coordination,Technical Drawings,D+6,3,8,Medium,,Furniture Layout — Client Approval,ac_coordination_v1
+7,Design,Automation Coordination (EA),Automation Coordination,Technical Drawings,D+6,2,6,Medium,,Furniture Layout — Client Approval,automation_coordination_v1
+8,Design,Technical Drawings,Technical Drawing,Technical Drawings,D+6,7,24,Medium,,Furniture Layout — Client Approval,technical_drawing_v1
+9,Design,Kitchen + Utility Drawing,Kitchen Drawing,Bathroom / Kitchen,D+6,6,20,Medium,,Furniture Layout — Client Approval,kitchen_drawing_v1
+10,Design,Bathroom Drawing,Bathroom Drawing,Bathroom / Kitchen,D+6,5,16,Medium,,Furniture Layout — Client Approval,bathroom_drawing_v1
+11,Design,3D Render,3D Render,Technical Drawings,D+8,8,32,Medium,Concept Making,Furniture Layout — Client Approval; PD 3D Review,3d_render_v1
+12,Handover,Design → Execution Handover Signoff,Handover Signoff,Lead Designer,D+30,1,4,High,,Design → Execution Handover,handover_signoff_v1

@@ -45,14 +45,14 @@ const ConfirmationModal = ({
             {icon}
           </div>
           <div className="space-y-1">
-            <h4 className="text-lg font-black text-gray-900 tracking-tight">{title}</h4>
-            <p className="text-sm text-gray-500 font-medium leading-relaxed">{message}</p>
+            <h4 className="text-lg font-black text-[var(--text-primary)] tracking-tight">{title}</h4>
+            <p className="text-sm text-[var(--text-secondary)] font-medium leading-relaxed">{message}</p>
           </div>
         </div>
 
         {showRemarks && (
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] px-1">
               Remarks {isRemarksMandatory ? <span className="text-red-500">(Mandatory)</span> : '(Optional)'}
             </label>
             <textarea

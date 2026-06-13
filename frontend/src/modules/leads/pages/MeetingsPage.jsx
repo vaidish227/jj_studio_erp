@@ -1,54 +1,89 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Calendar as CalendarIcon,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  LayoutGrid,
-  List,
-  Loader2,
-  MapPin,
-  Phone,
-  Plus,
-  XCircle,
-  RotateCcw,
-} from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import Card from '../../../shared/components/Card/Card';
+import React, { useCallback, useEffect, useState } from 'react';
+import { CalendarDays, List as ListIcon, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Button from '../../../shared/components/Button/Button';
-import Badge from '../../../shared/components/Badge/Badge';
 import Modal from '../../../shared/components/Modal/Modal';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Select from '../../../shared/components/Select/Select';
 import { crmService } from '../../../shared/services/crmService';
-import { DashboardCard, ViewToggle, Loader } from '../../../shared/components';
+import { Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
-import useFilters from '../../../shared/filters/useFilters';
-import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
+import RecordMOMModal from '../components/RecordMOMModal';
+import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
+import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
+import MeetingsListView from '../components/MeetingsListView';
+import MeetingsCalendarView from '../components/MeetingsCalendarView';
+import usePermission from '../../../shared/hooks/usePermission';
+import {
+  EMPTY_ATTENDEES,
+  seedClientAttendeesForLead,
+  hydrateAttendeesFromMeeting,
+} from '../utils/attendees';
 
 const POLL_INTERVAL_MS = 30000;
 
-const statusVariants = {
-  scheduled: 'primary',
-  completed: 'success',
-  cancelled: 'error',
+// Segmented Calendar / List view switch shown in the page header.
+const ViewToggle = ({ view, onChange }) => {
+  const options = [
+    { key: 'calendar', label: 'Calendar', icon: CalendarDays },
+    { key: 'list', label: 'List', icon: ListIcon },
+  ];
+  return (
+    <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
+      {options.map(({ key, label, icon: Icon }) => {
+        const active = view === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            aria-pressed={active}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-bold rounded-lg transition-all duration-200 ${
+              active
+                ? 'bg-[var(--primary)] text-white shadow-sm shadow-[var(--primary)]/30'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]'
+            }`}
+          >
+            <Icon size={16} />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
 };
 
+/**
+ * Unified Meetings page — hosts both the List and Calendar views under a single
+ * CRM tab with a shared header, one data fetch + poll, and one shared set of
+ * Schedule / Reschedule / Outcome / MOM modals. The two views are presentational
+ * bodies that receive meetings + action handlers as props.
+ */
 const MeetingsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const [searchParams] = useSearchParams();
-  const navbarQuery = searchParams.get('q') || '';
-  const [viewMode, setViewMode] = useState('calendar');
+
+  // CRM write permissions (coarse — aligned with backend alias model).
+  const canCreate = usePermission('crm.create');
+
+  const [view, setView] = useState('calendar'); // default to Calendar
   const [meetings, setMeetings] = useState([]);
   const [leads, setLeads] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [isMOMModalOpen, setIsMOMModalOpen] = useState(false);
+  const [momMeeting, setMomMeeting] = useState(null);
+  const [outcomeModalMeeting, setOutcomeModalMeeting] = useState(null);
   const [selectedMeeting, setSelectedMeeting] = useState(null);
+
+  // Schedule / Reschedule form state
   const [selectedLead, setSelectedLead] = useState('');
-  const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [meetingDate, setMeetingDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [meetingTime, setMeetingTime] = useState(() => {
     const now = new Date();
     const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
@@ -57,133 +92,116 @@ const MeetingsPage = () => {
   const [meetingType, setMeetingType] = useState('office');
   const [meetingNotes, setMeetingNotes] = useState('');
   const [meetingStatus, setMeetingStatus] = useState('scheduled');
+  const [attendees, setAttendees] = useState(EMPTY_ATTENDEES);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
-
-  const {
-    filters,
-    hasActiveFilters,
-    activeFilterCount,
-    filterConfig,
-    updateFilter,
-    clearAllFilters,
-    process
-  } = useFilters('crm', 'meetings');
 
   const fetchData = useCallback(async (isInitialLoad = false) => {
     if (isInitialLoad) setIsLoading(true); // only first time
-    
     try {
       const [meetingsRes, leadsRes] = await Promise.all([
         crmService.getMeetings(),
         crmService.getLeads({ limit: 100 }),
       ]);
-
       setMeetings(
-        (meetingsRes.meetings || []).sort(
-          (a, b) => new Date(b.date) - new Date(a.date)
-        )
+        (meetingsRes.meetings || []).sort((a, b) => new Date(b.date) - new Date(a.date))
       );
       setLeads(leadsRes.leads || []);
     } catch {
-      toast.error('Failed to load meetings dashboard.');
+      toast.error('Failed to load meetings.');
     } finally {
       if (isInitialLoad) setIsLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     fetchData(true); // initial load with loader
-
-    const intervalId = setInterval(() => {
-      fetchData(false); // silent refresh
-    }, POLL_INTERVAL_MS);
-
+    const intervalId = setInterval(() => fetchData(false), POLL_INTERVAL_MS); // silent refresh
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
-  // Apply navbar search to filters
-const searchTerm = navbarQuery.toLowerCase();
+  // ─── Shared meeting actions ──────────────────────────────────────────
+  const handleViewDetails = (meeting) => navigate(`/crm/leads/${meeting.leadId?._id}`);
 
-  // Apply reusable filter system
-  const filteredMeetings = useMemo(() => {
-    // Combine navbar search with filter system
-    let processedMeetings = process(meetings);
-    
-    if (searchTerm) {
-      processedMeetings = processedMeetings.filter((meeting) => {
-        const lead = meeting.leadId || {};
-        const haystack = [
-          lead.name,
-          lead.phone,
-          lead.projectType,
-          lead.city,
-          meeting.notes,
-          meeting.type,
-          meeting.status,
-        ]
-          .join(' ')
-          .toLowerCase();
-
-        return haystack.includes(searchTerm);
-      });
+  const handleStatusUpdate = async (meetingId, status) => {
+    // When marking complete, capture the outcome via modal instead of silently flipping status
+    if (status === 'completed') {
+      const meeting = meetings.find((m) => m._id === meetingId);
+      if (meeting) {
+        setOutcomeModalMeeting(meeting);
+        return;
+      }
     }
-    
-    return processedMeetings;
-  }, [meetings, process, searchTerm]);
-
-  const stats = useMemo(() => ({
-    total: meetings.length,
-    scheduled: meetings.filter((meeting) => meeting.status === 'scheduled').length,
-    completed: meetings.filter((meeting) => meeting.status === 'completed').length,
-    cancelled: meetings.filter((meeting) => meeting.status === 'cancelled').length,
-    site: meetings.filter((meeting) => meeting.type === 'site').length,
-  }), [meetings]);
-
-  const daysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-
-  const calendarDays = useMemo(() => {
-    const totalDays = daysInMonth(currentMonth);
-    const firstDay = firstDayOfMonth(currentMonth);
-    const days = [];
-
-    for (let i = 0; i < firstDay; i += 1) {
-      days.push({ day: null, date: null });
+    try {
+      await crmService.updateMeeting(meetingId, { status });
+      toast.success('Status updated successfully');
+      fetchData();
+    } catch {
+      toast.error('Failed to update meeting status.');
     }
+  };
 
-    for (let i = 1; i <= totalDays; i += 1) {
-      const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i);
-      const dayMeetings = filteredMeetings.filter(
-        (meeting) => new Date(meeting.date).toDateString() === date.toDateString()
-      );
-      days.push({ day: i, date, meetingCount: dayMeetings.length });
+  const handleMeetingOutcome = async (meetingId, outcomeData, markLost = false) => {
+    try {
+      await crmService.completeMeeting(meetingId, outcomeData);
+      if (markLost) {
+        const meeting = meetings.find((m) => m._id === meetingId);
+        if (meeting?.leadId?._id) {
+          await crmService.updateClientStatus(meeting.leadId._id, {
+            status: 'lost',
+            lifecycleStage: 'lost',
+          });
+        }
+      }
+      toast.success('Meeting outcome saved');
+      fetchData();
+    } catch (err) {
+      toast.error(err?.message || 'Failed to save outcome.');
+      throw err;
     }
+  };
 
-    return days;
-  }, [currentMonth, filteredMeetings]);
+  const handleOpenMOM = (meeting) => {
+    setMomMeeting(meeting);
+    setIsMOMModalOpen(true);
+  };
 
-  const visibleMeetings = useMemo(() => {
-    if (viewMode === 'calendar') {
-      return filteredMeetings.filter(
-        (meeting) => new Date(meeting.date).toDateString() === selectedDate.toDateString()
-      );
+  const handleReschedule = (meeting) => {
+    setSelectedMeeting(meeting);
+    const meetingDateObj = new Date(meeting.date);
+    setMeetingDate(meetingDateObj.toISOString().split('T')[0]);
+    setMeetingTime(meetingDateObj.toTimeString().slice(0, 5));
+    setMeetingType(meeting.type || 'office');
+    setMeetingNotes(meeting.notes || '');
+    const hydrated = hydrateAttendeesFromMeeting(meeting);
+    // If a meeting was scheduled before this feature existed, seed the lead row
+    if (hydrated.client.length === 0 && meeting.leadId?.name) {
+      hydrated.client = seedClientAttendeesForLead(meeting.leadId);
     }
+    setAttendees(hydrated);
+    setIsRescheduleModalOpen(true);
+  };
 
-    return filteredMeetings;
-  }, [filteredMeetings, selectedDate, viewMode]);
+  // Open the Schedule modal, optionally prefilled to a given day (from the calendar).
+  const openScheduleModal = (prefillDate) => {
+    setSelectedLead('');
+    setMeetingDate(
+      (prefillDate instanceof Date ? prefillDate : new Date()).toISOString().split('T')[0]
+    );
+    setMeetingType('office');
+    setMeetingNotes('');
+    setMeetingStatus('scheduled');
+    setAttendees(EMPTY_ATTENDEES);
+    setIsModalOpen(true);
+  };
 
   const handleCreateMeeting = async (e) => {
     e.preventDefault();
     if (!selectedLead) return;
-
     setIsSubmitting(true);
 
     const meetingDateTime = new Date(`${meetingDate}T${meetingTime}:00`);
-    const now = new Date();
-    
-    if (meetingDateTime < now) {
+    if (meetingDateTime < new Date()) {
       toast.error('Cannot schedule a meeting in the past.');
       setIsSubmitting(false);
       return;
@@ -195,13 +213,14 @@ const searchTerm = navbarQuery.toLowerCase();
         date: `${meetingDate}T${meetingTime}:00`,
         type: meetingType,
         notes: meetingNotes,
+        attendees,
       });
       toast.success('Meeting scheduled successfully!');
       fetchData();
       setIsModalOpen(false);
-      // Reset form
       setSelectedLead('');
       setMeetingNotes('');
+      setAttendees(EMPTY_ATTENDEES);
     } catch (err) {
       toast.error(err?.message || 'Failed to schedule meeting.');
     } finally {
@@ -209,36 +228,13 @@ const searchTerm = navbarQuery.toLowerCase();
     }
   };
 
-  const handleStatusUpdate = async (meetingId, status) => {
-    try {
-      await crmService.updateMeeting(meetingId, { status });
-      toast.success('Status updated successfully');
-      fetchData();
-    } catch {
-      toast.error('Failed to update meeting status.');
-    }
-  };
-
-  const handleReschedule = (meeting) => {
-    setSelectedMeeting(meeting);
-    const meetingDateObj = new Date(meeting.date);
-    setMeetingDate(meetingDateObj.toISOString().split('T')[0]);
-    setMeetingTime(meetingDateObj.toTimeString().slice(0, 5));
-    setMeetingType(meeting.type || 'office');
-    setMeetingNotes(meeting.notes || '');
-    setIsRescheduleModalOpen(true);
-  };
-
   const handleRescheduleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedMeeting) return;
-
     setIsSubmitting(true);
 
     const meetingDateTime = new Date(`${meetingDate}T${meetingTime}:00`);
-    const now = new Date();
-    
-    if (meetingDateTime < now) {
+    if (meetingDateTime < new Date()) {
       toast.error('Cannot reschedule a meeting to the past.');
       setIsSubmitting(false);
       return;
@@ -249,9 +245,10 @@ const searchTerm = navbarQuery.toLowerCase();
         date: `${meetingDate}T${meetingTime}`,
         type: meetingType,
         notes: meetingNotes,
-        status: 'scheduled',
+        status: 'rescheduled',
+        rescheduledFrom: selectedMeeting.date,
+        attendees,
       });
-
       setSelectedMeeting(null);
       setMeetingDate(new Date().toISOString().split('T')[0]);
       setMeetingTime(() => {
@@ -261,6 +258,7 @@ const searchTerm = navbarQuery.toLowerCase();
       });
       setMeetingType('office');
       setMeetingNotes('');
+      setAttendees(EMPTY_ATTENDEES);
       setIsRescheduleModalOpen(false);
       toast.success('Meeting rescheduled successfully!');
       fetchData();
@@ -275,130 +273,50 @@ const searchTerm = navbarQuery.toLowerCase();
     return <Loader label="Syncing your schedule..." />;
   }
 
+  const viewProps = {
+    meetings,
+    onViewDetails: handleViewDetails,
+    onStatusChange: handleStatusUpdate,
+    onReschedule: handleReschedule,
+    onRecordMOM: handleOpenMOM,
+  };
+
   return (
-    <div className="space-y-8 pb-10">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+    <div className="space-y-5 pb-10">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Meetings</h1>
           <p className="text-[var(--text-secondary)] font-medium">Schedule and manage client meetings in realtime.</p>
         </div>
 
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full lg:w-auto">
-          <ViewToggle
-            view={viewMode}
-            onViewChange={setViewMode}
-          />
-          <Button variant="primary" onClick={() => setIsModalOpen(true)} className="w-full md:w-auto px-6 whitespace-nowrap">
-            <Plus size={18} />
-            Schedule Meeting
-          </Button>
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
+          <AskAIButton label="Ask AI" variant="soft" actions={resolveEntry('meetings').actions} />
+          <ViewToggle view={view} onChange={setView} />
+          {canCreate && (
+            <Button variant="primary" onClick={() => openScheduleModal()} className="w-full md:w-auto px-6 whitespace-nowrap">
+              <Plus size={18} />
+              Schedule Meeting
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Advanced Filter System */}
-      <AdvancedFilter
-        filters={filters}
-        filterConfig={filterConfig}
-        updateFilter={updateFilter}
-        clearAllFilters={clearAllFilters}
-        hasActiveFilters={hasActiveFilters}
-        activeFilterCount={activeFilterCount}
-        showSearch={true}
-        compact={false}
-      />
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <DashboardCard title="Total Meetings" value={stats.total} icon={CalendarIcon} iconBg="bg-[var(--primary)]/10" compact />
-        <DashboardCard title="Scheduled" value={stats.scheduled} icon={Clock} iconBg="bg-[var(--accent-blue)]/10" compact />
-        <DashboardCard title="Completed" value={stats.completed} icon={CheckCircle2} iconBg="bg-[var(--success)]/10" compact />
-        <DashboardCard title="Cancelled" value={stats.cancelled} icon={XCircle} iconBg="bg-[var(--error)]/10" compact />
-        <DashboardCard title="On-Site" value={stats.site} icon={MapPin} iconBg="bg-[var(--warning)]/10" compact />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {viewMode === 'calendar' && (
-          <div className="lg:col-span-4">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-[var(--text-primary)]">
-                  {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </h2>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
-                    className="p-1.5 hover:bg-[var(--bg)] rounded-lg transition-colors"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
-                    className="p-1.5 hover:bg-[var(--bg)] rounded-lg transition-colors"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-7 gap-y-2 text-center text-xs font-bold text-[var(--text-muted)] uppercase mb-4">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day}>{day}</div>)}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {calendarDays.map((day, index) => (
-                  <button
-                    key={index}
-                    disabled={!day.day}
-                    onClick={() => day.date && setSelectedDate(day.date)}
-                    className={`
-                      relative h-12 flex flex-col items-center justify-center rounded-xl transition-all
-                      ${!day.day ? 'opacity-0 cursor-default' : 'hover:bg-[var(--primary)]/10'}
-                      ${day.date?.toDateString() === selectedDate.toDateString() ? 'bg-[var(--primary)] text-black font-bold' : 'text-[var(--text-primary)]'}
-                    `}
-                  >
-                    <span>{day.day}</span>
-                    {day.meetingCount > 0 && day.date?.toDateString() !== selectedDate.toDateString() && (
-                      <span className="mt-1 w-5 h-4 bg-[var(--primary)]/20 text-[var(--primary)] text-[10px] rounded flex items-center justify-center font-bold">
-                        {day.meetingCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        <div className={viewMode === 'calendar' ? 'lg:col-span-8' : 'lg:col-span-12'}>
-          <div className="space-y-4">
-            {visibleMeetings.length ? visibleMeetings.map((meeting) => (
-              <MeetingCard
-                key={meeting._id}
-                meeting={meeting}
-                onViewDetails={() => navigate(`/crm/leads/${meeting.leadId?._id}`)}
-                onStatusChange={handleStatusUpdate}
-                onReschedule={handleReschedule}
-              />
-            )) : (
-              <div className="py-20 text-center bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-2xl">
-                <div className="w-16 h-16 bg-[var(--bg)] rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CalendarIcon size={24} className="text-[var(--text-muted)] opacity-30" />
-                </div>
-                <p className="text-[var(--text-muted)] font-medium">
-                  No meetings match the current search or date.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      {view === 'calendar' ? (
+        <MeetingsCalendarView {...viewProps} onScheduleForDay={canCreate ? openScheduleModal : undefined} />
+      ) : (
+        <MeetingsListView {...viewProps} />
+      )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Schedule Meeting">
         <form onSubmit={handleCreateMeeting} className="space-y-6">
           <Select
             label="Select Lead"
             value={selectedLead}
-            onChange={setSelectedLead}
+            onChange={(leadId) => {
+              setSelectedLead(leadId);
+              const pickedLead = leads.find((l) => l._id === leadId);
+              setAttendees({ internal: [], client: seedClientAttendeesForLead(pickedLead) });
+            }}
             options={leads.map((lead) => ({ value: lead._id, label: `${lead.name} • ${lead.phone}` }))}
           />
           <DateTimePicker
@@ -435,6 +353,11 @@ const searchTerm = navbarQuery.toLowerCase();
             rows={3}
             placeholder="Meeting notes or agenda"
             className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+          />
+          <AttendeesEditor
+            lead={leads.find((l) => l._id === selectedLead) || null}
+            value={attendees}
+            onChange={setAttendees}
           />
           <div className="flex gap-3 pt-4">
             <Button variant="ghost" type="button" onClick={() => setIsModalOpen(false)} fullWidth>Cancel</Button>
@@ -477,98 +400,38 @@ const searchTerm = navbarQuery.toLowerCase();
             placeholder="Reason for rescheduling or updated notes"
             className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
           />
+          <AttendeesEditor
+            lead={selectedMeeting?.leadId || null}
+            value={attendees}
+            onChange={setAttendees}
+          />
           <div className="flex gap-3 pt-4">
             <Button variant="ghost" type="button" onClick={() => setIsRescheduleModalOpen(false)} fullWidth>Cancel</Button>
             <Button variant="primary" type="submit" isLoading={isSubmitting} fullWidth>Confirm Reschedule</Button>
           </div>
         </form>
       </Modal>
-    </div>
-  );
-};
 
+      <MeetingOutcomeModal
+        isOpen={Boolean(outcomeModalMeeting)}
+        onClose={() => setOutcomeModalMeeting(null)}
+        meeting={outcomeModalMeeting}
+        onSave={handleMeetingOutcome}
+        onRecordMOM={(meeting) => {
+          // After outcome saved, refetch to get the now-completed meeting (with status=completed)
+          // so RecordMOMModal's completion gate passes.
+          fetchData().then?.(() => {});
+          setMomMeeting({ ...meeting, status: 'completed' });
+          setIsMOMModalOpen(true);
+        }}
+      />
 
-const MeetingCard = ({ meeting, onViewDetails, onStatusChange, onReschedule }) => {
-  const lead = meeting.leadId || {};
-  const date = new Date(meeting.date);
-
-  return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 hover:border-[var(--primary)] hover:shadow-xl hover:shadow-[var(--primary)]/5 transition-all duration-300 group shadow-sm">
-      <div className="flex flex-col md:flex-row gap-6">
-        <div className="w-14 h-14 bg-[var(--primary)]/10 rounded-2xl flex items-center justify-center text-[var(--primary)] shrink-0 group-hover:bg-[var(--primary)] group-hover:text-black transition-all duration-500 group-hover:rotate-6">
-          <CalendarIcon size={28} strokeWidth={2.5} />
-        </div>
-
-        <div className="flex-1 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-xl font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors duration-300 tracking-tight">{lead.name || 'Unknown Lead'}</h3>
-              <p className="text-sm text-[var(--text-muted)] font-semibold mt-0.5">{lead.projectType || 'Interior Project'} • {lead.city || 'Location'}</p>
-            </div>
-            <Badge
-              variant={statusVariants[meeting.status] || 'default'}
-              className="uppercase text-[10px] font-black tracking-[0.1em] px-4 py-1.5 rounded-full border-none shadow-sm"
-            >
-              {meeting.status || 'scheduled'}
-            </Badge>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                <CalendarIcon size={16} />
-              </div>
-              <span>{date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} at {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                <Clock size={16} />
-              </div>
-              <span>{meeting.durationMinutes || 60} min duration</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                <MapPin size={16} />
-              </div>
-              <span>{meeting.type === 'site' ? lead.siteAddress || 'Site Address' : 'JJ Studio - Office'}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] font-medium group-hover:text-[var(--text-primary)] transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors">
-                <Phone size={16} />
-              </div>
-              <span>+91 {lead.phone || '0000000000'}</span>
-            </div>
-          </div>
-
-          <div className="p-4 bg-[var(--bg)] rounded-xl border border-[var(--border)] text-sm text-[var(--text-primary)] relative overflow-hidden group-hover:border-[var(--primary)]/30 transition-colors">
-            <div className="absolute top-0 left-0 w-1 h-full bg-[var(--primary)] opacity-20"></div>
-            <span className="font-bold text-[var(--primary)] uppercase text-[10px] tracking-wider block mb-1">Meeting Notes</span>
-            <span className="text-[var(--text-secondary)] leading-relaxed">{meeting.notes || 'Meeting to understand client requirements and site measurements.'}</span>
-          </div>
-
-          <div className="flex flex-col lg:flex-row gap-3 pt-2">
-            <Select
-              value={meeting.status || 'scheduled'}
-              onChange={(value) => onStatusChange(meeting._id, value)}
-              options={[
-                { value: 'scheduled', label: 'Scheduled' },
-                { value: 'completed', label: 'Completed' },
-                { value: 'cancelled', label: 'Cancelled' },
-              ]}
-              className="lg:w-64"
-            />
-            {meeting.status !== 'completed' && meeting.status !== 'cancelled' && (
-              <Button variant="secondary" className="w-full justify-center py-3.5 text-sm font-bold tracking-tight bg-[var(--bg)] hover:bg-[var(--primary)]/5" onClick={() => onReschedule(meeting)}>
-                <RotateCcw size={16} className="mr-2" />
-                Reschedule
-              </Button>
-            )}
-            <Button variant="primary" className="w-full justify-center py-3.5 text-sm font-bold tracking-tight shadow-md hover:shadow-lg" onClick={onViewDetails}>
-              View Lead Details
-            </Button>
-          </div>
-        </div>
-      </div>
+      <RecordMOMModal
+        isOpen={isMOMModalOpen}
+        onClose={() => { setIsMOMModalOpen(false); setMomMeeting(null); }}
+        meeting={momMeeting}
+        onSaved={fetchData}
+      />
     </div>
   );
 };

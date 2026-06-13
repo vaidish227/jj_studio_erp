@@ -1,6 +1,11 @@
 const Task = require("../models/Task.model");
 const Project = require("../models/Project.model");
 const User = require("../../auth/models/user.model");
+const workflowEngine = require("../services/workflowEngine");
+const teamResolver = require("../services/teamResolver");
+
+const WORKFLOW_ENGINE_V1 =
+  String(process.env.WORKFLOW_ENGINE_V1 || "").toLowerCase() === "true";
 const {
   createTaskSchema,
   updateTaskSchema,
@@ -11,86 +16,111 @@ const {
   reassignTaskSchema,
 } = require("../validator/Task.validator");
 const Drawing = require("../models/Drawing.model");
+const ApprovalGate = require("../models/ApprovalGate.model");
 const { logActivity } = require("../../../shared/activityLogger");
 const mailService      = require("../../mail/service/mail.service");
+const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 const whatsappService  = require("../../whatsapp/service/whatsapp.service");
+const { dispatchTaskNotifications } = require("../services/taskNotifier");
 
-// Returns { mail: { sent, reason? }, whatsapp: { sent, reason? } }
-const dispatchTaskNotifications = async ({ task, project, assignedUser, actorId, notifyMail, notifyWhatsApp }) => {
-  const results = {};
-  const vars = {
-    taskTitle:    task.title,
-    projectName:  project.name,
-    projectId:    project.trackingId,
-    priority:     task.priority || "medium",
-    dueDate:      task.dueDate ? new Date(task.dueDate).toLocaleDateString("en-IN") : "Not set",
-    notes:        task.notes || "—",
-    assigneeName: assignedUser.name,
-  };
+/**
+ * Resolve every active Managing Director (and admin as fallback) in the system.
+ * Used by submitTask / sendForApproval to route designer submissions straight
+ * to the MD inbox in addition to the project's supervisor + lead designer.
+ *
+ * Returns [{ _id, name, email, phone }, ...] — empty array if none.
+ */
+async function resolveMDApprovers() {
+  try {
+    return await User.find({
+      role: { $in: ["md", "admin"] },
+      isActive: { $ne: false },
+    })
+      .select("_id name email phone role")
+      .lean();
+  } catch (e) {
+    console.error("[resolveMDApprovers]", e.message);
+    return [];
+  }
+}
 
-  if (notifyMail) {
-    if (!assignedUser.email) {
-      results.mail = { sent: false, reason: "no_email" };
-    } else {
-      try {
-        await mailService.sendImmediate({
-          to:      assignedUser.email,
-          subject: `Task Assigned: ${task.title} — ${project.name}`,
-          html: `
-            <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-              <h2 style="color:#1a1a2e">Task Assigned to You</h2>
-              <table style="width:100%;border-collapse:collapse">
-                <tr><td style="padding:8px;font-weight:bold;color:#555">Task</td><td style="padding:8px">${vars.taskTitle}</td></tr>
-                <tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Project</td><td style="padding:8px">${vars.projectName} (${vars.projectId})</td></tr>
-                <tr><td style="padding:8px;font-weight:bold;color:#555">Priority</td><td style="padding:8px;text-transform:capitalize">${vars.priority}</td></tr>
-                <tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Due Date</td><td style="padding:8px">${vars.dueDate}</td></tr>
-                <tr><td style="padding:8px;font-weight:bold;color:#555">Notes</td><td style="padding:8px">${vars.notes}</td></tr>
-              </table>
-              <p style="color:#888;font-size:12px;margin-top:24px">Please log in to JJ Studio ERP to view full task details.</p>
-            </div>
-          `,
-          relatedTo: { module: "pms", recordId: task._id },
-          createdBy: actorId,
-        });
-        results.mail = { sent: true };
-      } catch (e) {
-        console.error("[taskNotify:mail]", e.message);
-        results.mail = { sent: false, reason: e.message };
-      }
+/**
+ * Decorate a single task or an array of tasks with `blockingTasks[]` and
+ * `blockingGates[]` so the frontend BlockedByChip can show real blocker names.
+ *
+ * Optimised for cost:
+ *   - tasks with no dependsOn AND not blocked/open-gated → decorated with empty arrays only.
+ *   - all dependent Task ids batched into one find.
+ *   - all gates blocking these tasks batched into one find.
+ *
+ * Returns the same shape it was given (single doc or array).
+ */
+async function decorateWithBlockers(input) {
+  const isArray = Array.isArray(input);
+  const tasks = isArray ? input : [input];
+  if (!tasks.length) return input;
+
+  // Normalise to plain objects so we can attach fields without touching Mongoose internals
+  const plain = tasks.map((t) => (t && typeof t.toObject === "function" ? t.toObject() : t));
+
+  // Collect prerequisite Task ids
+  const prereqIds = new Set();
+  for (const t of plain) {
+    (t.dependsOn || []).forEach((id) => prereqIds.add(String(id)));
+  }
+
+  // Collect candidate task ids for gate lookup (only those that might be gated)
+  const gateCandidateIds = plain
+    .filter((t) => t && (t.status === "blocked" || t.gateStatus === "open"))
+    .map((t) => t._id);
+
+  const [prereqDocs, gateDocs] = await Promise.all([
+    prereqIds.size
+      ? Task.find({ _id: { $in: [...prereqIds] } })
+          .select("_id title status taskType")
+          .lean()
+      : Promise.resolve([]),
+    gateCandidateIds.length
+      ? ApprovalGate.find({
+          blockedTaskIds: { $in: gateCandidateIds },
+          status: "open",
+        })
+          .select("_id key label gateType approverType listensTo blockedTaskIds")
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const prereqById = new Map(prereqDocs.map((d) => [String(d._id), d]));
+
+  // Index gates by which task they block
+  const gatesByTask = new Map();
+  for (const g of gateDocs) {
+    for (const tid of g.blockedTaskIds || []) {
+      const k = String(tid);
+      if (!gatesByTask.has(k)) gatesByTask.set(k, []);
+      gatesByTask.get(k).push({
+        _id: g._id,
+        key: g.key,
+        label: g.label,
+        gateType: g.gateType,
+        approverType: g.approverType,
+        listensTo: g.listensTo,
+      });
     }
   }
 
-  if (notifyWhatsApp) {
-    if (!assignedUser.phone) {
-      console.warn(`[taskNotify:whatsapp] Skipped — user ${assignedUser._id} has no phone number`);
-      results.whatsapp = { sent: false, reason: "no_phone" };
-    } else {
-      console.log(`[taskNotify:whatsapp] Sending to ${assignedUser.phone} for user ${assignedUser.name}`);
-      try {
-        await whatsappService.sendImmediate({
-          to: assignedUser.phone,
-          message:
-            `*Task Assigned — JJ Studio ERP*\n\n` +
-            `*Task:* ${vars.taskTitle}\n` +
-            `*Project:* ${vars.projectName} (${vars.projectId})\n` +
-            `*Priority:* ${vars.priority}\n` +
-            `*Due Date:* ${vars.dueDate}\n` +
-            `*Notes:* ${vars.notes}\n\n` +
-            `Please check JJ Studio ERP for full details.`,
-          relatedTo: { module: "pms", recordId: task._id },
-          createdBy: actorId,
-        });
-        console.log(`[taskNotify:whatsapp] Sent OK to ${assignedUser.phone}`);
-        results.whatsapp = { sent: true };
-      } catch (e) {
-        console.error("[taskNotify:whatsapp]", e.message);
-        results.whatsapp = { sent: false, reason: e.message };
-      }
-    }
+  for (const t of plain) {
+    t.blockingTasks = (t.dependsOn || [])
+      .map((id) => prereqById.get(String(id)))
+      .filter((d) => d && d.status !== "approved");
+    t.blockingGates = gatesByTask.get(String(t._id)) || [];
   }
 
-  return results;
-};
+  return isArray ? plain : plain[0];
+}
+
+// dispatchTaskNotifications was moved to ../services/taskNotifier.js so the
+// Planner controller can reuse it without circular requires.
 
 // Default checklists per task type — from Design Sub-Flow process documentation.
 // Applied automatically when a task is created without an explicit checklist.
@@ -226,6 +256,22 @@ const createTask = async (req, res) => {
       }
     }
 
+    // In-app notification → the assigned designer
+    if (task.assignedTo) {
+      notify({
+        type: "task.assigned",
+        module: "pms",
+        priority: "high",
+        title: `New task assigned: ${task.title}`,
+        message: `Project: ${project.name}${task.dueDate ? ` · Due ${new Date(task.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}` : ""}`,
+        link: `/tasks/${task._id}`,
+        recipients: [task.assignedTo],
+        actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+        relatedTo: { module: "pms", recordId: task._id },
+        metadata: { taskTitle: task.title, projectName: project.name, dueDate: task.dueDate },
+      });
+    }
+
     res.status(201).json({
       message: "Task created successfully",
       task,
@@ -248,7 +294,25 @@ const getMyTasks = async (req, res) => {
       .populate("assignedTo", "name email")
       .sort({ dueDate: 1, createdAt: -1 });
 
-    res.status(200).json({ count: tasks.length, tasks });
+    const decorated = await decorateWithBlockers(tasks);
+
+    // Drawing counts per task — used by the My Task UI to disable the inline
+    // "Submit for Review" button when there's nothing attached. One $group
+    // pipeline is cheaper than N count queries.
+    const taskIds = decorated.map((t) => t._id);
+    let countByTaskId = new Map();
+    if (taskIds.length) {
+      const agg = await Drawing.aggregate([
+        { $match: { taskId: { $in: taskIds } } },
+        { $group: { _id: "$taskId", count: { $sum: 1 } } },
+      ]);
+      countByTaskId = new Map(agg.map((r) => [String(r._id), r.count]));
+    }
+    for (const t of decorated) {
+      t.drawingCount = countByTaskId.get(String(t._id)) || 0;
+    }
+
+    res.status(200).json({ count: decorated.length, tasks: decorated });
   } catch (error) {
     console.error("[getMyTasks]", error);
     res.status(500).json({ message: error.message });
@@ -265,7 +329,8 @@ const getTasksByProject = async (req, res) => {
       .populate("externalCoordination.vendorId", "name phone")
       .sort({ createdAt: 1 });
 
-    res.status(200).json({ count: tasks.length, tasks });
+    const decorated = await decorateWithBlockers(tasks);
+    res.status(200).json({ count: decorated.length, tasks: decorated });
   } catch (error) {
     console.error("[getTasksByProject]", error);
     res.status(500).json({ message: error.message });
@@ -286,7 +351,8 @@ const getTaskById = async (req, res) => {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    res.status(200).json({ task });
+    const decorated = await decorateWithBlockers(task);
+    res.status(200).json({ task: decorated });
   } catch (error) {
     console.error("[getTaskById]", error);
     res.status(500).json({ message: error.message });
@@ -310,6 +376,9 @@ const updateTask = async (req, res) => {
       value.completedAt = new Date();
     }
 
+    // Capture pre-update state so we can detect changes that trigger workflow side-effects.
+    const before = await Task.findById(req.params.id).select("taskType routing").lean();
+
     const task = await Task.findByIdAndUpdate(
       req.params.id,
       { $set: value },
@@ -320,6 +389,38 @@ const updateTask = async (req, res) => {
 
     if (!task) {
       return res.status(404).json({ message: "Task not found" });
+    }
+
+    // Phase 2 — Kitchen routing branch: when a kitchen_drawing task's routing
+    // is set/changed, spawn the matching child tasks (in_house or outsourced).
+    // Idempotent — won't re-spawn if children already exist.
+    let kitchenSpawn = null;
+    if (
+      WORKFLOW_ENGINE_V1 &&
+      task.taskType === "kitchen_drawing" &&
+      value.routing &&
+      value.routing !== before?.routing
+    ) {
+      try {
+        kitchenSpawn = await workflowEngine.spawnKitchenChildren(
+          task._id,
+          value.routing,
+          { actorId: req.user._id }
+        );
+      } catch (engineErr) {
+        console.error("[updateTask:spawnKitchenChildren]", engineErr);
+      }
+    }
+
+    // Any status change is a phase/progress signal (task-driven mode while
+    // gates are disabled). Best-effort — never fails the request.
+    if (value.status && task.projectId) {
+      try {
+        await workflowEngine.recomputeProjectProgress(task.projectId);
+        await workflowEngine.recomputeProjectPhase(task.projectId);
+      } catch (engineErr) {
+        console.error("[updateTask:recomputePhase]", engineErr);
+      }
     }
 
     const action = value.status ? "status_changed" : "updated";
@@ -337,7 +438,7 @@ const updateTask = async (req, res) => {
       metadata:    value.status ? { to: value.status } : undefined,
     });
 
-    res.status(200).json({ message: "Task updated successfully", task });
+    res.status(200).json({ message: "Task updated successfully", task, kitchenSpawn });
   } catch (error) {
     console.error("[updateTask]", error);
     res.status(500).json({ message: error.message });
@@ -450,7 +551,14 @@ const submitTask = async (req, res) => {
       return res.status(400).json({ message: error.details.map((d) => d.message).join("; ") });
     }
 
-    const task = await Task.findById(req.params.id).populate("projectId", "name trackingId supervisor primaryDesigner");
+    const task = await Task.findById(req.params.id).populate({
+      path: "projectId",
+      select: "name trackingId assignments",
+      populate: [
+        { path: "assignments.responsibilityId", select: "slug name" },
+        { path: "assignments.users", select: "name email phone" },
+      ],
+    });
     if (!task) return res.status(404).json({ message: "Task not found" });
 
     // Only the assigned designer can submit
@@ -462,6 +570,17 @@ const submitTask = async (req, res) => {
     if (!allowedFromStatuses.includes(task.status)) {
       return res.status(400).json({
         message: `Cannot submit — task is currently "${task.status}". Must be in_progress or revision_requested.`,
+      });
+    }
+
+    // Drawing-required guard: a review needs something to review. If the
+    // task has zero linked drawings, block here with a clear message rather
+    // than letting the designer submit an empty package the PM can't action.
+    const drawingCount = await Drawing.countDocuments({ taskId: task._id });
+    if (drawingCount === 0) {
+      return res.status(400).json({
+        code:    "NO_DRAWING_TO_SUBMIT",
+        message: "Please upload at least one drawing before submitting this task for review.",
       });
     }
 
@@ -486,25 +605,54 @@ const submitTask = async (req, res) => {
       metadata:    { from: "in_progress", to: "pending_review" },
     });
 
-    // Notify reviewers (supervisor + primaryDesigner on the project) — fire-and-forget
+    // Resolve reviewers — every active MD/Admin (system-wide) + the project's
+    // own supervisor and lead designer (dedup'd). MDs are the primary approver
+    // for designer submissions; the project leads stay in the loop as FYI.
     const project = task.projectId;
-    const notifyIds = [project?.supervisor, project?.primaryDesigner].filter(Boolean);
-    if (notifyIds.length > 0) {
+    const mdApprovers   = await resolveMDApprovers();
+    const supervisors   = await teamResolver.resolveBySlug(project, "supervisor");
+    const leadDesigners = await teamResolver.resolveBySlug(project, "lead_designer");
+    const reviewerMap   = new Map();
+    for (const u of [...mdApprovers, ...supervisors, ...leadDesigners]) {
+      if (u && u._id) reviewerMap.set(String(u._id), u);
+    }
+    // Never notify the submitter themselves (e.g. if a manager-tier user is
+    // also assigned the task for some reason).
+    reviewerMap.delete(String(req.user._id));
+    const reviewers   = Array.from(reviewerMap.values());
+    const reviewerIds = reviewers.map((u) => u._id);
+
+    // In-app notification → reviewers
+    notify({
+      type: "task.submitted",
+      module: "pms",
+      priority: "high",
+      title: `MD Approval Required: ${task.title}`,
+      message: `${task.projectId?.name || "Project"}${value.submissionNotes ? ` — ${value.submissionNotes}` : ""}`,
+      link: `/tasks/${task._id}`,
+      recipients: reviewerIds,
+      actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+      relatedTo: { module: "pms", recordId: task._id },
+      metadata: { taskTitle: task.title, projectName: task.projectId?.name },
+    });
+
+    // Notify reviewers via email/WhatsApp — fire-and-forget
+    if (reviewers.length > 0) {
       (async () => {
-        const reviewers = await User.find({ _id: { $in: notifyIds } }).select("name email phone").lean();
+        // Reviewers from teamResolver already have name/email/phone populated.
         const submitter = await User.findById(req.user._id).select("name").lean();
         for (const reviewer of reviewers) {
-          const subject = `Review Required: ${task.title}`;
+          const subject = `MD Approval Required: ${task.title}`;
           const html = `
             <div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-              <h2 style="color:#1a1a2e">Task Submitted for Review</h2>
+              <h2 style="color:#1a1a2e">Design Submitted — MD Approval Required</h2>
               <table style="width:100%;border-collapse:collapse">
                 <tr><td style="padding:8px;font-weight:bold;color:#555">Task</td><td style="padding:8px">${task.title}</td></tr>
                 <tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Project</td><td style="padding:8px">${project.name} (${project.trackingId})</td></tr>
                 <tr><td style="padding:8px;font-weight:bold;color:#555">Submitted By</td><td style="padding:8px">${submitter?.name || "Designer"}</td></tr>
                 ${value.submissionNotes ? `<tr style="background:#f8f8f8"><td style="padding:8px;font-weight:bold;color:#555">Notes</td><td style="padding:8px">${value.submissionNotes}</td></tr>` : ""}
               </table>
-              <p style="color:#888;font-size:12px;margin-top:24px">Please log in to JJ Studio ERP to review.</p>
+              <p style="color:#888;font-size:12px;margin-top:24px">Please log in to JJ Studio ERP and open Approval / Review Design to action.</p>
             </div>`;
           if (reviewer.email) {
             mailService.sendImmediate({ to: reviewer.email, subject, html, relatedTo: { module: "pms", recordId: task._id }, createdBy: req.user._id }).catch(() => {});
@@ -512,7 +660,7 @@ const submitTask = async (req, res) => {
           if (reviewer.phone) {
             whatsappService.sendImmediate({
               to: reviewer.phone,
-              message: `*Review Required — JJ Studio ERP*\n\n*Task:* ${task.title}\n*Project:* ${project.name}\n*Submitted by:* ${submitter?.name || "Designer"}\n\nPlease check JJ Studio ERP to review.`,
+              message: `*MD Approval Required — JJ Studio ERP*\n\n*Task:* ${task.title}\n*Project:* ${project.name}\n*Submitted by:* ${submitter?.name || "Designer"}\n\nOpen Approval / Review Design in JJ Studio ERP to action.`,
               relatedTo: { module: "pms", recordId: task._id }, createdBy: req.user._id,
             }).catch(() => {});
           }
@@ -562,6 +710,16 @@ const approveTask = async (req, res) => {
       { $set: { status: "approved", approvedBy: req.user._id, approvalDate: new Date() } }
     );
 
+    // Phase 2 — Workflow Engine cascade: unblock dependent tasks (e.g. kitchen children)
+    let cascade = null;
+    if (WORKFLOW_ENGINE_V1) {
+      try {
+        cascade = await workflowEngine.onTaskApproved(task._id, { actorId: req.user._id });
+      } catch (engineErr) {
+        console.error("[approveTask:onTaskApproved]", engineErr);
+      }
+    }
+
     logActivity({
       projectId:   task.projectId._id || task.projectId,
       actorId:     req.user._id,
@@ -569,7 +727,24 @@ const approveTask = async (req, res) => {
       entityId:    task._id,
       action:      "approved",
       description: `Task "${task.title}" approved`,
+      metadata:    { unblocked: cascade?.unblocked ?? 0 },
     });
+
+    // In-app notification → the designer whose work was approved
+    if (task.assignedTo) {
+      notify({
+        type: "task.approved",
+        module: "pms",
+        priority: "normal",
+        title: `Task approved: ${task.title}`,
+        message: `${task.projectId?.name || "Project"}${value.remarks ? ` — ${value.remarks}` : ""}`,
+        link: `/tasks/${task._id}`,
+        recipients: [task.assignedTo],
+        actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+        relatedTo: { module: "pms", recordId: task._id },
+        metadata: { taskTitle: task.title, projectName: task.projectId?.name },
+      });
+    }
 
     // Notify designer — fire-and-forget
     if (task.assignedTo) {
@@ -653,6 +828,26 @@ const requestRevision = async (req, res) => {
       metadata:    { instructions: value.revisionInstructions },
     });
 
+    // In-app notification → the designer who must revise
+    if (task.assignedTo) {
+      notify({
+        type: "task.revision_requested",
+        module: "pms",
+        priority: "high",
+        title: `Revision requested: ${task.title}`,
+        message: value.revisionInstructions || "Please review the feedback and resubmit.",
+        link: `/tasks/${task._id}`,
+        recipients: [task.assignedTo],
+        actor: req.user ? { _id: req.user._id, name: req.user.name } : undefined,
+        relatedTo: { module: "pms", recordId: task._id },
+        metadata: {
+          taskTitle: task.title,
+          projectName: task.projectId?.name,
+          deadline: value.revisionDeadline,
+        },
+      });
+    }
+
     // Notify designer — fire-and-forget
     if (task.assignedTo) {
       (async () => {
@@ -728,7 +923,8 @@ const getAllTasks = async (req, res) => {
       Task.countDocuments(query),
     ]);
 
-    return res.json({ message: "Tasks fetched", tasks, total, page: Number(page) });
+    const decorated = await decorateWithBlockers(tasks);
+    return res.json({ message: "Tasks fetched", tasks: decorated, total, page: Number(page) });
   } catch (error) {
     console.error("[getAllTasks]", error);
     return res.status(500).json({ message: error.message });

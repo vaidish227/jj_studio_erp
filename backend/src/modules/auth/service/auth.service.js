@@ -6,8 +6,8 @@ const Role = require("../models/Role.model");
 const loginUser = async (data) => {
   const { email, password } = data;
 
-  // 1. Find user
-  const user = await User.findOne({ email });
+  // 1. Find user — password is select:false at the schema level, opt in here.
+  const user = await User.findOne({ email }).select("+password");
   if (!user) throw new Error("User not found");
 
   // 2. Check active status
@@ -26,16 +26,47 @@ const loginUser = async (data) => {
   const permissions = [...new Set([...rolePermissions, ...customPermissions])];
 
   // 5. Generate JWT — include role so middleware can use it without DB lookup
+  // Session length: 24 hours (override via JWT_EXPIRES_IN). The frontend reads
+  // `exp` from the token and both proactively redirects when the timer fires
+  // AND reactively redirects on any 401, so this single value drives the whole
+  // logout-on-expiry flow.
   const token = jwt.sign(
-    { id: user._id, email: user.email, role: user.role },
+    { id: user._id, email: user.email, role: user.role, name: user.name },
     process.env.JWT_SECRET || "secretkey",
-    { expiresIn: "1d" }
+    { expiresIn: process.env.JWT_EXPIRES_IN || "24h" }
   );
 
   return {
     token,
     user: {
       id: user._id,
+      _id: user._id, // frontend ownership checks compare against `_id`
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
+    permissions,
+  };
+};
+
+// Returns the current user + their freshly resolved effective permissions
+// (role permissions + per-user custom overrides). Used by GET /auth/me so the
+// frontend can refresh permissions live after an admin changes a role,
+// without forcing the user to log out and log back in.
+const getMe = async (userId) => {
+  const user = await User.findById(userId).lean();
+  if (!user) throw new Error("User not found");
+  if (user.isActive === false) throw new Error("Account is inactive.");
+
+  const roleDoc = await Role.findOne({ name: user.role }).lean();
+  const rolePermissions = roleDoc ? roleDoc.permissions : [];
+  const customPermissions = user.customPermissions || [];
+  const permissions = [...new Set([...rolePermissions, ...customPermissions])];
+
+  return {
+    user: {
+      id: user._id,
+      _id: user._id, // frontend ownership checks compare against `_id`
       name: user.name,
       email: user.email,
       role: user.role,
@@ -47,7 +78,7 @@ const loginUser = async (data) => {
 const changePassword = async (userId, data) => {
   const { oldPassword, newPassword } = data;
 
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).select("+password");
   if (!user) throw new Error("User not found");
 
   const isMatch = await bcrypt.compare(oldPassword, user.password);
@@ -59,4 +90,4 @@ const changePassword = async (userId, data) => {
   return { message: "Password changed successfully" };
 };
 
-module.exports = { loginUser, changePassword };
+module.exports = { loginUser, getMe, changePassword };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -17,7 +17,8 @@ import {
   XCircle,
   RefreshCw,
   AlertCircle,
-  Layout
+  Layout,
+  Download
 } from 'lucide-react';
 import {
   Card,
@@ -32,6 +33,7 @@ import {
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { formatDateTime } from '../../../shared/utils/dateUtils';
+import { showDeliveryToast } from '../utils/deliveryToast';
 
 const ReviewPage = () => {
   const { id } = useParams();
@@ -42,6 +44,8 @@ const ReviewPage = () => {
   const [client, setClient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [user, setUser] = useState(null);
 
   // Editable fields
@@ -79,8 +83,15 @@ const ReviewPage = () => {
   const handleStatusUpdate = async (newStatus, remarks = '') => {
     setIsSubmitting(true);
     try {
-      await crmService.updateProposalStatus(id, { status: newStatus, remarks });
-      toast.success(`Proposal ${newStatus.replace(/_/g, ' ')} successfully!`);
+      const res = await crmService.updateProposalStatus(id, { status: newStatus, remarks });
+
+      // For approvals, surface the per-channel auto-send result (email + WhatsApp).
+      if (newStatus === 'manager_approved') {
+        showDeliveryToast(toast, res?.delivery);
+      } else {
+        toast.success(`Proposal ${newStatus.replace(/_/g, ' ')} successfully!`);
+      }
+
       const response = await crmService.getProposalById(id);
       setProposal(response.proposal);
       setConfirmModal({ ...confirmModal, isOpen: false });
@@ -105,6 +116,58 @@ const ReviewPage = () => {
     }
   };
 
+  // Prints the server-rendered PDF instead of window.print() — browser print
+  // re-flows the page with its own margins/headers and drops backgrounds, so
+  // only the PDF guarantees the exact on-screen layout. Loads the blob in a
+  // hidden iframe and opens the print dialog on it (print-js pattern); falls
+  // back to opening the PDF in a new tab if the browser blocks iframe print.
+  const handlePrintPdf = async () => {
+    setIsPrinting(true);
+    try {
+      const blob = await crmService.downloadProposalPdf(id);
+      const url = URL.createObjectURL(blob);
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch {
+          window.open(url, '_blank');
+        }
+      };
+      document.body.appendChild(iframe);
+      // Revoking too early blanks the print preview — clean up well after.
+      setTimeout(() => { iframe.remove(); URL.revokeObjectURL(url); }, 60000);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to prepare print view');
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  // Downloads the server-rendered PDF — identical to the on-screen document,
+  // the email attachment, and the copy filed in the Document Repository.
+  const handleDownloadPdf = async () => {
+    setIsDownloading(true);
+    try {
+      const blob = await crmService.downloadProposalPdf(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Proposal-${client?.trackingId || String(proposal._id).slice(-8).toUpperCase()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to download PDF');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const openConfirmModal = (action, status, title, message) => {
     setConfirmModal({ isOpen: true, title, message, action, status });
   };
@@ -121,11 +184,13 @@ const ReviewPage = () => {
   );
 
   const role = user?.role?.toLowerCase() || '';
-  const isManager = role === 'manager' || role === 'admin';
+  const isManager = role === 'manager' || role === 'admin' || role === 'md';
   const isPending = proposal.status === 'pending_approval';
   const isApproved = proposal.status === 'manager_approved';
   const isDraft = proposal.status === 'draft';
   const isRejected = proposal.status === 'rejected';
+  const isSent = proposal.status === 'sent';
+  const isEsigned = proposal.status === 'esign_received';
   const canEditFields = isEditMode && (isDraft || isRejected || isManager);
 
   return (
@@ -145,15 +210,18 @@ const ReviewPage = () => {
               <StatusBadge status={proposal.status} />
             </div>
             <p className="text-xs text-[var(--text-muted)] font-medium mt-1">
-              REF: #{proposal._id.slice(-8).toUpperCase()} • Created {new Date(proposal.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              REF: #{String(proposal._id || '').slice(-8).toUpperCase()} • Created {new Date(proposal.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer size={16} /> Print / PDF
+          <Button variant="outline" size="sm" onClick={handlePrintPdf} isLoading={isPrinting}>
+            <Printer size={16} /> Print
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf} isLoading={isDownloading}>
+            <Download size={16} /> Download PDF
           </Button>
 
           {/* User Actions */}
@@ -224,6 +292,40 @@ const ReviewPage = () => {
                   <Send size={16} /> Send to Client
                 </Button>
               )}
+
+              {isSent && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-amber-600 hover:bg-amber-700 border-none text-white"
+                  onClick={() => openConfirmModal(
+                    'esign',
+                    'esign_received',
+                    'Mark eSign Received',
+                    'Confirm the client has signed this proposal?'
+                  )}
+                  title="Mark eSign received"
+                >
+                  <CheckCircle size={16} /> eSign Received
+                </Button>
+              )}
+
+              {isEsigned && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 border-none text-white"
+                  onClick={() => openConfirmModal(
+                    'advance',
+                    'payment_received',
+                    'Mark Advance Received',
+                    'Confirm the advance payment has been received?'
+                  )}
+                  title="Mark advance payment received"
+                >
+                  <CheckCircle size={16} /> Advance Received
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -247,7 +349,7 @@ const ReviewPage = () => {
                 { icon: User, label: 'Full Name', value: client?.name },
                 { icon: Phone, label: 'Phone', value: client?.phone },
                 { icon: Mail, label: 'Email', value: client?.email },
-                { icon: MapPin, label: 'Site Address', value: client?.address },
+                { icon: MapPin, label: 'Site Address', value: client?.siteAddress?.fullAddress || client?.address },
               ].map(({ icon: Icon, label, value }) => (
                 <div key={label} className="flex items-start gap-3">
                   <div className="p-2 rounded-lg bg-[var(--bg)] text-[var(--text-muted)] shrink-0">
@@ -373,7 +475,7 @@ const ReviewPage = () => {
                   ))
               ) : (
                 <div className="text-center py-6">
-                  <History size={28} className="mx-auto mb-2 text-[var(--text-muted)] opacity-30" />
+                  <History size={28} className="mx-auto mb-2 text-[var(--text-muted)] opacity-60" />
                   <p className="text-xs text-[var(--text-muted)]">No activity recorded yet.</p>
                 </div>
               )}
@@ -400,7 +502,7 @@ const ReviewPage = () => {
         title={confirmModal.title}
         message={confirmModal.message}
         isLoading={isSubmitting}
-        showRemarks={['reject', 'modify'].includes(confirmModal.action)}
+        showRemarks={confirmModal.action === 'reject'}
         isRemarksMandatory={confirmModal.action === 'reject'}
         remarksPlaceholder={confirmModal.action === 'reject' ? 'Reason for rejection (mandatory)...' : 'Add optional remarks...'}
         confirmLabel={confirmModal.title}

@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requirePermission } = require("../../../middleware/auth.middleware");
 
 const {
   createActivity,
@@ -7,7 +8,7 @@ const {
 } = require("../controllers/Activity.controller");
 
 
-router.post("/create", createActivity);
-router.get("/:proposalId", getActivitiesByProposal);
+router.get("/:proposalId", requirePermission("proposal.read"),   getActivitiesByProposal);
+router.post("/create",     requirePermission("proposal.update"), createActivity);
 
 module.exports = router;

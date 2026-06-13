@@ -1,8 +1,34 @@
 import React, { useState } from 'react';
-import { useLocation, useNavigate, Outlet, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import Sidebar from '../Sidebar/Sidebar';
 import Navbar from '../Navbar/Navbar';
 import { useAuth } from '../../context/AuthContext';
+import { AIChatProvider } from '../../../modules/ai/context/AIChatContext';
+import ChatLauncher from '../../../modules/ai/components/ChatLauncher';
+import { NAV_ITEMS } from '../../constants/navigation';
+
+// Flatten the nav tree to a list of { id, path } for every item that has a path.
+const flattenNavPaths = (items) =>
+  items.flatMap((it) => [
+    ...(it.path ? [{ id: it.id, path: it.path }] : []),
+    ...(it.children ? flattenNavPaths(it.children) : []),
+  ]);
+
+const NAV_PATHS = flattenNavPaths(NAV_ITEMS);
+
+// Resolve the active sidebar id by matching the current pathname against the
+// nav paths: an exact match wins, otherwise the longest path that is a parent
+// prefix (so detail routes like /projects/:id highlight their parent). This
+// replaces brittle last-URL-segment parsing, so EVERY row highlights correctly
+// even when its id differs from the URL (e.g. new-leads → /crm/forms/enquiry).
+const resolveActiveItem = (pathname) => {
+  const exact = NAV_PATHS.find((n) => n.path === pathname);
+  if (exact) return exact.id;
+  const prefix = NAV_PATHS
+    .filter((n) => pathname.startsWith(`${n.path}/`))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+  return prefix ? prefix.id : '';
+};
 
 const AppLayout = ({ children }) => {
   const [isMobileOpen,  setIsMobileOpen]  = useState(false);
@@ -17,8 +43,7 @@ const AppLayout = ({ children }) => {
     });
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, hasPermission } = useAuth();
 
   // Redirect to login if not authenticated (after initial load)
   React.useEffect(() => {
@@ -27,18 +52,8 @@ const AppLayout = ({ children }) => {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  // Determine active item from path
-  const pathParts = location.pathname.split('/').filter(Boolean);
-  let activeItem = 'dashboard';
-  if (pathParts.length > 0) {
-    if (pathParts[0] === 'proposal') {
-      activeItem = pathParts.length === 1 ? 'proposal-list' : `proposal-${pathParts[1]}`;
-    } else if (pathParts[0] === 'settings' && pathParts[1]) {
-      activeItem = `settings-${pathParts[1]}`;
-    } else {
-      activeItem = pathParts[pathParts.length - 1];
-    }
-  }
+  // Active sidebar row, resolved by matching the URL against the nav tree.
+  const activeItem = resolveActiveItem(location.pathname);
 
   const handleNavSelect = (id, path) => {
     if (path) {
@@ -55,16 +70,6 @@ const AppLayout = ({ children }) => {
     setIsMobileOpen(false);
   };
 
-  const handleGlobalSearch = (value) => {
-    const next = new URLSearchParams(searchParams);
-    if (value?.trim()) {
-      next.set('q', value);
-    } else {
-      next.delete('q');
-    }
-    setSearchParams(next, { replace: true });
-  };
-
   // Show nothing while checking auth (prevents flash of content)
   if (isLoading) {
     return (
@@ -77,6 +82,10 @@ const AppLayout = ({ children }) => {
   if (!isAuthenticated) return null;
 
   return (
+    // AIChatProvider wraps the entire authenticated app (not just the launcher)
+    // so contextual "Ask AI" buttons on any page/form can call useAIChat().
+    // The floating launcher itself stays gated by the `ai.chat` permission below.
+    <AIChatProvider>
     <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
       <Sidebar
         activeItem={activeItem}
@@ -92,8 +101,6 @@ const AppLayout = ({ children }) => {
         <Navbar
           onMenuToggle={() => setIsMobileOpen((p) => !p)}
           user={user}
-          onSearch={handleGlobalSearch}
-          searchValue={searchParams.get('q') || ''}
           onLogout={logout}
         />
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar">
@@ -106,7 +113,10 @@ const AppLayout = ({ children }) => {
           ERP System. All rights reserved.
         </footer>
       </div>
+
+      {hasPermission('ai.chat') && <ChatLauncher />}
     </div>
+    </AIChatProvider>
   );
 };
 

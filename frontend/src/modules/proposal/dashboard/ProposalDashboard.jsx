@@ -19,11 +19,10 @@ import Button from '../../../shared/components/Button/Button';
 import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import { crmService } from '../../../shared/services/crmService';
 import { formatDateShort } from '../../../shared/utils/dateUtils';
+import { matchesMilestone } from '../utils/milestoneFilter';
 
 // Sub-components
 import SummaryCard from './components/SummaryCard';
-import ActivityList from './components/ActivityList';
-import StatusTracker from './components/StatusTracker';
 import QuickActions from './components/QuickActions';
 
 const ProposalDashboard = () => {
@@ -50,38 +49,36 @@ const ProposalDashboard = () => {
   }, []);
 
   const stats = useMemo(() => {
-    const total = proposals.length;
-    const pending = proposals.filter(p => p.status === 'pending_approval').length;
-    const approved = proposals.filter(p => p.status === 'manager_approved').length;
-    const rejected = proposals.filter(p => p.status === 'rejected').length;
-    const sent = proposals.filter(p => p.status === 'sent').length;
-    const esign = proposals.filter(p => p.status === 'esign_received').length;
-    const advance = proposals.filter(p => p.status === 'payment_received').length;
+    // Count by milestone reached (shared with the list page's ?milestone filter)
+    // so the card number always equals what the user sees after clicking through.
+    const count = (m) => proposals.filter((p) => matchesMilestone(p, m)).length;
+    const total    = proposals.length;
+    const pending  = count('pending_approval');
+    const rejected = count('rejected');
+    const approved = count('approved');
+    const sent     = count('sent');
+    const esign    = count('esign');
+    const advance  = count('advance');
 
+    // Each card routes to the unified proposal list with a `milestone` query
+    // param so the list shows only the matching subset.
     return [
       { title: 'Total Proposals', value: total, icon: FileText, color: 'primary', path: '/proposal/list' },
-      { title: 'Pending Approval', value: pending, icon: Clock, color: 'warning', path: '/proposal/approval' },
-      { title: 'Approved', value: approved, icon: CheckCircle2, color: 'success', path: '/proposal/approved' },
-      { title: 'Rejected', value: rejected, icon: XCircle, color: 'error', path: '/proposal/list' },
-      { title: 'Sent to Client', value: sent, icon: Send, color: 'blue', path: '/proposal/sent' },
-      { title: 'eSign Received', value: esign, icon: PenTool, color: 'teal', path: '/proposal/sent' },
-      { title: 'Advance Paid', value: advance, icon: CreditCard, color: 'success', path: '/proposal/approved' },
+      { title: 'Pending Approval', value: pending, icon: Clock, color: 'warning', path: '/proposal/list?milestone=pending_approval' },
+      { title: 'Approved', value: approved, icon: CheckCircle2, color: 'success', path: '/proposal/list?milestone=approved' },
+      { title: 'Rejected', value: rejected, icon: XCircle, color: 'error', path: '/proposal/list?milestone=rejected' },
+      { title: 'Sent to Client', value: sent, icon: Send, color: 'blue', path: '/proposal/list?milestone=sent' },
+      { title: 'eSign Received', value: esign, icon: PenTool, color: 'teal', path: '/proposal/list?milestone=esign' },
+      { title: 'Advance Paid', value: advance, icon: CreditCard, color: 'success', path: '/proposal/list?milestone=advance' },
     ];
   }, [proposals]);
-
-  const activities = [
-    { type: 'created', message: 'New Proposal created for Modern Apartment', client: 'John Doe', time: '2 hours ago' },
-    { type: 'approved', message: 'Proposal #PR-4521 Approved by Manager', client: 'Alice Smith', time: '5 hours ago' },
-    { type: 'sent', message: 'Proposal sent to client via Email', client: 'Michael Chen', time: '1 day ago' },
-    { type: 'signed', message: 'eSignature received for Villa Project', client: 'Sarah Johnson', time: '2 days ago' },
-  ];
 
   const filteredProposals = proposals
     .filter(p => {
       const matchesSearch =
         p.clientId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.leadId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p._id.toLowerCase().includes(searchTerm.toLowerCase());
+        String(p._id || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
 
@@ -146,9 +143,12 @@ const ProposalDashboard = () => {
                   <option value="all">All Status</option>
                   <option value="draft">Draft</option>
                   <option value="pending_approval">Pending Approval</option>
+                  <option value="revision_requested">Revision Requested</option>
                   <option value="manager_approved">Manager Approved</option>
                   <option value="sent">Sent to Client</option>
-                  <option value="client_approved">Client Approved</option>
+                  <option value="esign_received">eSign Received</option>
+                  <option value="payment_received">Payment Received</option>
+                  <option value="project_started">Project Started</option>
                   <option value="rejected">Rejected</option>
                 </select>
               </div>
@@ -184,7 +184,7 @@ const ProposalDashboard = () => {
                             <span className="font-bold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors">
                               {p.clientId?.name || p.leadId?.name || 'Untitled Project'}
                             </span>
-                            <span className="text-[10px] text-[var(--text-muted)] mt-0.5 tracking-wider font-medium">#{p._id.slice(-6).toUpperCase()}</span>
+                            <span className="text-[10px] text-[var(--text-muted)] mt-0.5 tracking-wider font-medium">#{String(p._id || '').slice(-6).toUpperCase()}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -233,92 +233,15 @@ const ProposalDashboard = () => {
           </Card>
         </div>
 
-        {/* Right Sidebar: Quick Actions + Recent Activity */}
-        <div className="lg:col-span-4 space-y-8">
-          {/* Integration Section: Leads needing Proposals */}
-          <ReadyForProposalLeads />
-          <QuickActions />
-          {/* <ActivityList activities={activities} /> */}
+        {/* Right Sidebar: Quick Actions only — counts let it show live module activity */}
+        <div className="lg:col-span-4">
+          <QuickActions
+            pendingCount={stats.find((s) => s.title === 'Pending Approval')?.value || 0}
+            esignCount={stats.find((s) => s.title === 'eSign Received')?.value || 0}
+          />
         </div>
       </div>
     </div>
-  );
-};
-
-const ReadyForProposalLeads = () => {
-  const navigate = useNavigate();
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchInterestedLeads = async () => {
-      try {
-        // Fetch leads at stages where proposals are typically created
-        const [showProjectRes, interestedRes] = await Promise.all([
-          crmService.getLeads({ lifecycleStage: 'show_project', limit: 2 }),
-          crmService.getLeads({ lifecycleStage: 'interested', limit: 2 })
-        ]);
-
-        const combined = [
-          ...(showProjectRes.leads || []),
-          ...(interestedRes.leads || [])
-        ].slice(0, 3); // Keep top 3
-
-        setLeads(combined);
-      } catch (err) {
-        console.error('Failed to fetch interested leads', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInterestedLeads();
-  }, []);
-
-  if (loading) return null;
-  if (leads.length === 0) return null;
-
-  return (
-    <Card className="border-none shadow-xl shadow-black/5 bg-[var(--surface)] overflow-hidden">
-      <div className="p-4 bg-gradient-to-br from-[var(--primary)]/10 to-transparent border-b border-[var(--border)]">
-        <h3 className="text-sm font-black text-[var(--text-primary)] flex items-center gap-2 uppercase tracking-wider">
-          <Clock size={16} className="text-[var(--primary)]" />
-          Ready for Proposal
-        </h3>
-        <p className="text-[10px] text-[var(--text-muted)] font-bold mt-1">Leads from CRM in Project Showcase stage</p>
-      </div>
-      <div className="divide-y divide-[var(--border)]">
-        {leads.map(lead => (
-          <div key={lead._id} className="p-4 hover:bg-[var(--bg)]/30 transition-colors group">
-            <div className="flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-[var(--text-primary)]">{lead.name}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-medium text-[var(--text-muted)]">{lead.projectType || 'Project'}</span>
-                  <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
-                  <span className="text-[10px] font-black text-[var(--primary)] uppercase">Show Project Done</span>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-3 text-[10px] font-black uppercase border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary)] hover:text-black transition-all"
-                onClick={() => navigate(`/crm/leads/${lead._id}`)}
-              >
-                Draft Proposal
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="p-3 bg-[var(--bg)]/20 text-center">
-        <button
-          onClick={() => navigate('/crm/new-leads')}
-          className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors uppercase tracking-widest"
-        >
-          View Pipeline in CRM
-        </button>
-      </div>
-    </Card>
   );
 };
 

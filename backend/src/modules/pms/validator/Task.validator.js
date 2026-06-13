@@ -6,14 +6,37 @@ const TASK_TYPES = [
   'ac_coordination', 'technical_drawing', 'kitchen_drawing', 'bathroom_drawing',
   'automation_coordination', '3d_render', 'concept_making', 'furniture_layout',
   'site_measurement', 'civil_drawing',
+  // Phase 1 — Workflow Engine additions
+  'mep_collection', 'concept_first_meeting', 'concept_feedback_meeting', 'handover_signoff',
+  // Phase 2 — Kitchen branch children
+  'kitchen_detail_elevation', 'kitchen_3d', 'kitchen_technical_drawings', 'kitchen_release_ready',
+  'kitchen_vendor_purchase', 'kitchen_tentative_quote', 'kitchen_client_meeting', 'kitchen_vendor_finalization',
 ];
 
+// Kitchen children grouped by routing choice. Exposed for use by workflowEngine.
+const KITCHEN_CHILDREN = {
+  in_house: [
+    { taskType: 'kitchen_detail_elevation',    title: 'Kitchen — Detail Elevation' },
+    { taskType: 'kitchen_3d',                  title: 'Kitchen — 3D Visualisation' },
+    { taskType: 'kitchen_technical_drawings',  title: 'Kitchen — Technical Drawings (per checklist)' },
+    { taskType: 'kitchen_release_ready',       title: 'Kitchen — Release Ready (DLR + Site)' },
+  ],
+  outsourced: [
+    { taskType: 'kitchen_vendor_purchase',      title: 'Kitchen — Send to Vendor via Purchase' },
+    { taskType: 'kitchen_tentative_quote',      title: 'Kitchen — Tentative Quote' },
+    { taskType: 'kitchen_client_meeting',       title: 'Kitchen — Client Meeting' },
+    { taskType: 'kitchen_vendor_finalization',  title: 'Kitchen — Vendor Finalisation' },
+  ],
+};
+
 const TASK_STATUSES = [
-  'not_started', 'in_progress',
+  'not_started', 'blocked', 'in_progress',
   'pending_review', 'revision_requested',
   'pending_client_approval',
   'approved', 'released_to_site', 'completed', 'on_hold',
 ];
+
+const ROUTING_OPTIONS = ['in_house', 'outsourced'];
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
@@ -42,6 +65,8 @@ const createTaskSchema = Joi.object({
   notes:      Joi.string().allow('').optional(),
   checklist:  Joi.array().items(checklistItemSchema).optional(),
   externalCoordination: externalCoordinationSchema.optional(),
+  // Phase 1 — Workflow Engine (Kitchen branching)
+  routing:    Joi.string().valid(...ROUTING_OPTIONS).allow(null).optional(),
   // Notification flags — stripped before DB insert, used for side-effects only
   notifyMail:     Joi.boolean().optional(),
   notifyWhatsApp: Joi.boolean().optional(),
@@ -59,7 +84,17 @@ const updateTaskSchema = Joi.object({
   delayReason: Joi.string().allow('').optional(),
   checklist:   Joi.array().items(checklistItemSchema).optional(),
   externalCoordination: externalCoordinationSchema.optional(),
+  // Phase 1 — Workflow Engine
+  routing:     Joi.string().valid(...ROUTING_OPTIONS).allow(null).optional(),
 }).min(1).messages({ 'object.min': 'At least one field must be provided' });
+
+// Gate override (Phase 1)
+const gateOverrideSchema = Joi.object({
+  overrideReason: Joi.string().trim().min(5).required().messages({
+    'any.required': 'Override reason is required',
+    'string.min':   'Override reason must be at least 5 characters',
+  }),
+});
 
 const checklistUpdateSchema = Joi.object({
   isCompleted: Joi.boolean().required(),
@@ -101,4 +136,10 @@ module.exports = {
   approveTaskSchema,
   requestRevisionSchema,
   reassignTaskSchema,
+  gateOverrideSchema,
+  TASK_TYPES,
+  TASK_STATUSES,
+  PRIORITIES,
+  ROUTING_OPTIONS,
+  KITCHEN_CHILDREN,
 };

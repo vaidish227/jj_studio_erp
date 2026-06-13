@@ -25,23 +25,34 @@ const DashboardCard = ({
   trend,
   trendUp = true,
   redirectPath,
+  onClick,
+  isActive = false,
   compact = false,
 }) => {
   const navigate = useNavigate();
 
+  const isClickable = !!(redirectPath || onClick);
+
   const handleCardClick = () => {
+    if (onClick) {
+      onClick();
+      return;
+    }
     if (redirectPath) {
       navigate(redirectPath);
     }
   };
 
   return (
-    <div 
-      onClick={handleCardClick}
+    <div
+      onClick={isClickable ? handleCardClick : undefined}
       className={`
-        relative group flex flex-col gap-4 bg-[var(--surface)] border border-[var(--border)] rounded-2xl transition-all duration-300 
-        ${compact ? 'p-4' : 'p-6'} 
-        ${redirectPath ? 'cursor-pointer hover:border-[var(--primary)] hover:shadow-xl hover:-translate-y-1 active:scale-[0.98]' : ''}
+        relative group flex flex-col gap-4 bg-[var(--surface)] border rounded-2xl transition-all duration-300
+        ${compact ? 'p-4' : 'p-6'}
+        ${isActive
+          ? 'border-[var(--primary)] shadow-lg shadow-[var(--primary)]/15 ring-2 ring-[var(--primary)]/30'
+          : 'border-[var(--border)]'}
+        ${isClickable ? 'cursor-pointer hover:border-[var(--primary)] hover:shadow-xl hover:-translate-y-1 active:scale-[0.98]' : ''}
       `}
     >
       <div className="flex items-center justify-between">
@@ -74,7 +85,7 @@ const DashboardCard = ({
       )}
 
       {/* Subtle indicator for clickable cards */}
-      {redirectPath && (
+      {redirectPath && !onClick && (
         <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           <div className="w-6 h-6 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)]">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>

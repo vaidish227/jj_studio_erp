@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   RotateCcw,
@@ -10,12 +10,14 @@ import {
   CheckCircle2,
   X
 } from 'lucide-react';
-import { Button, Loader, StatusBadge } from '../../../shared/components';
+import { Button, Loader, StatusBadge, Pagination } from '../../../shared/components';
 import { crmService } from '../../../shared/services/crmService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 import PaymentStatusModal from '../../../shared/components/PaymentStatusModal';
+
+const PAGE_SIZE = 25;
 
 // ─── eSign Confirmation Modal ────────────────────────────────────────────────
 const EsignModal = ({ proposal, onClose, onConfirm, isLoading }) => {
@@ -167,6 +169,14 @@ const SentProposalDashboard = () => {
   // Apply reusable filter system
   const filteredProposals = process(proposals);
 
+  // 25/page pagination — page resets to 1 when filters change.
+  const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => { setCurrentPage(1); }, [filters]);
+  const totalPages = Math.max(1, Math.ceil(filteredProposals.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const paginatedProposals = filteredProposals.slice(pageStart, pageStart + PAGE_SIZE);
+
   const esignDone = (p) => p.esign?.status === 'received' || ['esign_received', 'payment_received', 'project_ready', 'project_started'].includes(p.status);
   const paymentStatus = (p) => {
     if (['payment_received', 'project_ready', 'project_started'].includes(p.status)) return 'received';
@@ -220,14 +230,14 @@ const SentProposalDashboard = () => {
                   <td colSpan="5" className="py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-14 h-14 rounded-full bg-[var(--bg)] flex items-center justify-center">
-                        <AlertCircle size={28} className="text-[var(--text-muted)] opacity-40" />
+                        <AlertCircle size={28} className="text-[var(--text-muted)] opacity-60" />
                       </div>
                       <p className="text-sm text-[var(--text-muted)]">No sent proposals being tracked.</p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                filteredProposals.map((p) => (
+                paginatedProposals.map((p) => (
                   <tr
                     key={p._id}
                     className="hover:bg-[var(--bg)] transition-colors group cursor-pointer"
@@ -312,6 +322,15 @@ const SentProposalDashboard = () => {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--bg)]/20">
+            <p className="text-xs text-[var(--text-muted)] font-medium">
+              Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredProposals.length)} of {filteredProposals.length}
+            </p>
+            <Pagination currentPage={safePage} totalPages={totalPages} onChange={setCurrentPage} />
+          </div>
+        )}
       </div>
 
       {/* Modals */}

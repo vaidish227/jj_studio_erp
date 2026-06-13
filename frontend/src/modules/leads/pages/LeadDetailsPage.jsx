@@ -12,18 +12,20 @@ import {
   IndianRupee,
   Loader2,
   Mail,
+  MessageCircle,
   MapPin,
-  MessageSquare,
   Phone,
   Plus,
   RotateCcw,
   User,
   UserPlus,
+  Users,
   XCircle,
   CheckCircle2,
 } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
+import { CommunicationTimeline } from '../../kit';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Modal from '../../../shared/components/Modal/Modal';
 import Select from '../../../shared/components/Select/Select';
@@ -39,6 +41,46 @@ import { useToast } from '../../../shared/notifications/ToastProvider';
 import { Loader } from '../../../shared/components';
 import LeadLifecycleStepper from '../components/LeadLifecycleStepper';
 import MeetingOutcomeModal from '../components/MeetingOutcomeModal';
+import AttendeesEditor from '../../../shared/components/AttendeesEditor/AttendeesEditor';
+import AskAIButton from '../../ai/components/AskAIButton';
+import { resolveEntry } from '../../ai/aiEntryPoints';
+import usePermission from '../../../shared/hooks/usePermission';
+
+const EMPTY_ATTENDEES = { internal: [], client: [] };
+
+const seedClientAttendeesForLead = (lead) => {
+  if (!lead?.name) return [];
+  return [{
+    name: lead.name,
+    phone: lead.phone || '',
+    email: lead.email || '',
+    relation: 'lead',
+    notifyEmail: true,
+    notifyWhatsApp: true,
+  }];
+};
+
+const hydrateAttendeesFromMeeting = (meeting) => {
+  if (!meeting?.attendees) return EMPTY_ATTENDEES;
+  const internal = (meeting.attendees.internal || []).map((a) => ({
+    userId: a.userId?._id || a.userId,
+    name: a.name || a.userId?.name || '',
+    email: a.email || a.userId?.email || '',
+    phone: a.phone || a.userId?.phone || '',
+    role: a.role || a.userId?.role || '',
+    notifyEmail: a.notifyEmail !== false,
+    notifyWhatsApp: a.notifyWhatsApp !== false,
+  }));
+  const client = (meeting.attendees.client || []).map((a) => ({
+    name: a.name,
+    phone: a.phone || '',
+    email: a.email || '',
+    relation: a.relation || 'other',
+    notifyEmail: a.notifyEmail !== false,
+    notifyWhatsApp: a.notifyWhatsApp !== false,
+  }));
+  return { internal, client };
+};
 
 const LIFECYCLE_STEPS = [
   'enquiry',
@@ -82,6 +124,12 @@ const LeadDetailsPage = () => {
     useLeadFlow(id);
   const { transitionStatus } = useLeadStatusManager();
 
+  // CRM write permissions (coarse — aligned with backend alias model).
+  // Read-only roles (Designer/Supervisor/MD/Accounts) get none of these, so the
+  // write controls below are hidden while all read sections stay intact.
+  const canCreate = usePermission('crm.create');
+  const canUpdate = usePermission('crm.update');
+
   const [isMeetingModalOpen, setIsMeetingModalOpen] = useState(false);
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().split('T')[0]);
   const [meetingTime, setMeetingTime] = useState('10:00');
@@ -104,6 +152,8 @@ const LeadDetailsPage = () => {
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('10:00');
   const [rescheduleNotes, setRescheduleNotes] = useState('');
+  const [scheduleAttendees, setScheduleAttendees] = useState(EMPTY_ATTENDEES);
+  const [rescheduleAttendees, setRescheduleAttendees] = useState(EMPTY_ATTENDEES);
 
   const projectAssets = lead?.showProject?.assets || [];
 
@@ -170,6 +220,11 @@ const LeadDetailsPage = () => {
     }) || null;
   };
 
+  const openMeetingModal = () => {
+    setScheduleAttendees({ internal: [], client: seedClientAttendeesForLead(lead) });
+    setIsMeetingModalOpen(true);
+  };
+
   const handleScheduleMeeting = async (e) => {
     e.preventDefault();
 
@@ -190,10 +245,12 @@ const LeadDetailsPage = () => {
         date: isoDate,
         type: meetingType,
         notes: meetingNotes,
+        attendees: scheduleAttendees,
       });
       scheduleAutomations(id, isoDate);
       await transitionStatus(id, LEAD_ACTIONS.SCHEDULE_MEETING);
       setIsMeetingModalOpen(false);
+      setScheduleAttendees(EMPTY_ATTENDEES);
     }, 'Meeting scheduled successfully.');
   };
 
@@ -203,6 +260,11 @@ const LeadDetailsPage = () => {
     setRescheduleDate(d.toISOString().split('T')[0]);
     setRescheduleTime(d.toTimeString().slice(0, 5));
     setRescheduleNotes(meeting.notes || '');
+    const hydrated = hydrateAttendeesFromMeeting(meeting);
+    if (hydrated.client.length === 0 && lead) {
+      hydrated.client = seedClientAttendeesForLead(lead);
+    }
+    setRescheduleAttendees(hydrated);
     setActionError('');
     setIsRescheduleModalOpen(true);
   };
@@ -226,9 +288,12 @@ const LeadDetailsPage = () => {
         date: isoDate,
         status: 'rescheduled',
         notes: rescheduleNotes || rescheduleTargetMeeting.notes,
+        rescheduledFrom: rescheduleTargetMeeting.date,
+        attendees: rescheduleAttendees,
       });
       setIsRescheduleModalOpen(false);
       setRescheduleTargetMeeting(null);
+      setRescheduleAttendees(EMPTY_ATTENDEES);
     }, 'Meeting rescheduled. A confirmation email has been sent to the client.');
   };
 
@@ -384,22 +449,24 @@ const LeadDetailsPage = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => setIsMeetingModalOpen(true)}>
-            <Calendar size={16} />
-            Schedule Meeting
-          </Button>
-          <Button variant="outline" onClick={handleOpenClientInfo}>
-            <UserPlus size={16} />
-            Client Info
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => window.open(`https://wa.me/91${lead.phone?.replace(/\D/g, '')}`, '_blank')}
-          >
-            <MessageSquare size={16} />
-            WhatsApp
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <AskAIButton
+            label="Ask AI"
+            variant="soft"
+            actions={resolveEntry('leadDetails', { leadName: lead.name, trackingId: lead.trackingId }).actions}
+          />
+          {canCreate && (
+            <Button variant="primary" onClick={openMeetingModal}>
+              <Calendar size={16} />
+              Schedule Meeting
+            </Button>
+          )}
+          {canUpdate && (
+            <Button variant="outline" onClick={handleOpenClientInfo}>
+              <UserPlus size={16} />
+              Client Info
+            </Button>
+          )}
         </div>
       </div>
 
@@ -426,30 +493,61 @@ const LeadDetailsPage = () => {
               <InfoItem icon={Phone} label="Phone" value={lead.phone} />
               <InfoItem icon={Building2} label="Project Type" value={lead.projectType} />
               <InfoItem icon={IndianRupee} label="Budget" value={lead.budget ? `Rs. ${Number(lead.budget).toLocaleString('en-IN')}` : '—'} />
-              <InfoItem 
-                icon={MapPin} 
-                label="Site Address" 
+              <InfoItem
+                icon={MapPin}
+                label="Site Address"
                 value={
-                  typeof lead.siteAddress === 'object' 
-                    ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || '—' 
+                  typeof lead.siteAddress === 'object'
+                    ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || '—'
                     : lead.siteAddress || '—'
-                } 
+                }
               />
             </div>
+
+            {(lead.siteDetails || lead.notes) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                {lead.siteDetails && (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+                    <div className="flex items-center gap-2">
+                      <MapPin size={14} className="text-[var(--text-muted)]" />
+                      <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Site Details</p>
+                    </div>
+                    <p className="text-sm text-[var(--text-primary)] mt-2 whitespace-pre-wrap leading-relaxed">
+                      {lead.siteDetails}
+                    </p>
+                  </div>
+                )}
+                {lead.notes && (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4">
+                    <div className="flex items-center gap-2">
+                      <FileText size={14} className="text-[var(--text-muted)]" />
+                      <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Additional Notes</p>
+                    </div>
+                    <p className="text-sm text-[var(--text-primary)] mt-2 whitespace-pre-wrap leading-relaxed">
+                      {lead.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           <Card className="space-y-5">
             <SectionTitle title="KIT Notes & Interaction History" icon={Activity} />
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Add internal notes, client mood, requirement changes, or call outcomes..."
-              rows={4}
-              className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
-            />
-            <Button variant="primary" onClick={handleSaveNote} isLoading={actionLoading}>
-              Save Note
-            </Button>
+            {canUpdate && (
+              <>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Add internal notes, client mood, requirement changes, or call outcomes..."
+                  rows={4}
+                  className="w-full px-4 py-3 text-sm rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+                />
+                <Button variant="primary" onClick={handleSaveNote} isLoading={actionLoading}>
+                  Save Note
+                </Button>
+              </>
+            )}
 
             <div className="space-y-3">
               {(lead.interactionHistory || []).slice().reverse().map((entry, index) => (
@@ -468,25 +566,29 @@ const LeadDetailsPage = () => {
 
           <Card className="space-y-5">
             <SectionTitle title="Follow-ups" icon={Clock} />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input
-                type="date"
-                value={followupDate}
-                onChange={(e) => setFollowupDate(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-              />
-              <textarea
-                value={followupNote}
-                onChange={(e) => setFollowupNote(e.target.value)}
-                rows={2}
-                className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
-                placeholder="Add follow-up reminder or KIT interaction"
-              />
-            </div>
-            <Button variant="primary" onClick={handleCreateFollowup} isLoading={actionLoading}>
-              <Plus size={16} />
-              Add Follow-up
-            </Button>
+            {canCreate && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input
+                    type="date"
+                    value={followupDate}
+                    onChange={(e) => setFollowupDate(e.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                  />
+                  <textarea
+                    value={followupNote}
+                    onChange={(e) => setFollowupNote(e.target.value)}
+                    rows={2}
+                    className="md:col-span-2 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
+                    placeholder="Add follow-up reminder or KIT interaction"
+                  />
+                </div>
+                <Button variant="primary" onClick={handleCreateFollowup} isLoading={actionLoading}>
+                  <Plus size={16} />
+                  Add Follow-up
+                </Button>
+              </>
+            )}
 
             <div className="space-y-3">
               {followups.length ? followups.map((item) => (
@@ -507,6 +609,7 @@ const LeadDetailsPage = () => {
 
           <Card className="space-y-6">
             <SectionTitle title="Show Project" icon={FileImage} />
+            {canUpdate && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Select
                 value={showcaseType}
@@ -558,9 +661,12 @@ const LeadDetailsPage = () => {
                 </FormField>
               </div>
             </div>
-            <Button variant="primary" onClick={handleShowProject} isLoading={actionLoading}>
-              Save Showcase Step
-            </Button>
+            )}
+            {canUpdate && (
+              <Button variant="primary" onClick={handleShowProject} isLoading={actionLoading}>
+                Save Showcase Step
+              </Button>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {projectAssets.length ? projectAssets.map((asset, index) => (
@@ -596,6 +702,7 @@ const LeadDetailsPage = () => {
               Based on the project showcase and KIT interactions, determine if the client is interested in moving forward with a formal proposal.
             </p>
 
+            {canUpdate && (
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 disabled={actionLoading || lead.lifecycleStage === 'interested' || lead.status === 'converted'}
@@ -635,6 +742,7 @@ const LeadDetailsPage = () => {
                 </div>
               </button>
             </div>
+            )}
 
             {lead.lifecycleStage === 'interested' && (
               <div className="pt-2 animate-in slide-in-from-top duration-500">
@@ -655,8 +763,25 @@ const LeadDetailsPage = () => {
         <div className="space-y-6">
           <Card className="space-y-4">
             <SectionTitle title="Lead Controls" icon={Clock} />
-            <Select label="Lead Status" value={lead.status || 'new'} onChange={handleStatusChange} options={STATUS_OPTIONS} />
-            <Select label="Priority" value={lead.priority || 'medium'} onChange={handlePriorityChange} options={PRIORITY_OPTIONS} />
+            {canUpdate ? (
+              <>
+                <Select label="Lead Status" value={lead.status || 'new'} onChange={handleStatusChange} options={STATUS_OPTIONS} />
+                <Select label="Priority" value={lead.priority || 'medium'} onChange={handlePriorityChange} options={PRIORITY_OPTIONS} />
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-[var(--bg)] border border-[var(--border)] p-4 space-y-1 text-sm">
+                  <p className="text-[var(--text-muted)] text-xs">Lead Status</p>
+                  <p className="font-semibold text-[var(--text-primary)]">
+                    {STATUS_OPTIONS.find((o) => o.value === (lead.status || 'new'))?.label || lead.status}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-[var(--bg)] border border-[var(--border)] p-4 space-y-1 text-sm">
+                  <p className="text-[var(--text-muted)] text-xs">Priority</p>
+                  <p className="font-semibold text-[var(--text-primary)] capitalize">{lead.priority || 'medium'}</p>
+                </div>
+              </div>
+            )}
             <div className="rounded-xl bg-[var(--bg)] border border-[var(--border)] p-4 space-y-2 text-sm">
               <p className="text-[var(--text-muted)]">Current lifecycle stage</p>
               <p className="font-semibold text-[var(--text-primary)]">{lifecycleLabels[lead.lifecycleStage] || lead.lifecycleStage}</p>
@@ -666,12 +791,14 @@ const LeadDetailsPage = () => {
           <Card className="space-y-4">
             <div className="flex items-center justify-between">
               <SectionTitle title="Meetings" icon={Calendar} />
-              <button
-                onClick={() => setIsMeetingModalOpen(true)}
-                className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
-              >
-                <Plus size={12} /> Schedule
-              </button>
+              {canCreate && (
+                <button
+                  onClick={openMeetingModal}
+                  className="text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1"
+                >
+                  <Plus size={12} /> Schedule
+                </button>
+              )}
             </div>
             {meetings.length ? meetings.map((meeting) => (
               <div key={meeting._id} className="rounded-xl border border-[var(--border)] px-4 py-3 space-y-2">
@@ -704,12 +831,27 @@ const LeadDetailsPage = () => {
                     With: <span className="font-medium">{meeting.assignedTo.name}</span>
                   </p>
                 )}
+                {(() => {
+                  const internalCount = meeting.attendees?.internal?.length || 0;
+                  const clientCount = meeting.attendees?.client?.length || 0;
+                  const total = internalCount + clientCount;
+                  if (total === 0) return null;
+                  return (
+                    <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5">
+                      <Users size={11} className="text-[var(--text-muted)]" />
+                      {total} attendee{total === 1 ? '' : 's'}
+                      <span className="text-[10px] text-[var(--text-muted)]">
+                        ({clientCount} client • {internalCount} team)
+                      </span>
+                    </p>
+                  );
+                })()}
                 {meeting.outcome && (
                   <p className="text-xs text-[var(--text-muted)] italic">"{meeting.outcome}"</p>
                 )}
 
                 {/* Actions for active (non-completed, non-cancelled) meetings */}
-                {['scheduled', 'rescheduled'].includes(meeting.status) && (
+                {canUpdate && ['scheduled', 'rescheduled'].includes(meeting.status) && (
                   <div className="flex items-center gap-3 pt-1">
                     <button
                       onClick={() => openRescheduleModal(meeting)}
@@ -747,6 +889,13 @@ const LeadDetailsPage = () => {
               )}
             </div>
           </Card>
+
+          {import.meta.env.VITE_ENABLE_KIT === 'true' && (
+            <Card className="space-y-4">
+              <SectionTitle title="Communications" icon={MessageCircle} />
+              <CommunicationTimeline entityType="lead" entityId={id} />
+            </Card>
+          )}
         </div>
       </div>
 
@@ -790,6 +939,12 @@ const LeadDetailsPage = () => {
               rows={3}
             />
           </div>
+
+          <AttendeesEditor
+            lead={lead}
+            value={scheduleAttendees}
+            onChange={setScheduleAttendees}
+          />
 
           {actionError && (
             <div className="rounded-xl border px-4 py-3 text-sm bg-[var(--error)]/10 border-[var(--error)]/20 text-[var(--error)] font-medium">
@@ -847,6 +1002,12 @@ const LeadDetailsPage = () => {
               rows={3}
             />
           </div>
+
+          <AttendeesEditor
+            lead={lead}
+            value={rescheduleAttendees}
+            onChange={setRescheduleAttendees}
+          />
 
           {actionError && (
             <div className="rounded-xl border px-4 py-3 text-sm bg-[var(--error)]/10 border-[var(--error)]/20 text-[var(--error)] font-medium">

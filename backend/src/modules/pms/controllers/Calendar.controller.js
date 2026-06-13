@@ -4,10 +4,20 @@ const SiteVisit         = require("../models/SiteVisit.model");
 const PurchaseOrder     = require("../models/PurchaseOrder.model");
 const Project           = require("../models/Project.model");
 
+// Roles that see the whole-organisation calendar. Everyone else (designer,
+// supervisor, accounts, …) gets a calendar scoped to their own work only.
+const FULL_VIEW_ROLES = ["admin", "md", "manager"];
+
 /**
  * @route GET /api/pms/calendar/events
  * Aggregates events from Tasks, Milestones, SiteVisits, POs and Project deadlines
  * into a unified calendar event list for the given date range.
+ *
+ * Scoping: privileged roles (admin/md/manager) see every user's events. All
+ * other roles — designers in particular — see ONLY their own activities:
+ * tasks assigned to them, milestones assigned to them, site visits they're
+ * the visitor for, and deadlines of projects they're a team member of.
+ * PO deliveries (procurement) are omitted from a scoped calendar entirely.
  *
  * Query params:
  *   startDate  (required) ISO date string
@@ -33,13 +43,21 @@ const getCalendarEvents = async (req, res) => {
       return res.status(400).json({ message: "Invalid date format" });
     }
 
+    // JWT payload is { id, email, role } — resolve the requester's id robustly.
+    const userId      = req.user?.id || req.user?._id;
+    const scopeToSelf = !FULL_VIEW_ROLES.includes(req.user?.role);
+
     const projectFilter = projectId ? { projectId } : {};
+    // Per-entity ownership filter applied only when the calendar is self-scoped.
+    const ownerFilter = (field) =>
+      scopeToSelf && userId ? { [field]: userId } : {};
     const events = [];
 
     // ── Task due dates ────────────────────────────────────────────────────────
     if (types.includes("task_due")) {
       const tasks = await Task.find({
         ...projectFilter,
+        ...ownerFilter("assignedTo"),
         dueDate: { $gte: start, $lte: end },
       })
         .populate("projectId", "name trackingId")
@@ -48,17 +66,18 @@ const getCalendarEvents = async (req, res) => {
 
       tasks.forEach((t) => {
         events.push({
-          id:        `task-${t._id}`,
-          type:      "task_due",
-          title:     t.title,
-          date:      t.dueDate,
-          status:    t.status,
-          priority:  t.priority,
-          projectId: t.projectId?._id,
+          id:          `task-${t._id}`,
+          type:        "task_due",
+          title:       t.title,
+          date:        t.dueDate,
+          status:      t.status,
+          priority:    t.priority,
+          projectId:   t.projectId?._id,
           projectName: t.projectId?.name,
-          assignee:  t.assignedTo?.name,
-          entityId:  t._id,
-          color:     "#D4B76C",
+          assignee:    t.assignedTo?.name,
+          assigneeId:  t.assignedTo?._id,
+          entityId:    t._id,
+          color:       "#D4B76C",
         });
       });
     }
@@ -67,6 +86,7 @@ const getCalendarEvents = async (req, res) => {
     if (types.includes("milestone")) {
       const milestones = await ProjectMilestone.find({
         ...projectFilter,
+        ...ownerFilter("assignedTo"),
         dueDate: { $gte: start, $lte: end },
       })
         .populate("projectId", "name trackingId")
@@ -84,6 +104,7 @@ const getCalendarEvents = async (req, res) => {
           projectId:   m.projectId?._id,
           projectName: m.projectId?.name,
           assignee:    m.assignedTo?.name,
+          assigneeId:  m.assignedTo?._id,
           entityId:    m._id,
           color:       "#3A6EA5",
         });
@@ -94,6 +115,7 @@ const getCalendarEvents = async (req, res) => {
     if (types.includes("site_visit")) {
       const visits = await SiteVisit.find({
         ...projectFilter,
+        ...ownerFilter("visitorId"),
         visitDate: { $gte: start, $lte: end },
       })
         .populate("projectId", "name trackingId")
@@ -110,6 +132,7 @@ const getCalendarEvents = async (req, res) => {
           projectId:   v.projectId?._id,
           projectName: v.projectId?.name,
           assignee:    v.visitorId?.name,
+          assigneeId:  v.visitorId?._id,
           entityId:    v._id,
           color:       "#4A8F7C",
         });
@@ -117,7 +140,8 @@ const getCalendarEvents = async (req, res) => {
     }
 
     // ── Purchase Order deliveries ─────────────────────────────────────────────
-    if (types.includes("po_delivery")) {
+    // Procurement-only — never shown on a self-scoped (e.g. designer) calendar.
+    if (types.includes("po_delivery") && !scopeToSelf) {
       const pos = await PurchaseOrder.find({
         ...projectFilter,
         expectedDeliveryDate: { $gte: start, $lte: end },
@@ -147,6 +171,8 @@ const getCalendarEvents = async (req, res) => {
         estimatedCompletionDate: { $gte: start, $lte: end },
       };
       if (projectId) projectQuery._id = projectId;
+      // Self-scoped: only deadlines of projects the requester is a team member of.
+      if (scopeToSelf && userId) projectQuery["assignments.users"] = userId;
 
       const projects = await Project.find(projectQuery)
         .select("name trackingId status estimatedCompletionDate");

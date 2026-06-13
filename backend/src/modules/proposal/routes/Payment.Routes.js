@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { requirePermission } = require("../../../middleware/auth.middleware");
 
 const {
   createPayment,
@@ -8,8 +9,8 @@ const {
 } = require("../controllers/payment.controller");
 
 
-router.post("/create", createPayment);
-router.put("/status/:id", updatePaymentStatus);
-router.get("/get/:proposalId", getPaymentByProposal);
+router.get("/get/:proposalId", requirePermission("proposal.read"),   getPaymentByProposal);
+router.post("/create",         requirePermission("proposal.update"), createPayment);
+router.put("/status/:id",      requirePermission("proposal.update"), updatePaymentStatus);
 
 module.exports = router;

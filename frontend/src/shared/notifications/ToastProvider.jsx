@@ -59,13 +59,13 @@ const Toast = ({ toast, onClose }) => {
     <div className={`pointer-events-auto flex items-center justify-between p-4 rounded-2xl border shadow-lg animate-in slide-in-from-right duration-300 ${bgColors[toast.type]}`}>
       <div className="flex items-center gap-3">
         {icons[toast.type]}
-        <p className="text-sm font-bold text-gray-800">{toast.message}</p>
+        <p className="text-sm font-bold text-[var(--text-primary)]">{toast.message}</p>
       </div>
       <button 
         onClick={onClose}
         className="p-1 hover:bg-black/5 rounded-full transition-colors"
       >
-        <X size={16} className="text-gray-400" />
+        <X size={16} className="text-[var(--text-muted)]" />
       </button>
     </div>
   );

@@ -9,7 +9,6 @@ import {
   IndianRupee,
   Briefcase,
   Users,
-  LayoutGrid,
   Sparkles,
   ArrowRight,
   CheckCircle2,
@@ -18,16 +17,22 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import Input from '../../../shared/components/Input/Input';
+import DatePicker from '../../../shared/components/DatePicker/DatePicker';
+import { PhoneInput } from '../../../shared/components';
 import Button from '../../../shared/components/Button/Button';
 import Select from '../../../shared/components/Select/Select';
 import FormField from '../../../shared/components/FormField/FormField';
 import useLead from '../hooks/useLead';
 import { Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const EnquiryFormPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  // Creating an enquiry is a CRM create action. Read-only roles can still open
+  // and view the form, but the submit is replaced with a permission notice.
+  const canCreate = usePermission('crm.create');
   const {
     formData,
     errors,
@@ -86,7 +91,7 @@ const EnquiryFormPage = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-10 py-6 px-4 animate-in fade-in duration-700">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[var(--border)] pb-8">
+      <div className="border-b border-[var(--border)] pb-8">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-[var(--primary)] mb-1">
             <Sparkles size={20} className="animate-pulse" />
@@ -97,22 +102,13 @@ const EnquiryFormPage = () => {
             Register a new prospective client and their initial project requirements.
           </p>
         </div>
-        <div className="flex items-center gap-3 bg-[var(--surface)] p-2 rounded-2xl border border-[var(--border)]">
-          <div className="px-4 py-2 text-right">
-            <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">Form ID</p>
-            <p className="text-sm font-bold text-[var(--text-primary)] tracking-tighter">ENQ-{Date.now().toString().slice(-6)}</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)]">
-            <LayoutGrid size={20} />
-          </div>
-        </div>
       </div>
 
-      <form onSubmit={handleFormSubmit} className="space-y-12 pb-24">
+      <form onSubmit={handleFormSubmit} className="space-y-12">
         {/* Section 1: Client Personal Info */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
               <User size={20} />
             </div>
             <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">Personal Information</h2>
@@ -130,13 +126,12 @@ const EnquiryFormPage = () => {
                 placeholder="Ex: Rajesh Kumar"
                 required
               />
-              <Input
+              <PhoneInput
                 label="Contact Number"
                 name="contactMobile"
                 value={formData.contactMobile}
                 onChange={handleChange}
                 error={errors.contactMobile}
-                icon={Phone}
                 placeholder="10-digit mobile"
                 required
               />
@@ -159,12 +154,11 @@ const EnquiryFormPage = () => {
                 icon={Users}
                 placeholder="Optional"
               />
-              <Input
+              <PhoneInput
                 label="Spouse Mobile"
                 name="spouseMobile"
                 value={formData.spouseMobile}
                 onChange={handleChange}
-                icon={Phone}
                 placeholder="Optional"
               />
             </div>
@@ -174,7 +168,7 @@ const EnquiryFormPage = () => {
         {/* Section 2: Referral & Context */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] flex items-center justify-center">
               <Briefcase size={20} />
             </div>
             <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">Referral & Source</h2>
@@ -205,12 +199,11 @@ const EnquiryFormPage = () => {
                 icon={Users}
                 placeholder="Name / Instagram handle"
               />
-              <Input
+              <PhoneInput
                 label="Referrer Phone"
                 name="referredMobile"
                 value={formData.referredMobile}
                 onChange={handleChange}
-                icon={Phone}
                 placeholder="Optional"
               />
               <Select
@@ -231,7 +224,7 @@ const EnquiryFormPage = () => {
         {/* Section 3: Project Requirements */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[var(--accent-teal)]/10 text-[var(--accent-teal)] flex items-center justify-center">
               <MapPin size={20} />
             </div>
             <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">Project Requirements</h2>
@@ -239,21 +232,21 @@ const EnquiryFormPage = () => {
 
           <Card className="hover:shadow-md transition-shadow duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              <Input
+              <DatePicker
                 label="Enquiry Date"
                 name="enquiryDate"
-                type="date"
                 value={formData.enquiryDate}
                 onChange={handleChange}
                 icon={Calendar}
+                yearRange={{ from: 2020, to: new Date().getFullYear() + 1 }}
               />
-              <Input
+              <DatePicker
                 label="Preferred Meeting Date"
                 name="preferredMeetingDate"
-                type="date"
                 value={formData.preferredMeetingDate}
                 onChange={handleChange}
                 icon={Calendar}
+                yearRange={{ from: new Date().getFullYear(), to: new Date().getFullYear() + 2 }}
               />
               <Input
                 label="City / Location"
@@ -331,28 +324,40 @@ const EnquiryFormPage = () => {
         )}
 
         {/* Action Bar */}
-        <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-white/80 backdrop-blur-md border-t border-[var(--border)] px-8 py-4 flex items-center justify-between z-50">
-          <p className="hidden md:block text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">
+        <div className="border-t border-[var(--border)] pt-6 flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-4">
+          <p className="text-xs font-black text-[var(--text-muted)] uppercase tracking-widest">
             Ensure all required fields (*) are filled
           </p>
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate(-1)}
-              className="flex-1 md:flex-none px-8"
-            >
-              Discard
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              isLoading={isLoading}
-              className="flex-1 md:flex-none px-12 shadow-lg shadow-[var(--primary)]/20"
-            >
-              Register Enquiry
-            </Button>
-          </div>
+          {canCreate ? (
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate(-1)}
+                className="flex-1 md:flex-none px-8"
+              >
+                Discard
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isLoading}
+                className="flex-1 md:flex-none px-12 shadow-lg shadow-[var(--primary)]/20"
+              >
+                Register Enquiry
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+                <AlertCircle size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span>You don't have permission to create enquiries. This form is view-only.</span>
+              </div>
+              <Button type="button" variant="outline" onClick={() => navigate(-1)} className="px-8">
+                Back
+              </Button>
+            </div>
+          )}
         </div>
       </form>
 

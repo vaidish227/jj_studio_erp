@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Clock, MessageSquare, Calendar } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CheckCircle2, XCircle, Clock, MessageSquare, Calendar, FileText } from 'lucide-react';
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
 import FormField from '../../../shared/components/FormField/FormField';
+import usePermission from '../../../shared/hooks/usePermission';
 
 const INTEREST_OPTIONS = [
   {
@@ -10,40 +11,54 @@ const INTEREST_OPTIONS = [
     icon: CheckCircle2,
     label: 'Client is Interested',
     sublabel: 'Ready to receive a proposal',
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50 border-emerald-200',
-    activeBg: 'bg-emerald-100 border-emerald-500 ring-2 ring-emerald-200',
+    color: 'text-[var(--success)]',
+    bg: 'bg-[var(--success)]/10 border-[var(--success)]/20',
+    activeBg: 'bg-[var(--success)]/20 border-[var(--success)] ring-2 ring-[var(--success)]/30',
   },
   {
     value: false,
     icon: Clock,
     label: 'Needs Follow-up',
     sublabel: 'Not ready yet — schedule follow-up',
-    color: 'text-amber-600',
-    bg: 'bg-amber-50 border-amber-200',
-    activeBg: 'bg-amber-100 border-amber-500 ring-2 ring-amber-200',
+    color: 'text-[var(--warning)]',
+    bg: 'bg-[var(--warning)]/10 border-[var(--warning)]/20',
+    activeBg: 'bg-[var(--warning)]/20 border-[var(--warning)] ring-2 ring-[var(--warning)]/30',
   },
   {
     value: 'lost',
     icon: XCircle,
     label: 'Not Interested',
     sublabel: 'Mark lead as lost',
-    color: 'text-red-500',
-    bg: 'bg-red-50 border-red-200',
-    activeBg: 'bg-red-100 border-red-500 ring-2 ring-red-200',
+    color: 'text-[var(--error)]',
+    bg: 'bg-[var(--error)]/10 border-[var(--error)]/20',
+    activeBg: 'bg-[var(--error)]/20 border-[var(--error)] ring-2 ring-[var(--error)]/30',
   },
 ];
 
-const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
+const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave, onRecordMOM }) => {
+  // Backstop: recording an outcome is a CRM update action.
+  const canUpdate = usePermission('crm.update');
   const [clientInterested, setClientInterested] = useState(null);
   const [outcome, setOutcome] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
+  const [recordMOMAfter, setRecordMOMAfter] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset state whenever the modal opens fresh
+  useEffect(() => {
+    if (isOpen) {
+      setClientInterested(null);
+      setOutcome('');
+      setFollowUpDate('');
+      setRecordMOMAfter(false);
+    }
+  }, [isOpen]);
 
   const handleClose = () => {
     setClientInterested(null);
     setOutcome('');
     setFollowUpDate('');
+    setRecordMOMAfter(false);
     onClose();
   };
 
@@ -57,6 +72,11 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
         followUpDate: followUpDate || undefined,
       };
       await onSave(meeting._id, payload, clientInterested === 'lost');
+
+      // If MOM chain requested, hand off to the MOM modal before closing
+      if (recordMOMAfter && onRecordMOM) {
+        onRecordMOM(meeting);
+      }
       handleClose();
     } finally {
       setIsSubmitting(false);
@@ -100,7 +120,7 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
         {/* Interest options */}
         <div>
           <p className="text-sm font-bold text-[var(--text-primary)] mb-3">
-            Client outcome <span className="text-red-500">*</span>
+            Client outcome <span className="text-[var(--error)]">*</span>
           </p>
           <div className="grid grid-cols-1 gap-2">
             {INTEREST_OPTIONS.map((opt) => {
@@ -158,13 +178,40 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
 
         {/* Interested CTA hint */}
         {clientInterested === true && (
-          <div className="flex items-start gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-emerald-700 font-medium">
+          <div className="flex items-start gap-3 px-4 py-3 bg-[var(--success)]/10 border border-[var(--success)]/20 rounded-xl">
+            <CheckCircle2 size={16} className="text-[var(--success)] mt-0.5 shrink-0" />
+            <p className="text-xs text-[var(--success)] font-medium">
               Saving will move this lead to <strong>Interested</strong> stage — you can create a
               proposal immediately after.
             </p>
           </div>
+        )}
+
+        {/* Record MOM toggle — only if parent supports the chain */}
+        {onRecordMOM && (
+          <button
+            type="button"
+            onClick={() => setRecordMOMAfter((v) => !v)}
+            className={[
+              'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-left transition-all',
+              recordMOMAfter
+                ? 'bg-[var(--primary)]/10 border-[var(--primary)] ring-2 ring-[var(--primary)]/20'
+                : 'bg-[var(--bg)] border-[var(--border)] hover:border-[var(--primary)]/50',
+            ].join(' ')}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${recordMOMAfter ? 'bg-[var(--primary)] text-black' : 'bg-[var(--primary)]/10 text-[var(--primary)]'}`}>
+                <FileText size={16} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[var(--text-primary)]">Record Minutes of Meeting</p>
+                <p className="text-xs text-[var(--text-muted)]">Capture attendees, decisions, and action items after saving.</p>
+              </div>
+            </div>
+            <div className={`w-10 h-6 rounded-full p-0.5 transition-colors ${recordMOMAfter ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'}`}>
+              <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${recordMOMAfter ? 'translate-x-4' : ''}`} />
+            </div>
+          </button>
         )}
 
         {/* Actions */}
@@ -172,13 +219,15 @@ const MeetingOutcomeModal = ({ isOpen, onClose, meeting, onSave }) => {
           <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            isLoading={isSubmitting}
-            disabled={clientInterested === null}
-          >
-            Save Outcome
-          </Button>
+          {canUpdate && (
+            <Button
+              onClick={handleSave}
+              isLoading={isSubmitting}
+              disabled={clientInterested === null}
+            >
+              {recordMOMAfter ? 'Save & Record MOM' : 'Save Outcome'}
+            </Button>
+          )}
         </div>
       </div>
     </Modal>

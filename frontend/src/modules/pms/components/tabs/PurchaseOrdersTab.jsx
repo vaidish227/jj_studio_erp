@@ -81,9 +81,9 @@ const POModal = ({ isOpen, onClose, onSave, vendors, title }) => {
               <div key={i} className="grid grid-cols-12 gap-2 items-center">
                 <input placeholder="Description" value={item.description} onChange={(e) => handleItem(i, 'description', e.target.value)}
                   className="col-span-6 px-2 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]" />
-                <input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => handleItem(i, 'quantity', e.target.value)}
+                <input type="number" min="0" placeholder="Qty" value={item.quantity} onChange={(e) => handleItem(i, 'quantity', e.target.value)}
                   className="col-span-2 px-2 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]" />
-                <input type="number" placeholder="Rate" value={item.rate} onChange={(e) => handleItem(i, 'rate', e.target.value)}
+                <input type="number" min="0" placeholder="Rate" value={item.rate} onChange={(e) => handleItem(i, 'rate', e.target.value)}
                   className="col-span-3 px-2 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]" />
                 {form.items.length > 1 && (
                   <button onClick={() => removeItem(i)} className="col-span-1 flex justify-center text-[var(--error)] hover:bg-[var(--error)]/10 rounded-lg p-1 transition-colors">

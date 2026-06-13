@@ -1,15 +1,23 @@
 const mongoose = require("mongoose");
+const { flattenPermissions } = require("../permissions/registry");
 
 // ─── All valid permission strings ────────────────────────────────────────────
 // Format: module.action
 // Wildcard '*' grants all permissions (admin only)
-const ALL_PERMISSIONS = [
+//
+// NOTE: The Permission Registry (../permissions/registry.js) is now the single
+// source of truth. ALL_PERMISSIONS is derived from it below. The legacy inline
+// list is retained as LEGACY_PERMISSIONS and unioned in as a safety net so a
+// stored permission can never become invalid during this transition.
+const LEGACY_PERMISSIONS = [
   // Dashboard
   "dashboard.read",
+  // MD Dashboard — cross-module executive overview
+  "md.dashboard.read",
   // CRM
   "crm.read", "crm.create", "crm.update", "crm.delete",
   // KIT
-  "kit.read", "kit.create", "kit.update", "kit.delete",
+  "kit.read", "kit.create", "kit.update", "kit.delete", "kit.manage",
   // Proposal & Quotation
   "proposal.read", "proposal.create", "proposal.update", "proposal.delete", "proposal.approve",
   // Clients
@@ -68,7 +76,12 @@ const ALL_PERMISSIONS = [
   "pms.tab.tasks", "pms.tab.drawings", "pms.tab.team",
   // Settings tabs
   "settings.tab.users", "settings.tab.roles",
+  // ── AI Assistant ─────────────────────────────────────────────────────────────
+  "ai.chat", "ai.admin", "ai.docs.read", "ai.docs.manage",
 ];
+
+// Single source of truth = registry; union with legacy guarantees no loss.
+const ALL_PERMISSIONS = [...new Set([...flattenPermissions(), ...LEGACY_PERMISSIONS])];
 
 const roleSchema = new mongoose.Schema(
   {

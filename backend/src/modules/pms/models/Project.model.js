@@ -57,36 +57,107 @@ const projectSchema = new mongoose.Schema(
       default: "design_phase",
     },
 
-    // --- Core Team ---
-    primaryDesigner: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+    // --- Workflow Engine (Phase 1) ---
+    // `phase` is the engine's view of where the project sits in the workflow graph.
+    // Decoupled from `status` (lifecycle) so the two can evolve independently.
+    // Standardised to exactly 7 phases — handover is the terminal phase.
+    phase: {
+      type: String,
+      enum: [
+        "kickoff",
+        "layout",
+        "design",
+        "procurement",
+        "release",
+        "execution",
+        "handover",
+      ],
+      default: "kickoff",
     },
-    supervisor: {
+    workflowTemplateId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "WorkflowTemplate",
     },
+    // --- Master Sheet plan snapshot (project-specific template config) ---
+    // Frozen copy of the workflow template (AFTER any initiation-time
+    // customization overlay) taken when seedProject runs. The planner reads
+    // THIS instead of the live WorkflowTemplate, so edits to the global
+    // default after initiation can never change an existing project's master
+    // sheet. Replaced only by the explicit per-project "Change Template" flow.
+    planSnapshot: {
+      baseTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: "WorkflowTemplate" },
+      templateName:   { type: String, trim: true },
+      appliedAt:      Date,
+      // true when the MD customized the plan during initiation
+      customized:     { type: Boolean, default: false },
+      phases: [
+        {
+          _id: false,
+          name:     { type: String, trim: true },
+          order:    Number,
+          taskKeys: [String],
+        },
+      ],
+      tasks: [
+        {
+          _id: false,
+          key:      { type: String, trim: true },
+          title:    { type: String, trim: true },
+          taskType: String,
+          dayOffsetFromProjectStart: Number,
+          plannedDays:  Number,
+          plannedHours: Number,
+          priority:     String,
+          responsibilitySlug:    String,
+          checklistTemplateName: String,
+          notes: String,
+        },
+      ],
+    },
+    progressPercent: { type: Number, default: 0, min: 0, max: 100 },
+    currentGateIds: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "ApprovalGate" },
+    ],
 
-    // --- Sub-Designer Assignments (per Design Sub-Flow) ---
-    designerB: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    designerC: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    designerD: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    designerE: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    contractor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+    // --- Dynamic Team Assignments ---
+    // Each row is a unit of work on this project + the users assigned to it.
+    // A row carries EITHER a responsibilityId (reuse from master list — used
+    // by notification routing via slug) OR a customName (per-project work
+    // item typed by the manager — not reusable elsewhere). At least one of
+    // the two must be set; both is allowed but customName wins for display.
+    assignments: [
+      {
+        responsibilityId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Responsibility",
+        },
+        customName: {
+          type: String,
+          trim: true,
+          maxlength: 100,
+        },
+        users: [
+          {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+        ],
+      },
+    ],
+
+    // --- Migration Backup (D3) ---
+    // Snapshot of the original 7-field team taken by
+    // scripts/migrateProjectTeams.js. Used by --rollback. Do NOT read in
+    // application code.
+    _legacyTeam: {
+      primaryDesigner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      supervisor:      { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      designerB:       { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      designerC:       { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      designerD:       { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      designerE:       { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      contractor:      { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      migratedAt:      Date,
     },
 
     // --- Kickstart Process Tracking ---
@@ -103,12 +174,14 @@ const projectSchema = new mongoose.Schema(
       labourQuotationSent:     { type: Boolean, default: false },
     },
 
-    // --- Client Approvals Tracking (6 mandatory sign-offs per flow) ---
+    // --- Client Approvals Tracking (PDF mandatory sign-offs) ---
+    // furniture_layout added in Phase 1 — gates the entire parallel design tracks
     clientApprovals: [
       {
         type: {
           type: String,
           enum: [
+            "furniture_layout",
             "ac",
             "automation",
             "kitchen",
@@ -149,8 +222,8 @@ projectSchema.index({ trackingId: 1 });
 projectSchema.index({ status: 1 });
 projectSchema.index({ clientId: 1 });
 projectSchema.index({ proposalId: 1 });
-projectSchema.index({ primaryDesigner: 1 });
-projectSchema.index({ supervisor: 1 });
+projectSchema.index({ "assignments.users": 1 });
+projectSchema.index({ "assignments.responsibilityId": 1 });
 
 projectSchema.pre("validate", async function () {
   if (this.isNew && !this.trackingId) {

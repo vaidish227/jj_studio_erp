@@ -1,11 +1,17 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const { verifyToken } = require("./middleware/auth.middleware");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// ─── Static public assets (no auth — WhatsApp providers fetch directly) ──────
+// Generated proposal PDFs live under public/proposals/ and are served at
+// /static/proposals/<file>.pdf so Maytapi/Twilio can pull them as media.
+app.use("/static", express.static(path.join(__dirname, "..", "public")));
 
 // ─── Public routes (no auth required) ────────────────────────────────────────
 const authRoutes = require("./modules/auth/routes/auth.routes");
@@ -69,9 +75,16 @@ app.use("/api/whatsapp", whatsappRoutes);
 const commSettingsRoutes = require("./modules/communication/routes/CommSettings.route");
 app.use("/api/communication/settings", commSettingsRoutes);
 
+// ─── KIT (Keep In Touch — communication automation engine) ────────────────────
+const kitRoutes = require("./modules/kit/routes/kit.route");
+app.use("/api/kit", kitRoutes);
+
 // ─── PMS (Project Management System) ─────────────────────────────────────────
 const pmsProjectRoutes = require("./modules/pms/routes/Project.route");
 app.use("/api/pms/project", pmsProjectRoutes);
+
+const pmsResponsibilityRoutes = require("./modules/pms/routes/Responsibility.route");
+app.use("/api/pms/responsibility", pmsResponsibilityRoutes);
 
 const pmsProjectInitiationRoutes = require("./modules/pms/routes/ProjectInitiation.route");
 app.use("/api/pms/project-initiation", pmsProjectInitiationRoutes);
@@ -84,6 +97,9 @@ app.use("/api/pms/task", pmsTaskRoutes);
 
 const pmsDrawingRoutes = require("./modules/pms/routes/Drawing.route");
 app.use("/api/pms/drawing", pmsDrawingRoutes);
+
+const pmsDocumentRoutes = require("./modules/pms/routes/Document.route");
+app.use("/api/pms/document", pmsDocumentRoutes);
 
 const pmsVendorRoutes = require("./modules/pms/routes/Vendor.route");
 app.use("/api/pms/vendor", pmsVendorRoutes);
@@ -106,6 +122,9 @@ app.use("/api/pms/sitevisit", pmsSiteVisitRoutes);
 const pmsDashboardRoutes = require("./modules/pms/routes/PMSDashboard.route");
 app.use("/api/pms/dashboard", pmsDashboardRoutes);
 
+const mdDashboardRoutes = require("./modules/dashboard/routes/MDDashboard.route");
+app.use("/api/md/dashboard", mdDashboardRoutes);
+
 const pmsMilestoneRoutes = require("./modules/pms/routes/Milestone.route");
 app.use("/api/pms/milestone", pmsMilestoneRoutes);
 
@@ -118,6 +137,25 @@ app.use("/api/pms/whatsapp-group", pmsWhatsAppGroupRoutes);
 const pmsCalendarRoutes = require("./modules/pms/routes/Calendar.route");
 app.use("/api/pms/calendar", pmsCalendarRoutes);
 
+// Phase 2 — Vendor Engagement state machine
+const pmsVendorEngagementRoutes = require("./modules/pms/routes/VendorEngagement.route");
+app.use("/api/pms/vendor-engagement", pmsVendorEngagementRoutes);
+
+// Phase 3a — MyDay personal action feed
+const pmsMyDayRoutes = require("./modules/pms/routes/MyDay.route");
+app.use("/api/pms/myday", pmsMyDayRoutes);
+
+// Phase 3b — Handover module + Template admin
+const pmsHandoverRoutes = require("./modules/pms/routes/Handover.route");
+app.use("/api/pms/handover", pmsHandoverRoutes);
+
+const pmsTemplateAdminRoutes = require("./modules/pms/routes/TemplateAdmin.route");
+app.use("/api/pms/templates", pmsTemplateAdminRoutes);
+
+// Phase 4 — Analytics dashboards
+const pmsAnalyticsRoutes = require("./modules/pms/routes/Analytics.route");
+app.use("/api/pms/analytics", pmsAnalyticsRoutes);
+
 // ─── DDMS — Design & Drawing Management ──────────────────────────────────────
 const designerDashboardRoutes = require("./modules/pms/routes/DesignerDashboard.route");
 app.use("/api/pms/designer", designerDashboardRoutes);
@@ -128,8 +166,20 @@ app.use("/api/pms/design-comments", designCommentRoutes);
 const designRevisionRoutes = require("./modules/pms/routes/DesignRevisionRequest.route");
 app.use("/api/pms/design-revisions", designRevisionRoutes);
 
+// ─── Project Planner / Master Plan ───────────────────────────────────────────
+const pmsPlannerRoutes = require("./modules/pms/routes/Planner.route");
+app.use("/api/pms/planner", pmsPlannerRoutes);
+
 // ─── Settings & RBAC (admin only — guarded inside the route file) ─────────────
 const rolesRoutes = require("./modules/settings/routes/Roles.route");
 app.use("/api/roles", rolesRoutes);
+
+// ─── Notifications (in-app bell + inbox) ─────────────────────────────────────
+const notificationRoutes = require("./modules/notifications/routes/Notification.route");
+app.use("/api/notifications", notificationRoutes);
+
+// ─── AI Assistant ────────────────────────────────────────────────────────────
+const aiRoutes = require("./modules/ai/routes/ai.route");
+app.use("/api/ai", aiRoutes);
 
 module.exports = app;
