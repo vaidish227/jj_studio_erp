@@ -7,6 +7,7 @@ import KickstartChecklist from '../KickstartChecklist';
 import ClientApprovalTracker from '../ClientApprovalTracker';
 import PendingMDApprovalCard from '../PendingMDApprovalCard';
 import { useAuth } from '../../../../shared/context/AuthContext';
+import { canViewProjectTab } from '../../constants/projectTabs';
 
 const ModuleCard = ({ number, icon: Icon, iconBg, iconColor, title, description, onClick }) => {
   const handleKeyDown = (e) => {
@@ -46,7 +47,7 @@ const ModuleCard = ({ number, icon: Icon, iconBg, iconColor, title, description,
 };
 
 const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
-  const { user } = useAuth();
+  const { user, hasAnyPermission } = useAuth();
   if (!project) return null;
 
   // Role-aware view: MD focuses on approvals + visibility; operational checklists
@@ -64,6 +65,7 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       iconColor: 'text-[var(--warning)]',
       title: 'Project Planner / Master Sheet',
       description: 'Phase plan, gates, tasks & approvals — the master sheet driving the whole project.',
+      tab: 'planner',
       onClick: go('planner'),
     },
     {
@@ -73,6 +75,7 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       iconColor: 'text-[var(--primary)]',
       title: 'Design and Drawing Management',
       description: 'Concept, working drawings, 3D & approval drawings with full revision control.',
+      tab: 'drawings',
       onClick: go('drawings'),
     },
     {
@@ -82,6 +85,7 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       iconColor: 'text-[var(--accent-blue)]',
       title: 'Site Execution and Monitoring',
       description: 'Civil, electrical, plumbing & finishing tracked with daily site updates and photos.',
+      tab: 'logs',
       onClick: go('logs'),
     },
     {
@@ -91,6 +95,7 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       iconColor: 'text-[var(--success)]',
       title: 'Site Supervisor and Contractor',
       description: 'Supervisors, contractors & on-site team with assigned scope and contact details.',
+      tab: 'team',
       onClick: go('team'),
     },
     {
@@ -100,6 +105,7 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       iconColor: 'text-[var(--accent-teal)]',
       title: 'Procurement and Vendor Management',
       description: 'Material selection, purchase status & vendor performance — all in one place.',
+      tab: 'vendor_engagement',
       onClick: go('vendor_engagement'),
     },
     {
@@ -109,6 +115,7 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       iconColor: 'text-[var(--accent-blue)]',
       title: 'Document Repository',
       description: 'Agreements, BOQ, MOMs, design files & SOPs — review or download in one place.',
+      tab: 'documents',
       onClick: go('documents'),
     },
   ];
@@ -125,9 +132,11 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
 
       {/* Module grid — 5 cards (3 + 2) acting as a navigable, client-friendly project overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {modules.map((m) => (
-          <ModuleCard key={m.number} {...m} />
-        ))}
+        {modules
+          .filter((m) => canViewProjectTab(m.tab, hasAnyPermission))
+          .map((m) => (
+            <ModuleCard key={m.number} {...m} />
+          ))}
       </div>
 
       {/* Kickstart (PM-only) + Client Approvals (read-only for MD).

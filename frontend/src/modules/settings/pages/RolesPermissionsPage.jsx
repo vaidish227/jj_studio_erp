@@ -1,372 +1,97 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Shield, Save, RotateCcw, Check, Minus, Plus, Lock,
-  Trash2, Settings2, LayoutDashboard, UserCheck, Briefcase, CheckSquare,
-  BarChart2, FileText, MessageCircle, DollarSign, Store,
-  Globe, UserCog, ChevronLeft, ChevronDown, Zap, Search, Eye,
-  Users, FolderOpen, Flag, Package, ShoppingCart,
-  Activity, Calendar, Mail, MessageSquare, ThumbsUp, MapPin,
-  ClipboardList, MoreHorizontal, Copy, AlertTriangle, X,
-  Layers, UserX, KeyRound, Sparkles,
+  Shield, Plus, Trash2, ChevronLeft, ChevronRight, Zap,
+  Search, Copy, AlertTriangle, X, KeyRound, MoreHorizontal, Check,
 } from 'lucide-react';
 import { useRolesPermissions } from '../hooks/useRolesPermissions';
 import { ROLE_OPTIONS } from '../../../shared/constants/permissions';
 import { settingsService } from '../../../shared/services/settingsService';
-import PresetApply from '../components/PresetApply';
+import { roleCoverage, flattenCatalogue } from '../components/permissionUtils';
 
-// ─── Module icons (keyed by registry module.icon) ─────────────────────────────
-const MODULE_ICONS = {
-  dashboard:       LayoutDashboard,
-  crm:             Users,
-  kit:             MessageCircle,
-  proposal:        FileText,
-  clients:         UserCheck,
-  projects:        Briefcase,
-  tasks:           CheckSquare,
-  pms:             Layers,
-  milestones:      Flag,
-  site_logs:       ClipboardList,
-  site_visits:     MapPin,
-  materials:       Package,
-  purchase_orders: ShoppingCart,
-  activity:        Activity,
-  calendar:        Calendar,
-  drawings:        FolderOpen,
-  mail:            Mail,
-  whatsapp:        MessageSquare,
-  communication:   Settings2,
-  finance:         DollarSign,
-  reports:         BarChart2,
-  settings:        Settings2,
-  users:           UserCog,
-  vendor:          Store,
-  client_portal:   Globe,
-  approvals:       ThumbsUp,
-  ai:              Sparkles,
-};
-
-// ─── Permission-set helpers ───────────────────────────────────────────────────
-const sectionPerms = (sec) => sec.actions.map((act) => act.permission);
-const modulePerms  = (mod) => mod.sections.flatMap(sectionPerms);
-
-// Filter a module by a search query, returning a trimmed copy (or null).
-const filterModule = (mod, q) => {
-  if (!q) return mod;
-  const modHit = mod.label.toLowerCase().includes(q) || (mod.description || '').toLowerCase().includes(q);
-  if (modHit) return mod;
-  const sections = mod.sections
-    .map((sec) => {
-      const secHit = sec.label.toLowerCase().includes(q);
-      if (secHit) return sec;
-      const actions = sec.actions.filter(
-        (act) => act.label.toLowerCase().includes(q) || act.permission.toLowerCase().includes(q),
-      );
-      return actions.length ? { ...sec, actions } : null;
-    })
-    .filter(Boolean);
-  return sections.length ? { ...mod, sections } : null;
-};
-
-// ─── Role-mode action toggle ──────────────────────────────────────────────────
-const ActionToggle = ({ label, active, isWildcard, onClick }) => {
-  if (isWildcard) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--primary)] text-black border-[var(--primary)] opacity-80 select-none">
-        <Zap size={9} />{label}
-      </span>
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border transition-all duration-100 ${
-        active
-          ? 'bg-[var(--accent-teal)] text-white border-[var(--accent-teal)]'
-          : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent-teal)]/60 hover:text-[var(--accent-teal)]'
-      }`}
-    >
-      {active ? <Check size={9} /> : <Plus size={9} />}{label}
-    </button>
-  );
-};
-
-// ─── Override-mode action toggle (inherited / custom / ungranted) ─────────────
-const OverrideToggle = ({ label, permStr, rolePerms, overrideDraft, onClick }) => {
-  const isInherited = rolePerms.includes(permStr) || rolePerms.includes('*');
-  const isCustom    = !isInherited && overrideDraft.includes(permStr);
-
-  if (isInherited) {
-    return (
-      <span
-        title="Inherited from role"
-        className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--accent-teal)]/12 text-[var(--accent-teal)] border-[var(--accent-teal)]/30 select-none"
-      >
-        <Lock size={8} />{label}
-      </span>
-    );
-  }
-  if (isCustom) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        title="Custom override — click to remove"
-        className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border bg-[var(--warning)]/12 text-[var(--warning)] border-[var(--warning)]/40 hover:bg-[var(--warning)]/20 transition-colors"
-      >
-        <KeyRound size={8} />{label}<X size={8} className="ml-0.5 opacity-60" />
-      </button>
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title="Click to add as custom override"
-      className="inline-flex items-center gap-1 px-2.5 py-[5px] rounded-lg text-[11px] font-semibold border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--warning)]/50 hover:text-[var(--warning)] transition-colors"
-    >
-      <Plus size={8} />{label}
-    </button>
-  );
-};
-
-// ─── Module accordion row ─────────────────────────────────────────────────────
-const ModuleRow = ({
-  mod, expanded, onToggleExpand,
-  mode, isWildcard,
-  draftPermissions, rolePerms, overrideDraft,
-  onToggle, onToggleSet,
-}) => {
-  const Icon   = MODULE_ICONS[mod.icon] || Shield;
-  const accent = mod.color || '#D4B76C';
-  const perms  = modulePerms(mod);
-
-  const grantedFor = (list) => {
-    if (mode === 'override') {
-      return list.filter((p) => rolePerms.includes(p) || rolePerms.includes('*') || overrideDraft.includes(p)).length;
-    }
-    return isWildcard ? list.length : list.filter((p) => draftPermissions.includes(p)).length;
-  };
-
-  const granted   = grantedFor(perms);
-  const total     = perms.length;
-  const allActive = isWildcard || (total > 0 && granted === total);
-  const someActive = !allActive && granted > 0;
-
-  return (
-    <div className={`bg-[var(--surface)] border rounded-2xl shadow-sm overflow-hidden transition-colors ${
-      granted > 0 ? 'border-[var(--primary)]/30' : 'border-[var(--border)]'
-    }`}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3">
-        <button type="button" onClick={onToggleExpand} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${accent}1A` }}>
-            <Icon size={18} style={{ color: accent }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-[var(--text-primary)] leading-tight truncate">{mod.label}</p>
-            {mod.description && <p className="text-[11px] text-[var(--text-muted)] truncate">{mod.description}</p>}
-          </div>
-        </button>
-
-        <span className={`text-[12px] font-bold tabular-nums shrink-0 ${granted > 0 ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'}`}>
-          {isWildcard ? '∞' : granted}<span className="font-normal opacity-50">/{total}</span>
-        </span>
-
-        {/* Grant / Revoke all (role mode only) */}
-        {mode === 'role' && !isWildcard && onToggleSet && (
-          <button
-            type="button"
-            onClick={() => onToggleSet(perms)}
-            title={allActive ? 'Revoke all' : 'Grant all'}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all shrink-0 ${
-              allActive
-                ? 'bg-[var(--primary)] border-[var(--primary)] text-black'
-                : someActive
-                  ? 'bg-[var(--primary)]/15 border-[var(--primary)]/40 text-[var(--primary)]'
-                  : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]'
-            }`}
-          >
-            {allActive ? <Check size={10} /> : someActive ? <Minus size={10} /> : <Plus size={10} />}
-            {allActive ? 'Revoke' : 'Grant all'}
-          </button>
-        )}
-
-        <button type="button" onClick={onToggleExpand} className="p-1 rounded-lg hover:bg-[var(--bg)] text-[var(--text-muted)] shrink-0">
-          <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
-
-      {/* Sections */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-[var(--border)]">
-          {mod.sections.map((sec) => {
-            const sPerms = sectionPerms(sec);
-            const sGranted = grantedFor(sPerms);
-            const sAll = isWildcard || (sPerms.length > 0 && sGranted === sPerms.length);
-            return (
-              <div key={sec.key} className="pt-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-secondary)]">{sec.label}</p>
-                  <span className="text-[10px] text-[var(--text-muted)] tabular-nums">{isWildcard ? '∞' : sGranted}/{sPerms.length}</span>
-                  {sec.description && <span className="text-[10px] text-[var(--text-muted)] truncate hidden sm:inline">· {sec.description}</span>}
-                  <div className="flex-1" />
-                  {mode === 'role' && !isWildcard && onToggleSet && sPerms.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => onToggleSet(sPerms)}
-                      className="text-[10px] font-bold text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors shrink-0"
-                    >
-                      {sAll ? 'Revoke all' : 'Grant all'}
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {sec.actions.map((act) =>
-                    mode === 'override' ? (
-                      <OverrideToggle
-                        key={act.permission}
-                        label={act.label}
-                        permStr={act.permission}
-                        rolePerms={rolePerms}
-                        overrideDraft={overrideDraft}
-                        onClick={() => onToggle(act.permission)}
-                      />
-                    ) : (
-                      <ActionToggle
-                        key={act.permission}
-                        label={act.label}
-                        active={isWildcard || draftPermissions.includes(act.permission)}
-                        isWildcard={isWildcard}
-                        onClick={() => onToggle(act.permission)}
-                      />
-                    ),
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ─── Permission matrix (grouped accordion) ────────────────────────────────────
-const PermissionMatrix = ({
-  registry, query,
-  mode, isWildcard,
-  draftPermissions = [], rolePerms = [], overrideDraft = [],
-  onToggle, onToggleSet,
-}) => {
-  const q = query.toLowerCase().trim();
-  const [expanded, setExpanded] = useState({});
-
-  // Apply search filter
-  const filtered = useMemo(
-    () => registry.map((m) => filterModule(m, q)).filter(Boolean),
-    [registry, q],
-  );
-
-  if (filtered.length === 0) {
-    return (
-      <div className="py-16 text-center bg-[var(--surface)] border border-[var(--border)] rounded-2xl">
-        <Search size={24} className="text-[var(--border)] mx-auto mb-3" />
-        <p className="text-sm text-[var(--text-muted)]">No permissions match &ldquo;{query}&rdquo;</p>
-      </div>
-    );
-  }
-
-  // Group by module.group, preserving registry order
-  const groups = [];
-  for (const mod of filtered) {
-    let g = groups.find((x) => x.name === mod.group);
-    if (!g) { g = { name: mod.group, modules: [] }; groups.push(g); }
-    g.modules.push(mod);
-  }
-
-  return (
-    <div className="space-y-5">
-      {groups.map((group) => (
-        <div key={group.name}>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-2 px-1">{group.name}</p>
-          <div className="space-y-2.5">
-            {group.modules.map((mod) => (
-              <ModuleRow
-                key={mod.key}
-                mod={mod}
-                expanded={!!q || !!expanded[mod.key]}
-                onToggleExpand={() => setExpanded((prev) => ({ ...prev, [mod.key]: !prev[mod.key] }))}
-                mode={mode}
-                isWildcard={isWildcard}
-                draftPermissions={draftPermissions}
-                rolePerms={rolePerms}
-                overrideDraft={overrideDraft}
-                onToggle={onToggle}
-                onToggleSet={onToggleSet}
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// ─── Role card ────────────────────────────────────────────────────────────────
-const RoleCard = ({ role, isSelected, onClick, onClone, onDelete }) => {
+// ─── Role box (grid card) ─────────────────────────────────────────────────────
+const RoleBox = ({ role, registry, onOpen, onClone, onDelete }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const meta       = ROLE_OPTIONS.find((r) => r.value === role.name);
   const color      = meta?.color || role.color || '#6B6B6B';
   const isWildcard = role.permissions.includes('*');
-  const count      = isWildcard ? '∞' : role.permissions.length;
+  const cov        = roleCoverage(role.permissions, registry);
 
   return (
-    <div className="relative group">
+    <div className="relative group h-full">
       <button
         type="button"
-        onClick={onClick}
-        className={`w-full text-left rounded-xl transition-all duration-150 ${
-          isSelected ? 'bg-[var(--primary)]/8 ring-1 ring-[var(--primary)]/40' : 'hover:bg-[var(--bg)]'
-        }`}
+        onClick={onOpen}
+        className="w-full h-full flex flex-col text-left rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-[var(--primary)]/45 hover:shadow-[0_2px_6px_rgba(42,32,23,.06),0_18px_40px_rgba(42,32,23,.11)]"
       >
-        <div className="flex items-center gap-3 px-3 py-2.5">
-          <div className="w-1 h-8 rounded-full shrink-0 transition-opacity" style={{ backgroundColor: color, opacity: isSelected ? 1 : 0.4 }} />
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white text-sm font-bold" style={{ backgroundColor: color }}>
+        {/* top accent */}
+        <span className="absolute left-5 right-5 top-0 h-[3px] rounded-b-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: color }} />
+
+        <div className="flex items-start gap-3.5">
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-black shrink-0"
+            style={{ backgroundColor: color, boxShadow: `0 6px 16px ${color}40` }}
+          >
             {role.displayName.charAt(0)}
           </div>
-          <div className="flex-1 min-w-0 text-left">
-            <p className={`text-sm font-semibold truncate leading-tight ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-primary)]'}`}>
-              {role.displayName}
-            </p>
-            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-              {isWildcard
-                ? <span className="flex items-center gap-1 text-[var(--primary)]"><Zap size={9} />Full access</span>
-                : `${count} permission${count !== 1 ? 's' : ''}`}
-            </p>
+          <div className="flex-1 min-w-0 pr-6">
+            <p className="text-[15px] font-bold text-[var(--text-primary)] leading-tight truncate">{role.displayName}</p>
+            {role.isSystem
+              ? <span className="inline-block mt-1.5 px-2 py-0.5 bg-[var(--bg)] border border-[var(--border)] rounded-full text-[9.5px] text-[var(--text-muted)] font-bold uppercase tracking-wide">System</span>
+              : <span className="inline-block mt-1.5 px-2 py-0.5 bg-[var(--primary)]/10 border border-[var(--primary)]/25 rounded-full text-[9.5px] text-[var(--primary)] font-bold uppercase tracking-wide">Custom</span>}
           </div>
+        </div>
+
+        <p className="text-[12.5px] text-[var(--text-muted)] leading-snug mt-3.5 line-clamp-2 min-h-[34px]">
+          {role.description || 'No description provided for this role.'}
+        </p>
+
+        <div className="mt-auto pt-4">
+          {isWildcard ? (
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--primary)]/10 border border-[var(--primary)]/25 text-[var(--primary)] text-[11.5px] font-bold">
+                <Zap size={12} />Full access
+              </span>
+              <ChevronRight size={16} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] group-hover:translate-x-0.5 transition-all" />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-[11.5px] mb-1.5">
+                <span className="font-bold text-[var(--text-secondary)] tabular-nums">
+                  {role.permissions.length} permission{role.permissions.length !== 1 ? 's' : ''}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-bold text-[var(--primary)] tabular-nums">{cov.pct}%</span>
+                  <ChevronRight size={15} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] group-hover:translate-x-0.5 transition-all" />
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-[var(--border)] overflow-hidden">
+                <div className="h-full rounded-full bg-[var(--primary)] transition-all duration-300" style={{ width: `${cov.pct}%` }} />
+              </div>
+            </>
+          )}
         </div>
       </button>
 
-      <div className={`absolute right-2 top-1/2 -translate-y-1/2 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+      {/* Context menu */}
+      <div className={`absolute right-3 top-3 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setMenuOpen((p) => !p); }}
-          className="p-1 rounded-md hover:bg-[var(--border)] text-[var(--text-muted)]"
+          className="p-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--primary)]/40 text-[var(--text-muted)] shadow-sm"
         >
-          <MoreHorizontal size={13} />
+          <MoreHorizontal size={14} />
         </button>
         {menuOpen && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-7 z-50 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl min-w-[130px] overflow-hidden py-1">
-              <button type="button" onClick={() => { setMenuOpen(false); onClone(role); }} className="w-full flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-[var(--bg)] text-[var(--text-primary)]">
-                <Copy size={12} className="text-[var(--text-muted)]" />Clone
+            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }} />
+            <div className="absolute right-0 top-9 z-50 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl min-w-[140px] overflow-hidden py-1">
+              <button type="button" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onClone(role); }} className="w-full flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-[var(--bg)] text-[var(--text-primary)]">
+                <Copy size={13} className="text-[var(--text-muted)]" />Clone role
               </button>
               {!role.isSystem && (
-                <button type="button" onClick={() => { setMenuOpen(false); onDelete(role); }} className="w-full flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-[var(--error)]/5 text-[var(--error)]">
-                  <Trash2 size={12} />Delete
+                <button type="button" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(role); }} className="w-full flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-[var(--error)]/5 text-[var(--error)]">
+                  <Trash2 size={13} />Delete role
                 </button>
               )}
             </div>
@@ -377,61 +102,74 @@ const RoleCard = ({ role, isSelected, onClick, onClone, onDelete }) => {
   );
 };
 
-// ─── Override user card ───────────────────────────────────────────────────────
-const OverrideUserCard = ({ user, isSelected, onClick }) => {
-  const roleMeta  = ROLE_OPTIONS.find((r) => r.value === user.role);
-  const color     = roleMeta?.color || '#6B6B6B';
-  const hasCustom = user.customPermissions?.length > 0;
+// ─── User box (override grid card) ────────────────────────────────────────────
+const UserBox = ({ user, onOpen }) => {
+  const meta      = ROLE_OPTIONS.find((r) => r.value === user.role);
+  const color     = meta?.color || '#6B6B6B';
+  const customN   = user.customPermissions?.length || 0;
+  const inactive  = user.isActive === false;
 
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={`w-full text-left rounded-xl transition-all duration-150 ${
-        isSelected ? 'bg-[var(--primary)]/8 ring-1 ring-[var(--primary)]/40' : 'hover:bg-[var(--bg)]'
-      } ${user.isActive === false ? 'opacity-50' : ''}`}
+      onClick={onOpen}
+      className={`group/u w-full h-full flex flex-col text-left rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-[var(--primary)]/45 hover:shadow-[0_2px_6px_rgba(42,32,23,.06),0_18px_40px_rgba(42,32,23,.11)] ${inactive ? 'opacity-55' : ''}`}
     >
-      <div className="flex items-center gap-3 px-3 py-2.5">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white text-sm font-bold" style={{ backgroundColor: color }}>
+      <div className="flex items-center gap-3.5">
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-black shrink-0"
+          style={{ backgroundColor: color, boxShadow: `0 6px 16px ${color}40` }}
+        >
           {user.name?.charAt(0)?.toUpperCase() || '?'}
         </div>
-        <div className="flex-1 min-w-0 text-left">
-          <p className={`text-sm font-semibold truncate leading-tight ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--text-primary)]'}`}>
-            {user.name}
-          </p>
-          <p className="text-[11px] text-[var(--text-muted)] truncate">{roleMeta?.label || user.role}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-[15px] font-bold text-[var(--text-primary)] leading-tight truncate">{user.name}</p>
+          <p className="text-[12px] text-[var(--text-muted)] truncate mt-0.5">{meta?.label || user.role}</p>
         </div>
-        {hasCustom && (
-          <div className="shrink-0 w-2 h-2 rounded-full bg-[var(--warning)]" title={`${user.customPermissions.length} custom permission(s)`} />
+        <ChevronRight size={16} className="text-[var(--text-muted)] group-hover/u:text-[var(--primary)] group-hover/u:translate-x-0.5 transition-all shrink-0" />
+      </div>
+
+      <div className="mt-auto pt-4 flex items-center justify-between gap-2">
+        <span className="text-[11.5px] text-[var(--text-muted)] truncate">{user.email}</span>
+        {customN > 0 ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[var(--warning)]/12 border border-[var(--warning)]/30 text-[var(--warning)] text-[10.5px] font-bold shrink-0">
+            <KeyRound size={10} />{customN} custom
+          </span>
+        ) : (
+          <span className="text-[10.5px] text-[var(--text-muted)] font-semibold shrink-0">Role defaults</span>
         )}
       </div>
     </button>
   );
 };
 
+// ─── New role box ─────────────────────────────────────────────────────────────
+const NewRoleBox = ({ onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="group/n w-full h-full min-h-[164px] flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--border)] text-[var(--text-muted)] p-5 transition-all duration-200 hover:border-[var(--primary)]/55 hover:text-[var(--primary)] hover:bg-[var(--primary)]/[0.04]"
+  >
+    <div className="w-12 h-12 rounded-2xl bg-[var(--bg)] flex items-center justify-center group-hover/n:bg-[var(--primary)]/12 transition-colors">
+      <Plus size={22} />
+    </div>
+    <div className="text-center">
+      <p className="font-bold text-[14px] text-[var(--text-secondary)] group-hover/n:text-[var(--primary)]">New Role</p>
+      <p className="text-[11.5px] mt-0.5 max-w-[180px]">Create a custom role from scratch or a template</p>
+    </div>
+  </button>
+);
+
 // ─── Create / Clone modal ─────────────────────────────────────────────────────
-const CreateRoleModal = ({ isOpen, onClose, cloneSource, onSubmit, isBusy, presets = [] }) => {
+// Mounted only while open (and keyed by clone source), so field state is seeded
+// from props at mount — no syncing effect needed.
+const CreateRoleModal = ({ onClose, cloneSource, onSubmit, isBusy, presets = [] }) => {
   const [name,        setName]        = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [description, setDescription] = useState('');
-  const [color,       setColor]       = useState('#6B6B6B');
+  const [displayName, setDisplayName] = useState(cloneSource ? `${cloneSource.displayName} (Copy)` : '');
+  const [description, setDescription] = useState(cloneSource?.description || '');
+  const [color,       setColor]       = useState(cloneSource?.color || '#6B6B6B');
   const [errors,      setErrors]      = useState({});
-  const [picked,      setPicked]      = useState([]); // selected preset keys
-
-  React.useEffect(() => {
-    if (isOpen) {
-      if (cloneSource) {
-        setDisplayName(`${cloneSource.displayName} (Copy)`);
-        setDescription(cloneSource.description || '');
-        setColor(cloneSource.color || '#6B6B6B');
-      } else {
-        setDisplayName(''); setDescription(''); setColor('#6B6B6B');
-      }
-      setName(''); setErrors({}); setPicked([]);
-    }
-  }, [isOpen, cloneSource]);
-
-  if (!isOpen) return null;
+  const [picked,      setPicked]      = useState([]);
 
   const togglePreset = (key) =>
     setPicked((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
@@ -566,91 +304,77 @@ const DeleteRoleConfirm = ({ role, onConfirm, onClose, isBusy }) => {
   );
 };
 
-// ─── Floating save bar ────────────────────────────────────────────────────────
-const SaveBar = ({ isDirty, saving, onSave, onDiscard, label = 'Unsaved changes' }) => {
-  if (!isDirty) return null;
+// ─── KPI chip ─────────────────────────────────────────────────────────────────
+const Kpi = ({ value, label, tone = 'default' }) => {
+  const color = tone === 'gold' ? 'text-[var(--primary)]' : tone === 'teal' ? 'text-[var(--accent-teal)]' : 'text-[var(--text-primary)]';
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-      <div className="flex items-center gap-4 bg-[var(--text-primary)] text-white px-5 py-3 rounded-2xl shadow-2xl shadow-black/30">
-        <div className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse" />
-        <p className="text-sm font-medium">{label}</p>
-        <div className="flex items-center gap-2 ml-2">
-          <button onClick={onDiscard} className="px-3 py-1.5 text-xs text-white/70 hover:text-white rounded-lg hover:bg-white/10">
-            <RotateCcw size={12} className="inline mr-1" />Discard
-          </button>
-          <button onClick={onSave} disabled={saving} className="flex items-center gap-2 px-4 py-1.5 bg-[var(--primary)] text-black text-xs font-bold rounded-xl hover:opacity-90 disabled:opacity-60">
-            {saving ? <div className="w-3 h-3 border-2 border-black/40 border-t-black rounded-full animate-spin" /> : <Save size={12} />}
-            Save
-          </button>
-        </div>
-      </div>
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-2.5 shadow-sm text-right min-w-[92px]">
+      <p className={`text-[20px] font-black leading-none tabular-nums ${color}`}>{value}</p>
+      <p className="text-[9.5px] font-bold uppercase tracking-wider text-[var(--text-muted)] mt-1.5">{label}</p>
     </div>
   );
 };
 
-// ─── Search bar ───────────────────────────────────────────────────────────────
-const SearchBar = ({ value, onChange, placeholder }) => (
-  <div className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-sm flex-1">
-    <Search size={13} className="text-[var(--text-muted)] shrink-0" />
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none w-full"
-    />
-    {value && (
-      <button type="button" onClick={() => onChange('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0"><X size={13} /></button>
-    )}
-  </div>
-);
-
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Main page (index) ────────────────────────────────────────────────────────
 const RolesPermissionsPage = () => {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const mode = params.get('tab') === 'overrides' ? 'overrides' : 'roles';
+  const setMode = (m) => setParams(m === 'overrides' ? { tab: 'overrides' } : {}, { replace: true });
 
   const {
-    roles, selectedRole, draftPermissions,
-    isDirty, loading, saving,
-    registry, registryLoading,
-    presets, applyPreset,
-    selectRole, togglePermission, togglePermissionSet,
-    savePermissions, discardChanges,
+    roles, loading, registry,
+    presets,
     createModalOpen, setCreateModalOpen,
     cloneTarget,     setCloneTarget,
     deleteTarget,    setDeleteTarget,
     roleActionBusy,
     handleCreateRole, handleDeleteRole,
-    overrideUser, effectivePerms, overrideDraft, overrideDirty,
-    loadingOverride, savingOverride,
-    loadOverrideUser, clearOverrideUser,
-    toggleOverridePermission, saveOverrides, discardOverrides,
   } = useRolesPermissions();
 
-  const [mode,         setMode]         = useState('roles');
-  const [permSearch,   setPermSearch]   = useState('');
-  const [users,        setUsers]        = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [userSearch,   setUserSearch]   = useState('');
+  const [users,       setUsers]       = useState([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [roleSearch,  setRoleSearch]  = useState('');
+  const [userSearch,  setUserSearch]  = useState('');
 
+  // Lazy-load users the first time the Overrides tab is opened. setState only
+  // happens inside async callbacks, so there's no synchronous effect render.
   useEffect(() => {
-    if (mode === 'overrides' && users.length === 0) {
-      setLoadingUsers(true);
-      settingsService.getUsers()
-        .then((res) => setUsers(res.data || []))
-        .catch(() => {})
-        .finally(() => setLoadingUsers(false));
-    }
-  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (mode !== 'overrides' || usersLoaded) return;
+    let active = true;
+    settingsService.getUsers()
+      .then((res) => { if (active) setUsers(res.data || []); })
+      .catch(() => {})
+      .finally(() => { if (active) setUsersLoaded(true); });
+    return () => { active = false; };
+  }, [mode, usersLoaded]);
 
-  const isWildcard   = draftPermissions.includes('*');
-  const grantedCount = isWildcard ? '∞' : draftPermissions.length;
+  const loadingUsers = mode === 'overrides' && !usersLoaded;
+
+  const totalPerms = useMemo(() => flattenCatalogue(registry).size, [registry]);
+
+  const filteredRoles = useMemo(() => {
+    const q = roleSearch.toLowerCase().trim();
+    if (!q) return roles;
+    return roles.filter((r) =>
+      r.displayName?.toLowerCase().includes(q) ||
+      r.name?.toLowerCase().includes(q) ||
+      (r.description || '').toLowerCase().includes(q));
+  }, [roles, roleSearch]);
 
   const filteredUsers = useMemo(() => {
     const q = userSearch.toLowerCase().trim();
     if (!q) return users;
     return users.filter((u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
   }, [users, userSearch]);
+
+  const openRole = (role) => navigate(`/settings/roles-permissions/role/${role._id}`);
+  const openUser = (user) => navigate(`/settings/roles-permissions/user/${user._id}`);
+
+  const onCreate = async (payload) => {
+    const created = await handleCreateRole(payload);
+    if (created?._id) navigate(`/settings/roles-permissions/role/${created._id}`);
+  };
 
   if (loading) {
     return (
@@ -663,19 +387,25 @@ const RolesPermissionsPage = () => {
 
   return (
     <>
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center gap-3 mb-5">
-        <button onClick={() => navigate('/settings')} className="p-2 rounded-xl hover:bg-[var(--bg)] text-[var(--text-muted)]" title="Back">
+        <button onClick={() => navigate('/settings')} className="w-10 h-10 flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-sm hover:text-[var(--primary)] text-[var(--text-muted)]" title="Back to settings">
           <ChevronLeft size={20} />
         </button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h2 className="text-xl font-bold text-[var(--text-primary)]">Roles &amp; Permissions</h2>
           <p className="text-sm text-[var(--text-muted)] mt-0.5">Control what each role can see and do across the system.</p>
         </div>
+        <div className="hidden sm:flex items-center gap-2.5">
+          {mode === 'roles'
+            ? <Kpi value={roles.length} label="Roles" />
+            : <Kpi value={loadingUsers ? '…' : users.length} label="Users" />}
+          <Kpi value={totalPerms || '—'} label="Permissions" tone="gold" />
+        </div>
       </div>
 
-      {/* ── Mode tabs ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 mb-5 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-1 w-fit shadow-sm">
+      {/* Mode tabs */}
+      <div className="flex items-center gap-1 mb-6 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-1 w-fit shadow-sm">
         <button
           onClick={() => setMode('roles')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
@@ -685,7 +415,7 @@ const RolesPermissionsPage = () => {
           <Shield size={14} />Role Permissions
         </button>
         <button
-          onClick={() => { setMode('overrides'); clearOverrideUser(); }}
+          onClick={() => setMode('overrides')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
             mode === 'overrides' ? 'bg-[var(--primary)] text-black shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
           }`}
@@ -696,113 +426,34 @@ const RolesPermissionsPage = () => {
 
       {/* ══════════════ ROLE PERMISSIONS ══════════════ */}
       {mode === 'roles' && (
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5 pb-24">
-
-          {/* Left: Role list */}
-          <div className="self-start lg:sticky lg:top-4 space-y-2">
-            <button
-              type="button"
-              onClick={() => setCreateModalOpen(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-[var(--border)] text-[var(--text-muted)] text-sm font-medium hover:border-[var(--primary)]/50 hover:text-[var(--primary)] hover:bg-[var(--primary)]/5 transition-all duration-150"
-            >
-              <Plus size={14} />New Role
-            </button>
-
-            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-sm">
-              <div className="px-3 py-2.5 border-b border-[var(--border)] bg-[var(--bg)]">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">{roles.length} Roles</p>
-              </div>
-              <div className="p-1.5 space-y-0.5 max-h-[calc(100vh-280px)] overflow-y-auto">
-                {roles.map((role) => (
-                  <RoleCard
-                    key={role._id}
-                    role={role}
-                    isSelected={selectedRole?._id === role._id}
-                    onClick={() => selectRole(role)}
-                    onClone={(r) => setCloneTarget(r)}
-                    onDelete={(r) => setDeleteTarget(r)}
-                  />
-                ))}
-              </div>
+        <div className="pb-12">
+          <div className="flex items-center gap-3 mb-4 max-w-md">
+            <div className="flex items-center gap-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3.5 py-2.5 shadow-sm flex-1 focus-within:border-[var(--primary)]/60 transition-colors">
+              <Search size={14} className="text-[var(--text-muted)] shrink-0" />
+              <input value={roleSearch} onChange={(e) => setRoleSearch(e.target.value)} placeholder="Search roles…"
+                className="bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none w-full" />
+              {roleSearch && <button type="button" onClick={() => setRoleSearch('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"><X size={14} /></button>}
             </div>
           </div>
 
-          {/* Right: Permission matrix */}
-          {selectedRole ? (
-            <div className="space-y-4 min-w-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredRoles.map((role) => (
+              <RoleBox
+                key={role._id}
+                role={role}
+                registry={registry}
+                onOpen={() => openRole(role)}
+                onClone={(r) => setCloneTarget(r)}
+                onDelete={(r) => setDeleteTarget(r)}
+              />
+            ))}
+            {!roleSearch && <NewRoleBox onClick={() => setCreateModalOpen(true)} />}
+          </div>
 
-              {/* Sticky role summary + search */}
-              <div className="lg:sticky lg:top-4 z-20 space-y-3 bg-[var(--bg)] pb-1">
-                <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] px-5 py-4 shadow-sm">
-                  <div className="flex items-center gap-4">
-                    {(() => {
-                      const meta  = ROLE_OPTIONS.find((r) => r.value === selectedRole.name);
-                      const color = meta?.color || selectedRole.color || '#6B6B6B';
-                      return (
-                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-sm shrink-0" style={{ backgroundColor: color }}>
-                          {selectedRole.displayName.charAt(0)}
-                        </div>
-                      );
-                    })()}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-[var(--text-primary)]">{selectedRole.displayName}</h3>
-                        {selectedRole.isSystem && (
-                          <span className="px-2 py-0.5 bg-[var(--bg)] border border-[var(--border)] rounded-full text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wide">System</span>
-                        )}
-                        {isDirty && (
-                          <span className="px-2 py-0.5 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-full text-[11px] text-[var(--warning)] font-semibold">Unsaved</span>
-                        )}
-                      </div>
-                      {selectedRole.description && (
-                        <p className="text-sm text-[var(--text-muted)] mt-0.5 line-clamp-1">{selectedRole.description}</p>
-                      )}
-                    </div>
-                    <PresetApply
-                      presets={presets}
-                      draftPermissions={draftPermissions}
-                      isWildcard={isWildcard}
-                      onApply={applyPreset}
-                    />
-                    <div className="shrink-0 text-right">
-                      <p className="text-2xl font-black text-[var(--primary)] leading-none">{grantedCount}</p>
-                      <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)] mt-0.5">permissions</p>
-                    </div>
-                  </div>
-                  {isWildcard && (
-                    <div className="flex items-center gap-2.5 mt-3 px-3 py-2 rounded-xl bg-[var(--primary)]/8 border border-[var(--primary)]/20">
-                      <Zap size={13} className="text-[var(--primary)] shrink-0" />
-                      <p className="text-xs text-[var(--primary)] font-medium">Wildcard — unrestricted access to all modules.</p>
-                    </div>
-                  )}
-                </div>
-                <SearchBar value={permSearch} onChange={setPermSearch} placeholder="Search permissions, sections, or actions…" />
-              </div>
-
-              {/* Matrix */}
-              {registryLoading ? (
-                <div className="py-16 flex justify-center">
-                  <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : (
-                <PermissionMatrix
-                  registry={registry}
-                  query={permSearch}
-                  mode="role"
-                  isWildcard={isWildcard}
-                  draftPermissions={draftPermissions}
-                  onToggle={togglePermission}
-                  onToggleSet={togglePermissionSet}
-                />
-              )}
-            </div>
-          ) : (
-            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-16 flex flex-col items-center justify-center text-center shadow-sm">
-              <div className="w-14 h-14 bg-[var(--bg)] rounded-2xl flex items-center justify-center mb-4">
-                <Shield size={28} className="text-[var(--text-muted)]" />
-              </div>
-              <p className="font-bold text-[var(--text-primary)] mb-1">Select a Role</p>
-              <p className="text-sm text-[var(--text-muted)] max-w-xs">Pick a role from the panel to view and configure its permissions.</p>
+          {roleSearch && filteredRoles.length === 0 && (
+            <div className="py-16 text-center">
+              <Search size={24} className="text-[var(--border)] mx-auto mb-3" />
+              <p className="text-sm text-[var(--text-muted)]">No roles match &ldquo;{roleSearch}&rdquo;</p>
             </div>
           )}
         </div>
@@ -810,171 +461,49 @@ const RolesPermissionsPage = () => {
 
       {/* ══════════════ USER OVERRIDES ══════════════ */}
       {mode === 'overrides' && (
-        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-5 pb-24">
-
-          {/* Left: User list */}
-          <div className="self-start lg:sticky lg:top-4 space-y-2">
-            <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm">
-              <Search size={13} className="text-[var(--text-muted)] shrink-0" />
-              <input
-                type="text"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Search users…"
-                className="bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none w-full"
-              />
+        <div className="pb-12">
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="flex items-center gap-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3.5 py-2.5 shadow-sm w-full max-w-md focus-within:border-[var(--primary)]/60 transition-colors">
+              <Search size={14} className="text-[var(--text-muted)] shrink-0" />
+              <input value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Search users by name or email…"
+                className="bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none w-full" />
+              {userSearch && <button type="button" onClick={() => setUserSearch('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"><X size={14} /></button>}
             </div>
-
-            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-sm">
-              <div className="px-3 py-2.5 border-b border-[var(--border)] bg-[var(--bg)]">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                  {loadingUsers ? 'Loading…' : `${filteredUsers.length} Users`}
-                </p>
-              </div>
-              <div className="p-1.5 space-y-0.5 max-h-[calc(100vh-320px)] overflow-y-auto">
-                {loadingUsers && (
-                  <div className="py-8 flex justify-center">
-                    <div className="w-6 h-6 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-                {!loadingUsers && filteredUsers.length === 0 && (
-                  <p className="text-center text-sm text-[var(--text-muted)] py-6">No users found</p>
-                )}
-                {!loadingUsers && filteredUsers.map((user) => (
-                  <OverrideUserCard
-                    key={user._id}
-                    user={user}
-                    isSelected={overrideUser?._id === user._id}
-                    onClick={() => loadOverrideUser(user)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Legend */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 space-y-2">
-              <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">Legend</p>
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="inline-flex items-center gap-1 px-2 py-[4px] rounded-lg border bg-[var(--accent-teal)]/12 text-[var(--accent-teal)] border-[var(--accent-teal)]/30 font-semibold shrink-0">
-                  <Lock size={8} />Inherited
-                </span>
-                <span className="text-[var(--text-muted)]">from role, locked</span>
-              </div>
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="inline-flex items-center gap-1 px-2 py-[4px] rounded-lg border bg-[var(--warning)]/12 text-[var(--warning)] border-[var(--warning)]/40 font-semibold shrink-0">
-                  <KeyRound size={8} />Custom
-                </span>
-                <span className="text-[var(--text-muted)]">override, click to remove</span>
-              </div>
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="inline-flex items-center gap-1 px-2 py-[4px] rounded-lg border border-dashed border-[var(--border)] text-[var(--text-muted)] font-semibold shrink-0">
-                  <Plus size={8} />Ungranted
-                </span>
-                <span className="text-[var(--text-muted)]">click to grant</span>
-              </div>
-            </div>
+            <p className="text-[12px] text-[var(--text-muted)]">
+              Pick a user to layer individual permissions on top of their role.
+            </p>
           </div>
 
-          {/* Right: Override matrix */}
-          {!overrideUser ? (
-            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-16 flex flex-col items-center justify-center text-center shadow-sm">
-              <div className="w-14 h-14 bg-[var(--bg)] rounded-2xl flex items-center justify-center mb-4">
-                <UserX size={28} className="text-[var(--text-muted)]" />
-              </div>
-              <p className="font-bold text-[var(--text-primary)] mb-1">Select a User</p>
-              <p className="text-sm text-[var(--text-muted)] max-w-xs">
-                Pick a user to view their effective permissions and configure individual overrides on top of their role.
-              </p>
+          {loadingUsers ? (
+            <div className="py-20 flex justify-center">
+              <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : loadingOverride ? (
-            <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-16 flex flex-col items-center justify-center text-center shadow-sm">
-              <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin mb-3" />
-              <p className="text-sm text-[var(--text-muted)]">Loading permissions…</p>
+          ) : filteredUsers.length === 0 ? (
+            <div className="py-16 text-center">
+              <Search size={24} className="text-[var(--border)] mx-auto mb-3" />
+              <p className="text-sm text-[var(--text-muted)]">{userSearch ? `No users match “${userSearch}”` : 'No users found'}</p>
             </div>
-          ) : effectivePerms ? (
-            <div className="space-y-4 min-w-0">
-
-              {/* Sticky user summary + search */}
-              <div className="lg:sticky lg:top-4 z-20 space-y-3 bg-[var(--bg)] pb-1">
-                <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] px-5 py-4 shadow-sm">
-                  <div className="flex items-center gap-4">
-                    {(() => {
-                      const meta  = ROLE_OPTIONS.find((r) => r.value === overrideUser.role);
-                      const color = meta?.color || '#6B6B6B';
-                      return (
-                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold shrink-0" style={{ backgroundColor: color }}>
-                          {overrideUser.name?.charAt(0)?.toUpperCase() || '?'}
-                        </div>
-                      );
-                    })()}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-[var(--text-primary)]">{overrideUser.name}</h3>
-                        {overrideDirty && (
-                          <span className="px-2 py-0.5 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-full text-[11px] text-[var(--warning)] font-semibold">Unsaved</span>
-                        )}
-                      </div>
-                      <p className="text-sm text-[var(--text-muted)] line-clamp-1">{overrideUser.email}</p>
-                    </div>
-                    <div className="shrink-0 flex items-center gap-5 text-right">
-                      <div>
-                        <p className="text-xl font-black text-[var(--accent-teal)] leading-none">{effectivePerms.rolePermissions.length}</p>
-                        <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">inherited</p>
-                      </div>
-                      <div>
-                        <p className="text-xl font-black text-[var(--warning)] leading-none">{overrideDraft.length}</p>
-                        <p className="text-[9px] uppercase tracking-wide text-[var(--text-muted)]">custom</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <SearchBar value={permSearch} onChange={setPermSearch} placeholder="Search permissions, sections, or actions…" />
-              </div>
-
-              {/* Matrix */}
-              {registryLoading ? (
-                <div className="py-16 flex justify-center">
-                  <div className="w-8 h-8 border-4 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : (
-                <PermissionMatrix
-                  registry={registry}
-                  query={permSearch}
-                  mode="override"
-                  isWildcard={false}
-                  rolePerms={effectivePerms.rolePermissions}
-                  overrideDraft={overrideDraft}
-                  onToggle={toggleOverridePermission}
-                />
-              )}
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredUsers.map((user) => (
+                <UserBox key={user._id} user={user} onOpen={() => openUser(user)} />
+              ))}
             </div>
-          ) : null}
+          )}
         </div>
       )}
 
-      {/* ── Save bars ──────────────────────────────────────────────────────── */}
-      {mode === 'roles' && (
-        <SaveBar isDirty={isDirty} saving={saving} onSave={savePermissions} onDiscard={discardChanges} />
-      )}
-      {mode === 'overrides' && (
-        <SaveBar
-          isDirty={overrideDirty}
-          saving={savingOverride}
-          onSave={saveOverrides}
-          onDiscard={discardOverrides}
-          label={`Unsaved overrides for ${overrideUser?.name || ''}`}
+      {/* Modals */}
+      {(createModalOpen || cloneTarget) && (
+        <CreateRoleModal
+          key={cloneTarget?._id || 'new'}
+          onClose={() => { setCreateModalOpen(false); setCloneTarget(null); }}
+          cloneSource={cloneTarget}
+          onSubmit={onCreate}
+          isBusy={roleActionBusy}
+          presets={presets}
         />
       )}
-
-      {/* ── Modals ─────────────────────────────────────────────────────────── */}
-      <CreateRoleModal
-        isOpen={createModalOpen || !!cloneTarget}
-        onClose={() => { setCreateModalOpen(false); setCloneTarget(null); }}
-        cloneSource={cloneTarget}
-        onSubmit={handleCreateRole}
-        isBusy={roleActionBusy}
-        presets={presets}
-      />
       <DeleteRoleConfirm
         role={deleteTarget}
         onConfirm={handleDeleteRole}

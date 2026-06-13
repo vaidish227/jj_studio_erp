@@ -37,6 +37,8 @@ import ProfilePage from './modules/profile/pages/ProfilePage';
 import SettingsPage from './modules/settings/pages/SettingsPage';
 import UserManagementPage from './modules/settings/pages/UserManagementPage';
 import RolesPermissionsPage from './modules/settings/pages/RolesPermissionsPage';
+import RolePermissionDetailPage from './modules/settings/pages/RolePermissionDetailPage';
+import UserOverrideDetailPage from './modules/settings/pages/UserOverrideDetailPage';
 // Phase 3b — Template admin
 import ChecklistTemplatesPage from './modules/pms/pages/ChecklistTemplatesPage';
 import WorkflowTemplatesPage from './modules/pms/pages/WorkflowTemplatesPage';
@@ -212,6 +214,8 @@ export default function App() {
                 <Route path="/settings"                    element={<ProtectedRoute permission="settings.read"><SettingsPage /></ProtectedRoute>} />
                 <Route path="/settings/users"              element={<ProtectedRoute permission="settings.tab.users"><UserManagementPage /></ProtectedRoute>} />
                 <Route path="/settings/roles-permissions"  element={<ProtectedRoute permission="settings.tab.roles"><RolesPermissionsPage /></ProtectedRoute>} />
+                <Route path="/settings/roles-permissions/role/:roleId" element={<ProtectedRoute permission="settings.tab.roles"><RolePermissionDetailPage /></ProtectedRoute>} />
+                <Route path="/settings/roles-permissions/user/:userId" element={<ProtectedRoute permission="settings.tab.roles"><UserOverrideDetailPage /></ProtectedRoute>} />
                 <Route path="/settings/checklist-templates" element={<ProtectedRoute permission="settings.checklists.manage"><ChecklistTemplatesPage /></ProtectedRoute>} />
                 <Route path="/settings/workflow-templates"  element={<ProtectedRoute permission="settings.workflows.manage"><WorkflowTemplatesPage /></ProtectedRoute>} />
                 <Route path="/settings/responsibilities"    element={<ProtectedRoute roles={['admin', 'md']}><ResponsibilitiesPage /></ProtectedRoute>} />
