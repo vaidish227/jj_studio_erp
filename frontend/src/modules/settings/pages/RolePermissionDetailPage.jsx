@@ -82,10 +82,10 @@ const RolePermissionDetailPage = () => {
   return (
     <>
       <div className="pb-28">
-        {/* Pinned top: breadcrumb + hero + toolbar all stay fixed while the matrix
-            scrolls. The wrapper's background bleeds over <main>'s padding (negative
-            margins + negative top) so no content peeks above or beside it. */}
-        <div className="sticky -top-4 sm:-top-6 z-30 bg-[var(--bg)] -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 px-4 sm:px-6 pt-4 sm:pt-6 pb-3 border-b border-[var(--border)]/70 shadow-[0_10px_18px_-14px_rgba(42,32,23,.30)]">
+        {/* Role header is normal in-flow content — it scrolls away with the page.
+            No sticky/fixed positioning and no scroll container, so it leaves the
+            viewport on scroll-down and only reappears when scrolled back to top. */}
+        <div>
           {/* Breadcrumb / back */}
           <div className="flex items-center gap-2 mb-3 text-sm">
             <button onClick={backToList} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--surface)] font-medium">

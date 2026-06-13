@@ -118,59 +118,62 @@ export const ModuleRow = ({
   const total      = allActions.length;
   const allActive  = isWildcard || (total > 0 && granted === total);
   const someActive = !allActive && granted > 0;
-  const pct        = total > 0 ? (granted / total) * 100 : 0;
 
   const status = allActive ? 'full' : someActive ? 'part' : 'none';
+  // Quiet, text-on-tint pills (Linear/Stripe style) — no heavy fills.
   const statusCls = {
-    full: 'text-[var(--accent-teal)] bg-[var(--accent-teal)]/12 border-[var(--accent-teal)]/30',
-    part: 'text-[var(--warning)] bg-[var(--warning)]/12 border-[var(--warning)]/30',
-    none: 'text-[var(--text-muted)] bg-[var(--bg)] border-[var(--border)]',
+    full: 'text-[var(--accent-teal)] bg-[var(--accent-teal)]/10 border-[var(--accent-teal)]/25',
+    part: 'text-[var(--warning)] bg-[var(--warning)]/10 border-[var(--warning)]/25',
+    none: 'text-[var(--text-muted)] bg-transparent border-[var(--border)]',
   }[status];
   const statusLabel = { full: 'Full access', part: 'Partial', none: 'No access' }[status];
-  const barColor = allActive ? 'var(--accent-teal)' : 'var(--primary)';
+  const dotColor = { full: 'var(--accent-teal)', part: 'var(--warning)', none: 'var(--divider)' }[status];
 
   return (
-    <div className={`bg-[var(--surface)] border rounded-2xl overflow-hidden transition-all duration-200 ${
-      expanded ? 'shadow-[0_2px_6px_rgba(42,32,23,.06),0_12px_30px_rgba(42,32,23,.07)]' : 'shadow-sm'
-    } ${granted > 0 ? 'border-[var(--primary)]/30' : 'border-[var(--border)]'}`}>
-      {/* Header */}
-      <div className="flex items-center gap-3.5 px-4 py-3.5">
-        <button type="button" onClick={onToggleExpand} className="flex items-center gap-3.5 flex-1 min-w-0 text-left">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${accent}1A` }}>
-            <Icon size={19} style={{ color: accent }} />
+    <div className={`group bg-[var(--surface)] border rounded-2xl overflow-hidden transition-all duration-200 ${
+      expanded
+        ? 'border-[var(--divider)] shadow-[0_2px_6px_rgba(42,32,23,.06),0_12px_30px_rgba(42,32,23,.07)]'
+        : 'border-[var(--border)] shadow-[0_1px_2px_rgba(42,32,23,.04)] hover:border-[var(--divider)] hover:shadow-[0_8px_22px_-10px_rgba(42,32,23,.20)]'
+    }`}>
+      {/* Collapsed header — icon · name · description · status · count */}
+      <div className="flex items-center gap-2.5 px-3.5 py-3 sm:px-4">
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-expanded={expanded}
+          className="flex items-center gap-3.5 flex-1 min-w-0 text-left"
+        >
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${accent}14` }}>
+            <Icon size={18} style={{ color: accent }} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[14.5px] font-bold text-[var(--text-primary)] leading-tight truncate">{mod.label}</p>
-            {mod.description && <p className="text-[11.5px] text-[var(--text-muted)] truncate mt-0.5">{mod.description}</p>}
+            <p className="text-[13.5px] font-semibold text-[var(--text-primary)] leading-tight truncate">{mod.label}</p>
+            {mod.description && <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{mod.description}</p>}
           </div>
-        </button>
 
-        {/* Coverage cluster */}
-        <div className="hidden sm:flex flex-col items-end gap-1.5 shrink-0 w-[128px]">
-          <span className={`text-[9.5px] font-extrabold uppercase tracking-wide px-2 py-[3px] rounded-full border ${statusCls}`}>
-            {isWildcard ? 'Full access' : statusLabel}
-          </span>
-          <div className="flex items-center gap-2 w-full">
-            <div className="flex-1 h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-300" style={{ width: `${isWildcard ? 100 : pct}%`, backgroundColor: barColor }} />
-            </div>
-            <span className={`text-[11px] font-bold tabular-nums ${granted > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}>
-              {isWildcard ? '∞' : granted}<span className="font-normal opacity-50">/{total}</span>
+          {/* Status + count, right-aligned within the clickable area */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 pl-2">
+            <span className={`hidden sm:inline-flex items-center gap-1.5 text-[10.5px] font-semibold px-2.5 py-1 rounded-full border ${statusCls}`}>
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+              {isWildcard ? 'Full access' : statusLabel}
+            </span>
+            <span className="text-[12px] font-bold tabular-nums text-[var(--text-secondary)] w-[42px] text-right">
+              {isWildcard ? '∞' : granted}<span className="font-medium text-[var(--text-muted)]">/{total}</span>
             </span>
           </div>
-        </div>
+        </button>
 
         {/* Grant / Revoke all (role mode only) */}
         {mode === 'role' && !isWildcard && onToggleSet && (
           <button
             type="button"
             onClick={() => onToggleSet(modulePerms(mod))}
-            title={allActive ? 'Revoke all' : 'Grant all'}
-            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10.5px] font-bold border transition-all shrink-0 ${
+            title={allActive ? 'Revoke all permissions in this module' : 'Grant all permissions in this module'}
+            className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10.5px] font-semibold border transition-all shrink-0 ${
               allActive
-                ? 'bg-[var(--primary)] border-[var(--primary)] text-black'
+                ? 'bg-[var(--primary)] border-[var(--primary)] text-black hover:bg-[var(--primary-hover)] hover:border-[var(--primary-hover)]'
                 : someActive
-                  ? 'bg-[var(--primary)]/15 border-[var(--primary)]/40 text-[var(--primary)]'
+                  ? 'bg-[var(--primary)]/12 border-[var(--primary)]/35 text-[var(--primary)] hover:bg-[var(--primary)]/18'
                   : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--primary)]/50 hover:text-[var(--primary)]'
             }`}
           >
@@ -179,8 +182,14 @@ export const ModuleRow = ({
           </button>
         )}
 
-        <button type="button" onClick={onToggleExpand} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--bg)] text-[var(--text-muted)] shrink-0">
-          <ChevronDown size={17} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+        {/* Expand chevron */}
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label={expanded ? 'Collapse module' : 'Expand module'}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-muted)] shrink-0 transition-colors hover:bg-[var(--bg)] hover:text-[var(--text-secondary)] group-hover:text-[var(--text-secondary)]"
+        >
+          <ChevronDown size={16} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
@@ -293,7 +302,7 @@ export const PermissionMatrix = ({
             </span>
             <div className="flex-1 h-px bg-[var(--border)]" />
           </div>
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {group.modules.map((mod) => (
               <ModuleRow
                 key={mod.key}
