@@ -84,6 +84,8 @@ export const crmService = {
   updateProposalStatus: (id, data) =>
     apiClient.patch(`/proposal/updatestatus/${id}`, data),
   sendProposal: (id) => apiClient.post(`/proposal/send/${id}`),
+  downloadProposalPdf: (id) =>
+    apiClient.get(`/proposal/pdf/${id}`, { responseType: 'blob' }),
 
   // ─── Templates ─────────────────────────────────────────────────────
   createTemplate: (data) => apiClient.post('/Template/create', data),

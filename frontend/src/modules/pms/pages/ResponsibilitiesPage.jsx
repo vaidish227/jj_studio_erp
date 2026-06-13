@@ -276,8 +276,12 @@ const ResponsibilitiesPage = () => {
   const load = async () => {
     setIsLoading(true);
     try {
-      const { data } = await pmsService.listResponsibilities();
-      setResponsibilities(data.responsibilities || []);
+      // apiClient's response interceptor already unwraps to the JSON body, so
+      // the resolved value IS `{ count, responsibilities }` — not `{ data }`.
+      // (Destructuring `{ data }` here read `undefined`, so `data.responsibilities`
+      // threw on every load and surfaced a bogus "Failed to load" toast.)
+      const res = await pmsService.listResponsibilities();
+      setResponsibilities(res?.responsibilities || []);
     } catch (e) {
       toast.error('Failed to load responsibilities');
     } finally {

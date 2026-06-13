@@ -22,6 +22,7 @@ const Project     = require("../models/Project.model");
 const ProjectPlan = require("../models/ProjectPlan.model");
 const PlannerImportLog = require("../models/PlannerImportLog.model");
 const { logActivity } = require("../../../shared/activityLogger");
+const workflowEngine = require("../services/workflowEngine");
 
 const TASK_STATUSES = new Set([
   "not_started", "blocked", "in_progress",
@@ -52,7 +53,7 @@ const COLUMNS = [
   { key: "plannedEndDate",    header: "Deadline",        width: 14, editable: true, isDate: true },
   { key: "plannedHours",      header: "Planned Hrs",     width: 12, editable: true, isNumber: true },
   { key: "actualHours",       header: "Actual Hrs",      width: 12, editable: true, isNumber: true },
-  { key: "progressPercent",   header: "Progress %",      width: 12, editable: true, isNumber: true },
+  { key: "progressPercent",   header: "Progress %",      width: 12, editable: false, isNumber: true },
   { key: "notes",             header: "Notes",           width: 40, editable: true  },
 ];
 
@@ -190,7 +191,7 @@ const COLUMN_HELP = {
   plannedEndDate:   "Editable. Must be on/after Planned Start.",
   plannedHours:     "Editable. Whole or decimal hours (e.g. 4, 8.5). Must be ≥ 0.",
   actualHours:      "Editable. Whole or decimal hours. Must be ≥ 0.",
-  progressPercent:  "Editable. Whole number 0–100.",
+  progressPercent:  "Read-only. Auto-derived from Status (not started 0% · in progress / revision 50% · pending review 80% · approved/completed 100%) — ignored on import.",
   notes:            "Editable. Free-text. Visible to anyone with planner access.",
 };
 
@@ -238,7 +239,7 @@ exports.getImportTemplate = async (req, res) => {
       plannedEndDate:    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       plannedHours:      12,
       actualHours:       4,
-      progressPercent:   30,
+      progressPercent:   "(auto — from status)",
       notes:             "Example row — delete me before uploading.",
     });
 
@@ -401,17 +402,19 @@ function buildUpdate(data) {
     } else if (key === "actualHours") {
       if (v < 0) return { error: "Actual Hrs cannot be negative" };
       set["planning.actualHours"] = v;
-    } else if (key === "progressPercent") {
-      if (v < 0 || v > 100) return { error: "Progress % must be 0–100" };
-      set["planning.progressPercent"] = v;
     }
   }
 
   // Task.bulkWrite bypasses model middleware — mirror the status→workStatus
-  // auto-sync here. An explicit Work Status cell in the same row still wins.
-  if (set.status && !Object.prototype.hasOwnProperty.call(set, "workStatus")) {
-    const ws = Task.WORK_STATUS_FROM_STATUS[set.status];
-    if (ws) set.workStatus = ws;
+  // and status→progress auto-sync here. An explicit Work Status cell in the
+  // same row still wins; Progress % is not importable.
+  if (set.status) {
+    if (!Object.prototype.hasOwnProperty.call(set, "workStatus")) {
+      const ws = Task.WORK_STATUS_FROM_STATUS[set.status];
+      if (ws) set.workStatus = ws;
+    }
+    const pct = Task.PROGRESS_FROM_STATUS[set.status];
+    if (pct != null) set["planning.progressPercent"] = pct;
   }
 
   // Cross-field check
@@ -483,6 +486,13 @@ exports.importMasterSheet = async (req, res) => {
     if (!dryRun && ops.length) {
       const result = await Task.bulkWrite(ops, { ordered: false });
       updated = result.modifiedCount || ops.length;
+      // Imported status changes are a phase/progress signal — best-effort.
+      try {
+        await workflowEngine.recomputeProjectProgress(projectId);
+        await workflowEngine.recomputeProjectPhase(projectId);
+      } catch (engineErr) {
+        console.error("[plannerImport:recomputePhase]", engineErr);
+      }
     }
 
     const failures = errors.filter((e) =>

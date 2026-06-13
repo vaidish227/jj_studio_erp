@@ -17,7 +17,8 @@ import {
   XCircle,
   RefreshCw,
   AlertCircle,
-  Layout
+  Layout,
+  Download
 } from 'lucide-react';
 import {
   Card,
@@ -43,6 +44,8 @@ const ReviewPage = () => {
   const [client, setClient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [user, setUser] = useState(null);
 
   // Editable fields
@@ -113,6 +116,58 @@ const ReviewPage = () => {
     }
   };
 
+  // Prints the server-rendered PDF instead of window.print() — browser print
+  // re-flows the page with its own margins/headers and drops backgrounds, so
+  // only the PDF guarantees the exact on-screen layout. Loads the blob in a
+  // hidden iframe and opens the print dialog on it (print-js pattern); falls
+  // back to opening the PDF in a new tab if the browser blocks iframe print.
+  const handlePrintPdf = async () => {
+    setIsPrinting(true);
+    try {
+      const blob = await crmService.downloadProposalPdf(id);
+      const url = URL.createObjectURL(blob);
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch {
+          window.open(url, '_blank');
+        }
+      };
+      document.body.appendChild(iframe);
+      // Revoking too early blanks the print preview — clean up well after.
+      setTimeout(() => { iframe.remove(); URL.revokeObjectURL(url); }, 60000);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to prepare print view');
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  // Downloads the server-rendered PDF — identical to the on-screen document,
+  // the email attachment, and the copy filed in the Document Repository.
+  const handleDownloadPdf = async () => {
+    setIsDownloading(true);
+    try {
+      const blob = await crmService.downloadProposalPdf(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Proposal-${client?.trackingId || String(proposal._id).slice(-8).toUpperCase()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err?.message || 'Failed to download PDF');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const openConfirmModal = (action, status, title, message) => {
     setConfirmModal({ isOpen: true, title, message, action, status });
   };
@@ -162,8 +217,11 @@ const ReviewPage = () => {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer size={16} /> Print / PDF
+          <Button variant="outline" size="sm" onClick={handlePrintPdf} isLoading={isPrinting}>
+            <Printer size={16} /> Print
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf} isLoading={isDownloading}>
+            <Download size={16} /> Download PDF
           </Button>
 
           {/* User Actions */}

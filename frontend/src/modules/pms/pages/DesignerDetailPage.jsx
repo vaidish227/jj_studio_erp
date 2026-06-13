@@ -2,13 +2,15 @@ import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Award, CheckCircle2, Clock, AlertTriangle, Activity,
-  TrendingUp, ListChecks, Briefcase, Mail, Phone, Loader2, RefreshCw,
+  TrendingUp, ListChecks, Briefcase, Mail, Phone, Loader2, RefreshCw, FileDown,
 } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import { pmsService } from '../../../shared/services/pmsService';
+import { useToast } from '../../../shared/notifications/ToastProvider';
 import useDesignerDetail from '../hooks/useDesignerDetail';
 
 const PERIOD_OPTIONS = [
@@ -109,8 +111,32 @@ const ChartTooltip = ({ active, payload, label, formatter }) => {
 const DesignerDetailPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const toast = useToast();
   const [period, setPeriod] = useState('month');
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const { data, isLoading, error, refresh } = useDesignerDetail(userId, period);
+
+  // Downloads the server-rendered report card — same data as this page,
+  // rendered as a fixed A4 PDF (see backend services/designerReportPdf.js).
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const blob = await pmsService.downloadDesignerReportPdf(userId, period);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Designer-Report-${(data?.user?.name || 'designer').trim().replace(/\s+/g, '-')}-${period}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Designer report downloaded');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to download report');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const weeklyTrend = useMemo(() => (data?.trend?.weekly || []).map((w) => ({
     ...w,
@@ -203,6 +229,16 @@ const DesignerDetailPage = () => {
             title="Refresh"
           >
             <RefreshCw size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50"
+            title="Download PDF report"
+          >
+            {downloadingPdf ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />}
+            PDF Report
           </button>
         </div>
       </div>
@@ -341,9 +377,9 @@ const DesignerDetailPage = () => {
           {projects.length === 0 ? (
             <p className="text-xs text-[var(--text-muted)] py-6 text-center">No projects assigned in this window.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[420px]">
               <table className="w-full text-left text-xs">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-[var(--surface)]">
                   <tr className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] border-b border-[var(--border)]">
                     <th className="py-2">Project</th>
                     <th className="py-2">Phase</th>
@@ -380,9 +416,9 @@ const DesignerDetailPage = () => {
           {recentTasks.length === 0 ? (
             <p className="text-xs text-[var(--text-muted)] py-6 text-center">No recent activity.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[420px]">
               <table className="w-full text-left text-xs">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-[var(--surface)]">
                   <tr className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] border-b border-[var(--border)]">
                     <th className="py-2">Task</th>
                     <th className="py-2">Status</th>

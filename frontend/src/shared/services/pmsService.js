@@ -201,7 +201,6 @@ export const pmsService = {
   deleteWorkflowTemplate:    (id)                      => apiClient.delete(`/pms/templates/workflow/${id}`),
 
   // ─── Analytics (Phase 4) ───────────────────────────────────────────────────
-  getGateAging:              ()                        => apiClient.get('/pms/analytics/gate-aging'),
   getDrawingReleaseSLA:      (params)                  => apiClient.get('/pms/analytics/drawing-release-sla', { params }),
   getDesignerUtilisation:    ()                        => apiClient.get('/pms/analytics/designer-utilisation'),
   getVendorPerformance:      ()                        => apiClient.get('/pms/analytics/vendor-performance'),
@@ -222,6 +221,7 @@ export const pmsService = {
   getDashboardOverview:  (period = 'month')  => apiClient.get(`/pms/dashboard/overview?period=${period}`),
   getDesignerKRA:        (period = 'month')  => apiClient.get(`/pms/dashboard/designer-kra?period=${period}`),
   getDesignerDetail:     (userId, period = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}?period=${period}`),
+  downloadDesignerReportPdf: (userId, period = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}/report.pdf?period=${period}`, { responseType: 'blob' }),
   getProjectAnalytics:   (period = 'month')  => apiClient.get(`/pms/dashboard/analytics?period=${period}`),
   // Phase C — report JSON (frontend turns these into .xlsx via SheetJS)
   getDesignerKpiReport:    (period = 'month') => apiClient.get(`/pms/dashboard/reports/designer-kpi?period=${period}`),

@@ -26,9 +26,10 @@ const aiConfig = Object.freeze({
   },
 
   models: {
-    default:   process.env.AI_MODEL_DEFAULT   || "gpt-4o-mini",
-    complex:   process.env.AI_MODEL_COMPLEX   || "gpt-4o",
-    embedding: process.env.AI_EMBEDDING_MODEL || "text-embedding-3-small",
+    default:       process.env.AI_MODEL_DEFAULT       || "gpt-4o-mini",
+    complex:       process.env.AI_MODEL_COMPLEX       || "gpt-4o",
+    embedding:     process.env.AI_EMBEDDING_MODEL     || "text-embedding-3-small",
+    transcription: process.env.AI_TRANSCRIPTION_MODEL || "whisper-1",
   },
 
   limits: {

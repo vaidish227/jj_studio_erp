@@ -152,7 +152,7 @@ export const AuthProvider = ({ children }) => {
       handleAuthFailure('Your session expired. Please log in again.');
       return;
     }
-    // setTimeout caps near 2^31 ms (~24.8 days). Our session is 7 days so
+    // setTimeout caps near 2^31 ms (~24.8 days). Our session is 24 hours so
     // we're well under that — no need to chain timers.
     expiryTimerRef.current = setTimeout(() => {
       handleAuthFailure('Your session expired. Please log in again.');

@@ -128,7 +128,7 @@ const DesignerKRAScoreboard = ({ designers = [], period = 'month' }) => {
           </div>
         </div>
         <Link
-          to="/pms/analytics"
+          to={`/pms/designers?period=${period}`}
           className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
         >
           Full Report <ArrowRight size={11} />

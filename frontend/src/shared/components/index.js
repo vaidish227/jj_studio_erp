@@ -22,3 +22,5 @@ export { default as ActionBar } from './ActionBar/ActionBar';
 export { default as Pagination } from './Pagination/Pagination';
 export { default as MultiPicker } from './MultiPicker/MultiPicker';
 export { default as PhoneInput } from './PhoneInput/PhoneInput';
+export { default as PdfThumbnail } from './PdfThumbnail/PdfThumbnail';
+export { default as PdfViewer } from './PdfViewer/PdfViewer';

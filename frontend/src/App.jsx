@@ -32,6 +32,7 @@ import { CRMProvider } from './modules/crm/context/CRMContext';
 import { PMSProvider } from './modules/pms/context/PMSContext';
 import AppLayout from './shared/layouts/AppLayout/AppLayout';
 import PublicLayout from './shared/layouts/PublicLayout/PublicLayout';
+import ProtectedRoute from './shared/components/ProtectedRoute/ProtectedRoute';
 import ProfilePage from './modules/profile/pages/ProfilePage';
 import SettingsPage from './modules/settings/pages/SettingsPage';
 import UserManagementPage from './modules/settings/pages/UserManagementPage';
@@ -55,6 +56,7 @@ import ApprovalDashboardPage from './modules/pms/pages/ApprovalDashboardPage';
 import DesignerDashboardPage from './modules/pms/pages/DesignerDashboardPage';
 import ManagerReviewQueuePage from './modules/pms/pages/ManagerReviewQueuePage';
 import DesignerDetailPage from './modules/pms/pages/DesignerDetailPage';
+import DesignerScoreboardPage from './modules/pms/pages/DesignerScoreboardPage';
 import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
 import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
@@ -104,7 +106,7 @@ export default function App() {
                 <Route path="/notifications" element={<NotificationsPage />} />
 
                 {/* CRM Module */}
-                <Route element={<CRMProvider><Outlet /></CRMProvider>}>
+                <Route element={<ProtectedRoute permission="crm.read"><CRMProvider><Outlet /></CRMProvider></ProtectedRoute>}>
                   <Route path="/crm/dashboard"        element={<CRMDashboardPage />} />
                   <Route path="/crm/forms/enquiry"   element={<EnquiryFormPage />} />
                   <Route path="/crm/forms/client-info" element={<ClientInfoFormPage />} />
@@ -121,7 +123,7 @@ export default function App() {
                 </Route>
 
                 {/* Proposal & Quotation System */}
-                <Route element={<CRMProvider><Outlet /></CRMProvider>}>
+                <Route element={<ProtectedRoute permission="proposal.read"><CRMProvider><Outlet /></CRMProvider></ProtectedRoute>}>
                   <Route path="/proposal">
                     <Route index                   element={<ProposalDashboard />} />
                     <Route path="list"             element={<ProposalListPage />} />
@@ -145,7 +147,7 @@ export default function App() {
                     VITE_ENABLE_KIT !== 'true' (e.g. client builds), mirroring
                     the VITE_ENABLE_AI gating. */}
                 {import.meta.env.VITE_ENABLE_KIT === 'true' && (
-                  <Route element={<CRMProvider><Outlet /></CRMProvider>}>
+                  <Route element={<ProtectedRoute permission="kit.read"><CRMProvider><Outlet /></CRMProvider></ProtectedRoute>}>
                     <Route path="/kit">
                       <Route path="follow-ups" element={<FollowUpsPage />} />
                       <Route path="campaigns">
@@ -171,10 +173,10 @@ export default function App() {
                 )}
 
                 {/* MD — Executive cross-module dashboard */}
-                <Route path="/md/dashboard"                    element={<MDDashboardPage />} />
+                <Route path="/md/dashboard"                    element={<ProtectedRoute permission="md.dashboard.read"><MDDashboardPage /></ProtectedRoute>} />
 
                 {/* PMS — Project Management */}
-                <Route path="/pms/dashboard"                   element={<PMSDashboardPage />} />
+                <Route path="/pms/dashboard"                   element={<ProtectedRoute permission="projects.read" excludeRoles={['designer']}><PMSDashboardPage /></ProtectedRoute>} />
                 <Route path="/projects"                        element={<ProjectsPage />} />
                 <Route path="/projects/create"                 element={<ProjectsPage />} />
                 <Route path="/projects/:id"                    element={<ProjectDetailPage />} />
@@ -190,32 +192,33 @@ export default function App() {
                 <Route path="/drawings/pending-approvals"  element={<DrawingLibraryPage />} />
 
                 {/* PMS — New sidebar pages */}
-                <Route path="/pms/assign-task"       element={<AssignTaskPage />} />
-                <Route path="/pms/review-design"     element={<ReviewDesignPage />} />
-                <Route path="/pms/whatsapp-groups"   element={<WhatsAppGroupsPage />} />
+                <Route path="/pms/assign-task"       element={<ProtectedRoute permission="projects.tab.assign"><AssignTaskPage /></ProtectedRoute>} />
+                <Route path="/pms/review-design"     element={<ProtectedRoute permission="projects.tab.review"><ReviewDesignPage /></ProtectedRoute>} />
+                <Route path="/pms/whatsapp-groups"   element={<ProtectedRoute permission="pms.whatsapp.manage"><WhatsAppGroupsPage /></ProtectedRoute>} />
                 <Route path="/pms/documents"         element={<DocumentRepositoryPage />} />
 
                 {/* PMS — Legacy routes kept for backward compatibility */}
                 <Route path="/pms/calendar"      element={<CalendarPage />} />
                 <Route path="/pms/approvals"     element={<ApprovalDashboardPage />} />
-                <Route path="/pms/review-queue"  element={<ManagerReviewQueuePage />} />
+                <Route path="/pms/review-queue"  element={<ProtectedRoute permission="tasks.approve"><ManagerReviewQueuePage /></ProtectedRoute>} />
 
                 {/* Vendor Directory */}
-                <Route path="/vendors" element={<VendorDirectoryPage />} />
+                <Route path="/vendors" element={<ProtectedRoute permission="vendor.read"><VendorDirectoryPage /></ProtectedRoute>} />
 
                 {/* Other */}
                 <Route path="/profile" element={<ProfilePage />} />
 
                 {/* Settings */}
-                <Route path="/settings"                    element={<SettingsPage />} />
-                <Route path="/settings/users"              element={<UserManagementPage />} />
-                <Route path="/settings/roles-permissions"  element={<RolesPermissionsPage />} />
-                <Route path="/settings/checklist-templates" element={<ChecklistTemplatesPage />} />
-                <Route path="/settings/workflow-templates"  element={<WorkflowTemplatesPage />} />
-                <Route path="/settings/responsibilities"    element={<ResponsibilitiesPage />} />
+                <Route path="/settings"                    element={<ProtectedRoute permission="settings.read"><SettingsPage /></ProtectedRoute>} />
+                <Route path="/settings/users"              element={<ProtectedRoute permission="settings.tab.users"><UserManagementPage /></ProtectedRoute>} />
+                <Route path="/settings/roles-permissions"  element={<ProtectedRoute permission="settings.tab.roles"><RolesPermissionsPage /></ProtectedRoute>} />
+                <Route path="/settings/checklist-templates" element={<ProtectedRoute permission="settings.checklists.manage"><ChecklistTemplatesPage /></ProtectedRoute>} />
+                <Route path="/settings/workflow-templates"  element={<ProtectedRoute permission="settings.workflows.manage"><WorkflowTemplatesPage /></ProtectedRoute>} />
+                <Route path="/settings/responsibilities"    element={<ProtectedRoute roles={['admin', 'md']}><ResponsibilitiesPage /></ProtectedRoute>} />
                 {/* Phase 4 — Analytics */}
-                <Route path="/pms/analytics" element={<AnalyticsPage />} />
-                <Route path="/pms/designers/:userId" element={<DesignerDetailPage />} />
+                <Route path="/pms/analytics" element={<ProtectedRoute permission="reports.read"><AnalyticsPage /></ProtectedRoute>} />
+                <Route path="/pms/designers" element={<ProtectedRoute permission="reports.read"><DesignerScoreboardPage /></ProtectedRoute>} />
+                <Route path="/pms/designers/:userId" element={<ProtectedRoute permission="reports.read"><DesignerDetailPage /></ProtectedRoute>} />
               </Route>
 
               {/* Global default redirect */}

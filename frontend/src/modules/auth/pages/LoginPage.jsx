@@ -6,7 +6,6 @@ import Input from '../../../shared/components/Input/Input';
 import Button from '../../../shared/components/Button/Button';
 import Checkbox from '../../../shared/components/Checkbox/Checkbox';
 import FormField from '../../../shared/components/FormField/FormField';
-import RoleSelector from './RoleSelector';
 import useLogin from '../hooks/useLogin';
 
 import logo from '../../../assets/JJ-FINAL-LOGO-PNG.png';
@@ -67,12 +66,6 @@ const LoginPage = () => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-
-          {/* Role Selector */}
-          <RoleSelector
-            selectedRole={formData.role}
-            onChange={(role) => handleChange('role', role)}
-          />
 
           {/* Email */}
           <FormField label="Email Address">

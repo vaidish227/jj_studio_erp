@@ -104,7 +104,46 @@ async function polishText(req, res) {
     return res.json({ ok: true, polishedText });
   } catch (err) {
     console.error("[AI][controller][polishText]", err);
+    if (err?.status === 429) {
+      return res.status(503).json({ message: "OpenAI quota exceeded — add credits to the OpenAI account, then retry." });
+    }
     return res.status(500).json({ message: "Failed to refine text. Please try again." });
+  }
+}
+
+// Speech-to-text for the MoM voice-note feature. Multer (memory storage, see
+// ai.route.js) has already parsed the upload into req.file when we get here —
+// covers both mic recordings (webm/mp4 blobs) and uploaded audio files.
+async function transcribeAudio(req, res) {
+  if (req.fileFilterError) {
+    return res.status(400).json({ message: req.fileFilterError });
+  }
+  if (!req.file?.buffer?.length) {
+    return res.status(400).json({ message: "Attach an audio recording or file to transcribe." });
+  }
+  if (!aiConfig.openai.apiKey) {
+    return res.status(503).json({ message: "AI is not yet configured. Ask an admin to set OPENAI_API_KEY." });
+  }
+
+  try {
+    const text = await openai.transcribe({
+      buffer: req.file.buffer,
+      filename: req.file.originalname,
+      mimetype: req.file.mimetype,
+    });
+    if (!text) {
+      return res.status(422).json({ message: "No speech detected in this audio." });
+    }
+    return res.json({ ok: true, text });
+  } catch (err) {
+    console.error("[AI][controller][transcribeAudio]", err);
+    if (err?.status === 429) {
+      return res.status(503).json({ message: "OpenAI quota exceeded — add credits to the OpenAI account, then retry." });
+    }
+    if (err?.status === 400) {
+      return res.status(400).json({ message: "OpenAI could not read this audio format. Try a different file." });
+    }
+    return res.status(500).json({ message: "Transcription failed. Please try again." });
   }
 }
 
@@ -135,4 +174,4 @@ async function health(_req, res) {
   });
 }
 
-module.exports = { streamChat, polishText, health };
+module.exports = { streamChat, polishText, transcribeAudio, health };

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   X, ZoomIn, ZoomOut, Maximize2, MousePointer2, Pencil, Square,
   MapPin, Trash2, Eye, MessageSquare, Loader2, AlertCircle, Palette,
-  Eraser, Edit2, Save, Undo2, Trash, ArrowLeft, CheckCircle2,
+  Eraser, Edit2, Save, Undo2, Trash, ArrowLeft, CheckCircle2, GitBranch,
 } from 'lucide-react';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useAuth } from '../../../shared/context/AuthContext';
@@ -242,7 +242,13 @@ const ClearAllConfirm = ({ count, onConfirm, onCancel }) => (
 );
 
 // ─── Main modal ─────────────────────────────────────────────────────────────
-const PreviewDrawingModal = ({ drawing, isOpen, onClose, version }) => {
+// revisionMode: markup-first revision flow — defaults to the pen tool and shows
+// a "Request Revision" CTA that hands off to the instructions/deadline form
+// via onProceedToRevision.
+const PreviewDrawingModal = ({
+  drawing, isOpen, onClose, version,
+  revisionMode = false, onProceedToRevision,
+}) => {
   const { hasPermission, user } = useAuth();
   const toast = useToast();
 
@@ -309,7 +315,8 @@ const PreviewDrawingModal = ({ drawing, isOpen, onClose, version }) => {
   useEffect(() => {
     if (!isOpen) return;
     setZoom(1); setPan({ x: 0, y: 0 });
-    setTool('cursor'); setInFlight(null);
+    setTool(revisionMode && canAnnotate && !isPdf ? 'pen' : 'cursor');
+    setInFlight(null);
     setPinDraft(null); setViewingPin(null);
     setDraggingAnn(null); setSelectedAnn(null);
     setUndoStack([]); setShowClearConfirm(false);
@@ -787,6 +794,16 @@ const PreviewDrawingModal = ({ drawing, isOpen, onClose, version }) => {
       {/* ── Top toolbar ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-4 py-2.5 bg-black/60 border-b border-white/10
                       backdrop-blur-md shrink-0">
+        <button
+          type="button"
+          onClick={onClose}
+          title="Back (Esc)"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                     border border-white/15 text-white/80 hover:bg-white/10 hover:text-white
+                     transition-colors"
+        >
+          <ArrowLeft size={13} /> Back
+        </button>
         <Eye size={16} className="text-[var(--primary)]" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-white truncate">{drawing.title}</p>
@@ -796,6 +813,12 @@ const PreviewDrawingModal = ({ drawing, isOpen, onClose, version }) => {
             {drawing.fileName ? ` · ${drawing.fileName}` : ''}
           </p>
         </div>
+
+        {revisionMode && (
+          <span className="hidden md:inline-flex shrink-0 items-center text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-[var(--warning)]/15 text-[var(--warning)] border border-[var(--warning)]/25">
+            Mark the changes, then continue
+          </span>
+        )}
 
         {/* Zoom (images only) */}
         {!isPdf && (
@@ -877,35 +900,35 @@ const PreviewDrawingModal = ({ drawing, isOpen, onClose, version }) => {
           </ToolButton>
         )}
 
-        {/* Save & Back — explicit, labeled actions */}
-        <div className="flex items-center gap-1.5 ml-2">
-          {!isPdf && canAnnotate && (
-            <button
-              type="button"
-              onClick={handleSave}
-              title="Save (Ctrl+S) — confirms all changes are persisted"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                          transition-all
-                          ${saveFlash
-                            ? 'bg-[var(--success)] text-white'
-                            : 'bg-[var(--primary)] text-black hover:opacity-90'}`}
-            >
-              {saveFlash
-                ? (<><CheckCircle2 size={13} /> Saved</>)
-                : (<><Save size={13} /> Save</>)}
-            </button>
-          )}
+        {/* Save — explicit, labeled action */}
+        {!isPdf && canAnnotate && (
           <button
             type="button"
-            onClick={onClose}
-            title="Back (Esc)"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                       border border-white/15 text-white/80 hover:bg-white/10 hover:text-white
-                       transition-colors"
+            onClick={handleSave}
+            title="Save (Ctrl+S) — confirms all changes are persisted"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                        ml-2 transition-all
+                        ${saveFlash
+                          ? 'bg-[var(--success)] text-white'
+                          : 'bg-[var(--primary)] text-black hover:opacity-90'}`}
           >
-            <ArrowLeft size={13} /> Back
+            {saveFlash
+              ? (<><CheckCircle2 size={13} /> Saved</>)
+              : (<><Save size={13} /> Save</>)}
           </button>
-        </div>
+        )}
+
+        {revisionMode && (
+          <button
+            type="button"
+            onClick={onProceedToRevision}
+            title="Continue — add revision instructions & deadline"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                       ml-1.5 bg-[var(--warning)] text-white hover:opacity-90 transition-all"
+          >
+            <GitBranch size={13} /> Request Revision
+          </button>
+        )}
       </div>
 
       {/* ── Body ───────────────────────────────────────────────────────── */}

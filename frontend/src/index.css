@@ -43,3 +43,17 @@
     background: var(--primary) !important;
   }
 }
+
+/* ── Number inputs ────────────────────────────────────────────────────────────
+   Remove the native up/down spinner buttons on every number field app-wide.
+   Steppers invite accidental and out-of-range (e.g. negative) values; positivity
+   is enforced in JS (see shared/components/Input/Input.jsx). */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

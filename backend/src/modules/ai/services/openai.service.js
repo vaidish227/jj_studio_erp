@@ -8,8 +8,11 @@
 const aiConfig = require("../config/aiConfig");
 
 let OpenAI = null;
+let toFile = null;
 try {
-  OpenAI = require("openai").OpenAI || require("openai");
+  const openaiPkg = require("openai");
+  OpenAI = openaiPkg.OpenAI || openaiPkg;
+  toFile = openaiPkg.toFile || null;
 } catch (_e) {
   OpenAI = null;
 }
@@ -101,6 +104,28 @@ async function embed(inputs, model) {
 }
 
 /**
+ * Speech-to-text. Accepts a raw audio buffer (any Whisper-supported container:
+ * webm/ogg/mp3/m4a/wav/flac…) and returns the transcript text. The filename
+ * extension is what the API uses to sniff the container, so keep it accurate.
+ */
+async function transcribe({ buffer, filename, mimetype }) {
+  const client = getClient();
+  if (!toFile) {
+    const err = new Error("openai package too old — `toFile` helper missing. Run `npm install openai@latest`.");
+    err.code = "ai_sdk_missing";
+    throw err;
+  }
+  // MediaRecorder blobs may carry a codecs suffix ("audio/webm;codecs=opus").
+  const cleanType = (mimetype || "audio/webm").split(";")[0].trim();
+  const file = await toFile(buffer, filename || "recording.webm", { type: cleanType });
+  const res = await client.audio.transcriptions.create({
+    model: aiConfig.models.transcription,
+    file,
+  });
+  return (res?.text || "").trim();
+}
+
+/**
  * Lightweight health probe. Returns { ok, latencyMs, error? }.
  */
 async function ping() {
@@ -119,4 +144,4 @@ async function ping() {
   }
 }
 
-module.exports = { getClient, streamChat, chatComplete, embed, ping };
+module.exports = { getClient, streamChat, chatComplete, embed, transcribe, ping };

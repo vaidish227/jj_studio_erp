@@ -17,6 +17,7 @@ import EmployeePicker from '../../pms/components/EmployeePicker';
 import useAssignableUsers from '../../pms/hooks/useAssignableUsers';
 import { crmService } from '../../../shared/services/crmService';
 import { polishText } from '../../ai/services/aiService';
+import VoiceInput from '../../ai/components/VoiceInput';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import usePermission from '../../../shared/hooks/usePermission';
 
@@ -296,16 +297,20 @@ const RecordMOMModal = ({ isOpen, onClose, meeting, onSaved }) => {
                 Discussion Summary
               </h3>
             </div>
-            <button
-              type="button"
-              onClick={handlePolish}
-              disabled={isPolishing || !discussionSummary.trim()}
-              title="Rewrite professionally with AI"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-[var(--primary)] bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {isPolishing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-              {isPolishing ? 'Refining…' : 'AI'}
-            </button>
+            <div className="flex items-center gap-1.5">
+              {/* Live dictation / audio upload → text streams into the summary */}
+              <VoiceInput value={discussionSummary} onChange={setDiscussionSummary} disabled={isSubmitting} />
+              <button
+                type="button"
+                onClick={handlePolish}
+                disabled={isPolishing || !discussionSummary.trim()}
+                title="Rewrite professionally with AI"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-[var(--primary)] bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {isPolishing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                {isPolishing ? 'Refining…' : 'AI'}
+              </button>
+            </div>
           </div>
           <textarea
             value={discussionSummary}

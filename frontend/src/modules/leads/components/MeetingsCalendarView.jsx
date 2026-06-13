@@ -175,7 +175,7 @@ const MeetingsCalendarView = ({
                 No meetings scheduled on this day.
               </p>
               {onScheduleForDay && (
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => onScheduleForDay(selectedDate)}>
+                <Button variant="outline" size="sm" className="mt-3 mx-auto" onClick={() => onScheduleForDay(selectedDate)}>
                   <Plus size={14} className="mr-1.5" />
                   Schedule for this day
                 </Button>

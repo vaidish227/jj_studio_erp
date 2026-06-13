@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  AlertTriangle, Clock, Lock, CheckCircle2, ClipboardCheck, ChevronRight,
+  AlertTriangle, Clock, CheckCircle2, ClipboardCheck, ChevronRight,
 } from 'lucide-react';
 
 const TABS = [
   { id: 'delayedProjects',  label: 'Delayed Projects',  icon: AlertTriangle, accent: 'error'   },
   { id: 'overdueTasks',     label: 'Overdue Tasks',     icon: Clock,         accent: 'warning' },
-  { id: 'idleGates',        label: 'Idle Gates',        icon: Lock,          accent: 'warning' },
   { id: 'pendingApprovals', label: 'Pending Approvals', icon: ClipboardCheck, accent: 'accent-blue' },
 ];
 
@@ -35,7 +34,7 @@ const ageMsToLabel = (ms) => {
 /**
  * AlertsSection — consolidated alerts widget on the MD dashboard.
  *
- * Four tabs: delayed projects, overdue tasks, idle gates, pending approvals.
+ * Three tabs: delayed projects, overdue tasks, pending approvals.
  * Each tab is a compact scrollable list of clickable rows. Empty tab renders
  * the green "All clear" panel.
  */
@@ -131,24 +130,6 @@ const AlertsSection = ({ alerts }) => {
               `${t.daysOverdue}d`,
               'warning',
               () => navigate(`/projects/${t.projectId}?tab=tasks`)
-            )
-          )}
-        </div>
-      );
-    }
-
-    if (activeTab === 'idleGates') {
-      return (
-        <div className="space-y-1">
-          {items.map((g) =>
-            renderRow(
-              g._id,
-              <Lock size={14} />,
-              g.label,
-              [g.projectName, g.approverType?.replace(/_/g, ' ')].filter(Boolean).join(' · '),
-              `${g.ageDays}d open`,
-              'warning',
-              () => navigate(`/projects/${g.projectId}?tab=gates`)
             )
           )}
         </div>

@@ -11,7 +11,7 @@ import { pmsService } from '../../../shared/services/pmsService';
 import useReviewQueue from '../hooks/useReviewQueue';
 import TaskTypeIcon, { TASK_TYPE_CONFIG } from '../components/TaskTypeIcon';
 import PriorityBadge from '../components/PriorityBadge';
-import RequestRevisionModal from '../components/RequestRevisionModal';
+import RequestRevisionFlow from '../components/RequestRevisionFlow';
 import ReassignTaskModal from '../components/ReassignTaskModal';
 import DrawingMosaic from '../components/DrawingMosaic';
 
@@ -252,7 +252,7 @@ const ManagerReviewQueuePage = () => {
       )}
 
       {/* Modals */}
-      <RequestRevisionModal
+      <RequestRevisionFlow
         task={revisionTask}
         isOpen={!!revisionTask}
         onClose={() => setRevisionTask(null)}

@@ -5,7 +5,7 @@ import {
   ChevronDown, Check, FileArchive, File as FileIcon,
   ClipboardList, Trash2, ExternalLink,
 } from 'lucide-react';
-import { Button, Loader, SearchInput } from '../../../shared/components';
+import { Button, Loader, SearchInput, Modal, PdfThumbnail, PdfViewer } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import useProjects from '../hooks/useProjects';
 import useProjectMoMs from '../hooks/useProjectMoMs';
@@ -36,25 +36,48 @@ const STATUS_LABELS = {
 };
 
 // ─── File-type styling ───────────────────────────────────────────────────────
+// `tone` is the type's accent colour, applied via color-mix tints (same
+// pattern as the dashboard KPI tiles) — never as a full-card wash. PDF
+// deliberately avoids var(--error): the alarm red made cards look broken —
+// muted terracotta keeps the "PDF red" identity instead.
 const EXT_META = {
-  pdf:  { icon: FileText,       bg: 'bg-[var(--error)]/12',       fg: 'text-[var(--error)]' },
-  doc:  { icon: FileText,       bg: 'bg-[var(--accent-blue)]/12', fg: 'text-[var(--accent-blue)]' },
-  docx: { icon: FileText,       bg: 'bg-[var(--accent-blue)]/12', fg: 'text-[var(--accent-blue)]' },
-  xls:  { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
-  xlsx: { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
-  csv:  { icon: FileSpreadsheet,bg: 'bg-[var(--success)]/12',     fg: 'text-[var(--success)]' },
-  png:  { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
-  jpg:  { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
-  jpeg: { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
-  webp: { icon: FileImage,      bg: 'bg-[var(--accent-teal)]/12', fg: 'text-[var(--accent-teal)]' },
-  dwg:  { icon: BookOpen,       bg: 'bg-[var(--warning)]/12',     fg: 'text-[var(--warning)]' },
-  dxf:  { icon: BookOpen,       bg: 'bg-[var(--warning)]/12',     fg: 'text-[var(--warning)]' },
-  zip:  { icon: FileArchive,    bg: 'bg-[var(--text-muted)]/12',  fg: 'text-[var(--text-muted)]' },
-  mom:  { icon: ClipboardList,  bg: 'bg-[var(--primary)]/12',     fg: 'text-[var(--primary)]' },
-  default: { icon: FileIcon,    bg: 'bg-[var(--primary)]/12',     fg: 'text-[var(--primary)]' },
+  pdf:  { icon: FileText,        tone: '#B65A41' },
+  doc:  { icon: FileText,        tone: 'var(--accent-blue)' },
+  docx: { icon: FileText,        tone: 'var(--accent-blue)' },
+  xls:  { icon: FileSpreadsheet, tone: 'var(--success)' },
+  xlsx: { icon: FileSpreadsheet, tone: 'var(--success)' },
+  csv:  { icon: FileSpreadsheet, tone: 'var(--success)' },
+  png:  { icon: FileImage,       tone: 'var(--accent-teal)' },
+  jpg:  { icon: FileImage,       tone: 'var(--accent-teal)' },
+  jpeg: { icon: FileImage,       tone: 'var(--accent-teal)' },
+  webp: { icon: FileImage,       tone: 'var(--accent-teal)' },
+  dwg:  { icon: BookOpen,        tone: 'var(--warning)' },
+  dxf:  { icon: BookOpen,        tone: 'var(--warning)' },
+  zip:  { icon: FileArchive,     tone: 'var(--text-muted)' },
+  mom:  { icon: ClipboardList,   tone: 'var(--primary)' },
+  default: { icon: FileIcon,     tone: 'var(--primary)' },
 };
 
 const metaFor = (ext) => EXT_META[(ext || '').toLowerCase()] || EXT_META.default;
+
+// Types the preview panel can render inline — PDFs via the browser's viewer,
+// images natively. Everything else keeps the icon + description fallback.
+const INLINE_PREVIEW_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'];
+
+// Module-level signed-URL cache so each document's URL is fetched once and
+// shared between the grid thumbnails and the preview panel. The backend signs
+// URLs for 1 hour; refresh comfortably before that.
+const previewUrlCache = new Map(); // docId -> { promise, expiresAt }
+const PREVIEW_URL_TTL = 50 * 60 * 1000;
+
+const getPreviewUrl = (docId) => {
+  const hit = previewUrlCache.get(docId);
+  if (hit && hit.expiresAt > Date.now()) return hit.promise;
+  const promise = pmsService.getDocumentPreviewUrl(docId).then((res) => res?.url || null);
+  previewUrlCache.set(docId, { promise, expiresAt: Date.now() + PREVIEW_URL_TTL });
+  promise.catch(() => previewUrlCache.delete(docId));
+  return promise;
+};
 
 const formatSize = (n) => {
   if (!n && n !== 0) return '';
@@ -82,24 +105,86 @@ const toCardDoc = (d) => {
 };
 
 // ─── Document Card ───────────────────────────────────────────────────────────
-const DocumentCard = ({ doc, onReview, onDownload }) => {
+const DocumentCard = ({ doc, onPreview, onDownload }) => {
   const meta = metaFor(doc.ext);
   const Icon = meta.icon;
+  const canThumb = !!doc.id && INLINE_PREVIEW_EXTS.includes(doc.ext);
+
+  // Live first-page thumbnail for previewable types; while loading (or for
+  // non-previewable types / fetch errors) the coloured icon plate shows.
+  const [thumbUrl, setThumbUrl] = useState(null);
+  useEffect(() => {
+    if (!canThumb) return undefined;
+    let cancelled = false;
+    getPreviewUrl(doc.id)
+      .then((url) => { if (!cancelled) setThumbUrl(url); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [doc.id, canThumb]);
+
+  // Transparent plate — the gradient + watermark live on the card root so the
+  // meta/actions area below shares the same surface.
+  const iconPlate = (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+      <div className="w-12 h-12 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-sm flex items-center justify-center">
+        <Icon size={22} style={{ color: meta.tone }} />
+      </div>
+      {doc.ext && (
+        <span
+          className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
+          style={{ background: `color-mix(in srgb, ${meta.tone} 14%, transparent)`, color: meta.tone }}
+        >
+          {doc.ext}
+        </span>
+      )}
+    </div>
+  );
 
   return (
-    <div className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden transition-all duration-200 hover:border-[var(--primary)]/40 hover:shadow-md flex flex-col">
-      {/* Visual top — coloured plate echoing the mockup */}
-      <div className={`relative h-28 flex items-center justify-center ${meta.bg}`}>
-        <Icon size={42} className={meta.fg} />
+    <div
+      className="group relative border border-[var(--border)] rounded-2xl overflow-hidden transition-all duration-200 hover:border-[var(--primary)]/40 hover:shadow-md flex flex-col"
+      style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${meta.tone} 12%, var(--surface)) 0%, color-mix(in srgb, ${meta.tone} 3%, var(--surface)) 100%)` }}
+    >
+      {/* faint oversized watermark of the file-type icon — same motif as the KPI tiles */}
+      <Icon
+        size={90}
+        className="absolute -right-4 -bottom-5 opacity-[0.07] pointer-events-none"
+        style={{ color: meta.tone }}
+      />
+      {/* Visual top — live document thumbnail, falling back to the icon plate */}
+      <button
+        type="button"
+        onClick={() => onPreview?.(doc)}
+        className="group/plate relative w-full h-28 overflow-hidden"
+      >
+        {!thumbUrl ? (
+          iconPlate
+        ) : doc.ext === 'pdf' ? (
+          <PdfThumbnail
+            url={thumbUrl}
+            alt={doc.name}
+            className="w-full h-full object-cover object-top bg-white"
+            fallback={iconPlate}
+          />
+        ) : (
+          <img src={thumbUrl} alt={doc.name} className="w-full h-full object-cover bg-white" />
+        )}
         {doc.status && (
           <span className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--surface)]/85 text-[var(--text-secondary)] border border-[var(--border)]">
             {doc.status}
           </span>
         )}
-      </div>
+        {/* Styled hover hint — replaces the native black tooltip */}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover/plate:bg-black/25 transition-colors">
+          <span className="opacity-0 group-hover/plate:opacity-100 transition-opacity inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--surface)] text-[11px] font-bold text-[var(--text-primary)] shadow">
+            <Eye size={12} />
+            Preview
+          </span>
+        </span>
+      </button>
 
-      {/* Meta + actions */}
-      <div className="p-3 flex flex-col gap-3 flex-1">
+      {/* Meta + actions — relative so it paints above the watermark */}
+      <div className="relative p-3 flex flex-col gap-3 flex-1">
         <div className="min-w-0">
           <p className="text-sm font-bold text-[var(--text-primary)] truncate" title={doc.name}>
             {doc.name}
@@ -112,16 +197,16 @@ const DocumentCard = ({ doc, onReview, onDownload }) => {
         <div className="flex items-center gap-2 mt-auto">
           <button
             type="button"
-            onClick={() => onReview?.(doc)}
+            onClick={() => onPreview?.(doc)}
             className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors"
           >
             <Eye size={12} />
-            Review
+            Preview
           </button>
           <button
             type="button"
             onClick={() => onDownload?.(doc)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-[var(--bg)] text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--primary)]/40 hover:text-[var(--primary)] transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-[var(--surface)]/70 text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--primary)]/40 hover:text-[var(--primary)] transition-colors"
           >
             <Download size={12} />
             Download
@@ -132,89 +217,145 @@ const DocumentCard = ({ doc, onReview, onDownload }) => {
   );
 };
 
-// ─── Inline preview panel ────────────────────────────────────────────────────
-const PreviewPanel = ({ doc, onClose, onOpen, onDownload, onDelete }) => {
-  if (!doc) {
-    return (
-      <div className="hidden lg:flex flex-col items-center justify-center h-full bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-2xl p-8 text-center">
-        <FolderOpen size={28} className="text-[var(--text-muted)] mb-3" />
-        <p className="text-sm font-bold text-[var(--text-secondary)]">Click a file to preview</p>
-        <p className="text-xs text-[var(--text-muted)] mt-1 max-w-xs">
-          Review, download or share documents associated with this project.
-        </p>
-      </div>
-    );
-  }
+// ─── Document preview popup ──────────────────────────────────────────────────
+const DocumentPreviewModal = ({ doc, onClose, onOpen, onDownload, onDelete }) => {
+  const canEmbed = !!doc?.id && INLINE_PREVIEW_EXTS.includes(doc?.ext);
+
+  // Signed-URL state, keyed by document id so a stale result is never shown
+  // for a newly opened document. Loading/url/error are all derived from
+  // whether the stored result matches the current doc.
+  const [preview, setPreview] = useState({ docId: null, url: null, error: null });
+  const isCurrent   = preview.docId === doc?.id;
+  const fileUrl     = canEmbed && isCurrent ? preview.url : null;
+  const fileError   = canEmbed && isCurrent ? preview.error : null;
+  const loadingFile = canEmbed && !isCurrent;
+
+  // Fetch a signed URL for the opened document so it can render inline.
+  useEffect(() => {
+    if (!canEmbed) return undefined;
+    let cancelled = false;
+    const docId = doc.id;
+    getPreviewUrl(docId)
+      .then((url) => { if (!cancelled) setPreview({ docId, url, error: null }); })
+      .catch((err) => { if (!cancelled) setPreview({ docId, url: null, error: err?.message || 'Could not load preview' }); });
+    return () => { cancelled = true; };
+  }, [doc?.id, canEmbed]);
+
+  if (!doc) return null;
 
   const meta = metaFor(doc.ext);
   const Icon = meta.icon;
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 flex flex-col h-full">
-      <div className="flex items-start justify-between gap-3 pb-4 border-b border-[var(--border)]">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${meta.bg}`}>
-            <Icon size={20} className={meta.fg} />
+    <Modal isOpen onClose={onClose} title={doc.name} className="max-w-6xl">
+      {/* Preview height = modal cap (80vh) minus header/caption/footer, so the
+          modal body itself never double-scrolls with the page list. */}
+      {loadingFile ? (
+        <div className="h-[calc(80vh-230px)] min-h-[320px] flex items-center justify-center">
+          <Loader />
+        </div>
+      ) : fileUrl && doc.ext === 'pdf' ? (
+        <div className="h-[calc(80vh-230px)] min-h-[320px] overflow-y-auto custom-scrollbar rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3">
+          <PdfViewer
+            url={fileUrl}
+            alt={doc.name}
+            width={896}
+            className="space-y-3 max-w-4xl mx-auto"
+            fallback={(
+              <div className="h-full flex items-center justify-center">
+                <Loader />
+              </div>
+            )}
+            errorFallback={(
+              /* Rare path (e.g. storage host without CORS): the browser
+                 viewer — toolbar and all — still beats no preview. */
+              <iframe title={doc.name} src={fileUrl} className="w-full h-full border-0 bg-white" />
+            )}
+          />
+        </div>
+      ) : fileUrl ? (
+        <div className="flex items-center justify-center">
+          <img src={fileUrl} alt={doc.name} className="max-w-full max-h-[calc(80vh-230px)] object-contain rounded-xl" />
+        </div>
+      ) : (
+        <div className="h-[40vh] flex flex-col items-center justify-center text-center">
+          <div className="flex flex-col items-center gap-2.5 mb-4">
+            <div
+              className="w-20 h-20 rounded-2xl border flex items-center justify-center"
+              style={{
+                background: `linear-gradient(135deg, color-mix(in srgb, ${meta.tone} 12%, var(--surface)), var(--surface))`,
+                borderColor: `color-mix(in srgb, ${meta.tone} 22%, transparent)`,
+              }}
+            >
+              <Icon size={36} style={{ color: meta.tone }} />
+            </div>
+            {doc.ext && (
+              <span
+                className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md"
+                style={{ background: `color-mix(in srgb, ${meta.tone} 14%, transparent)`, color: meta.tone }}
+              >
+                {doc.ext}
+              </span>
+            )}
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-[var(--text-primary)] truncate">{doc.name}</p>
-            <p className="text-[11px] text-[var(--text-muted)]">
-              {[doc.size, doc.status].filter(Boolean).join(' · ') || '—'}
+          {fileError ? (
+            <p className="text-sm text-[var(--error)] max-w-sm">{fileError}</p>
+          ) : (
+            <p className="text-sm text-[var(--text-secondary)] max-w-sm">
+              No inline preview for this file type — use{' '}
+              <span className="font-bold text-[var(--text-primary)]">Open</span> to view it in a
+              new tab, or Download to save it locally.
             </p>
-          </div>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-[11px] font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-        >
-          Close
-        </button>
-      </div>
+      )}
 
-      <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
-        <div className={`w-24 h-24 rounded-2xl flex items-center justify-center mb-4 ${meta.bg}`}>
-          <Icon size={48} className={meta.fg} />
+      {(doc.description || (doc.source === 'manual' && doc.uploadedBy) || doc.createdAt) && (
+        <div className="text-center mt-4 space-y-1">
+          {doc.description && (
+            <p className="text-xs text-[var(--text-muted)] whitespace-pre-wrap">
+              {doc.description}
+            </p>
+          )}
+          {((doc.source === 'manual' && doc.uploadedBy) || doc.createdAt) && (
+            <p className="text-[11px] text-[var(--text-muted)]">
+              {[
+                doc.source === 'manual' && doc.uploadedBy ? `Added by ${doc.uploadedBy}` : null,
+                doc.createdAt
+                  ? new Date(doc.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                  : null,
+              ].filter(Boolean).join(' · ')}
+            </p>
+          )}
         </div>
-        {doc.description ? (
-          <p className="text-sm text-[var(--text-secondary)] max-w-sm whitespace-pre-wrap">
-            {doc.description}
-          </p>
-        ) : (
-          <p className="text-sm text-[var(--text-secondary)] max-w-sm">
-            Use <span className="font-bold text-[var(--text-primary)]">Open</span> to view this
-            file in a new tab, or Download to save it locally.
-          </p>
-        )}
-        {(doc.uploadedBy || doc.createdAt) && (
-          <p className="text-[11px] text-[var(--text-muted)] mt-3">
-            {doc.uploadedBy ? `Added by ${doc.uploadedBy}` : 'Added'}
-            {doc.createdAt ? ` · ${new Date(doc.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
-          </p>
-        )}
-      </div>
+      )}
 
-      <div className="flex items-center gap-2 pt-4 border-t border-[var(--border)]">
-        <Button variant="primary" size="sm" className="flex-1" onClick={() => onDownload?.(doc)}>
-          <Download size={14} />
-          Download
-        </Button>
-        <Button variant="outline" size="sm" className="flex-1" onClick={() => onOpen?.(doc)}>
-          <ExternalLink size={14} />
-          Open
-        </Button>
-        <PermissionGate permission={['documents.delete', 'projects.delete']} mode="any">
-          <button
-            type="button"
-            onClick={() => onDelete?.(doc)}
-            className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 transition-colors"
-            title="Delete document"
-          >
-            <Trash2 size={14} />
-          </button>
-        </PermissionGate>
+      <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-[var(--border)]">
+        <p className="text-[11px] font-bold text-[var(--text-muted)] truncate">
+          {[doc.size, doc.status].filter(Boolean).join(' · ')}
+        </p>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="primary" size="sm" onClick={() => onDownload?.(doc)}>
+            <Download size={14} />
+            Download
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onOpen?.(doc)}>
+            <ExternalLink size={14} />
+            Open in tab
+          </Button>
+          <PermissionGate permission={['documents.delete', 'projects.delete']} mode="any">
+            <button
+              type="button"
+              onClick={() => onDelete?.(doc)}
+              className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 transition-colors"
+              title="Delete document"
+            >
+              <Trash2 size={14} />
+            </button>
+          </PermissionGate>
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -319,14 +460,13 @@ const DocumentRepositoryPage = () => {
     }
   };
 
-  const handleReview = (doc) => {
+  const handlePreview = (doc) => {
     if (doc.recorded) {
       const target = moms.find((m) => m.id === doc.momId);
       if (target) setPreviewMoM(target);
       return;
     }
     setPreviewDoc(doc);
-    openSignedUrl(doc, 'preview');
   };
   const handleDownload = (doc) => {
     if (doc.recorded) {
@@ -565,66 +705,61 @@ const DocumentRepositoryPage = () => {
           </div>
         </div>
 
-        {/* Grid + preview */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
-
-          {/* Documents grid */}
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[320px]">
-            {docsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader />
-              </div>
-            ) : docs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center text-center py-12">
-                <FolderOpen size={28} className="text-[var(--text-muted)] mb-2" />
-                <p className="text-sm font-bold text-[var(--text-secondary)]">No documents</p>
-                <p className="text-xs text-[var(--text-muted)] mt-1 max-w-xs">
-                  {search
-                    ? 'Nothing matches your search.'
-                    : activeCategory === 'mom'
-                      ? 'Record a meeting minute or upload an MoM file to get started.'
-                      : 'Upload the first document to this category. Approved proposals and drawings are filed here automatically.'}
-                </p>
-                {!search && activeCategory === 'mom' && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => { setEditingMoM(null); setRecordOpen(true); }}
-                    disabled={!selectedProjectId}
-                  >
-                    <Plus size={14} />
-                    Record MoM
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {docs.map((doc) => (
-                  <div key={doc.id || doc.momId || doc.name} className="w-[200px]">
-                    <DocumentCard
-                      doc={doc}
-                      onReview={handleReview}
-                      onDownload={handleDownload}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Preview panel — desktop only */}
-          <div className="hidden lg:block">
-            <PreviewPanel
-              doc={previewDoc}
-              onClose={() => setPreviewDoc(null)}
-              onOpen={(d) => openSignedUrl(d, 'preview')}
-              onDownload={handleDownload}
-              onDelete={handleDelete}
-            />
-          </div>
+        {/* Documents grid */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[320px]">
+          {docsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader />
+            </div>
+          ) : docs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center py-12">
+              <FolderOpen size={28} className="text-[var(--text-muted)] mb-2" />
+              <p className="text-sm font-bold text-[var(--text-secondary)]">No documents</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1 max-w-xs">
+                {search
+                  ? 'Nothing matches your search.'
+                  : activeCategory === 'mom'
+                    ? 'Record a meeting minute or upload an MoM file to get started.'
+                    : 'Upload the first document to this category. Approved proposals and drawings are filed here automatically.'}
+              </p>
+              {!search && activeCategory === 'mom' && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => { setEditingMoM(null); setRecordOpen(true); }}
+                  disabled={!selectedProjectId}
+                >
+                  <Plus size={14} />
+                  Record MoM
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {docs.map((doc) => (
+                <div key={doc.id || doc.momId || doc.name} className="w-[200px]">
+                  <DocumentCard
+                    doc={doc}
+                    onPreview={handlePreview}
+                    onDownload={handleDownload}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
+
+      {previewDoc && (
+        <DocumentPreviewModal
+          doc={previewDoc}
+          onClose={() => setPreviewDoc(null)}
+          onOpen={(d) => openSignedUrl(d, 'preview')}
+          onDownload={handleDownload}
+          onDelete={handleDelete}
+        />
+      )}
 
       <RecordMoMModal
         isOpen={recordOpen}

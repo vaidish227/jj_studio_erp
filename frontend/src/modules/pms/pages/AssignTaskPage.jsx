@@ -5,7 +5,7 @@ import {
   Calendar, User, AlertTriangle, CheckCircle2,
   Clock, GitBranch, Layers, Filter,
 } from 'lucide-react';
-import { Button, Loader } from '../../../shared/components';
+import { Button, Loader, Pagination } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { pmsService } from '../../../shared/services/pmsService';
@@ -78,7 +78,7 @@ const TaskRow = ({ task, onClick }) => {
     >
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5 min-w-0">
-          <TaskTypeIcon taskType={task.taskType} size="sm" />
+          <TaskTypeIcon taskType={task.taskType} size={16} />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors truncate max-w-[200px]">
               {task.title}
@@ -131,7 +131,7 @@ const TaskCard = ({ task, onClick }) => {
                  hover:border-[var(--primary)]/40 transition-all group space-y-3"
     >
       <div className="flex items-start gap-2.5">
-        <TaskTypeIcon taskType={task.taskType} size="sm" />
+        <TaskTypeIcon taskType={task.taskType} size={16} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors leading-snug">
             {task.title}
@@ -241,6 +241,20 @@ const AssignTaskPage = () => {
 
   const hasFilters = !!(statusFilter || priorityFilter || projectFilter || search);
   const clearFilters = () => { setStatus(''); setPriority(''); setProject(''); setSearch(''); };
+
+  // ── Pagination — 25 per page over the filtered set ──────────────────────
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [statusFilter, priorityFilter, projectFilter, search]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage  = Math.min(page, pageCount);
+  const paged = useMemo(
+    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filtered, safePage]
+  );
+  const rangeStart = filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd   = Math.min(safePage * PAGE_SIZE, filtered.length);
 
   return (
     <div className="space-y-6">
@@ -395,7 +409,7 @@ const AssignTaskPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((task) => (
+                  {paged.map((task) => (
                     <TaskRow
                       key={task._id}
                       task={task}
@@ -409,7 +423,7 @@ const AssignTaskPage = () => {
 
           {/* ── Task Cards — mobile ── */}
           <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {filtered.map((task) => (
+            {paged.map((task) => (
               <TaskCard
                 key={task._id}
                 task={task}
@@ -417,6 +431,17 @@ const AssignTaskPage = () => {
               />
             ))}
           </div>
+
+          {/* ── Pagination ── */}
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-xs text-[var(--text-muted)]">
+                Showing <span className="font-semibold text-[var(--text-secondary)]">{rangeStart}–{rangeEnd}</span> of{' '}
+                <span className="font-semibold text-[var(--text-secondary)]">{filtered.length}</span>
+              </span>
+              <Pagination currentPage={safePage} totalPages={pageCount} onChange={setPage} />
+            </div>
+          )}
         </>
       )}
 

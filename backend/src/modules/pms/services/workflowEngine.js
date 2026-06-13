@@ -681,42 +681,80 @@ async function evaluateTaskAccess(taskId) {
   };
 }
 
+const DONE_TASK_STATUSES = ["approved", "released_to_site", "completed"];
+const slugifyPhase = (s) => String(s || "").toLowerCase().trim().replace(/\s+/g, "_");
+
 /**
- * recomputeProjectPhase — advance Project.phase based on gate progress.
- * Simple heuristic v1: pick the highest-order phase from the template that
- * has at least one open gate; if all gates closed, advance to next phase.
- * Phase 2 will refine with task-completion ratios.
+ * recomputeProjectPhase — advance Project.phase.
+ *
+ * Gates ON  (legacy): heuristic driven by gate closures (furniture layout /
+ *           handover gates).
+ * Gates OFF (current): task-driven — the current phase is the first phase, in
+ *           planSnapshot order, that still has incomplete tasks; when every
+ *           task is done, the last phase that has tasks. Project.phase is
+ *           enum-locked, so snapshot phases outside the canonical list are
+ *           skipped rather than saved.
  */
 async function recomputeProjectPhase(projectId) {
   const project = await Project.findById(projectId);
-  if (!project || !project.workflowTemplateId) return null;
-
-  const openCount = await ApprovalGate.countDocuments({
-    projectId,
-    status: "open",
-  });
-
-  // Very simple progression: when furniture_layout gate closes → phase=design
-  const flGate = await ApprovalGate.findOne({
-    projectId,
-    gateType: "gate_furniture_layout",
-  }).lean();
-  const handoverGate = await ApprovalGate.findOne({
-    projectId,
-    gateType: "gate_handover",
-  }).lean();
+  if (!project) return null;
 
   let newPhase = project.phase;
-  if (flGate && flGate.status === "open" && project.phase === "kickoff") {
-    newPhase = "layout";
-  } else if (flGate && flGate.status !== "open" && project.phase === "layout") {
-    newPhase = "design";
+
+  if (!GATES_ENABLED) {
+    const snapOrder = (project.planSnapshot?.phases || [])
+      .slice()
+      .sort((a, b) => (a.order || 0) - (b.order || 0))
+      .map((p) => slugifyPhase(p.name))
+      .filter(Boolean);
+    const order = snapOrder.length ? snapOrder : PHASE_ORDER;
+
+    const tasks = await Task.find({ projectId }).select("phase status").lean();
+    if (!tasks.length) return project.phase;
+
+    const done = new Set(DONE_TASK_STATUSES);
+    const hasIncomplete = new Set();
+    const hasAny = new Set();
+    for (const t of tasks) {
+      const k = slugifyPhase(t.phase);
+      if (!k) continue;
+      hasAny.add(k);
+      if (!done.has(t.status)) hasIncomplete.add(k);
+    }
+
+    newPhase = order.find((p) => hasIncomplete.has(p)) || null;
+    if (!newPhase) {
+      const withTasks = order.filter((p) => hasAny.has(p));
+      newPhase = withTasks[withTasks.length - 1] || project.phase;
+    }
+
+    // phase is enum-locked — never save a custom snapshot phase name.
+    const allowed = Project.schema.path("phase")?.enumValues || PHASE_ORDER;
+    if (!allowed.includes(newPhase)) return project.phase;
+  } else {
+    if (!project.workflowTemplateId) return null;
+
+    // Very simple progression: when furniture_layout gate closes → phase=design
+    const flGate = await ApprovalGate.findOne({
+      projectId,
+      gateType: "gate_furniture_layout",
+    }).lean();
+    const handoverGate = await ApprovalGate.findOne({
+      projectId,
+      gateType: "gate_handover",
+    }).lean();
+
+    if (flGate && flGate.status === "open" && project.phase === "kickoff") {
+      newPhase = "layout";
+    } else if (flGate && flGate.status !== "open" && project.phase === "layout") {
+      newPhase = "design";
+    }
+    if (handoverGate && handoverGate.status !== "open") {
+      newPhase = "handover";
+    }
+    // All-gates-resolved progression is handled by the Phase 3 handover
+    // module which sets execution/handover explicitly.
   }
-  if (handoverGate && handoverGate.status !== "open") {
-    newPhase = "handover";
-  }
-  // openCount === 0 → all gates resolved; phase progression is handled by
-  // Phase 3 handover module which sets execution/handover explicitly.
 
   if (newPhase !== project.phase) {
     project.phase = newPhase;
@@ -726,7 +764,7 @@ async function recomputeProjectPhase(projectId) {
         type: "project.phase_changed",
         module: "pms",
         priority: "normal",
-        title: `Project "${project.name}" advanced to ${newPhase}`,
+        title: `Project "${project.name}" moved to the ${newPhase} stage`,
         link: `/projects/${project._id}`,
         relatedTo: { module: "pms", recordId: project._id },
       });
@@ -874,10 +912,14 @@ async function onTaskApproved(taskId, { actorId } = {}) {
     }
   }
 
-  // Phase 3a — task approval is a progress signal even without unblocks
+  // Phase 3a — task approval is a progress signal even without unblocks.
+  // With gates disabled it is also the phase-advance signal (task-driven mode).
   try {
     const t = await Task.findById(taskId).select("projectId").lean();
-    if (t?.projectId) await recomputeProjectProgress(t.projectId);
+    if (t?.projectId) {
+      await recomputeProjectProgress(t.projectId);
+      await recomputeProjectPhase(t.projectId);
+    }
   } catch (e) { /* best-effort */ }
 
   return { unblocked };

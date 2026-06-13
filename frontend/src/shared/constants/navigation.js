@@ -19,8 +19,9 @@ import {
 // Children have their own explicit permissions — module.tab.tabkey for section
 // visibility, or module.action for action-gated pages.
 //
-// IMPORTANT: child `id` values must match the last URL segment of their `path`
-// because AppLayout derives activeItem from the last path segment.
+// IMPORTANT: every `id` must be UNIQUE across the whole tree — AppLayout resolves
+// the active row by matching the current URL to an item's `path`, then highlights
+// the row(s) whose `id` equals that match. Duplicate ids highlight more than one row.
 
 export const NAV_ITEMS = [
   {
@@ -99,7 +100,7 @@ export const NAV_ITEMS = [
     children: [
       // Designers get their own My Dashboard + My Calendar under the Design group,
       // so hide the managerial PMS dashboard and the duplicate calendar for them.
-      { id: 'dashboard',         label: 'Dashboard',                path: '/pms/dashboard',         permission: 'projects.read', excludeRoles: ['designer'] },
+      { id: 'pms-dashboard',     label: 'Dashboard',                path: '/pms/dashboard',         permission: 'projects.read', excludeRoles: ['designer'] },
       { id: 'projects',          icon: Briefcase,  label: 'Projects',                 path: '/projects' },
       { id: 'assign-task',       label: 'Assign Task',              path: '/pms/assign-task',       permission: 'projects.tab.assign' },
       { id: 'review-design',     label: 'Approval / Review Design', path: '/pms/review-design',     permission: 'projects.tab.review' },

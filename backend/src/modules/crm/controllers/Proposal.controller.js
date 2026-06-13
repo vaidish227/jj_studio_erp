@@ -271,6 +271,10 @@ const updateProposalStatus = async (req, res) => {
         paymentDate: req.body.paidOn ? new Date(req.body.paidOn) : new Date(),
         remarks: req.body.transactionRef || ""
       };
+    } else if (status === "sent") {
+      // Stamp the first send time so dashboards can count "proposals sent this period".
+      // Preserve an existing timestamp so a manual re-send never resets it.
+      updateObj.$set.sentAt = proposal.sentAt || new Date();
     }
 
     const updatedProposal = await Proposal.findByIdAndUpdate(
@@ -315,6 +319,7 @@ const updateProposalStatus = async (req, res) => {
       const anyChannelSent = deliveryResult.email.sent || deliveryResult.whatsapp.sent;
       if (anyChannelSent) {
         updatedProposal.status = "sent";
+        if (!updatedProposal.sentAt) updatedProposal.sentAt = new Date();
         await updatedProposal.save();
       } else {
         console.error("Auto-send failed on all channels:", {
@@ -447,7 +452,11 @@ const updateProposalStatus = async (req, res) => {
 //  Otherwise falls back to inline HTML / inline message.
 // =====================================================================
 const triggerSendToClient = async (proposal, opts = {}) => {
-  const { userId } = opts;
+  // opts.channels lets callers send on a single channel (e.g. the review
+  // page's "Email PDF" button passes ["email"]). Defaults to both.
+  const { userId, channels = ["email", "whatsapp"] } = opts;
+  const wantEmail = channels.includes("email");
+  const wantWhatsApp = channels.includes("whatsapp");
   const client = proposal.leadId; // unified model: leadId IS the client
 
   // ── Build shared template variables ──
@@ -518,6 +527,9 @@ const triggerSendToClient = async (proposal, opts = {}) => {
 
   // ── Channel: EMAIL via mail.service ──
   const emailPromise = (async () => {
+    if (!wantEmail) {
+      return { sent: false, skipped: true, error: null, recipient: null };
+    }
     if (!client?.email) {
       return { sent: false, error: "Client has no email on file", recipient: null };
     }
@@ -564,6 +576,9 @@ const triggerSendToClient = async (proposal, opts = {}) => {
 
   // ── Channel: WHATSAPP via whatsapp.service ──
   const whatsappPromise = (async () => {
+    if (!wantWhatsApp) {
+      return { sent: false, skipped: true, error: null, recipient: null };
+    }
     const e164 = toE164India(client?.phone);
     if (!e164) {
       return { sent: false, error: "Client has no valid phone on file", recipient: null };
@@ -706,20 +721,35 @@ const deleteProposal = async (req, res) => {
   }
 };
 
-// SEND PROPOSAL EMAIL (Manual retry — same email + WhatsApp flow)
+// Statuses at/after "sent" — a manual re-send must never regress these back
+// to "sent" (e.g. emailing the PDF again after payment_received).
+const POST_SEND_STATUSES = [
+  "sent", "esign_received", "payment_received", "signed",
+  "project_ready", "project_started",
+];
+
+// SEND PROPOSAL EMAIL (Manual send/retry — same email + WhatsApp flow)
 const sendProposalEmail = async (req, res) => {
   try {
     const proposal = await Proposal.findById(req.params.id)
       .populate("leadId", "name email phone trackingId");
     if (!proposal) return res.status(404).json({ message: "Proposal not found" });
 
+    // Optional channel filter: { channels: ["email"] } sends email only.
+    // Defaults to both channels (legacy behaviour for existing callers).
+    const requested = Array.isArray(req.body?.channels)
+      ? req.body.channels.filter((c) => ["email", "whatsapp"].includes(c))
+      : [];
+
     const deliveryResult = await triggerSendToClient(proposal, {
       userId: req.user?.id,
+      channels: requested.length ? requested : undefined,
     });
 
     const anyChannelSent = deliveryResult.email.sent || deliveryResult.whatsapp.sent;
-    if (anyChannelSent) {
+    if (anyChannelSent && !POST_SEND_STATUSES.includes(proposal.status)) {
       proposal.status = "sent";
+      if (!proposal.sentAt) proposal.sentAt = new Date();
       await proposal.save();
     }
 
@@ -741,4 +771,80 @@ const sendProposalEmail = async (req, res) => {
   }
 };
 
-module.exports = { createProposal, getProposals, updateProposalStatus, deleteProposal, getProposalById, updateProposal, sendProposalEmail, triggerSendToClient }
+// DOWNLOAD PDF — streams the same letter-format PDF the review screen shows
+// (and that email/Documents use), so all four surfaces stay identical.
+const downloadProposalPdf = async (req, res) => {
+  try {
+    const proposal = await Proposal.findById(req.params.id)
+      .populate("leadId", "name email phone trackingId address siteAddress")
+      .lean();
+    if (!proposal) return res.status(404).json({ message: "Proposal not found" });
+
+    const client = proposal.leadId;
+    const buffer = await generateProposalPdfBuffer(proposal, client);
+    const filename = `Proposal-${client?.trackingId || String(proposal._id).slice(-8).toUpperCase()}.pdf`;
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": buffer.length,
+    });
+    // Puppeteer ≥22 returns a Uint8Array — normalise so Express streams bytes.
+    res.send(Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// SAVE TO DOCUMENT REPOSITORY — files the same PDF into the linked project's
+// repository. Reuses the idempotent ingest that runs at project initiation,
+// so manually-saved and auto-filed entries can never duplicate each other.
+const FILEABLE_STATUSES = ["manager_approved", ...POST_SEND_STATUSES];
+
+const saveProposalToDocuments = async (req, res) => {
+  try {
+    const proposal = await Proposal.findById(req.params.id)
+      .populate("leadId", "name email phone trackingId address siteAddress")
+      .lean();
+    if (!proposal) return res.status(404).json({ message: "Proposal not found" });
+
+    if (!FILEABLE_STATUSES.includes(proposal.status)) {
+      return res.status(400).json({
+        message: "Only manager-approved proposals can be filed in the document repository.",
+      });
+    }
+
+    const project = await Project.findOne({ proposalId: proposal._id })
+      .select("_id trackingId name")
+      .lean();
+    if (!project) {
+      return res.status(409).json({
+        message: "No project is linked to this proposal yet — the document repository is organised per project. Initiate the project first.",
+      });
+    }
+
+    // Lazy-require keeps the PMS ingest (which boots Puppeteer) out of cold start.
+    const { ingestProposalPdf } = require("../../pms/services/documentIngest");
+    const document = await ingestProposalPdf({
+      project,
+      proposal,
+      client: proposal.leadId,
+      actorId: req.user?.id,
+    });
+
+    if (!document) {
+      return res.json({
+        alreadyFiled: true,
+        message: `This proposal is already filed in ${project.trackingId}'s documents.`,
+      });
+    }
+    res.status(201).json({
+      message: `Saved to ${project.trackingId}'s document repository.`,
+      document,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { createProposal, getProposals, updateProposalStatus, deleteProposal, getProposalById, updateProposal, sendProposalEmail, triggerSendToClient, downloadProposalPdf, saveProposalToDocuments }

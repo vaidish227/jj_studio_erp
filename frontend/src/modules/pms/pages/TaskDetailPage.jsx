@@ -18,7 +18,7 @@ import TaskTypeIcon, { TASK_TYPE_CONFIG } from '../components/TaskTypeIcon';
 import DrawingStatusBadge from '../components/DrawingStatusBadge';
 import ChecklistPanel from '../components/ChecklistPanel';
 import SubmitForReviewModal from '../components/SubmitForReviewModal';
-import RequestRevisionModal from '../components/RequestRevisionModal';
+import RequestRevisionFlow from '../components/RequestRevisionFlow';
 import ReassignTaskModal from '../components/ReassignTaskModal';
 import UploadDrawingModal from '../components/UploadDrawingModal';
 import KitchenRoutingPanel from '../components/KitchenRoutingPanel';
@@ -577,7 +577,7 @@ const TaskDetailPage = () => {
         onSubmitted={refresh}
         drawingCount={drawings?.length || 0}
       />
-      <RequestRevisionModal
+      <RequestRevisionFlow
         task={task}
         isOpen={showRevision}
         onClose={() => setShowRevision(false)}

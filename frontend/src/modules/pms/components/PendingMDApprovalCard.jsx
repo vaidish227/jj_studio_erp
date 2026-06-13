@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
-import RequestRevisionModal from './RequestRevisionModal';
+import RequestRevisionFlow from './RequestRevisionFlow';
 import PreviewDrawingModal from './PreviewDrawingModal';
 
 /**
@@ -237,7 +237,7 @@ const PendingMDApprovalCard = ({ projectId, projectName }) => {
         )}
       </div>
 
-      <RequestRevisionModal
+      <RequestRevisionFlow
         task={revisionTask}
         isOpen={!!revisionTask}
         onClose={() => setRevisionTask(null)}

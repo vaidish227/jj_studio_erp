@@ -17,6 +17,19 @@ export function polishText(text) {
 }
 
 /**
+ * Speech-to-text. Accepts a File (upload) or Blob (mic recording) and resolves
+ * to { ok, text }. The filename matters — the backend falls back to the
+ * extension when the browser reports a generic mimetype.
+ */
+export function transcribeAudio(fileOrBlob, filename) {
+  const fd = new FormData();
+  fd.append('audio', fileOrBlob, filename || fileOrBlob.name || 'recording.webm');
+  // Undefined content-type so the browser writes its own multipart boundary
+  // (same trick as pmsService.uploadDrawingFile).
+  return apiClient.post('/ai/transcribe', fd, { headers: { 'Content-Type': undefined } });
+}
+
+/**
  * Start a streaming chat request. Returns an object with an `abort` method.
  * Callbacks receive parsed event payloads.
  *
@@ -121,4 +134,4 @@ function mergeSignals(a, b) {
   return ctrl.signal;
 }
 
-export default { streamChat, polishText };
+export default { streamChat, polishText, transcribeAudio };

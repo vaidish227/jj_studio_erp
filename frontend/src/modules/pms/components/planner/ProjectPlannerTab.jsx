@@ -95,7 +95,7 @@ const PlannerHeader = ({ project, plan, counters, template, canChangeTemplate, o
           {' · Phase: '}<span className="font-semibold text-[var(--text-secondary)]">{project?.phase || '—'}</span>
         </p>
         {template?.baseTemplateId && (
-          <p className="text-[11px] text-[var(--text-muted)] mt-1 inline-flex items-center gap-1">
+          <p className="text-[11px] text-[var(--text-muted)] mt-1 flex items-center gap-1">
             <Layers size={11} className="text-[var(--primary)]" />
             Template:{' '}
             <span className="font-semibold text-[var(--text-secondary)]">
@@ -109,8 +109,8 @@ const PlannerHeader = ({ project, plan, counters, template, canChangeTemplate, o
           </p>
         )}
         {plan?.effectiveAt && (
-          <p className="text-[11px] text-[var(--success)] mt-1.5 inline-flex items-center gap-1">
-            <Lock size={11} /> Plan is effective — designer changes here will auto-notify the new owner.
+          <p className="text-[11px] text-[var(--success)] mt-1.5 flex items-center gap-1">
+            <Lock size={11} className="shrink-0" /> Plan is effective — designer changes here will auto-notify the new owner.
           </p>
         )}
       </div>
@@ -332,48 +332,17 @@ const EditableWorkStatusCell = ({ value, onSave, disabled }) => {
   );
 };
 
-// Click-to-edit progress bar (0–100). Bar visible by default; clicking flips
-// to a tiny number input that submits on blur or Enter.
-const EditableProgressCell = ({ value, onSave, disabled }) => {
-  const [editing, setEditing] = useState(false);
-  const [local, setLocal] = useState(value ?? 0);
-  useEffect(() => { setLocal(value ?? 0); }, [value]);
-
+// Read-only progress bar (0–100). The value is auto-derived from workflow
+// status by the Task model hooks (not started 0 · in progress/revision 50 ·
+// pending review 80 · approved/completed 100) — never edited by hand.
+const ProgressCell = ({ value }) => {
   const pct = Math.max(0, Math.min(100, Number(value) || 0));
-
-  if (disabled || !editing) {
-    return (
-      <button
-        type="button"
-        onClick={() => !disabled && setEditing(true)}
-        className="flex items-center gap-1.5 w-full text-left group"
-        title={disabled ? '' : 'Click to edit progress %'}
-      >
-        <div className="w-16 h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
-          <div className="h-full bg-[var(--primary)]" style={{ width: `${pct}%` }} />
-        </div>
-        <span className={`text-[10px] tabular-nums ${disabled ? 'text-[var(--text-muted)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--primary)]'}`}>{pct}%</span>
-      </button>
-    );
-  }
-  const commit = () => {
-    setEditing(false);
-    const n = Math.max(0, Math.min(100, Math.round(Number(local) || 0)));
-    if (n !== pct) onSave(n);
-  };
   return (
-    <div className="flex items-center gap-1">
-      <input
-        type="number"
-        min={0} max={100}
-        value={local}
-        autoFocus
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
-        className="w-12 px-1.5 py-0.5 text-xs bg-[var(--bg)] border border-[var(--primary)] rounded text-[var(--text-primary)] focus:outline-none tabular-nums"
-      />
-      <span className="text-[10px] text-[var(--text-muted)]">%</span>
+    <div className="flex items-center gap-1.5 w-full" title="Auto-updates from task status">
+      <div className="w-16 h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
+        <div className="h-full bg-[var(--primary)]" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[10px] tabular-nums text-[var(--text-secondary)]">{pct}%</span>
     </div>
   );
 };
@@ -1501,10 +1470,7 @@ const MasterSheetGrid = ({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <EditableProgressCell
-                    value={r.planning.progressPercent}
-                    onSave={(n) => onPatch(r.taskId, { planning: { progressPercent: n } })}
-                  />
+                  <ProgressCell value={r.planning.progressPercent} />
                 </td>
                 <td className="px-3 py-2"><DelayBadge days={r.delayDays} /></td>
                 <td className="px-3 py-2">

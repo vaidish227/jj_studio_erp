@@ -273,7 +273,7 @@ const ProjectDetailPage = () => {
             })}
             onViewTasks={() => setActiveTab('tasks')}
           />
-          <ProjectPhaseStepper project={project} />
+          <ProjectPhaseStepper project={project} tasks={tasks} />
         </>
       )}
 

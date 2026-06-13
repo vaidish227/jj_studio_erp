@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2, Calendar } from 'lucide-react';
 import { Modal, Button } from '../../../shared/components';
 import DatePicker from '../../../shared/components/DatePicker/DatePicker';
+import VoiceInput from '../../ai/components/VoiceInput';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 
 const todayISO = () => {
@@ -158,9 +159,13 @@ const RecordMoMModal = ({ isOpen, onClose, projectName, initialMoM = null, onSav
 
         {/* Discussion Summary */}
         <div className="w-full space-y-1.5">
-          <label className="text-sm font-bold text-[var(--text-primary)] ml-1">
-            Discussion Summary
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-bold text-[var(--text-primary)] ml-1">
+              Discussion Summary
+            </label>
+            {/* Live dictation / audio upload → text streams into the summary */}
+            <VoiceInput value={discussion} onChange={setDiscussion} disabled={saving} />
+          </div>
           <textarea
             value={discussion}
             onChange={(e) => setDiscussion(e.target.value)}

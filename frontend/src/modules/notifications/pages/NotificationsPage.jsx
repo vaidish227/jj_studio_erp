@@ -230,10 +230,20 @@ const NotificationsPage = () => {
 
               return (
                 <li key={n._id}>
-                  <button
-                    type="button"
+                  {/* Row is a focusable div (not a <button>) so the dismiss
+                      <button> below can live inside it — a button nested in a
+                      button is invalid HTML and triggered a hydration error. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleRowClick(n)}
-                    className={`group w-full text-left flex items-start gap-4 px-5 py-4 border-b border-[var(--border)] last:border-b-0 transition-colors ${
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleRowClick(n);
+                      }
+                    }}
+                    className={`group w-full text-left flex items-start gap-4 px-5 py-4 border-b border-[var(--border)] last:border-b-0 transition-colors cursor-pointer ${
                       unreadRow ? 'bg-[var(--primary)]/[0.03] hover:bg-[var(--primary)]/[0.06]' : 'hover:bg-[var(--bg)]'
                     }`}
                   >
@@ -275,7 +285,7 @@ const NotificationsPage = () => {
                     >
                       <X size={14} />
                     </button>
-                  </button>
+                  </div>
                 </li>
               );
             })}

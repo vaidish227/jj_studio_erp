@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FolderOpen, Plus, Search, LayoutGrid, List as ListIcon, X } from 'lucide-react';
-import { Button, Select, Loader } from '../../../shared/components';
+import { Button, Select, Loader, Pagination } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import useDrawings from '../hooks/useDrawings';
 import DrawingCard, { DRAWING_TYPE_LABELS } from '../components/DrawingCard';
@@ -38,6 +38,8 @@ const SORT_OPTIONS = [
 const readView = () => {
   try { return localStorage.getItem('drawingsView') || 'grid'; } catch { return 'grid'; }
 };
+
+const PAGE_SIZE = 25;
 
 const DrawingLibraryPage = () => {
   const location  = useLocation();
@@ -117,6 +119,19 @@ const DrawingLibraryPage = () => {
 
   const hasClientFilters = !!(search.trim() || projectFilter);
   const clearClientFilters = () => { setSearch(''); setProjectFilter(''); };
+
+  // ── Pagination — 25 per page over the filtered/sorted set ────────────────
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, projectFilter, sortBy, filters, isPendingTab]);
+
+  const pageCount = Math.max(1, Math.ceil(visibleDrawings.length / PAGE_SIZE));
+  const safePage  = Math.min(page, pageCount);
+  const pagedDrawings = useMemo(
+    () => visibleDrawings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [visibleDrawings, safePage]
+  );
+  const rangeStart = visibleDrawings.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd   = Math.min(safePage * PAGE_SIZE, visibleDrawings.length);
 
   return (
     <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
@@ -300,21 +315,39 @@ const DrawingLibraryPage = () => {
           )}
         </div>
       ) : viewMode === 'list' ? (
-        <div className="space-y-2">
-          {visibleDrawings.map((d) => (
-            <DrawingListRow
-              key={d._id}
-              drawing={d}
-              onSendForApproval={handleSendForApproval}
-              onApprove={(dr) => setApproving(dr)}
-              onRelease={(dr) => setReleasing(dr)}
-              onRevise={(dr) => setRevising(dr)}
-            />
-          ))}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            {/* Column set mirrors DrawingListRow — keep the two in sync */}
+            <table className="w-full text-sm">
+              <thead className="bg-[var(--bg)]/60 text-[var(--text-muted)]">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest">Drawing</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest hidden md:table-cell">Type</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest hidden lg:table-cell">Project</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest hidden xl:table-cell">Uploaded By</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest hidden md:table-cell">Date</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest">Status</th>
+                  <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedDrawings.map((d) => (
+                  <DrawingListRow
+                    key={d._id}
+                    drawing={d}
+                    onSendForApproval={handleSendForApproval}
+                    onApprove={(dr) => setApproving(dr)}
+                    onRelease={(dr) => setReleasing(dr)}
+                    onRevise={(dr) => setRevising(dr)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {visibleDrawings.map((d) => (
+          {pagedDrawings.map((d) => (
             <DrawingCard
               key={d._id}
               drawing={d}
@@ -324,6 +357,17 @@ const DrawingLibraryPage = () => {
               onRevise={(dr) => setRevising(dr)}
             />
           ))}
+        </div>
+      )}
+
+      {/* ── Pagination ─────────────────────────────────────────────────────── */}
+      {!isLoading && !error && visibleDrawings.length > 0 && pageCount > 1 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-xs text-[var(--text-muted)]">
+            Showing <span className="font-semibold text-[var(--text-secondary)]">{rangeStart}–{rangeEnd}</span> of{' '}
+            <span className="font-semibold text-[var(--text-secondary)]">{visibleDrawings.length}</span>
+          </span>
+          <Pagination currentPage={safePage} totalPages={pageCount} onChange={setPage} />
         </div>
       )}
 

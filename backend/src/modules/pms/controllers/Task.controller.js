@@ -412,6 +412,17 @@ const updateTask = async (req, res) => {
       }
     }
 
+    // Any status change is a phase/progress signal (task-driven mode while
+    // gates are disabled). Best-effort — never fails the request.
+    if (value.status && task.projectId) {
+      try {
+        await workflowEngine.recomputeProjectProgress(task.projectId);
+        await workflowEngine.recomputeProjectPhase(task.projectId);
+      } catch (engineErr) {
+        console.error("[updateTask:recomputePhase]", engineErr);
+      }
+    }
+
     const action = value.status ? "status_changed" : "updated";
     const description = value.status
       ? `Task "${task.title}" status changed to ${value.status}`

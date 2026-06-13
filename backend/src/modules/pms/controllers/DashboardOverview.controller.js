@@ -17,6 +17,7 @@ const ApprovalGate = require("../models/ApprovalGate.model");
 const PMSActivityLog = require("../models/PMSActivityLog.model");
 let User = null; try { User = require("../../auth/models/user.model"); } catch (e) { /* optional */ }
 let VendorEngagement = null; try { VendorEngagement = require("../models/VendorEngagement.model"); } catch (e) { /* optional */ }
+const { generateDesignerReportPdfBuffer } = require("../services/designerReportPdf");
 
 const DAY = 86400000;
 const ACTIVE_STATUSES = ["design_phase", "execution_phase"];
@@ -729,12 +730,203 @@ const getDesignerKRA = async (req, res) => {
 };
 
 /**
- * Per-designer detail — feeds the MD-facing Designer Detail Page.
+ * Per-designer detail — the data behind the MD-facing Designer Detail Page
+ * and the downloadable PDF report card.
  *
  * Returns the same KRA metrics as getDesignerKRA but for ONE user only,
  * decorated with time-series trends, status distribution, and task / project
- * lists for chart-driven visualisation.
- *
+ * lists for chart-driven visualisation. Returns null when the user
+ * does not exist.
+ */
+const computeDesignerDetail = async (userId, validPeriod) => {
+  const periodStart = startOfPeriod(validPeriod);
+
+  // 1. User profile
+  const user = User
+    ? await User.findById(userId).select("name email phone role isActive").lean()
+    : null;
+  if (!user) return null;
+
+  // 2. All tasks ever assigned to this user (we cap trend window to 12 weeks
+  // below). Pull a slightly larger window than the active period so trend
+  // sparklines render even for "week" view.
+  const trendWindowStart = new Date(Date.now() - 12 * 7 * DAY);
+  const lookbackStart = periodStart < trendWindowStart ? periodStart : trendWindowStart;
+  const tasks = await Task.find({
+    assignedTo: userId,
+    $or: [
+      { createdAt:   { $gte: lookbackStart } },
+      { completedAt: { $gte: lookbackStart } },
+      { approvedAt:  { $gte: lookbackStart } },
+      // Always include currently-open tasks so the active counter is honest
+      { status: { $in: ["not_started", "in_progress", "pending_review", "revision_requested", "blocked"] } },
+    ],
+  })
+    .select("title status taskType priority createdAt completedAt approvedAt dueDate revisionInstructions projectId updatedAt submittedAt")
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  // 3. Current-period stats (mirrors getDesignerKRA logic for ONE user)
+  let active = 0, done = 0, onTimeDone = 0, firstPassDone = 0;
+  let delayedActive = 0;
+  const statusCounts = new Map();
+  const now = Date.now();
+  for (const t of tasks) {
+    const inPeriodActive = ["not_started", "in_progress", "pending_review", "revision_requested", "blocked"].includes(t.status);
+    if (inPeriodActive) {
+      active++;
+      // Overdue active task = past dueDate
+      if (t.dueDate && new Date(t.dueDate).getTime() < now) delayedActive++;
+    }
+
+    const endTs = t.completedAt || t.approvedAt;
+    const isDoneInPeriod = TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart;
+    if (isDoneInPeriod) {
+      done++;
+      if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) onTimeDone++;
+      if (!t.revisionInstructions) firstPassDone++;
+    }
+
+    // Status distribution counts ALL tasks the designer touched in the
+    // lookback window — gives a fuller donut.
+    const s = t.status || "unknown";
+    statusCounts.set(s, (statusCounts.get(s) || 0) + 1);
+  }
+  const onTimeRate    = done > 0 ? onTimeDone / done : 0;
+  const firstPassRate = done > 0 ? firstPassDone / done : 0;
+  const throughputNorm = Math.min(1, done / 20); // 20 = full bar on absolute scale
+  const kraScore = Math.round((0.45 * onTimeRate + 0.35 * firstPassRate + 0.20 * throughputNorm) * 5 * 10) / 10;
+
+  // 4. Weekly trend — last 12 ISO weeks
+  const weekly = [];
+  for (let i = 11; i >= 0; i -= 1) {
+    const start = new Date(now - (i + 1) * 7 * DAY);
+    const end   = new Date(now - i * 7 * DAY);
+    let wDone = 0, wOnTime = 0, wFirstPass = 0;
+    for (const t of tasks) {
+      const endTs = t.completedAt || t.approvedAt;
+      if (TASK_DONE.includes(t.status) && endTs) {
+        const ts = new Date(endTs).getTime();
+        if (ts >= start.getTime() && ts < end.getTime()) {
+          wDone++;
+          if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) wOnTime++;
+          if (!t.revisionInstructions) wFirstPass++;
+        }
+      }
+    }
+    weekly.push({
+      weekStart:   start.toISOString().slice(0, 10),
+      done:        wDone,
+      onTime:      wOnTime,
+      firstPass:   wFirstPass,
+      onTimePct:   wDone > 0 ? Math.round((wOnTime / wDone) * 100) : null,
+      firstPassPct:wDone > 0 ? Math.round((wFirstPass / wDone) * 100) : null,
+    });
+  }
+
+  // 5. Monthly delivery count — last 6 calendar months
+  const monthly = [];
+  const monthCursor = new Date();
+  monthCursor.setDate(1);
+  monthCursor.setHours(0, 0, 0, 0);
+  for (let i = 5; i >= 0; i -= 1) {
+    const monthStart = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - i, 1);
+    const monthEnd   = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - i + 1, 1);
+    let count = 0;
+    for (const t of tasks) {
+      const endTs = t.completedAt || t.approvedAt;
+      if (TASK_DONE.includes(t.status) && endTs) {
+        const ts = new Date(endTs).getTime();
+        if (ts >= monthStart.getTime() && ts < monthEnd.getTime()) count++;
+      }
+    }
+    monthly.push({
+      monthStart: monthStart.toISOString().slice(0, 10),
+      label:      monthStart.toLocaleString("en-IN", { month: "short", year: "2-digit" }),
+      done:       count,
+    });
+  }
+
+  // 6. Projects assigned — distinct projectIds across the task set
+  const projectIds = [...new Set(tasks.map((t) => String(t.projectId)).filter(Boolean))];
+  const projects = projectIds.length
+    ? await Project.find({ _id: { $in: projectIds } })
+        .select("name trackingId phase status estimatedCompletionDate progressPercent")
+        .lean()
+    : [];
+  // Tasks-per-project count for the projects table
+  const tasksByProject = new Map();
+  for (const t of tasks) {
+    const k = String(t.projectId);
+    if (!tasksByProject.has(k)) tasksByProject.set(k, { total: 0, active: 0, done: 0 });
+    const bucket = tasksByProject.get(k);
+    bucket.total += 1;
+    if (["not_started", "in_progress", "pending_review", "revision_requested", "blocked"].includes(t.status)) bucket.active += 1;
+    if (TASK_DONE.includes(t.status)) bucket.done += 1;
+  }
+  const projectsShaped = projects.map((p) => ({
+    _id:        p._id,
+    name:       p.name,
+    trackingId: p.trackingId,
+    phase:      p.phase,
+    status:     p.status,
+    eta:        p.estimatedCompletionDate || null,
+    progress:   p.progressPercent || 0,
+    tasks:      tasksByProject.get(String(p._id)) || { total: 0, active: 0, done: 0 },
+  }));
+
+  // 7. Recent tasks — top 10 by updatedAt
+  const projectNameById = new Map(projects.map((p) => [String(p._id), p.name]));
+  const recentTasks = tasks.slice(0, 30).map((t) => ({
+    _id:         t._id,
+    title:       t.title,
+    status:      t.status,
+    taskType:    t.taskType,
+    priority:    t.priority,
+    projectName: projectNameById.get(String(t.projectId)) || "—",
+    projectId:   t.projectId,
+    dueDate:     t.dueDate || null,
+    updatedAt:   t.updatedAt,
+    isDelayed:   !!(t.dueDate && new Date(t.dueDate).getTime() < now
+                    && !TASK_DONE.includes(t.status)),
+  }));
+
+  // 8. Status distribution shaped for the donut
+  const statusDistribution = [...statusCounts.entries()]
+    .map(([status, count]) => ({ status, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    user: {
+      _id:    user._id,
+      name:   user.name,
+      email:  user.email,
+      phone:  user.phone,
+      role:   user.role,
+      isActive: user.isActive,
+    },
+    period: validPeriod,
+    currentStats: {
+      kraScore,
+      onTimePct:    Math.round(onTimeRate * 100),
+      firstPassPct: Math.round(firstPassRate * 100),
+      throughput:   done,
+      active,
+      delayedActive,
+    },
+    kraBreakdown: {
+      onTime:     Math.round(onTimeRate * 100),
+      firstPass:  Math.round(firstPassRate * 100),
+      throughput: Math.round(throughputNorm * 100),
+    },
+    trend: { weekly, monthly },
+    statusDistribution,
+    projects: projectsShaped,
+    recentTasks,
+  };
+};
+
+/**
  * @route GET /api/pms/dashboard/designer/:userId?period=week|month|quarter|all
  * @permission projects.read
  */
@@ -745,193 +937,46 @@ const getDesignerDetail = async (req, res) => {
 
     const period = String(req.query.period || "month").toLowerCase();
     const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
-    const periodStart = startOfPeriod(validPeriod);
 
-    // 1. User profile
-    const user = User
-      ? await User.findById(userId).select("name email phone role isActive").lean()
-      : null;
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const detail = await computeDesignerDetail(userId, validPeriod);
+    if (!detail) return res.status(404).json({ message: "User not found" });
 
-    // 2. All tasks ever assigned to this user (we cap trend window to 12 weeks
-    // below). Pull a slightly larger window than the active period so trend
-    // sparklines render even for "week" view.
-    const trendWindowStart = new Date(Date.now() - 12 * 7 * DAY);
-    const lookbackStart = periodStart < trendWindowStart ? periodStart : trendWindowStart;
-    const tasks = await Task.find({
-      assignedTo: userId,
-      $or: [
-        { createdAt:   { $gte: lookbackStart } },
-        { completedAt: { $gte: lookbackStart } },
-        { approvedAt:  { $gte: lookbackStart } },
-        // Always include currently-open tasks so the active counter is honest
-        { status: { $in: ["not_started", "in_progress", "pending_review", "revision_requested", "blocked"] } },
-      ],
-    })
-      .select("title status taskType priority createdAt completedAt approvedAt dueDate revisionInstructions projectId updatedAt submittedAt")
-      .sort({ updatedAt: -1 })
-      .lean();
-
-    // 3. Current-period stats (mirrors getDesignerKRA logic for ONE user)
-    let active = 0, done = 0, onTimeDone = 0, firstPassDone = 0;
-    let delayedActive = 0;
-    const statusCounts = new Map();
-    const now = Date.now();
-    for (const t of tasks) {
-      const inPeriodActive = ["not_started", "in_progress", "pending_review", "revision_requested", "blocked"].includes(t.status);
-      if (inPeriodActive) {
-        active++;
-        // Overdue active task = past dueDate
-        if (t.dueDate && new Date(t.dueDate).getTime() < now) delayedActive++;
-      }
-
-      const endTs = t.completedAt || t.approvedAt;
-      const isDoneInPeriod = TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart;
-      if (isDoneInPeriod) {
-        done++;
-        if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) onTimeDone++;
-        if (!t.revisionInstructions) firstPassDone++;
-      }
-
-      // Status distribution counts ALL tasks the designer touched in the
-      // lookback window — gives a fuller donut.
-      const s = t.status || "unknown";
-      statusCounts.set(s, (statusCounts.get(s) || 0) + 1);
-    }
-    const onTimeRate    = done > 0 ? onTimeDone / done : 0;
-    const firstPassRate = done > 0 ? firstPassDone / done : 0;
-    const throughputNorm = Math.min(1, done / 20); // 20 = full bar on absolute scale
-    const kraScore = Math.round((0.45 * onTimeRate + 0.35 * firstPassRate + 0.20 * throughputNorm) * 5 * 10) / 10;
-
-    // 4. Weekly trend — last 12 ISO weeks
-    const weekly = [];
-    for (let i = 11; i >= 0; i -= 1) {
-      const start = new Date(now - (i + 1) * 7 * DAY);
-      const end   = new Date(now - i * 7 * DAY);
-      let wDone = 0, wOnTime = 0, wFirstPass = 0;
-      for (const t of tasks) {
-        const endTs = t.completedAt || t.approvedAt;
-        if (TASK_DONE.includes(t.status) && endTs) {
-          const ts = new Date(endTs).getTime();
-          if (ts >= start.getTime() && ts < end.getTime()) {
-            wDone++;
-            if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) wOnTime++;
-            if (!t.revisionInstructions) wFirstPass++;
-          }
-        }
-      }
-      weekly.push({
-        weekStart:   start.toISOString().slice(0, 10),
-        done:        wDone,
-        onTime:      wOnTime,
-        firstPass:   wFirstPass,
-        onTimePct:   wDone > 0 ? Math.round((wOnTime / wDone) * 100) : null,
-        firstPassPct:wDone > 0 ? Math.round((wFirstPass / wDone) * 100) : null,
-      });
-    }
-
-    // 5. Monthly delivery count — last 6 calendar months
-    const monthly = [];
-    const monthCursor = new Date();
-    monthCursor.setDate(1);
-    monthCursor.setHours(0, 0, 0, 0);
-    for (let i = 5; i >= 0; i -= 1) {
-      const monthStart = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - i, 1);
-      const monthEnd   = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - i + 1, 1);
-      let count = 0;
-      for (const t of tasks) {
-        const endTs = t.completedAt || t.approvedAt;
-        if (TASK_DONE.includes(t.status) && endTs) {
-          const ts = new Date(endTs).getTime();
-          if (ts >= monthStart.getTime() && ts < monthEnd.getTime()) count++;
-        }
-      }
-      monthly.push({
-        monthStart: monthStart.toISOString().slice(0, 10),
-        label:      monthStart.toLocaleString("en-IN", { month: "short", year: "2-digit" }),
-        done:       count,
-      });
-    }
-
-    // 6. Projects assigned — distinct projectIds across the task set
-    const projectIds = [...new Set(tasks.map((t) => String(t.projectId)).filter(Boolean))];
-    const projects = projectIds.length
-      ? await Project.find({ _id: { $in: projectIds } })
-          .select("name trackingId phase status estimatedCompletionDate progressPercent")
-          .lean()
-      : [];
-    // Tasks-per-project count for the projects table
-    const tasksByProject = new Map();
-    for (const t of tasks) {
-      const k = String(t.projectId);
-      if (!tasksByProject.has(k)) tasksByProject.set(k, { total: 0, active: 0, done: 0 });
-      const bucket = tasksByProject.get(k);
-      bucket.total += 1;
-      if (["not_started", "in_progress", "pending_review", "revision_requested", "blocked"].includes(t.status)) bucket.active += 1;
-      if (TASK_DONE.includes(t.status)) bucket.done += 1;
-    }
-    const projectsShaped = projects.map((p) => ({
-      _id:        p._id,
-      name:       p.name,
-      trackingId: p.trackingId,
-      phase:      p.phase,
-      status:     p.status,
-      eta:        p.estimatedCompletionDate || null,
-      progress:   p.progressPercent || 0,
-      tasks:      tasksByProject.get(String(p._id)) || { total: 0, active: 0, done: 0 },
-    }));
-
-    // 7. Recent tasks — top 10 by updatedAt
-    const projectNameById = new Map(projects.map((p) => [String(p._id), p.name]));
-    const recentTasks = tasks.slice(0, 10).map((t) => ({
-      _id:         t._id,
-      title:       t.title,
-      status:      t.status,
-      taskType:    t.taskType,
-      priority:    t.priority,
-      projectName: projectNameById.get(String(t.projectId)) || "—",
-      projectId:   t.projectId,
-      dueDate:     t.dueDate || null,
-      updatedAt:   t.updatedAt,
-      isDelayed:   !!(t.dueDate && new Date(t.dueDate).getTime() < now
-                      && !TASK_DONE.includes(t.status)),
-    }));
-
-    // 8. Status distribution shaped for the donut
-    const statusDistribution = [...statusCounts.entries()]
-      .map(([status, count]) => ({ status, count }))
-      .sort((a, b) => b.count - a.count);
-
-    res.status(200).json({
-      user: {
-        _id:    user._id,
-        name:   user.name,
-        email:  user.email,
-        phone:  user.phone,
-        role:   user.role,
-        isActive: user.isActive,
-      },
-      period: validPeriod,
-      currentStats: {
-        kraScore,
-        onTimePct:    Math.round(onTimeRate * 100),
-        firstPassPct: Math.round(firstPassRate * 100),
-        throughput:   done,
-        active,
-        delayedActive,
-      },
-      kraBreakdown: {
-        onTime:     Math.round(onTimeRate * 100),
-        firstPass:  Math.round(firstPassRate * 100),
-        throughput: Math.round(throughputNorm * 100),
-      },
-      trend: { weekly, monthly },
-      statusDistribution,
-      projects: projectsShaped,
-      recentTasks,
-    });
+    res.status(200).json(detail);
   } catch (err) {
     console.error("[dashboard.designer-detail]", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/**
+ * Designer report card as a downloadable PDF — same data as the detail page,
+ * rendered server-side (see services/designerReportPdf.js).
+ *
+ * @route GET /api/pms/dashboard/designer/:userId/report.pdf?period=...
+ * @permission projects.read
+ */
+const downloadDesignerReportPdf = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ message: "userId is required" });
+
+    const period = String(req.query.period || "month").toLowerCase();
+    const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
+
+    const detail = await computeDesignerDetail(userId, validPeriod);
+    if (!detail) return res.status(404).json({ message: "User not found" });
+
+    const buffer = await generateDesignerReportPdfBuffer(detail);
+    const safeName = String(detail.user.name || "designer").trim().replace(/[^\w-]+/g, "-");
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="Designer-Report-${safeName}-${validPeriod}.pdf"`,
+      "Content-Length": buffer.length,
+    });
+    // Puppeteer ≥22 returns a Uint8Array — normalise so Express streams bytes.
+    res.send(Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
+  } catch (err) {
+    console.error("[dashboard.designer-report-pdf]", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -1527,6 +1572,7 @@ module.exports = {
   getOverview,
   getDesignerKRA,
   getDesignerDetail,
+  downloadDesignerReportPdf,
   getAnalytics,
   getProjectPendingApproval,
   getAlerts,

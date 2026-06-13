@@ -12,8 +12,10 @@
  *     persist because providers require a publicly reachable URL — they do
  *     not accept buffers like email does.
  *
- * Layout intentionally mirrors ProposalPreviewModal.jsx so the recipient sees
- * the same document on screen and in the PDF.
+ * Layout intentionally mirrors shared/components/ProposalViewer/ProposalViewer.jsx
+ * (the letter-format document shown on the review screen) so the recipient sees
+ * the same document on screen, in the downloaded PDF, in the email attachment,
+ * and in the project Document Repository.
  */
 const fs = require("fs/promises");
 const path = require("path");
@@ -24,7 +26,7 @@ const puppeteer = require("puppeteer");
 //     without a code deploy). Falls back to JJ Studio defaults. (#33)
 const BRAND = {
   name: process.env.COMPANY_NAME || "JJ Studio",
-  tagline: process.env.COMPANY_TAGLINE || "- Reinventing your Interiors",
+  tagline: process.env.COMPANY_TAGLINE || "-Reinventing your Interiors",
   addressLine1: process.env.COMPANY_ADDRESS_LINE1 || "Avani Oxford, Laketown",
   addressLine2: process.env.COMPANY_ADDRESS_LINE2 || "Kolkata - 700 055",
   email: process.env.COMPANY_EMAIL || "deepa@jjstudio.in",
@@ -64,57 +66,65 @@ const parseNum = (n) => {
   return Number.isFinite(num) ? num : null;
 };
 
-const inr = (n) => {
+// Totals are shown like the on-screen viewer: en-IN grouping, 2 decimals, no ₹.
+const fmt2 = (n) => {
   const num = parseNum(n);
-  return num === null ? esc(String(n ?? "")) : `₹${num.toLocaleString("en-IN")}`;
+  return (num === null ? 0 : num).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 };
 
 // ─── HTML template ────────────────────────────────────────────────────────────
 // Self-contained — no external CSS, no external images. Puppeteer can render
-// this offline without network. Visual style follows ProposalPreviewModal.
+// this offline without network. Mirrors ProposalViewer.jsx cell-for-cell:
+// letter format (To / Dt. / Sub / Dear / numbered intro), S.No. tables with
+// a)/b) row letters, raw cell values, totals table, fixed terms, signoff.
 const buildHtml = (proposal, client) => {
   const sections = proposal.content?.sections || [];
-  const subtotal = proposal.subtotal || 0;
-  const gst = proposal.gst || 0;
-  const finalAmount = proposal.finalAmount || 0;
 
-  // Render each section using whatever columns the template actually has —
-  // no hard-coded Item/Qty/Rate/Amount lookup so dynamic templates render correctly.
+  const dt = new Date(proposal.createdAt || Date.now())
+    .toLocaleDateString("en-GB")
+    .replace(/\//g, ".");
+  const firstName = (client?.name || "").trim().split(/\s+/)[0] || "Sir/Madam";
+
   const sectionsHtml = sections
-    .map((section) => {
+    .map((section, sIdx) => {
       const cols = section.structure?.columns || [];
-      const colCount = cols.length || 1;
+      const rows = section.structure?.rows || [];
 
-      // Column types: 'number' cells use INR formatting + right alignment.
-      const headerCells = cols
-        .map((c) => `<th class="${c.type === "number" ? "right" : ""}">${esc(c.label || "")}</th>`)
+      const headerCells = [`<th class="sno">S.No.</th>`]
+        .concat(cols.map((c) => `<th>${esc(c.label || "")}</th>`))
         .join("");
 
-      const rows = (section.structure?.rows || [])
-        .map((row) => {
-          if (row.isGroupHeader) {
-            const label = cols[0] ? row.cells?.[cols[0].id] : "";
-            return `<tr><td colspan="${colCount}" class="row-group">${esc(label || "")}</td></tr>`;
-          }
-          const cells = cols
-            .map((c) => {
-              const raw = row.cells?.[c.id];
-              if (c.type === "number") {
-                return `<td class="right">${inr(raw)}</td>`;
+      const bodyRows = rows.length === 0
+        ? `<tr><td colspan="${cols.length + 1}" class="empty">Empty section structure</td></tr>`
+        : rows
+            .map((row, rIdx) => {
+              if (row.isGroupHeader) {
+                const label = row.cells?.[cols[0]?.id] || "Unnamed Group";
+                return `<tr class="group"><td class="sno"></td><td colspan="${cols.length}">${esc(label)}</td></tr>`;
               }
-              return `<td>${esc(raw ?? "")}</td>`;
+              const cells = cols
+                .map((c, idx) => {
+                  // Same alignment rule as the viewer: number columns and the
+                  // last column right-align; values render raw (no formatting).
+                  const right = c.type === "number" || idx === cols.length - 1;
+                  return `<td${right ? ' class="right"' : ""}>${esc(row.cells?.[c.id] ?? "")}</td>`;
+                })
+                .join("");
+              return `<tr><td class="sno">${String.fromCharCode(97 + (rIdx % 26))})</td>${cells}</tr>`;
             })
             .join("");
-          return `<tr>${cells}</tr>`;
-        })
-        .join("");
 
       return `
-        <h3 class="section-title">${esc(section.title || "Section")}</h3>
-        <table class="items">
+      <div class="section">
+        <h3>${sIdx + 1}. ${esc(section.title || "Section")}</h3>
+        <table>
           <thead><tr>${headerCells}</tr></thead>
-          <tbody>${rows || `<tr><td colspan="${colCount}"><em>No rows.</em></td></tr>`}</tbody>
-        </table>`;
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </div>`;
     })
     .join("");
 
@@ -122,72 +132,97 @@ const buildHtml = (proposal, client) => {
 <html><head><meta charset="utf-8"><title>${esc(proposal.title || "Proposal")}</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: Helvetica, Arial, sans-serif; color: #111; margin: 0; padding: 32px; font-size: 12px; line-height: 1.45; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
-  .brand h1 { font-family: Georgia, serif; color: #c1272d; font-size: 32px; margin: 0; font-style: italic; }
-  .brand .tag { font-style: italic; font-weight: 600; margin: 2px 0 8px 0; }
-  .brand .addr { font-size: 11px; }
-  .contact { text-align: right; font-size: 11px; }
-  .meta { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #d4d4d4; padding-top: 16px; margin-bottom: 24px; }
-  .meta .client p { margin: 2px 0; font-size: 11px; }
-  .meta .client .name { font-weight: 700; font-size: 14px; }
-  .meta .ref { text-align: right; font-size: 11px; }
-  .meta .ref strong { display: block; font-size: 14px; margin-bottom: 4px; }
-  h2.title { font-size: 18px; margin: 0 0 20px 0; padding-bottom: 8px; border-bottom: 2px solid #c1272d; }
-  .description { font-size: 12px; color: #444; margin-bottom: 18px; white-space: pre-wrap; }
-  .section-title { font-size: 13px; margin: 18px 0 6px 0; color: #c1272d; }
-  table.items { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-  table.items th, table.items td { border: 1px solid #e0e0e0; padding: 6px 8px; font-size: 11px; vertical-align: top; }
-  table.items th { background: #fafafa; text-align: left; font-weight: 700; }
-  table.items td.right, table.items th.right { text-align: right; }
-  table.items tr.row-group td, .row-group { background: #f3f4f6; font-weight: 700; }
-  .totals { width: 280px; margin-left: auto; margin-top: 20px; border-top: 2px solid #111; padding-top: 10px; }
-  .totals .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
-  .totals .row.grand { border-top: 1px solid #d4d4d4; margin-top: 6px; padding-top: 8px; font-size: 14px; font-weight: 700; }
-  .footer { margin-top: 36px; font-size: 10px; color: #666; border-top: 1px solid #e0e0e0; padding-top: 10px; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #000; margin: 0; font-size: 12px; line-height: 1.5; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; }
+  .brand h1 { font-family: Georgia, "Times New Roman", serif; color: #dc2626; font-size: 32px; font-weight: 700; font-style: italic; margin: 0 0 4px 0; }
+  .brand .tag { font-size: 15px; font-style: italic; font-weight: 600; margin: 0 0 8px 0; }
+  .brand .addr { font-weight: 500; margin: 0; }
+  .contact { text-align: right; font-weight: 500; }
+  .contact p { margin: 0 0 2px 0; }
+  .meta { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #d1d5db; padding-top: 22px; margin-bottom: 30px; }
+  .meta p { margin: 0 0 3px 0; }
+  .meta .to, .meta .date { font-weight: 700; text-decoration: underline; }
+  .meta .name { font-weight: 700; }
+  .meta .address { font-weight: 500; }
+  .subject { text-align: center; font-weight: 700; text-decoration: underline; margin: 0 0 30px 0; }
+  .intro { font-weight: 500; margin-bottom: 30px; }
+  .intro .dear { font-weight: 700; margin: 0 0 14px 0; }
+  .intro .point { display: flex; gap: 16px; margin: 0 0 14px 0; }
+  .intro .point span { flex-shrink: 0; }
+  .intro .point p { margin: 0; }
+  .section { margin-bottom: 28px; page-break-inside: avoid; }
+  .section h3 { font-size: 14px; font-weight: 700; margin: 0 0 8px 0; }
+  table { width: 100%; border-collapse: collapse; border: 1px solid #000; }
+  th, td { border: 1px solid #000; padding: 7px 10px; text-align: left; vertical-align: top; font-weight: 500; }
+  thead th { background: #f9fafb; font-weight: 700; text-align: center; }
+  td.sno, th.sno { width: 44px; text-align: center; }
+  td.right { text-align: right; }
+  tr.group td { background: #f3f4f6; font-weight: 700; }
+  td.empty { text-align: center; font-style: italic; padding: 24px; color: #666; }
+  tr { page-break-inside: avoid; }
+  .totals { margin-top: 30px; page-break-inside: avoid; }
+  .totals td { font-weight: 700; text-align: right; }
+  .totals td.label { width: 75%; }
+  .totals tr.grand td { background: #f3f4f6; }
+  .terms { font-weight: 500; padding-left: 32px; margin-top: 36px; }
+  .terms p { margin: 0 0 8px 0; }
+  .signoff { font-weight: 700; margin-top: 56px; page-break-inside: avoid; }
+  .signoff .for { font-style: italic; margin-top: 32px; }
 </style></head>
 <body>
   <div class="header">
     <div class="brand">
       <h1>${esc(BRAND.name)}</h1>
-      <div class="tag">${esc(BRAND.tagline)}</div>
-      <div class="addr">${esc(BRAND.addressLine1)}</div>
-      <div class="addr">${esc(BRAND.addressLine2)}</div>
+      <p class="tag">${esc(BRAND.tagline)}</p>
+      <p class="addr">${esc(BRAND.addressLine1)}</p>
+      <p class="addr">${esc(BRAND.addressLine2)}</p>
     </div>
     <div class="contact">
-      <div>Email: ${esc(BRAND.email)}</div>
-      <div>(M): ${esc(BRAND.mobile)}</div>
-      <div>(O): ${esc(BRAND.office)}</div>
+      <p>Email: ${esc(BRAND.email)}</p>
+      <p>(M) : ${esc(BRAND.mobile)}</p>
+      <p>(O) : ${esc(BRAND.office)}</p>
     </div>
   </div>
 
   <div class="meta">
-    <div class="client">
-      <p class="name">${esc(client?.name || "Client")}</p>
-      ${client?.email ? `<p>${esc(client.email)}</p>` : ""}
-      ${client?.phone ? `<p>${esc(client.phone)}</p>` : ""}
-      ${client?.siteAddress?.fullAddress ? `<p>${esc(client.siteAddress.fullAddress)}</p>` : ""}
+    <div>
+      <p class="to">To</p>
+      <p class="name">${esc(client?.name || "Client Name")}</p>
+      <p class="address">${esc(client?.address || "Client Address")}</p>
     </div>
-    <div class="ref">
-      ${client?.trackingId ? `<strong>${esc(client.trackingId)}</strong>` : ""}
-      <div>Date: ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</div>
-      ${proposal._id ? `<div>Ref: ${esc(String(proposal._id).slice(-8).toUpperCase())}</div>` : ""}
+    <div>
+      <p class="date">Dt. ${dt}</p>
     </div>
   </div>
 
-  <h2 class="title">${esc(proposal.title || "Proposal")}</h2>
-  ${proposal.description ? `<div class="description">${esc(proposal.description)}</div>` : ""}
+  <p class="subject">Sub :- ${esc(proposal.title || "Estimate for interior works")}</p>
 
-  ${sectionsHtml || "<p><em>No line items.</em></p>"}
+  <div class="intro">
+    <p class="dear">Dear ${esc(firstName)},</p>
+    <div class="point"><span>1)</span><p>We will provide all the necessary services and skill to the best of our ability during the designing and execution of the above mentioned property.</p></div>
+    <div class="point"><span>2)</span><p>Estimated cost of the project as follows :-</p></div>
+  </div>
+
+  ${sectionsHtml}
 
   <div class="totals">
-    <div class="row"><span>Subtotal</span><span>${inr(subtotal)}</span></div>
-    <div class="row"><span>GST</span><span>${inr(gst)}</span></div>
-    <div class="row grand"><span>Final Amount</span><span>${inr(finalAmount)}</span></div>
+    <table>
+      <tbody>
+        <tr><td class="label">Sub Total</td><td>${fmt2(proposal.subtotal)}</td></tr>
+        <tr><td class="label">GST (18%)</td><td>${fmt2(proposal.gst)}</td></tr>
+        <tr class="grand"><td class="label">Total Project Cost</td><td>${fmt2(proposal.finalAmount)}</td></tr>
+      </tbody>
+    </table>
   </div>
 
-  <div class="footer">
-    Generated by JJ Studio ERP on ${new Date().toLocaleString("en-IN")}. This is an automatically generated document.
+  <div class="terms">
+    <p>ii) Any kind of accessories like Chandeliar, Art effects for décor of the handled on the actual Cost basis.</p>
+    <p>iii) The above cost is an estimate for your reference, while the project will be handled on the actual Cost basis.</p>
+  </div>
+
+  <div class="signoff">
+    <p>Regards,</p>
+    <p class="for">${esc(BRAND.signoff)}</p>
   </div>
 </body></html>`;
 };
@@ -272,4 +307,6 @@ const saveProposalPdf = async (buffer, proposalId) => {
   return { absolutePath, publicUrl, filename };
 };
 
-module.exports = { generateProposalPdfBuffer, saveProposalPdf, closeBrowser };
+// getBrowser is shared with other modules (e.g. PMS designer report) so the
+// whole process keeps exactly one Chromium instance.
+module.exports = { generateProposalPdfBuffer, saveProposalPdf, closeBrowser, getBrowser };

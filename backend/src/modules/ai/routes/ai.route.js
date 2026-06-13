@@ -6,6 +6,8 @@
 // loads req.permissions if not yet loaded.
 
 const express = require("express");
+const multer  = require("multer");
+const path    = require("path");
 const router = express.Router();
 
 const { requirePermission } = require("../../../middleware/auth.middleware");
@@ -33,6 +35,58 @@ router.post(
 // Non-streaming JSON. Rewrites raw text into professional English (e.g. the
 // "AI" button on the Record MOM Discussion Summary). Rate-limited like chat.
 router.post("/polish-text", requirePermission("ai.chat"), aiRateLimit, ai.polishText);
+
+// ─── Speech-to-text (audio transcription) ────────────────────────────────────
+// Memory storage so the buffer goes straight to the Whisper API (same pattern
+// as Document.route). Accepts mic recordings (webm/mp4 blobs) and uploaded
+// audio files. The 25 MB cap mirrors OpenAI's transcription file limit.
+// MediaRecorder blobs carry a codecs suffix ("audio/webm;codecs=opus"), so we
+// match on the base mimetype.
+const AUDIO_MIME = new Set([
+  "audio/webm", "audio/ogg", "audio/oga", "audio/mpeg", "audio/mp3",
+  "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/aac",
+  "audio/wav", "audio/x-wav", "audio/wave", "audio/flac", "audio/x-flac",
+  "video/webm", "video/mp4", // browsers sometimes label audio-only blobs as video
+]);
+// Browsers send application/octet-stream for some audio files — accept those
+// only when the extension is one Whisper supports.
+const AUDIO_EXT = new Set([
+  ".webm", ".ogg", ".oga", ".mp3", ".m4a", ".mp4", ".wav", ".flac", ".aac", ".mpeg", ".mpga",
+]);
+
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 25 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const base = (file.mimetype || "").split(";")[0].trim().toLowerCase();
+    const ext  = path.extname(file.originalname || "").toLowerCase();
+    const ok =
+      AUDIO_MIME.has(base) ||
+      (base === "application/octet-stream" && AUDIO_EXT.has(ext));
+    if (ok) return cb(null, true);
+    req.fileFilterError = `Unsupported audio type "${file.mimetype}". Use MP3, WAV, M4A, AAC, OGG or WebM.`;
+    cb(null, false);
+  },
+});
+
+function handleAudioUploadErrors(err, req, res, next) {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ message: "Audio too large. Max 25 MB." });
+    }
+    return res.status(400).json({ message: err.message });
+  }
+  return next(err);
+}
+
+router.post(
+  "/transcribe",
+  requirePermission("ai.chat"),
+  aiRateLimit,
+  audioUpload.single("audio"),
+  handleAudioUploadErrors,
+  ai.transcribeAudio
+);
 
 // ─── Conversations CRUD ───────────────────────────────────────────────────────
 router.get   ("/conversations",          requirePermission("ai.chat"), conversation.list);

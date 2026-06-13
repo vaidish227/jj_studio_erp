@@ -258,11 +258,11 @@ taskSchema.index({ taskType: 1 });
 taskSchema.index({ projectId: 1, "planning.plannedEndDate": 1 });
 taskSchema.index({ projectId: 1, "planning.zoneName": 1 });
 
-// --- workStatus auto-sync ---
-// The Master Sheet "Work Status" column auto-follows workflow `status`
-// transitions via the hooks below. An explicit workStatus write in the same
-// operation always wins over the derived value; "cancelled" has no workflow
-// counterpart and stays manual-only.
+// --- workStatus + progress auto-sync ---
+// The Master Sheet "Work Status" and "Progress" columns auto-follow workflow
+// `status` transitions via the hooks below. An explicit write of either field
+// in the same operation always wins over the derived value; "cancelled" has
+// no workflow counterpart and stays manual-only.
 const WORK_STATUS_FROM_STATUS = {
   not_started: "pending",
   blocked: "pending",
@@ -276,12 +276,30 @@ const WORK_STATUS_FROM_STATUS = {
   on_hold: "on_hold",
 };
 
+// on_hold is intentionally absent — pausing a task keeps its last percent.
+const PROGRESS_FROM_STATUS = {
+  not_started: 0,
+  blocked: 0,
+  in_progress: 50,
+  revision_requested: 50,
+  pending_review: 80,
+  pending_client_approval: 90,
+  approved: 100,
+  released_to_site: 100,
+  completed: 100,
+};
+
 // Document middleware — covers task.save() flows (workflow engine, controllers).
 // Mongoose 9: no `next` callback — sync middleware completes on return.
 taskSchema.pre("save", function () {
-  if (this.isModified("status") && !this.isModified("workStatus")) {
+  if (!this.isModified("status")) return;
+  if (!this.isModified("workStatus")) {
     const ws = WORK_STATUS_FROM_STATUS[this.status];
     if (ws) this.workStatus = ws;
+  }
+  if (!this.isModified("planning.progressPercent")) {
+    const pct = PROGRESS_FROM_STATUS[this.status];
+    if (pct != null) this.set("planning.progressPercent", pct);
   }
 });
 
@@ -290,31 +308,40 @@ taskSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function () {
   const u = this.getUpdate();
   if (!u || Array.isArray(u)) return; // skip aggregation pipeline updates
   const status = u.$set?.status ?? u.status;
+  if (!status) return;
+
   const hasExplicitWS =
     (u.$set && Object.prototype.hasOwnProperty.call(u.$set, "workStatus")) ||
     Object.prototype.hasOwnProperty.call(u, "workStatus");
-  if (status && !hasExplicitWS) {
-    const ws = WORK_STATUS_FROM_STATUS[status];
-    if (ws) {
-      // A Mongo update can't mix bare fields with $-operators. Callers that
-      // pass `{ status: "x" }` (no $set) get their bare fields moved into
-      // $set before workStatus is added, so the final update stays valid.
-      if (!u.$set) {
-        u.$set = {};
-        for (const key of Object.keys(u)) {
-          if (key !== "$set" && !key.startsWith("$")) {
-            u.$set[key] = u[key];
-            delete u[key];
-          }
-        }
+  const hasExplicitProgress =
+    (u.$set && (Object.prototype.hasOwnProperty.call(u.$set, "planning.progressPercent") ||
+                u.$set.planning?.progressPercent != null)) ||
+    Object.prototype.hasOwnProperty.call(u, "planning.progressPercent") ||
+    u.planning?.progressPercent != null;
+
+  const ws  = hasExplicitWS ? null : WORK_STATUS_FROM_STATUS[status];
+  const pct = hasExplicitProgress ? null : PROGRESS_FROM_STATUS[status];
+  if (ws == null && pct == null) return;
+
+  // A Mongo update can't mix bare fields with $-operators. Callers that
+  // pass `{ status: "x" }` (no $set) get their bare fields moved into
+  // $set before derived fields are added, so the final update stays valid.
+  if (!u.$set) {
+    u.$set = {};
+    for (const key of Object.keys(u)) {
+      if (key !== "$set" && !key.startsWith("$")) {
+        u.$set[key] = u[key];
+        delete u[key];
       }
-      u.$set.workStatus = ws;
     }
   }
+  if (ws != null)  u.$set.workStatus = ws;
+  if (pct != null) u.$set["planning.progressPercent"] = pct;
 });
 
 // Exposed for code paths that bypass middleware (e.g. Task.bulkWrite in Excel import)
 taskSchema.statics.WORK_STATUS_FROM_STATUS = WORK_STATUS_FROM_STATUS;
+taskSchema.statics.PROGRESS_FROM_STATUS = PROGRESS_FROM_STATUS;
 
 
 module.exports = mongoose.model("Task", taskSchema, "pms_tasks");

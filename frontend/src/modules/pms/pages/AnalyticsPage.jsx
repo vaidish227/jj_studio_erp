@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  BarChart3, Lock, Clock, Users, ShoppingBag, IndianRupee, ArrowUpRight,
+  BarChart3, Clock, Users, ShoppingBag, IndianRupee,
   TrendingUp, TrendingDown, AlertTriangle, RefreshCw, Activity,
   FileSpreadsheet, Download,
 } from 'lucide-react';
@@ -24,7 +23,6 @@ import { exportReportAsExcel } from '../../../shared/utils/excelExport';
 
 const TABS = [
   { id: 'overview',    label: 'Project Overview',     icon: Activity },
-  { id: 'gates',       label: 'Pending Sign-offs',    icon: Lock },
   { id: 'sla',         label: 'Release SLA',          icon: Clock },
   { id: 'designers',   label: 'Designer Utilisation', icon: Users },
   { id: 'vendors',     label: 'Vendor Performance',   icon: ShoppingBag },
@@ -102,74 +100,7 @@ const Bar = ({ value, max, color = 'var(--primary)' }) => {
   );
 };
 
-// ── 1. Gate Aging ────────────────────────────────────────────────────────────
-const GateAgingPanel = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    pmsService.getGateAging()
-      .then((res) => setData(res))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <PanelLoader />;
-  if (!data || data.total === 0) return <EmptyPanel icon={<Lock size={28} />} msg="No pending sign-offs across projects." />;
-
-  return (
-    <div className="space-y-5">
-      <SummaryRow>
-        <Stat label="Pending sign-offs" value={data.total} />
-        <Stat label="0–3 days" value={data.buckets['0-3']} tone="success" />
-        <Stat label="4–7 days" value={data.buckets['4-7']} tone="accent" />
-        <Stat label="8–14 days" value={data.buckets['8-14']} tone="warning" />
-        <Stat label="15+ days" value={data.buckets['15+']} tone="error" />
-      </SummaryRow>
-
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--bg)] text-[var(--text-muted)]">
-            <tr>
-              <Th>Project</Th>
-              <Th>Sign-off</Th>
-              <Th>Approver</Th>
-              <Th right>Age</Th>
-              <Th right>Action</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.gates.map((g) => (
-              <tr key={g._id} className="border-t border-[var(--border)] hover:bg-[var(--bg)]/60">
-                <Td>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mr-2">{g.trackingId}</span>
-                  <span className="text-[var(--text-primary)] font-semibold">{g.projectName}</span>
-                </Td>
-                <Td>{g.label}</Td>
-                <Td><ApproverBadge type={g.approverType} /></Td>
-                <Td right>
-                  <span className={`font-bold ${g.ageingDays > 14 ? 'text-[var(--error)]' : g.ageingDays > 7 ? 'text-[var(--warning)]' : 'text-[var(--text-primary)]'}`}>
-                    {g.ageingDays}d
-                  </span>
-                </Td>
-                <Td right>
-                  <button
-                    onClick={() => navigate(`/projects/${g.projectId}`)}
-                    className="inline-flex items-center gap-0.5 text-xs font-semibold text-[var(--primary)] hover:underline"
-                  >
-                    Open <ArrowUpRight size={11} />
-                  </button>
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-// ── 2. Release SLA ───────────────────────────────────────────────────────────
+// ── 1. Release SLA ───────────────────────────────────────────────────────────
 const ReleaseSLAPanel = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -246,7 +177,7 @@ const ReleaseSLAPanel = () => {
   );
 };
 
-// ── 3. Designer Utilisation ──────────────────────────────────────────────────
+// ── 2. Designer Utilisation ──────────────────────────────────────────────────
 const DesignerUtilisationPanel = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -311,7 +242,7 @@ const DesignerUtilisationPanel = () => {
   );
 };
 
-// ── 4. Vendor Performance ────────────────────────────────────────────────────
+// ── 3. Vendor Performance ────────────────────────────────────────────────────
 const VendorPerformancePanel = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -374,7 +305,7 @@ const VendorPerformancePanel = () => {
   );
 };
 
-// ── 5. Project Profitability ─────────────────────────────────────────────────
+// ── 4. Project Profitability ─────────────────────────────────────────────────
 const ProfitabilityPanel = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -477,15 +408,6 @@ const EmptyPanel = ({ icon, msg }) => (
     <p className="text-sm text-[var(--text-muted)]">{msg}</p>
   </div>
 );
-const ApproverBadge = ({ type }) => {
-  const cls =
-    type === 'client'               ? 'bg-[var(--accent-blue)]/12 text-[var(--accent-blue)]' :
-    type === 'principal_designer'   ? 'bg-[var(--primary)]/12 text-[var(--primary)]' :
-    type === 'principal_and_client' ? 'bg-[var(--warning)]/12 text-[var(--warning)]' :
-    'bg-[var(--text-muted)]/12 text-[var(--text-muted)]';
-  return <span className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${cls}`}>{type?.replace('_', ' ')}</span>;
-};
-
 // ── Project Overview (Phase B) ───────────────────────────────────────────────
 const PERIOD_OPTIONS = [
   { value: 'week',    label: 'Last 7 Days' },
@@ -556,7 +478,6 @@ const ProjectOverviewPanel = () => {
           { header: 'Tasks Done',   key: 'tasksDone',    width: 11 },
           { header: 'Tasks Active', key: 'tasksActive',  width: 12 },
           { header: 'Tasks Overdue',key: 'tasksOverdue', width: 13 },
-          { header: 'Open Gates',   key: 'openGates',    width: 11 },
         ],
       });
       toast.success('Project summary downloaded');
@@ -758,7 +679,6 @@ const AnalyticsPage = () => {
 
   const Panel =
     active === 'overview'  ? ProjectOverviewPanel :
-    active === 'gates'     ? GateAgingPanel    :
     active === 'sla'       ? ReleaseSLAPanel   :
     active === 'designers' ? DesignerUtilisationPanel :
     active === 'vendors'   ? VendorPerformancePanel :
