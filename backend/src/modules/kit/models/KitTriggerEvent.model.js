@@ -27,5 +27,7 @@ const kitTriggerEventSchema = new mongoose.Schema(
 
 kitTriggerEventSchema.index({ eventType: 1, firedAt: -1 });
 kitTriggerEventSchema.index({ entityType: 1, entityId: 1 });
+// Analytics — events-fired counts within a date range
+kitTriggerEventSchema.index({ createdAt: 1 });
 
 module.exports = mongoose.model("KitTriggerEvent", kitTriggerEventSchema);

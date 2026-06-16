@@ -1,19 +1,51 @@
 const mongoose = require("mongoose");
 const CRMClient = require("../models/CRMClient.model");
+const { resolveDateRange, DateRangeError } = require("../../../shared/dateRange/resolveDateRange");
 
-// Map range token → number of days. Months are mapped to fixed day counts
-// (3M = 90, 6M = 180) so the day-by-day trend/sparkline logic stays unchanged.
-const rangeToDays = (range) => {
-  switch (String(range || "").toLowerCase()) {
-    case "6m":
-      return 180;
-    case "1y":
-      return 365;
-    case "3m":
-    default:
-      return 90;
+const DAY = 86400000;
+
+// Legacy ?range tokens → rolling day windows. Kept so the Main (Sales) Dashboard,
+// which still sends ?range=3m|6m|1y, works unchanged.
+const LEGACY_RANGE_DAYS = { "3m": 90, "6m": 180, "1y": 365 };
+
+/** 'YYYY-MM-DD' for an instant in Asia/Kolkata (matches the resolver's IST basis). */
+const istDateString = (ms) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+
+/**
+ * Resolve query → date window.
+ *   New:    ?preset=… | ?from=&to=    (via shared resolveDateRange)
+ *   Legacy: ?range=3m|6m|1y           (mapped to a rolling custom window)
+ *   Default: last_90_days             (preserves CRM's historic 3m default)
+ * @throws {DateRangeError}
+ */
+function resolveRequestRange(query) {
+  const preset = query.preset != null ? String(query.preset).toLowerCase() : null;
+  const from = query.from != null ? String(query.from) : null;
+  const to = query.to != null ? String(query.to) : null;
+  const range = query.range != null ? String(query.range).toLowerCase() : null;
+
+  if (preset || from || to) {
+    const r = resolveDateRange({ preset, from, to });
+    return { ...r, label: r.preset };
   }
-};
+  if (range && LEGACY_RANGE_DAYS[range]) {
+    const days = LEGACY_RANGE_DAYS[range];
+    const now = Date.now();
+    const r = resolveDateRange({
+      from: istDateString(now - (days - 1) * DAY),
+      to: istDateString(now),
+    });
+    return { ...r, label: range };
+  }
+  const r = resolveDateRange({ preset: "last_90_days" });
+  return { ...r, label: r.preset };
+}
 
 // Fill missing days with zero so the trend chart is gap-free
 const fillDailySeries = (buckets, startDate, days) => {
@@ -39,16 +71,9 @@ const pctDelta = (curr, prev) => {
 
 const getCRMDashboard = async (req, res) => {
   try {
-    const days = rangeToDays(req.query.range);
-    const now = new Date();
-
-    const rangeStart = new Date(now);
-    rangeStart.setHours(0, 0, 0, 0);
-    rangeStart.setDate(rangeStart.getDate() - (days - 1));
-
-    const prevStart = new Date(rangeStart);
-    prevStart.setDate(prevStart.getDate() - days);
-    const prevEnd = new Date(rangeStart);
+    const { start, end, prevStart, prevEnd, label } = resolveRequestRange(req.query);
+    // Inclusive day count drives the dense daily trend series (e.g. today=1, 90d=90).
+    const days = Math.round((end.getTime() - start.getTime()) / DAY);
 
     const facetResult = await CRMClient.aggregate([
       {
@@ -78,7 +103,7 @@ const getCRMDashboard = async (req, res) => {
             },
           ],
           inRange: [
-            { $match: { createdAt: { $gte: rangeStart, $lte: now } } },
+            { $match: { createdAt: { $gte: start, $lte: end } } },
             {
               $group: {
                 _id: null,
@@ -123,7 +148,7 @@ const getCRMDashboard = async (req, res) => {
 
           // ── Acquisition trend (daily buckets)
           acquisitionTrend: [
-            { $match: { createdAt: { $gte: rangeStart, $lte: now } } },
+            { $match: { createdAt: { $gte: start, $lte: end } } },
             {
               $group: {
                 _id: {
@@ -137,7 +162,7 @@ const getCRMDashboard = async (req, res) => {
 
           // ── Conversion trend (daily buckets, for sparklines)
           convertedTrend: [
-            { $match: { status: "converted", updatedAt: { $gte: rangeStart, $lte: now } } },
+            { $match: { status: "converted", updatedAt: { $gte: start, $lte: end } } },
             {
               $group: {
                 _id: { $dateToString: { format: "%Y-%m-%d", date: "$updatedAt" } },
@@ -149,7 +174,7 @@ const getCRMDashboard = async (req, res) => {
 
           // ── Lost trend
           lostTrend: [
-            { $match: { status: "lost", updatedAt: { $gte: rangeStart, $lte: now } } },
+            { $match: { status: "lost", updatedAt: { $gte: start, $lte: end } } },
             {
               $group: {
                 _id: { $dateToString: { format: "%Y-%m-%d", date: "$updatedAt" } },
@@ -272,11 +297,11 @@ const getCRMDashboard = async (req, res) => {
     // Build dense daily series for trend & sparklines
     const acquisitionTrend = fillDailySeries(
       f.acquisitionTrend || [],
-      rangeStart,
+      start,
       days
     );
-    const convertedTrend = fillDailySeries(f.convertedTrend || [], rangeStart, days);
-    const lostTrend = fillDailySeries(f.lostTrend || [], rangeStart, days);
+    const convertedTrend = fillDailySeries(f.convertedTrend || [], start, days);
+    const lostTrend = fillDailySeries(f.lostTrend || [], start, days);
 
     // Active pipeline rolling sparkline → cumulative active over time is expensive
     // to compute. Use acquisition - converted - lost as a proxy delta sparkline.
@@ -399,9 +424,9 @@ const getCRMDashboard = async (req, res) => {
     return res.status(200).json({
       message: "CRM dashboard fetched successfully",
       data: {
-        range: req.query.range || "3m",
-        rangeStart,
-        rangeEnd: now,
+        range: label,
+        rangeStart: start,
+        rangeEnd: end,
         kpis,
         leadStages,
         trends: {
@@ -418,6 +443,10 @@ const getCRMDashboard = async (req, res) => {
       },
     });
   } catch (error) {
+    // Bad filter input → 400 (UNKNOWN_PRESET | INVALID_DATE | INVALID_RANGE | MISSING_RANGE)
+    if (error instanceof DateRangeError) {
+      return res.status(400).json({ error: error.code, message: error.message });
+    }
     console.log("Error fetching CRM dashboard:", error.message);
     return res
       .status(500)

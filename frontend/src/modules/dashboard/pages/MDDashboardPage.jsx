@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, TrendingUp, FileText, Briefcase, AlertTriangle, CheckCircle2,
@@ -12,13 +11,10 @@ import {
 } from 'recharts';
 import useMDDashboard from '../hooks/useMDDashboard';
 import DesignerKRAScoreboard from '../../pms/components/dashboard/DesignerKRAScoreboard';
-
-const PERIODS = [
-  { id: 'week',    label: 'This Week'    },
-  { id: 'month',   label: 'This Month'   },
-  { id: 'quarter', label: 'This Quarter' },
-  { id: 'all',     label: 'All Time'     },
-];
+import {
+  GlobalDateFilter, SnapshotBadge, DashboardRefetchOverlay, useDashboardRange,
+} from '../../../shared/dashboard-filter';
+import { MD_DASHBOARD_CONFIG, toLegacyPeriod } from '../config/mdDashboardConfig';
 
 const STATUS_LABEL = {
   draft:               'Draft',
@@ -118,12 +114,13 @@ const KpiTile = ({ icon: Icon, label, value, suffix = '', delta, tone = 'primary
     : <div className={classes} style={style}>{inner}</div>;
 };
 
-const SectionCard = ({ title, icon: Icon, action, color = 'var(--primary)', children }) => (
+const SectionCard = ({ title, icon: Icon, action, color = 'var(--primary)', badge, children }) => (
   <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 h-full flex flex-col transition-all hover:shadow-sm">
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between mb-4 gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         {Icon && <Icon size={15} style={{ color }} />}
-        <h3 className="text-sm font-black uppercase tracking-wider" style={{ color }}>{title}</h3>
+        <h3 className="text-sm font-black uppercase tracking-wider truncate" style={{ color }}>{title}</h3>
+        {badge}
       </div>
       {action}
     </div>
@@ -152,6 +149,7 @@ const CRMFunnelCard = ({ funnel }) => {
   const total = data.reduce((s, d) => s + d.count, 0);
   return (
     <SectionCard title="CRM Funnel" icon={Users} color="var(--primary)"
+      badge={<SnapshotBadge variant="snapshot" />}
       action={<Link to="/crm/dashboard" className="text-xs font-semibold text-[var(--primary)] flex items-center gap-1 hover:underline">View CRM <ArrowRight size={11} /></Link>}>
       <div className="space-y-2.5">
         {data.map((row) => {
@@ -188,7 +186,10 @@ const ProposalPipelineCard = ({ pipeline }) => {
       action={<Link to="/proposal" className="text-xs font-semibold text-[var(--primary)] flex items-center gap-1 hover:underline">View Proposals <ArrowRight size={11} /></Link>}>
       <div className="text-xs grid grid-cols-2 gap-2 mb-3">
         <div className="bg-[var(--bg)] rounded-lg p-2">
-          <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Open Pipeline</p>
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Open Pipeline</p>
+            <SnapshotBadge variant="snapshot" />
+          </div>
           <p className="text-base font-extrabold text-[var(--text-primary)] tabular-nums mt-0.5">
             {formatCurrency(pipeline?.totalValueOpen)}
           </p>
@@ -228,6 +229,7 @@ const ProjectHealthCard = ({ health }) => {
 
   return (
     <SectionCard title="Project Health" icon={Activity} color="var(--accent-green)"
+      badge={<SnapshotBadge variant="live" />}
       action={<Link to="/pms/dashboard" className="text-xs font-semibold text-[var(--primary)] flex items-center gap-1 hover:underline">View PMS <ArrowRight size={11} /></Link>}>
       {total === 0 ? (
         <p className="text-xs text-[var(--text-muted)]">No active projects.</p>
@@ -273,6 +275,7 @@ const ProfitabilityCard = ({ profitability }) => {
   const rows = profitability?.topVariance || [];
   return (
     <SectionCard title="Profitability — Top Variance" icon={Wallet} color="var(--warning)"
+      badge={<SnapshotBadge variant="snapshot" />}
       action={<Link to="/pms/analytics" className="text-xs font-semibold text-[var(--primary)] flex items-center gap-1 hover:underline">Analytics <ArrowRight size={11} /></Link>}>
       <div className="grid grid-cols-3 gap-2 mb-3 text-xs">
         <div className="bg-[var(--bg)] rounded-lg p-2">
@@ -337,7 +340,8 @@ const WeeklyTrendCard = ({ trend }) => {
   }));
 
   return (
-    <SectionCard title="12-Week Activity Trend" icon={TrendingUp} color="var(--accent-blue)">
+    <SectionCard title="12-Week Activity Trend" icon={TrendingUp} color="var(--accent-blue)"
+      badge={<SnapshotBadge variant="fixed" />}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
         {/* chart — two-thirds width */}
         <div className="lg:col-span-2">
@@ -392,7 +396,7 @@ const AlertsRollup = ({ alerts }) => {
 
   if (total === 0) {
     return (
-      <SectionCard title="Alerts" icon={CheckCircle2} color="var(--success)">
+      <SectionCard title="Alerts" icon={CheckCircle2} color="var(--success)" badge={<SnapshotBadge variant="live" />}>
         <p className="text-xs text-[var(--success)] flex items-center gap-1.5">
           <CheckCircle2 size={13} /> No critical alerts. All systems are healthy.
         </p>
@@ -401,7 +405,7 @@ const AlertsRollup = ({ alerts }) => {
   }
 
   return (
-    <SectionCard title="Alerts Rollup" icon={AlertTriangle} color="var(--error)">
+    <SectionCard title="Alerts Rollup" icon={AlertTriangle} color="var(--error)" badge={<SnapshotBadge variant="live" />}>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
         <Link to="/pms/dashboard" className="bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-lg p-2 text-center transition-all hover:-translate-y-0.5 hover:shadow-sm hover:bg-[var(--error)]/15">
           <p className="text-2xl font-extrabold text-[var(--error)] tabular-nums">{alerts?.delayedCount || 0}</p>
@@ -492,10 +496,12 @@ const DesignerPerformance = ({ designerPerformance, period }) => {
 };
 
 const MDDashboardPage = () => {
-  const [period, setPeriod] = useState('month');
-  const { data, isLoading, error, refresh } = useMDDashboard(period);
+  const [range, setRange] = useDashboardRange(MD_DASHBOARD_CONFIG.storageKey, MD_DASHBOARD_CONFIG.defaultRange);
+  const { data, isLoading, error, refresh } = useMDDashboard(range);
 
   const k = data?.executiveKpis || {};
+  const isInitialLoading = isLoading && !data;   // first load → full loader
+  const isRefetching     = isLoading && !!data;  // range change / poll → overlay
 
   return (
     <div className="space-y-5 animate-in fade-in duration-500">
@@ -513,13 +519,7 @@ const MDDashboardPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className="text-sm font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 outline-none focus:border-[var(--primary)] cursor-pointer"
-          >
-            {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
+          <GlobalDateFilter value={range} onChange={setRange} defaultRange={MD_DASHBOARD_CONFIG.defaultRange} disabled={isRefetching} />
           <button
             type="button"
             onClick={refresh}
@@ -538,10 +538,19 @@ const MDDashboardPage = () => {
         </div>
       )}
 
-      {isLoading && !data ? (
+      {isInitialLoading ? (
         <div className="flex items-center justify-center min-h-[50vh] text-[var(--text-muted)] text-sm">Loading executive overview…</div>
       ) : (
-        <>
+        <DashboardRefetchOverlay active={isRefetching} className="space-y-5">
+          {/* Snapshot hint — explains why some widgets don't move with the filter */}
+          <p className="text-[11px] text-[var(--text-muted)]">
+            Flow metrics follow the selected range. Tiles &amp; cards marked
+            <SnapshotBadge variant="snapshot" className="mx-1 align-middle" />
+            or
+            <SnapshotBadge variant="live" className="mx-1 align-middle" />
+            show current totals and don’t change with the date.
+          </p>
+
           {/* Executive KPI strip */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             <KpiTile icon={Users}         label="Total Leads"       value={k.totalLeads?.value ?? 0}      delta={k.totalLeads?.delta}    tone="primary" to="/crm/dashboard" />
@@ -566,7 +575,7 @@ const MDDashboardPage = () => {
           </div>
 
           {/* Designer performance — KPI ribbon + KRA leaderboard */}
-          <DesignerPerformance designerPerformance={data?.designerPerformance} period={period} />
+          <DesignerPerformance designerPerformance={data?.designerPerformance} period={toLegacyPeriod(range.preset)} />
 
           {/* Weekly trend */}
           <WeeklyTrendCard trend={data?.weeklyTrend} />
@@ -576,7 +585,7 @@ const MDDashboardPage = () => {
 
           {/* Quick links footer */}
           <QuickLinks />
-        </>
+        </DashboardRefetchOverlay>
       )}
     </div>
   );

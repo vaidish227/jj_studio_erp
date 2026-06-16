@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Target, Activity, TrendingDown, Clock, Layers,
@@ -6,8 +6,11 @@ import {
 } from 'lucide-react';
 import SalesPipeline from '../components/SalesPipeline';
 import FollowUpsPanel from '../components/FollowUpsPanel';
-import RangeSwitcher from '../components/crm/RangeSwitcher';
 import SectionCard from '../components/common/SectionCard';
+import {
+  GlobalDateFilter, SnapshotBadge, DashboardRefetchOverlay, useDashboardRange, formatRangeLabel,
+} from '../../../shared/dashboard-filter';
+import { MAIN_DASHBOARD_CONFIG } from '../config/mainDashboardConfig';
 import KpiTile from '../components/common/KpiTile';
 import LeadActivityTrend from '../components/overview/LeadActivityTrend';
 import MetricDonut from '../components/overview/MetricDonut';
@@ -16,8 +19,6 @@ import useDashboardData from '../hooks/useDashboardData';
 import useCRMDashboard from '../hooks/useCRMDashboard';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
-
-const RANGE_LABELS = { '3m': '3 months', '6m': '6 months', '1y': '12 months' };
 
 // Modern-Luxe-aligned palettes (hex so recharts <Cell> & funnel gradients render).
 const SOURCE_COLORS = {
@@ -43,15 +44,16 @@ const FUNNEL_COLORS = [
 // ─── Dashboard Page (Sales Overview) ────────────────────────────────────────────
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const [range, setRange] = useState('3m');
+  const [range, setRange] = useDashboardRange(MAIN_DASHBOARD_CONFIG.storageKey, MAIN_DASHBOARD_CONFIG.defaultRange);
 
-  // Live pipeline rows + follow-ups
+  // Live pipeline rows + follow-ups (independent of the date range)
   const { pipeline, followups, error: feedError } = useDashboardData();
-  // Aggregated KPIs, trends, funnel, source & status mix
-  const { data, error: kpiError } = useCRMDashboard(range);
+  // Aggregated KPIs, trends, funnel, source & status mix (range-driven)
+  const { data, isLoading, error: kpiError } = useCRMDashboard(range);
 
   const ai = resolveEntry('dashboard');
   const error = kpiError || feedError;
+  const isRefetching = isLoading && !!data; // range change / poll → overlay (range-driven zones only)
 
   const kpis = data?.kpis || {};
   const trends = data?.trends || {};
@@ -88,12 +90,12 @@ const DashboardPage = () => {
             </span>
           </div>
           <p className="text-sm text-[var(--text-muted)] mt-1.5">
-            Welcome back! Sales overview · last {RANGE_LABELS[range]} · auto-refresh every 30s
+            Welcome back! Sales overview · {formatRangeLabel(range)} · auto-refresh every 30s
           </p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <RangeSwitcher value={range} onChange={setRange} />
+          <GlobalDateFilter value={range} onChange={setRange} defaultRange={MAIN_DASHBOARD_CONFIG.defaultRange} disabled={isRefetching} />
           <AskAIButton label="Ask AI" variant="soft" actions={ai.actions} />
         </div>
       </div>
@@ -103,6 +105,14 @@ const DashboardPage = () => {
           {error}
         </div>
       )}
+
+      <DashboardRefetchOverlay active={isRefetching} className="space-y-5">
+      {/* Snapshot hint — explains which widgets don't move with the filter */}
+      <p className="text-[11px] text-[var(--text-muted)]">
+        Flow metrics (leads, conversion, activity trend) follow the selected range. Cards marked
+        <SnapshotBadge variant="snapshot" className="mx-1 align-middle" />
+        show current totals; the Sales Pipeline &amp; Follow-ups below are always live.
+      </p>
 
       {/* ── KPI strip ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -125,7 +135,7 @@ const DashboardPage = () => {
             <LeadActivityTrend acquisition={trends.acquisition} converted={trends.converted} lost={trends.lost} height={260} />
           </SectionCard>
         </div>
-        <SectionCard title="Lead Sources" icon={PieChartIcon} color="var(--accent-blue)">
+        <SectionCard title="Lead Sources" icon={PieChartIcon} color="var(--accent-blue)" badge={<SnapshotBadge variant="snapshot" />}>
           <MetricDonut data={sourceData} centerLabel="Sources" />
         </SectionCard>
       </div>
@@ -137,17 +147,19 @@ const DashboardPage = () => {
             title="Sales Funnel"
             icon={FunnelIcon}
             color="var(--primary)"
+            badge={<SnapshotBadge variant="snapshot" />}
             action={<button onClick={() => navigate('/crm/new-leads')} className="text-xs font-semibold text-[var(--primary)] hover:underline">Pipeline</button>}
           >
             <FunnelChart stages={funnelData} />
           </SectionCard>
         </div>
-        <SectionCard title="Lead Status Mix" icon={Layers} color="var(--primary)">
+        <SectionCard title="Lead Status Mix" icon={Layers} color="var(--primary)" badge={<SnapshotBadge variant="snapshot" />}>
           <MetricDonut data={statusData} centerLabel="Leads" />
         </SectionCard>
       </div>
+      </DashboardRefetchOverlay>
 
-      {/* ── Live pipeline + Follow-ups ─────────────────────────────────────── */}
+      {/* ── Live pipeline + Follow-ups (Live — independent of the date range) ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
           <SalesPipeline pipeline={pipeline} />

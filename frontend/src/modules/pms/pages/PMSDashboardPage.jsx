@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, Download, BarChart3, FileSpreadsheet } from 'lucide-react';
 import { Button, Loader } from '../../../shared/components';
@@ -6,6 +6,8 @@ import usePMSDashboard from '../hooks/usePMSDashboard';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { exportReportAsExcel } from '../../../shared/utils/excelExport';
+import { SnapshotBadge, DashboardRefetchOverlay, useDashboardRange } from '../../../shared/dashboard-filter';
+import { PMS_DASHBOARD_CONFIG, toLegacyPeriod } from '../config/pmsDashboardConfig';
 
 import DashboardHeader         from '../components/dashboard/DashboardHeader';
 import KPIStrip                from '../components/dashboard/KPIStrip';
@@ -37,18 +39,23 @@ import DeliveryTrendCards      from '../components/dashboard/DeliveryTrendCards'
  *   9. Recent Activity | Upcoming Milestones (2-up)
  */
 const PMSDashboardPage = () => {
-  const [period, setPeriod] = useState('month');
-  const { data, kra, alerts, isLoading, error, refresh } = usePMSDashboard(period);
+  const [range, setRange] = useDashboardRange(PMS_DASHBOARD_CONFIG.storageKey, PMS_DASHBOARD_CONFIG.defaultRange);
+  const { data, kra, alerts, isLoading, error, refresh } = usePMSDashboard(range);
   const [showOverdueModal, setShowOverdueModal] = useState(false);
   const [downloading, setDownloading] = useState(null); // 'kpi' | 'projects' | null
   const toast = useToast();
 
+  // Adjacent report endpoints + the scoreboard's detail links speak the legacy
+  // period vocabulary — derive it from the active range.
+  const legacyPeriod = toLegacyPeriod(range.preset);
+  const isRefetching = isLoading && !!data; // range change / poll → overlay (range-driven zones only)
+
   const downloadDesignerKpi = async () => {
     setDownloading('kpi');
     try {
-      const res = await pmsService.getDesignerKpiReport(period);
+      const res = await pmsService.getDesignerKpiReport(legacyPeriod);
       exportReportAsExcel(res, {
-        fileName: `designer-kpi-${period}`,
+        fileName: `designer-kpi-${legacyPeriod}`,
         columns: [
           { header: 'Name',           key: 'name',          width: 22 },
           { header: 'Role',           key: 'role',          width: 14 },
@@ -79,9 +86,9 @@ const PMSDashboardPage = () => {
   const downloadProjectSummary = async () => {
     setDownloading('projects');
     try {
-      const res = await pmsService.getProjectSummaryReport(period);
+      const res = await pmsService.getProjectSummaryReport(legacyPeriod);
       exportReportAsExcel(res, {
-        fileName: `project-summary-${period}`,
+        fileName: `project-summary-${legacyPeriod}`,
         columns: [
           { header: 'Tracking ID',  key: 'trackingId',    width: 16 },
           { header: 'Name',         key: 'name',          width: 30 },
@@ -136,11 +143,24 @@ const PMSDashboardPage = () => {
   return (
     <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
       <DashboardHeader
-        period={period}
-        onPeriodChange={setPeriod}
+        range={range}
+        onRangeChange={setRange}
         onRefresh={refresh}
         isLoading={isLoading}
+        isRefetching={isRefetching}
       />
+
+      {/* Snapshot hint — PMS is mostly current-state; only "Released this period" and
+          the Designer KRA scoreboard follow the selected range. */}
+      <p className="text-[11px] text-[var(--text-muted)]">
+        Only the “Released” KPI and Designer KRA follow the selected range. Cards marked
+        <SnapshotBadge variant="snapshot" className="mx-1 align-middle" />
+        are current totals,
+        <SnapshotBadge variant="live" className="mx-1 align-middle" />
+        are real-time, and
+        <SnapshotBadge variant="fixed" className="mx-1 align-middle" />
+        use their own window.
+      </p>
 
       {/* Quick actions — Phase B link + Phase C report downloads */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -173,7 +193,10 @@ const PMSDashboardPage = () => {
         onReview={() => setShowOverdueModal(true)}
       />
 
-      <KPIStrip kpis={data?.kpis} />
+      {/* Range-driven: KPI strip (the "Released" tile is the only flow KPI) */}
+      <DashboardRefetchOverlay active={isRefetching}>
+        <KPIStrip kpis={data?.kpis} />
+      </DashboardRefetchOverlay>
 
       <AlertsSection alerts={alerts} />
 
@@ -186,7 +209,10 @@ const PMSDashboardPage = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <DesignerKRAScoreboard designers={kra?.designers || []} period={period} />
+          {/* Range-driven: Designer KRA scoreboard */}
+          <DashboardRefetchOverlay active={isRefetching}>
+            <DesignerKRAScoreboard designers={kra?.designers || []} period={legacyPeriod} />
+          </DashboardRefetchOverlay>
         </div>
         <div className="lg:col-span-1">
           <PendingMyApprovalList items={data?.pendingMyApproval || []} />

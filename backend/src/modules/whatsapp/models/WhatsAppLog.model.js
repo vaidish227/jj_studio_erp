@@ -32,5 +32,7 @@ whatsappLogSchema.index({ status: 1 });
 whatsappLogSchema.index({ to: 1 });
 whatsappLogSchema.index({ "relatedTo.recordId": 1 });
 whatsappLogSchema.index({ createdAt: -1 });
+// KIT analytics: module-attributed delivery counts within a date range
+whatsappLogSchema.index({ "relatedTo.module": 1, createdAt: 1 });
 
 module.exports = mongoose.model("WhatsAppLog", whatsappLogSchema);

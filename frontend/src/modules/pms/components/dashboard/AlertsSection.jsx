@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, Clock, CheckCircle2, ClipboardCheck, ChevronRight,
 } from 'lucide-react';
+import { SnapshotBadge } from '../../../../shared/dashboard-filter';
 
 const TABS = [
   { id: 'delayedProjects',  label: 'Delayed Projects',  icon: AlertTriangle, accent: 'error'   },
@@ -158,9 +159,12 @@ const AlertsSection = ({ alerts }) => {
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 lg:p-5">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-extrabold text-[var(--text-primary)] uppercase tracking-widest">
-            Alerts
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-[var(--text-primary)] uppercase tracking-widest">
+              Alerts
+            </h3>
+            <SnapshotBadge variant="live" />
+          </div>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
             {totalCount === 0
               ? 'Everything is on track.'

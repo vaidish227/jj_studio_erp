@@ -1,5 +1,5 @@
-import React from 'react';
 import { CheckCircle2, AlertTriangle } from 'lucide-react';
+import { SnapshotBadge } from '../../../../shared/dashboard-filter';
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, Tooltip, CartesianGrid, Legend,
@@ -42,6 +42,7 @@ const DeliveryTrendCards = ({ data = [] }) => {
         <div className="flex items-center gap-2 mb-3">
           <CheckCircle2 size={15} className="text-[var(--primary)]" />
           <h3 className="text-sm font-bold text-[var(--text-primary)]">Delivery Trend — Last 12 Weeks</h3>
+          <SnapshotBadge variant="fixed" label="Rolling 12 Weeks" />
         </div>
         <div style={{ width: '100%', height: 240 }}>
           <ResponsiveContainer>

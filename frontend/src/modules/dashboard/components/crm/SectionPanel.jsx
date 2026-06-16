@@ -1,4 +1,3 @@
-import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import Card from '../../../../shared/components/Card/Card';
 
@@ -31,11 +30,13 @@ const SectionPanel = ({
               <h3 className="text-base font-bold text-[var(--text-primary)] truncate">
                 {title}
               </h3>
-              {badge && (
+              {badge && (typeof badge === 'string' ? (
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)]">
                   {badge}
                 </span>
-              )}
+              ) : (
+                badge
+              ))}
             </div>
             {subtitle && (
               <p className="text-[11px] text-[var(--text-muted)] font-medium mt-0.5">

@@ -15,6 +15,7 @@
  */
 
 const mongoose = require("mongoose");
+const { resolveDateRange, DateRangeError } = require("../../../shared/dateRange/resolveDateRange");
 const Project = require("../models/Project.model");
 const Task = require("../models/Task.model");
 const ApprovalGate = require("../models/ApprovalGate.model");
@@ -105,17 +106,27 @@ const gateAging = async (req, res) => {
  */
 const drawingReleaseSLA = async (req, res) => {
   try {
-    const { from, to } = parseDateRange(req.query);
+    // Shared date contract: ?preset=… OR ?from=&to=. Routed through the shared
+    // resolver for IST-correct, end-inclusive windows. No params ⇒ all releases.
+    const { preset, from, to } = req.query;
+    let windowStart = null, windowEnd = null;
+    if (preset || from || to) {
+      const r = resolveDateRange({
+        preset: preset != null ? String(preset).toLowerCase() : undefined,
+        from,
+        to,
+      });
+      windowStart = r.start;
+      windowEnd = r.end;
+    }
 
     const q = {
       isReleased: true,
       releasedAt: { $ne: null },
       approvalDate: { $ne: null },
     };
-    if (from || to) {
-      q.releasedAt = {};
-      if (from) q.releasedAt.$gte = from;
-      if (to)   q.releasedAt.$lte = to;
+    if (windowStart && windowEnd) {
+      q.releasedAt = { $gte: windowStart, $lte: windowEnd };
     }
 
     const releases = await Drawing.find(q)
@@ -155,6 +166,9 @@ const drawingReleaseSLA = async (req, res) => {
       recent: durations.sort((a, b) => new Date(b.releasedAt) - new Date(a.releasedAt)).slice(0, 20),
     });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[analytics.drawingReleaseSLA]", err);
     res.status(500).json({ message: err.message });
   }

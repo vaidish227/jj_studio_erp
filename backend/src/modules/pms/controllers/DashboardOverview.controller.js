@@ -18,6 +18,7 @@ const PMSActivityLog = require("../models/PMSActivityLog.model");
 let User = null; try { User = require("../../auth/models/user.model"); } catch (e) { /* optional */ }
 let VendorEngagement = null; try { VendorEngagement = require("../models/VendorEngagement.model"); } catch (e) { /* optional */ }
 const { generateDesignerReportPdfBuffer } = require("../services/designerReportPdf");
+const { resolveDateRange, DateRangeError } = require("../../../shared/dateRange/resolveDateRange");
 
 const DAY = 86400000;
 const ACTIVE_STATUSES = ["design_phase", "execution_phase"];
@@ -38,6 +39,50 @@ const previousPeriodWindow = (period) => {
     end:   new Date(now - days * DAY),
   };
 };
+
+// ── Dashboard date-range resolution (overview + designer-kra only) ───────────
+// Adopts the shared resolveDateRange while keeping the legacy ?period vocabulary
+// working. NOTE: startOfPeriod/previousPeriodWindow above are intentionally kept
+// for the adjacent endpoints (analytics, designer detail, reports) which are NOT
+// part of this migration.
+const LEGACY_PERIOD_TO_PRESET = { week: "last_7_days", month: "last_30_days" };
+const LEGACY_PERIOD_DAYS = { quarter: 90, all: 3650 };
+
+const istDateString = (ms) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date(ms));
+
+/**
+ * Resolve dashboard query → { start, end, prevStart, prevEnd, label }.
+ *   New:    ?preset=… | ?from=&to=
+ *   Legacy: ?period=week|month|quarter|all  (week/month → presets; quarter/all → rolling custom)
+ *   Default: last_30_days (≈ old "month")
+ * @throws {DateRangeError}
+ */
+function resolveRequestRange(query) {
+  const preset = query.preset != null ? String(query.preset).toLowerCase() : null;
+  const from = query.from != null ? String(query.from) : null;
+  const to = query.to != null ? String(query.to) : null;
+  const period = query.period != null ? String(query.period).toLowerCase() : null;
+
+  if (preset || from || to) {
+    const r = resolveDateRange({ preset, from, to });
+    return { ...r, label: r.preset };
+  }
+  if (period && LEGACY_PERIOD_TO_PRESET[period]) {
+    const r = resolveDateRange({ preset: LEGACY_PERIOD_TO_PRESET[period] });
+    return { ...r, label: period };
+  }
+  if (period && LEGACY_PERIOD_DAYS[period]) {
+    const days = LEGACY_PERIOD_DAYS[period];
+    const now = Date.now();
+    const r = resolveDateRange({ from: istDateString(now - (days - 1) * DAY), to: istDateString(now) });
+    return { ...r, label: period };
+  }
+  const r = resolveDateRange({ preset: "last_30_days" });
+  return { ...r, label: r.preset };
+}
 
 /**
  * Derive a per-project health label from gate openness + ETA + status.
@@ -215,10 +260,8 @@ async function attachBlockersToDelayedProjects(delayedProjects, decoratedProject
 
 const getOverview = async (req, res) => {
   try {
-    const period = String(req.query.period || "month").toLowerCase();
-    const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
-    const periodStart = startOfPeriod(validPeriod);
-    const prevWindow = previousPeriodWindow(validPeriod);
+    const { start, end, prevStart, prevEnd, label } = resolveRequestRange(req.query);
+    const prevWindow = { start: prevStart, end: prevEnd };
     const now = new Date();
     const in7Days = new Date(now.getTime() + 7 * DAY);
 
@@ -284,7 +327,7 @@ const getOverview = async (req, res) => {
 
     const releasedThisPeriod = await Drawing.countDocuments({
       isReleased: true,
-      releasedAt: { $gte: periodStart, $lte: now },
+      releasedAt: { $gte: start, $lte: end },
     });
 
     // ── Trend deltas vs previous identical-length window ──────────────────
@@ -441,7 +484,7 @@ const getOverview = async (req, res) => {
     const weeklyTrend = await buildWeeklyTrend();
 
     res.status(200).json({
-      period: validPeriod,
+      period: label,
       kpis: {
         activeProjects:     activeProjectsCount,
         onTrackPct,
@@ -467,6 +510,9 @@ const getOverview = async (req, res) => {
       weeklyTrend,
     });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[dashboard.overview]", err);
     res.status(500).json({ message: err.message });
   }
@@ -623,18 +669,18 @@ async function buildPendingMyApproval(user) {
  */
 const getDesignerKRA = async (req, res) => {
   try {
-    const period = String(req.query.period || "month").toLowerCase();
-    const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
-    const periodStart = startOfPeriod(validPeriod);
+    const { start: periodStart, end: periodEnd, label } = resolveRequestRange(req.query);
 
-    // Pull tasks within the period (by createdAt OR completedAt — we need both
-    // active tasks and tasks completed during the window).
+    // Pull tasks within the window (by createdAt OR completedAt/approvedAt — we need
+    // both active tasks and tasks completed during the window). The date branches are
+    // bounded purely to narrow the fetch; the authoritative "done in window" gate is
+    // in JS below. The active-status branch stays date-unbounded (current in-flight).
     const tasks = await Task.find({
       assignedTo: { $ne: null },
       $or: [
-        { createdAt:   { $gte: periodStart } },
-        { completedAt: { $gte: periodStart } },
-        { approvedAt:  { $gte: periodStart } },
+        { createdAt:   { $gte: periodStart, $lte: periodEnd } },
+        { completedAt: { $gte: periodStart, $lte: periodEnd } },
+        { approvedAt:  { $gte: periodStart, $lte: periodEnd } },
         { status: { $in: ["in_progress", "pending_review", "revision_requested", "not_started", "blocked"] } },
       ],
     })
@@ -663,7 +709,7 @@ const getDesignerKRA = async (req, res) => {
 
       // Done bucket — only count completions in the period
       const endTs = t.completedAt || t.approvedAt;
-      if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart) {
+      if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart && new Date(endTs) <= periodEnd) {
         u.done++;
         u.throughput++;
         // On-time check
@@ -722,8 +768,11 @@ const getDesignerKRA = async (req, res) => {
       })
       .sort((a, b) => b.kraScore - a.kraScore);
 
-    res.status(200).json({ period: validPeriod, designers });
+    res.status(200).json({ period: label, designers });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[dashboard.designer-kra]", err);
     res.status(500).json({ message: err.message });
   }
@@ -997,8 +1046,10 @@ const downloadDesignerReportPdf = async (req, res) => {
  */
 const getAnalytics = async (req, res) => {
   try {
-    const period = String(req.query.period || "month").toLowerCase();
-    const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
+    // Overview tab joins the shared date-filter system: preset/from/to (+ legacy
+    // period alias). Flow parts (designer leaderboard) honor the window; the
+    // status/health/phase/delayed snapshots and the 12-week trend are unaffected.
+    const { start, end, label } = resolveRequestRange(req.query);
     const now = Date.now();
 
     // 1. Project lists — all projects (for status / phase distribution + leaderboard)
@@ -1068,13 +1119,14 @@ const getAnalytics = async (req, res) => {
 
     // 5. Designer leaderboard — reuse getDesignerKRA's computation inline
     //    Pulls tasks similar to getDesignerKRA so the numbers match exactly.
-    const periodStart = startOfPeriod(validPeriod);
+    const periodStart = start;
+    const periodEnd = end;
     const desTasks = await Task.find({
       assignedTo: { $ne: null },
       $or: [
-        { createdAt:   { $gte: periodStart } },
-        { completedAt: { $gte: periodStart } },
-        { approvedAt:  { $gte: periodStart } },
+        { createdAt:   { $gte: periodStart, $lte: periodEnd } },
+        { completedAt: { $gte: periodStart, $lte: periodEnd } },
+        { approvedAt:  { $gte: periodStart, $lte: periodEnd } },
         { status: { $in: ["in_progress", "pending_review", "revision_requested", "not_started", "blocked"] } },
       ],
     })
@@ -1093,7 +1145,7 @@ const getAnalytics = async (req, res) => {
         u.active += 1;
       }
       const endTs = t.completedAt || t.approvedAt;
-      if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart) {
+      if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart && new Date(endTs) <= periodEnd) {
         u.done += 1;
         u.throughput += 1;
         if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) u.onTimeDone += 1;
@@ -1167,7 +1219,7 @@ const getAnalytics = async (req, res) => {
     }
 
     res.status(200).json({
-      period: validPeriod,
+      period: label,
       totals: {
         projects:        projects.length,
         activeProjects:  activeProjects.length,
@@ -1182,6 +1234,9 @@ const getAnalytics = async (req, res) => {
       activeTrend,
     });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[dashboard.analytics]", err);
     res.status(500).json({ message: err.message });
   }

@@ -41,5 +41,7 @@ kitEnrollmentSchema.index(
 kitEnrollmentSchema.index({ status: 1, nextFireAt: 1 });
 // Timeline / lookups by target entity.
 kitEnrollmentSchema.index({ entityType: 1, entityId: 1 });
+// Analytics funnel — enrolment cohort by createdAt (date-range)
+kitEnrollmentSchema.index({ createdAt: 1 });
 
 module.exports = mongoose.model("KitEnrollment", kitEnrollmentSchema);

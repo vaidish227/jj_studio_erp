@@ -1,6 +1,6 @@
-import React from 'react';
 import { Calendar, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { SnapshotBadge } from '../../../../shared/dashboard-filter';
 
 const DAY = 86400000;
 
@@ -29,9 +29,7 @@ const UpcomingMilestonesList = ({ items = [] }) => {
       <div className="flex items-center gap-2 mb-4">
         <Calendar size={16} className="text-[var(--accent-blue)]" />
         <h3 className="text-sm font-bold text-[var(--text-primary)]">Upcoming Milestones</h3>
-        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] ml-auto">
-          next 7 days
-        </span>
+        <SnapshotBadge variant="fixed" label="Next 7 Days" className="ml-auto" />
       </div>
 
       {items.length === 0 ? (

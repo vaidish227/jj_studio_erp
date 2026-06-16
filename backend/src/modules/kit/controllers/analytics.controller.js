@@ -7,9 +7,27 @@ const KitTemplate   = require("../models/KitTemplate.model");
 const MailLog       = require("../../mail/models/MailLog.model");
 const WhatsAppLog   = require("../../whatsapp/models/WhatsAppLog.model");
 const CRMClient     = require("../../crm/models/CRMClient.model");
+const { resolveDateRange, DateRangeError } = require("../../../shared/dateRange/resolveDateRange");
 
 const pct = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
 const countMap = (rows) => Object.fromEntries(rows.map((r) => [r._id, r.n]));
+
+/**
+ * Resolve dashboard query → an optional createdAt window for FLOW metrics.
+ * Returns `null` when no date params are supplied (back-compat: unbounded).
+ * 'all_time' resolves to epoch→now ⇒ a no-op bound. Reuses the shared resolver.
+ * @throws {DateRangeError}
+ */
+const resolveCreatedAtMatch = (query) => {
+  const { preset, from, to } = query || {};
+  if (!preset && !from && !to) return null;
+  const { start, end } = resolveDateRange({
+    preset: preset != null ? String(preset).toLowerCase() : undefined,
+    from,
+    to,
+  });
+  return { createdAt: { $gte: start, $lte: end } };
+};
 
 /**
  * GET /api/kit/analytics/overview
@@ -19,25 +37,32 @@ const countMap = (rows) => Object.fromEntries(rows.map((r) => [r._id, r.n]));
  * Read/delivered depend on provider webhooks, so they may under-report — counts
  * are shown honestly rather than inflated.
  */
-const getOverview = async (_req, res) => {
+const getOverview = async (req, res) => {
   try {
     const KIT = { "relatedTo.module": "kit" };
+    // FLOW metrics (delivery/messages) honor the selected range; state counts
+    // below stay all-time snapshots (D2). `dateMatch` is null ⇒ unbounded.
+    const dateMatch = resolveCreatedAtMatch(req.query);
+    const mailMatch = dateMatch ? { ...KIT, ...dateMatch } : KIT;
+    const waMatch   = dateMatch ? { ...KIT, ...dateMatch } : KIT;
+    const kitMsgMatch = dateMatch || {};
+    const triggerMatch = dateMatch || {};
 
     const [
       kitMessages, activeCampaigns, totalCampaigns, activeWorkflows,
       activeEnrollments, completedEnrollments, triggerEvents,
       mailRows, waRows, kitMsgRows,
     ] = await Promise.all([
-      KitMessageLog.countDocuments({}),
-      KitCampaign.countDocuments({ status: "active" }),
-      KitCampaign.countDocuments({}),
-      KitWorkflow.countDocuments({ isActive: true }),
-      KitEnrollment.countDocuments({ status: "active" }),
-      KitEnrollment.countDocuments({ status: "completed" }),
-      KitTriggerEvent.countDocuments({}),
-      MailLog.aggregate([{ $match: KIT }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
-      WhatsAppLog.aggregate([{ $match: KIT }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
-      KitMessageLog.aggregate([{ $group: { _id: "$status", n: { $sum: 1 } } }]),
+      KitMessageLog.countDocuments(kitMsgMatch),                              // flow: KIT messages in range
+      KitCampaign.countDocuments({ status: "active" }),                       // snapshot (all-time)
+      KitCampaign.countDocuments({}),                                         // snapshot
+      KitWorkflow.countDocuments({ isActive: true }),                         // snapshot
+      KitEnrollment.countDocuments({ status: "active" }),                     // snapshot
+      KitEnrollment.countDocuments({ status: "completed" }),                  // snapshot
+      KitTriggerEvent.countDocuments(triggerMatch),                           // flow: events fired in range
+      MailLog.aggregate([{ $match: mailMatch }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
+      WhatsAppLog.aggregate([{ $match: waMatch }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
+      KitMessageLog.aggregate([{ $match: kitMsgMatch }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
     ]);
 
     const mail = countMap(mailRows);   // sent / failed / bounced
@@ -74,6 +99,9 @@ const getOverview = async (_req, res) => {
       },
     });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[kit.analytics.overview]", err);
     res.status(500).json({ message: err.message });
   }
@@ -83,10 +111,14 @@ const getOverview = async (_req, res) => {
  * GET /api/kit/analytics/campaigns
  * Per-campaign funnel + lead-to-sale attribution (enrolled leads that converted).
  */
-const getCampaignAnalytics = async (_req, res) => {
+const getCampaignAnalytics = async (req, res) => {
   try {
+    const dateMatch = resolveCreatedAtMatch(req.query); // null ⇒ unbounded
     // Enrollment funnel + conversion, joined to the lead's CRM status.
+    // The createdAt $match runs BEFORE the $lookup, narrowing the enrolment set
+    // (and therefore the number of CRMClient joins) when a range is selected.
     const funnel = await KitEnrollment.aggregate([
+      ...(dateMatch ? [{ $match: dateMatch }] : []),
       {
         $lookup: {
           from: CRMClient.collection.name,
@@ -115,7 +147,7 @@ const getCampaignAnalytics = async (_req, res) => {
 
     // Message volume per campaign (KIT-attributed sends).
     const msgRows = await KitMessageLog.aggregate([
-      { $match: { campaignId: { $ne: null } } },
+      { $match: { campaignId: { $ne: null }, ...(dateMatch || {}) } },
       { $group: { _id: "$campaignId", n: { $sum: 1 } } },
     ]);
     const msgMap = countMap(msgRows);
@@ -144,6 +176,9 @@ const getCampaignAnalytics = async (_req, res) => {
 
     res.status(200).json({ message: "Campaign analytics fetched", data });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[kit.analytics.campaigns]", err);
     res.status(500).json({ message: err.message });
   }
@@ -153,10 +188,11 @@ const getCampaignAnalytics = async (_req, res) => {
  * GET /api/kit/analytics/templates
  * Per-template usage (how many KIT messages each template produced).
  */
-const getTemplateAnalytics = async (_req, res) => {
+const getTemplateAnalytics = async (req, res) => {
   try {
+    const dateMatch = resolveCreatedAtMatch(req.query); // null ⇒ unbounded
     const rows = await KitMessageLog.aggregate([
-      { $match: { templateId: { $ne: null } } },
+      { $match: { templateId: { $ne: null }, ...(dateMatch || {}) } },
       { $group: { _id: "$templateId", sends: { $sum: 1 }, failed: { $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] } } } },
     ]);
 
@@ -172,6 +208,9 @@ const getTemplateAnalytics = async (_req, res) => {
 
     res.status(200).json({ message: "Template analytics fetched", data });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[kit.analytics.templates]", err);
     res.status(500).json({ message: err.message });
   }

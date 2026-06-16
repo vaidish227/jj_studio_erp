@@ -1,4 +1,8 @@
 import apiClient from './apiClient';
+import { rangeToParams } from '../dashboard-filter/dateRangePresets';
+
+// Legacy range tokens (Main Dashboard + back-compat) → ?range=…
+const LEGACY_RANGE_TOKENS = ['3m', '6m', '1y'];
 
 export const crmService = {
   // ─── Clients (Unified — Enquiry + Client Info) ─────────────────────
@@ -9,8 +13,16 @@ export const crmService = {
   // BULK IMPORT: CSV / Excel — body: { rows: [...] }
   bulkImportClients: (rows) => apiClient.post('/clients/bulk-import', { rows }),
 
-  // CRM DASHBOARD: aggregated analytics for the dedicated CRM dashboard page
-  getCRMDashboard: (range = '3m') => apiClient.get(`/clients/dashboard?range=${range}`),
+  // CRM DASHBOARD: aggregated analytics for the dedicated CRM dashboard page.
+  // Accepts a legacy string token ('3m'|'6m'|'1y') OR a range object {preset,from,to}.
+  // Legacy tokens (incl. { preset:'3m' }) still hit ?range=… so Main Dashboard is unaffected.
+  getCRMDashboard: (arg = '3m') => {
+    const token = typeof arg === 'string' ? arg : arg?.preset;
+    const params = LEGACY_RANGE_TOKENS.includes(token)
+      ? { range: token }
+      : rangeToParams(arg);
+    return apiClient.get('/clients/dashboard', { params });
+  },
 
   // READ: List clients (with optional filters)
   getLeads: (params) => {

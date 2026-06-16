@@ -1,4 +1,15 @@
 import apiClient from './apiClient';
+import { rangeToParams } from '../dashboard-filter/dateRangePresets';
+
+// PMS dashboard overview + designer-kra accept a legacy period token
+// ('week'|'month'|'quarter'|'all') OR a range object {preset,from,to}.
+// Legacy tokens still hit ?period=… (adjacent endpoints + back-compat unaffected).
+const PMS_LEGACY_PERIODS = ['week', 'month', 'quarter', 'all'];
+const pmsRangeParams = (arg) => {
+  const token = typeof arg === 'string' ? arg : arg?.preset;
+  if (PMS_LEGACY_PERIODS.includes(token)) return { period: token };
+  return rangeToParams(arg);
+};
 
 export const pmsService = {
   // ─── Projects ──────────────────────────────────────────────────────────────
@@ -218,11 +229,11 @@ export const pmsService = {
   initiateFromProposal:  (data)              => apiClient.post('/pms/project-initiation/from-proposal', data),
 
   // ─── PMS Dashboard (operational landing page) ─────────────────────────────
-  getDashboardOverview:  (period = 'month')  => apiClient.get(`/pms/dashboard/overview?period=${period}`),
-  getDesignerKRA:        (period = 'month')  => apiClient.get(`/pms/dashboard/designer-kra?period=${period}`),
+  getDashboardOverview:  (range = 'month')   => apiClient.get('/pms/dashboard/overview', { params: pmsRangeParams(range) }),
+  getDesignerKRA:        (range = 'month')   => apiClient.get('/pms/dashboard/designer-kra', { params: pmsRangeParams(range) }),
   getDesignerDetail:     (userId, period = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}?period=${period}`),
   downloadDesignerReportPdf: (userId, period = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}/report.pdf?period=${period}`, { responseType: 'blob' }),
-  getProjectAnalytics:   (period = 'month')  => apiClient.get(`/pms/dashboard/analytics?period=${period}`),
+  getProjectAnalytics:   (range = 'month')   => apiClient.get('/pms/dashboard/analytics', { params: pmsRangeParams(range) }),
   // Phase C — report JSON (frontend turns these into .xlsx via SheetJS)
   getDesignerKpiReport:    (period = 'month') => apiClient.get(`/pms/dashboard/reports/designer-kpi?period=${period}`),
   getProjectSummaryReport: (period = 'month') => apiClient.get(`/pms/dashboard/reports/project-summary?period=${period}`),

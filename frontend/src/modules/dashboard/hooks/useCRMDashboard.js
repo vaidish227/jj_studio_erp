@@ -1,51 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import useDashboardQuery from '../../../shared/dashboard-filter/hooks/useDashboardQuery';
 import { crmService } from '../../../shared/services/crmService';
+import { CRM_DASHBOARD_CONFIG } from '../config/crmDashboardConfig';
 
-const POLL_INTERVAL_MS = 30000;
+// Unwrap the service envelope ({ message, data }) → data, matching the prior hook.
+const fetchCRM = (range) => crmService.getCRMDashboard(range).then((res) => res?.data ?? null);
 
+/**
+ * CRM Dashboard data hook — thin wrapper over the shared useDashboardQuery.
+ *
+ * Accepts BOTH a legacy string ('3m'|'6m'|'1y') and a new range object
+ * {preset,from,to}. A bare string is normalized to { preset: <token> } so the
+ * Main (Sales) Dashboard — which still calls useCRMDashboard('3m') — flows
+ * through unchanged (crmService maps legacy tokens back to ?range=…).
+ *
+ * Return shape ({ data, isLoading, error, refresh }) and 30s polling preserved.
+ */
 const useCRMDashboard = (range = '3m') => {
-  const [state, setState] = useState({
-    data: null,
-    isLoading: true,
-    error: '',
+  const normalized = typeof range === 'string' ? { preset: range } : range;
+  return useDashboardQuery(fetchCRM, normalized, {
+    pollMs: CRM_DASHBOARD_CONFIG.pollMs,
+    errorMessage: CRM_DASHBOARD_CONFIG.errorMessage,
   });
-
-  const isMountedRef = useRef(true);
-
-  const fetchDashboard = useCallback(async () => {
-    setState((prev) => ({ ...prev, isLoading: true, error: '' }));
-    try {
-      const res = await crmService.getCRMDashboard(range);
-      if (!isMountedRef.current) return;
-      setState({
-        data: res?.data ?? null,
-        isLoading: false,
-        error: '',
-      });
-    } catch (err) {
-      if (!isMountedRef.current) return;
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: err?.message || 'Failed to load CRM dashboard.',
-      }));
-    }
-  }, [range]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    fetchDashboard();
-    const intervalId = window.setInterval(fetchDashboard, POLL_INTERVAL_MS);
-    return () => {
-      isMountedRef.current = false;
-      window.clearInterval(intervalId);
-    };
-  }, [fetchDashboard]);
-
-  return {
-    ...state,
-    refresh: fetchDashboard,
-  };
 };
 
 export default useCRMDashboard;
