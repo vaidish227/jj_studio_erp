@@ -108,7 +108,7 @@ const ClientsListPage = () => {
             <Users size={24} />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight uppercase">All Clients</h1>
+            <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight uppercase">All Leads</h1>
             <p className="text-[var(--text-muted)] font-medium mt-1">
               Complete client registry across all pipeline stages.
             </p>

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Users, TrendingUp, FileText, Briefcase, AlertTriangle, CheckCircle2,
   Activity, Crown, RotateCcw, ArrowRight, ExternalLink,
-  Wallet, IndianRupee, Percent, Zap, ArrowUpRight, ArrowDownRight,
+  Wallet, Percent, ArrowUpRight, ArrowDownRight,
   Award, Star, Clock, PackageCheck,
 } from 'lucide-react';
 import {
@@ -491,43 +491,6 @@ const DesignerPerformance = ({ designerPerformance, period }) => {
   );
 };
 
-const HeroStat = ({ label, value, sub, tone = 'var(--text-primary)' }) => (
-  <div className="relative">
-    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{label}</p>
-    <p className="text-3xl font-extrabold tabular-nums leading-tight mt-1" style={{ color: tone }}>{value}</p>
-    {sub && <p className="text-xs text-[var(--text-secondary)] mt-0.5">{sub}</p>}
-  </div>
-);
-
-// Gradient headline band — gives the executive view a single focal point,
-// re-surfacing the three cross-module story metrics above the detailed KPI strip.
-const ExecutiveHero = ({ k, pipeline }) => {
-  const conv = k.conversionRate?.value ?? 0;
-  const onTrack = k.onTrackPct?.value ?? 0;
-  return (
-    <div
-      className="relative overflow-hidden rounded-2xl p-5 sm:p-6 border"
-      style={{
-        borderColor: 'color-mix(in srgb, var(--primary) 30%, transparent)',
-        background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, var(--surface)), var(--surface) 72%)',
-      }}
-    >
-      <Crown size={150} className="absolute -right-6 -top-8 opacity-[0.07] text-[var(--primary)] pointer-events-none" />
-      <div className="relative">
-        <div className="flex items-center gap-1.5 mb-4">
-          <Zap size={13} className="text-[var(--primary)]" />
-          <span className="text-[11px] font-black uppercase tracking-widest text-[var(--primary)]">Executive snapshot</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-4">
-          <HeroStat label="Conversion Rate" value={`${conv}%`} sub="Leads converted this period" tone="var(--success)" />
-          <HeroStat label="Open Pipeline" value={formatCurrency(pipeline?.totalValueOpen)} sub="Live proposal value" />
-          <HeroStat label="Projects On-Track" value={`${onTrack}%`} sub="Active project health" tone="var(--accent-blue)" />
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const MDDashboardPage = () => {
   const [period, setPeriod] = useState('month');
   const { data, isLoading, error, refresh } = useMDDashboard(period);
@@ -579,9 +542,6 @@ const MDDashboardPage = () => {
         <div className="flex items-center justify-center min-h-[50vh] text-[var(--text-muted)] text-sm">Loading executive overview…</div>
       ) : (
         <>
-          {/* Executive hero band */}
-          <ExecutiveHero k={k} pipeline={data?.proposalPipeline} />
-
           {/* Executive KPI strip */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             <KpiTile icon={Users}         label="Total Leads"       value={k.totalLeads?.value ?? 0}      delta={k.totalLeads?.delta}    tone="primary" to="/crm/dashboard" />
@@ -589,7 +549,6 @@ const MDDashboardPage = () => {
             <KpiTile icon={TrendingUp}    label="Conversion"        value={k.conversionRate?.value ?? 0} suffix="%" delta={k.conversionRate?.delta} tone="success" />
             <KpiTile icon={FileText}      label="Proposals Sent"    value={k.proposalsSent?.value ?? 0}   delta={k.proposalsSent?.delta} tone="accent"  to="/proposal" />
             <KpiTile icon={Wallet}        label="Advances"          value={formatCurrency(k.advanceReceivedAmount?.value)} tone="success" />
-            <KpiTile icon={IndianRupee}   label="Open Pipeline"     value={formatCurrency(data?.proposalPipeline?.totalValueOpen)} tone="accent" to="/proposal" />
             <KpiTile icon={Briefcase}     label="Active Projects"   value={k.activeProjects?.value ?? 0}  delta={k.activeProjects?.delta} tone="primary" to="/projects" />
             <KpiTile icon={CheckCircle2}  label="On-Track"          value={k.onTrackPct?.value ?? 0}     suffix="%" tone="success" to="/pms/dashboard" />
             <KpiTile icon={AlertTriangle} label="Delayed Projects"  value={k.delayedProjects?.value ?? 0} tone="error"  to="/pms/dashboard" />

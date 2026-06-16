@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Users, Target, Activity, TrendingDown, TrendingUp, Clock, Zap, Layers,
+  Users, Target, Activity, TrendingDown, Clock, Layers,
   LineChart as LineChartIcon, PieChart as PieChartIcon, Filter as FunnelIcon,
 } from 'lucide-react';
 import SalesPipeline from '../components/SalesPipeline';
@@ -39,14 +39,6 @@ const FUNNEL_COLORS = [
   { color: '#9B59B6', colorEnd: '#7E489A' },
   { color: '#3C8A4D', colorEnd: '#327540' },
 ];
-
-const HeroStat = ({ label, value, sub, tone = 'var(--text-primary)' }) => (
-  <div className="relative">
-    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{label}</p>
-    <p className="text-3xl font-extrabold tabular-nums leading-tight mt-1" style={{ color: tone }}>{value}</p>
-    {sub && <p className="text-xs text-[var(--text-secondary)] mt-0.5">{sub}</p>}
-  </div>
-);
 
 // ─── Dashboard Page (Sales Overview) ────────────────────────────────────────────
 const DashboardPage = () => {
@@ -111,28 +103,6 @@ const DashboardPage = () => {
           {error}
         </div>
       )}
-
-      {/* ── Executive snapshot band ────────────────────────────────────────── */}
-      <div
-        className="relative overflow-hidden rounded-2xl p-5 sm:p-6 border"
-        style={{
-          borderColor: 'color-mix(in srgb, var(--primary) 30%, transparent)',
-          background: 'linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, var(--surface)), var(--surface) 72%)',
-        }}
-      >
-        <TrendingUp size={150} className="absolute -right-6 -top-8 opacity-[0.07] text-[var(--primary)] pointer-events-none" />
-        <div className="relative">
-          <div className="flex items-center gap-1.5 mb-4">
-            <Zap size={13} className="text-[var(--primary)]" />
-            <span className="text-[11px] font-black uppercase tracking-widest text-[var(--primary)]">Sales snapshot</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-4">
-            <HeroStat label="Conversion Rate" value={`${kpis.conversionRate?.value ?? 0}%`} sub="Leads converted this period" tone="var(--success)" />
-            <HeroStat label="Active Pipeline" value={kpis.activePipeline?.value ?? 0} sub="Live leads in motion" />
-            <HeroStat label="Avg. Deal Cycle" value={`${kpis.avgDealCycle?.value ?? 0} days`} sub="Enquiry → conversion" tone="var(--accent-blue)" />
-          </div>
-        </div>
-      </div>
 
       {/* ── KPI strip ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
