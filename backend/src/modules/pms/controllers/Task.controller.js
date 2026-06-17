@@ -377,7 +377,14 @@ const updateTask = async (req, res) => {
     }
 
     // Capture pre-update state so we can detect changes that trigger workflow side-effects.
-    const before = await Task.findById(req.params.id).select("taskType routing").lean();
+    const before = await Task.findById(req.params.id).select("taskType routing startDate").lean();
+
+    // Stamp the start date the first time work actually begins. The designer's
+    // "Start Task" / "Start Revision" sends status=in_progress; set startDate
+    // only once so re-entering in_progress after a revision keeps the original.
+    if (value.status === "in_progress" && !before?.startDate) {
+      value.startDate = new Date();
+    }
 
     const task = await Task.findByIdAndUpdate(
       req.params.id,
@@ -584,9 +591,12 @@ const submitTask = async (req, res) => {
       });
     }
 
-    // Transition linked drawings from draft/rejected → sent_for_approval
+    // Send the designer's NEW work for review. Only `draft` versions are
+    // promoted — a previously `rejected` version stays rejected because it's
+    // part of the version history. Resubmitting after a rejection means
+    // uploading a fresh version (which is a draft), not un-rejecting the old one.
     await Drawing.updateMany(
-      { taskId: task._id, status: { $in: ["draft", "rejected"] } },
+      { taskId: task._id, status: "draft" },
       { $set: { status: "sent_for_approval", submissionNotes: value.submissionNotes || "" } }
     );
 

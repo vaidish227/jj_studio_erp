@@ -25,6 +25,37 @@ const drawingSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    // Location, copied from the parent Task.planning at upload time so each
+    // drawing version is self-describing. Source of truth stays on the Task.
+    floor: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    area: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    // Snapshot of the parent Task's plan state at the moment THIS version was
+    // uploaded. Lets the Master Sheet version history show real per-version data
+    // in task-level columns (priority, work status, planned dates, hours,
+    // progress, delay, checklist) that aren't otherwise recorded per version.
+    taskSnapshot: {
+      priority:         { type: String, default: "" },
+      workStatus:       { type: String, default: "" },
+      plannedStartDate: { type: Date },
+      plannedEndDate:   { type: Date },
+      plannedDays:      { type: Number },
+      plannedHours:     { type: Number },
+      actualHours:      { type: Number },
+      progressPercent:  { type: Number },
+      delayDays:        { type: Number },
+      assignedToName:   { type: String, default: "" },
+      checklistDone:    { type: Number },
+      checklistTotal:   { type: Number },
+      capturedAt:       { type: Date },
+    },
     // Long-form notes about what's in the drawing — shown on the card +
     // sent in approval emails. Separate from internal `notes`.
     description: {

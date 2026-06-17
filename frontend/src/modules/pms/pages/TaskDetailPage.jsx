@@ -25,6 +25,7 @@ import KitchenRoutingPanel from '../components/KitchenRoutingPanel';
 import DrawingFileLink from '../components/DrawingFileLink';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
+import { getLatestDrawingForTask, taskTypeToDrawingType } from '../utils/workItem';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -35,29 +36,44 @@ const fmtTime = (d) => d
   : '—';
 
 // ── Drawing mini-row ─────────────────────────────────────────────────────────
+// Drawings arrive newest-version-first (backend sorts version desc), so the
+// list itself is the revision history. Each row surfaces the rejection reason
+// (revision instructions) or submission notes for that version.
 const DrawingRow = ({ drawing }) => (
-  <div className="flex items-center gap-3 py-2.5 border-b border-[var(--border)] last:border-0">
-    <div className="w-7 h-7 rounded-lg bg-[var(--accent-blue)]/10 flex items-center justify-center shrink-0">
-      <FileText size={13} className="text-[var(--accent-blue)]" />
+  <div className="py-2.5 border-b border-[var(--border)] last:border-0">
+    <div className="flex items-center gap-3">
+      <div className="w-7 h-7 rounded-lg bg-[var(--accent-blue)]/10 flex items-center justify-center shrink-0">
+        <FileText size={13} className="text-[var(--accent-blue)]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{drawing.title}</p>
+        <p className="text-xs text-[var(--text-muted)]">
+          v{drawing.version} · {drawing.drawingType?.replace(/_/g, ' ')}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <DrawingStatusBadge status={drawing.status} />
+        {drawing.fileUrl && (
+          <DrawingFileLink
+            drawing={drawing}
+            className="p-1 rounded-lg hover:bg-[var(--bg)] text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
+            title="Open file"
+          >
+            <ExternalLink size={13} />
+          </DrawingFileLink>
+        )}
+      </div>
     </div>
-    <div className="flex-1 min-w-0">
-      <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{drawing.title}</p>
-      <p className="text-xs text-[var(--text-muted)]">
-        v{drawing.version} · {drawing.drawingType?.replace(/_/g, ' ')}
+    {drawing.status === 'rejected' && drawing.rejectionReason && (
+      <p className="mt-1.5 ml-10 text-[11px] text-[var(--error)] bg-[var(--error)]/5 border border-[var(--error)]/20 rounded px-2 py-1 leading-snug">
+        <span className="font-bold">Revision: </span>{drawing.rejectionReason}
       </p>
-    </div>
-    <div className="flex items-center gap-2 shrink-0">
-      <DrawingStatusBadge status={drawing.status} />
-      {drawing.fileUrl && (
-        <DrawingFileLink
-          drawing={drawing}
-          className="p-1 rounded-lg hover:bg-[var(--bg)] text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
-          title="Open file"
-        >
-          <ExternalLink size={13} />
-        </DrawingFileLink>
-      )}
-    </div>
+    )}
+    {drawing.status === 'sent_for_approval' && drawing.submissionNotes && (
+      <p className="mt-1.5 ml-10 text-[11px] text-[var(--text-secondary)] bg-[var(--warning)]/5 border border-[var(--warning)]/20 rounded px-2 py-1 leading-snug">
+        <span className="font-bold">Notes: </span>{drawing.submissionNotes}
+      </p>
+    )}
   </div>
 );
 
@@ -149,6 +165,7 @@ const TaskDetailPage = () => {
   // linked drawings. UI disables the button; backend rejects 400 as a
   // defense-in-depth backup.
   const hasDrawings      = (drawings?.length || 0) > 0;
+  const latestDrawing    = getLatestDrawingForTask(drawings);
   const canSubmit        = isMyTask && hasPermission('tasks.submit') && ['in_progress', 'revision_requested'].includes(task.status);
   const submitBlockedReason = canSubmit && !hasDrawings
     ? 'Upload a drawing first — a review needs something to review.'
@@ -496,6 +513,21 @@ const TaskDetailPage = () => {
               sub: task.approvedAt && task.approvedBy?.name ? `by ${task.approvedBy.name}` : null,
             },
             { label: 'Reassigned from', value: task.reassignedFrom?.name || '—' },
+            { label: 'Project Code', value: task.projectId?.trackingId || '—' },
+            { label: 'Zone',  value: task.planning?.zoneName || '—' },
+            { label: 'Floor', value: task.planning?.floor || '—' },
+            { label: 'Area',  value: task.planning?.area || '—' },
+            {
+              label: 'Latest Drawing',
+              render: () => latestDrawing
+                ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-[var(--text-primary)]">v{latestDrawing.version}</span>
+                    <DrawingStatusBadge status={latestDrawing.status} />
+                  </span>
+                )
+                : <span className="text-sm italic text-[var(--text-muted)]">—</span>,
+            },
             ...(task.submittedAt ? [{
               label: 'Last Submission',
               render: () => task.submissionNotes
@@ -595,6 +627,13 @@ const TaskDetailPage = () => {
           onClose={() => setShowUpload(false)}
           projectId={task.projectId?._id || task.projectId}
           taskId={task._id}
+          prefill={{
+            title:       task.title,
+            zoneName:    task.planning?.zoneName,
+            floor:       task.planning?.floor,
+            area:        task.planning?.area,
+            drawingType: latestDrawing?.drawingType || taskTypeToDrawingType(task.taskType),
+          }}
           onUploaded={refresh}
         />
       )}

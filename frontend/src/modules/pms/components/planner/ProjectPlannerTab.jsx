@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   ClipboardList, ListChecks, CheckCircle2, AlertTriangle, Clock,
   Plus, RefreshCw, Search, Filter, Trash2, Loader2,
-  Eye, History as HistoryIcon, X, ExternalLink, FileText, RotateCcw,
+  Eye, History as HistoryIcon, X, ExternalLink, FileText, RotateCcw, ChevronRight,
   UserCog, CalendarRange, ArrowLeftRight, Zap, CheckSquare, Square,
   Upload, Replace, Calendar as CalendarIcon, UserPlus, MessageSquare,
   Rocket, Lock, Download, FileSpreadsheet, Layers,
@@ -19,6 +19,7 @@ import {
   PhaseHeaderRow, AddDashedRow,
 } from './sheetCells';
 import SelectTemplateModal from './SelectTemplateModal';
+import { taskTypeToDrawingType, buildDrawingUploadFormData } from '../../utils/workItem';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
@@ -63,6 +64,26 @@ const DRAWING_STATUS_LABEL = {
   approved:          { label: 'Approved',  cls: 'bg-[var(--success)]/15 text-[var(--success)]' },
   rejected:          { label: 'Rejected',  cls: 'bg-[var(--error)]/15 text-[var(--error)]' },
   released_to_site:  { label: 'Released',  cls: 'bg-[var(--primary)]/15 text-[var(--primary)]' },
+};
+
+// A version row's Work Status + Progress are derived from THAT version's own
+// drawing lifecycle so the row stays consistent with its Stage. (The snapshot's
+// workStatus/progress reflect the task at upload time, which drifts once the
+// version is later approved/rejected — e.g. an Approved version must not read
+// "In Progress / 50%".)
+const DRAWING_TO_WORKSTATUS = {
+  draft:             'in_progress',
+  sent_for_approval: 'in_progress',
+  approved:          'completed',
+  released_to_site:  'completed',
+  rejected:          'in_progress',
+};
+const DRAWING_TO_PROGRESS = {
+  draft:             50,
+  sent_for_approval: 80,
+  approved:          100,
+  released_to_site:  100,
+  rejected:          50,
 };
 
 const StageBadge = ({ stage }) => (
@@ -602,7 +623,7 @@ const fmtElapsed = (from, to = Date.now()) => {
  */
 const DrawingCell = ({
   drawing, onView, onUpload, uploading,
-  expanded, onToggleExpand, versionsState, onViewVersion,
+  expanded, onToggleExpand, versionsState,
 }) => {
   const inputId = useMemo(() => `planner-upload-${Math.random().toString(36).slice(2, 9)}`, []);
   const handlePick = (e) => {
@@ -636,7 +657,11 @@ const DrawingCell = ({
   const versions = versionsState?.versions || [];
 
   // Loaded-versions-derived stats; falls back to the lightweight drawing.revisionsCount.
-  const versionCount  = versions.length || drawing.revisionsCount || drawing.version || 1;
+  // Before the versions list is lazy-loaded, fall back to the larger of the
+  // latest doc's revisionsCount and its version number — so the expand toggle
+  // appears whenever more than one version exists (including separate
+  // version-per-doc uploads, where revisionsCount on the latest doc is 1).
+  const versionCount  = versions.length || Math.max(drawing.revisionsCount || 1, drawing.version || 1);
   const oldestVersion = versions.length ? versions[versions.length - 1] : null;
   const newestVersion = versions.length ? versions[0] : null;
   const totalSpan     = (oldestVersion && newestVersion && newestVersion.version !== oldestVersion.version)
@@ -691,60 +716,8 @@ const DrawingCell = ({
         )}
       </div>
 
-      {/* Inline expanded version dropdown — newest first */}
-      {expanded && (
-        <div className="mt-1 border border-[var(--primary)]/30 bg-[var(--bg)] rounded-lg p-2 space-y-1.5 shadow-sm">
-          {versionsState?.loading && (
-            <div className="flex items-center justify-center py-3">
-              <Loader2 size={14} className="animate-spin text-[var(--text-muted)]" />
-            </div>
-          )}
-          {versionsState?.error && (
-            <p className="text-[10px] text-[var(--error)]">{versionsState.error}</p>
-          )}
-          {!versionsState?.loading && !versionsState?.error && versions.length > 0 && (
-            <>
-              {/* Stats banner — total revisions + total elapsed time */}
-              <div className="flex items-center justify-between text-[10px] font-bold text-[var(--text-muted)] border-b border-[var(--border)] pb-1 mb-1">
-                <span>{versionCount} version{versionCount !== 1 ? 's' : ''}</span>
-                {totalSpan && <span>⏱ {totalSpan} total</span>}
-              </div>
-              {versions.map((v, idx) => {
-                const isNewest = idx === 0;
-                const next     = versions[idx + 1]; // the previous chronological version
-                const delta    = next ? fmtElapsed(next.uploadedAt, v.uploadedAt) : null;
-                const vSt      = DRAWING_STATUS_LABEL[v.status] || { label: 'Archived', cls: 'bg-[var(--border)] text-[var(--text-muted)]' };
-                return (
-                  <div
-                    key={`${v.drawingId}-${v.version}`}
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] cursor-pointer transition-colors
-                      ${isNewest ? 'bg-[var(--primary)]/8 border border-[var(--primary)]/30' : 'hover:bg-[var(--surface)]'}`}
-                    onClick={() => onViewVersion?.(v)}
-                    title="Open this version in preview"
-                  >
-                    <span className="font-mono font-extrabold text-[var(--text-primary)] w-6">v{v.version}</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${vSt.cls}`}>
-                      {vSt.label}
-                    </span>
-                    {isNewest && (
-                      <span className="text-[9px] font-black uppercase tracking-wider text-[var(--primary)]">Latest</span>
-                    )}
-                    <span className="flex-1 text-[var(--text-muted)] truncate" title={v.fileName}>
-                      {v.uploadedAt ? fmtDateTime(v.uploadedAt) : '—'}
-                    </span>
-                    {delta && (
-                      <span className="text-[var(--text-muted)] font-semibold whitespace-nowrap" title="Time since previous version">
-                        +{delta}
-                      </span>
-                    )}
-                    <Eye size={11} className="text-[var(--primary)] shrink-0" />
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </div>
-      )}
+      {/* The version list now expands as full-width rows under this task row
+          (see VersionRows in MasterSheetGrid), not as an in-cell popup. */}
     </div>
   );
 };
@@ -752,7 +725,7 @@ const DrawingCell = ({
 const AddRowModal = ({ open, onClose, onCreate, busy, defaultPhase }) => {
   const [form, setForm] = useState({
     title: '', taskType: 'technical_drawing', priority: 'medium',
-    zoneName: '', floor: '',
+    zoneName: '', floor: '', area: '',
     designer: null, plannedStartDate: '', plannedEndDate: '', plannedHours: '',
   });
   const [errors, setErrors] = useState({});
@@ -806,6 +779,7 @@ const AddRowModal = ({ open, onClose, onCreate, busy, defaultPhase }) => {
       phase:    defaultPhase || undefined,
       planning: {
         floor:    form.floor,
+        area:     form.area,
         zoneName: form.zoneName,
         plannedStartDate: form.plannedStartDate || undefined,
         plannedEndDate:   form.plannedEndDate   || undefined,
@@ -900,6 +874,15 @@ const AddRowModal = ({ open, onClose, onCreate, busy, defaultPhase }) => {
                 placeholder="e.g. Master Bedroom"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Area</label>
+            <input
+              value={form.area}
+              onChange={(e) => set('area', e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--primary)]"
+              placeholder="e.g. 250 sq.ft"
+            />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -1238,6 +1221,144 @@ const EditablePhaseName = ({ name, onRename }) => {
   );
 };
 
+/**
+ * Full-width expandable version rows. When a task's drawing history is toggled
+ * open, every revision renders as a real table row (newest first) aligned to
+ * all columns — not an in-cell popup. Zone/Floor/Area mirror the parent task;
+ * the version-specific data (version, status, uploader, date, file, rejection
+ * note) fills the relevant columns. Returns an array of <tr> so it slots
+ * directly into <tbody> beneath the parent row.
+ */
+const VersionRows = ({ row, state, onViewVersion, totalCols }) => {
+  if (state?.loading) {
+    return (
+      <tr className="bg-[var(--bg)]/40">
+        <td className="px-2 py-2 sticky left-0 z-[5] bg-[var(--bg)]" />
+        <td className="px-3 py-2 sticky left-8 z-[5] bg-[var(--bg)]" />
+        <td colSpan={Math.max(1, totalCols - 2)} className="px-3 py-3">
+          <span className="inline-flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+            <Loader2 size={13} className="animate-spin" /> Loading versions…
+          </span>
+        </td>
+      </tr>
+    );
+  }
+  if (state?.error) {
+    return (
+      <tr className="bg-[var(--bg)]/40">
+        <td className="px-2 py-2 sticky left-0 z-[5] bg-[var(--bg)]" />
+        <td className="px-3 py-2 sticky left-8 z-[5] bg-[var(--bg)]" />
+        <td colSpan={Math.max(1, totalCols - 2)} className="px-3 py-2 text-[11px] text-[var(--error)]">{state.error}</td>
+      </tr>
+    );
+  }
+
+  const versions = state?.versions || [];
+  if (!versions.length) return null;
+
+  return versions.map((v, idx) => {
+    const isNewest = idx === 0;
+    const st = DRAWING_STATUS_LABEL[v.status] || { label: 'Archived', cls: 'bg-[var(--border)] text-[var(--text-muted)]' };
+    // Per-version snapshot of the task's plan state (priority, dates, hours,
+    // progress…) captured when THIS version was uploaded. Empty for versions
+    // created before snapshots existed (run the backfill script to populate).
+    const ts = v.taskSnapshot || {};
+    return (
+      <tr key={`${v.drawingId}-${v.version}-${idx}`} className="bg-[var(--bg)]/40 border-b border-[var(--border)]">
+        {/* checkbox + # (sticky, blank w/ row connector) */}
+        <td className="px-2 py-2 sticky left-0 z-[5] bg-[var(--bg)]" />
+        <td className="px-3 py-2 sticky left-8 z-[5] bg-[var(--bg)] text-[11px] font-mono text-[var(--text-muted)]">↳</td>
+        {/* Drawing Name — version label + file + date + rejection/revision note */}
+        <td className="px-3 py-2 sticky left-16 z-[5] bg-[var(--bg)]">
+          <div className="flex items-center gap-2 pl-3 border-l-2 border-[var(--primary)]/30">
+            <span className="font-mono text-[11px] font-extrabold text-[var(--text-primary)]">v{v.version}</span>
+            {isNewest && <span className="text-[9px] font-black uppercase tracking-wider text-[var(--primary)]">Latest</span>}
+            <span className="text-[11px] text-[var(--text-muted)] truncate max-w-[160px]" title={v.fileName}>{v.fileName || ''}</span>
+          </div>
+          <p className="mt-0.5 ml-3 text-[10px] text-[var(--text-muted)]">
+            Uploaded {v.uploadedAt ? fmtDateTime(v.uploadedAt) : '—'}
+            {v.approvalDate
+              ? ` · Approved ${fmtDateTime(v.approvalDate)}`
+              : (v.rejectedAt ? ` · Rejected ${fmtDateTime(v.rejectedAt)}` : '')}
+          </p>
+          {v.rejectionReason && (
+            <p className="mt-1 ml-3 text-[10px] text-[var(--error)] bg-[var(--error)]/10 border border-[var(--error)]/30 rounded px-1.5 py-0.5 max-w-[260px] truncate" title={v.rejectionReason}>
+              <span className="font-bold">REVISION: </span>{v.rejectionReason}
+            </p>
+          )}
+          {v.notes && !v.rejectionReason && (
+            <p className="mt-1 ml-3 text-[10px] text-[var(--text-muted)] max-w-[260px] truncate" title={v.notes}>{v.notes}</p>
+          )}
+        </td>
+        {/* Stage = this version's drawing status */}
+        <td className="px-3 py-2">
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${st.cls}`}>{st.label}</span>
+        </td>
+        {/* Work Status — derived from THIS version's drawing lifecycle (matches Stage) */}
+        <td className="px-3 py-2">
+          {DRAWING_TO_WORKSTATUS[v.status]
+            ? <EditableWorkStatusCell value={DRAWING_TO_WORKSTATUS[v.status]} disabled />
+            : <span className="text-[11px] text-[var(--text-muted)]">—</span>}
+        </td>
+        {/* Priority — from THIS version's snapshot */}
+        <td className="px-3 py-2">
+          {ts.priority ? (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${PRIORITY_BADGE[ts.priority] || 'bg-[var(--border)] text-[var(--text-muted)]'}`}>
+              {PRIORITY_OPTIONS.find((o) => o.value === ts.priority)?.label || ts.priority}
+            </span>
+          ) : <span className="text-[11px] text-[var(--text-muted)]">—</span>}
+        </td>
+        {/* Zone / Floor / Area = THIS version's own location (copied at upload) */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{v.zoneName || row.planning?.zoneName || '—'}</td>{/* Zone */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{v.floor || row.planning?.floor || '—'}</td>{/* Floor */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{v.area || row.planning?.area || '—'}</td>{/* Area */}
+        {/* Designer = who uploaded THIS version */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{v.uploadedBy?.name || ts.assignedToName || '—'}</td>{/* Designer */}
+        {/* Checklist — task checklist progress snapshotted for THIS version */}
+        <td className="px-3 py-2">
+          {(() => {
+            let done = ts.checklistDone;
+            let total = ts.checklistTotal;
+            if (total == null) {
+              const ck = Array.isArray(v.checklistSnapshot) ? v.checklistSnapshot : [];
+              if (ck.length) { total = ck.length; done = ck.filter((i) => i.isCompleted).length; }
+            }
+            if (!total) return <span className="text-[11px] text-[var(--text-muted)]">—</span>;
+            const pct = Math.round(((done || 0) / total) * 100);
+            return (
+              <div className="flex flex-col gap-0.5 min-w-[70px]">
+                <span className="text-[10px] font-bold text-[var(--text-secondary)]">{done || 0}/{total}</span>
+                <div className="h-1 w-full bg-[var(--border)] rounded-full overflow-hidden">
+                  <div className="h-full bg-[var(--primary)]" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })()}
+        </td>
+        {/* Planned Start / Deadline / Days / Hrs / Progress / Delay — from THIS version's snapshot */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)] whitespace-nowrap">{ts.plannedStartDate ? fmt(ts.plannedStartDate) : '—'}</td>{/* Planned Start */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)] whitespace-nowrap">{ts.plannedEndDate ? fmt(ts.plannedEndDate) : '—'}</td>{/* Deadline */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{ts.plannedDays != null ? ts.plannedDays : '—'}</td>{/* Days */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{ts.plannedHours != null ? ts.plannedHours : '—'}</td>{/* Planned Hrs */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{ts.actualHours != null ? ts.actualHours : '—'}</td>{/* Actual Hrs */}
+        <td className="px-3 py-2">{DRAWING_TO_PROGRESS[v.status] != null ? <ProgressCell value={DRAWING_TO_PROGRESS[v.status]} /> : <span className="text-[11px] text-[var(--text-muted)]">—</span>}</td>{/* Progress */}
+        <td className="px-3 py-2">{ts.delayDays != null ? <DelayBadge days={ts.delayDays} /> : <span className="text-[11px] text-[var(--text-muted)]">—</span>}</td>{/* Delay */}
+        <td className="px-3 py-2">{/* Drawing — open this version */}
+          <button
+            type="button"
+            onClick={() => onViewVersion?.(v)}
+            className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--primary)] hover:underline"
+            title="Open this version"
+          >
+            <Eye size={11} /> View
+          </button>
+        </td>
+        <td className="px-3 py-2" />{/* Actions */}
+      </tr>
+    );
+  });
+};
+
 const MasterSheetGrid = ({
   rows, phases, onPatch, onDelete, onViewDrawing, onShowVersions, onUpload, onOpenNotes, onOpenChecklist,
   uploadingTaskId, selectedTaskIds, onToggleRow, onToggleAll, onAddToPhase,
@@ -1274,8 +1395,9 @@ const MasterSheetGrid = ({
   // Phase groups for grouped rendering — seeded from the snapshot phase list so
   // empty phases still render; row order preserved from the server sort.
   const phaseGroups = groupRowsByPhase(rows, phaseList);
-  // Total columns including the sticky checkbox + # — used for phase-header colspan.
-  const TOTAL_COLS = 18;
+  // Total columns including the sticky checkbox + # — used for phase-header colspan
+  // and the expandable version sub-rows.
+  const TOTAL_COLS = 20;
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-x-auto">
@@ -1301,6 +1423,7 @@ const MasterSheetGrid = ({
             <th className="px-3 py-2">Priority</th>
             <th className="px-3 py-2">Zone</th>
             <th className="px-3 py-2">Floor</th>
+            <th className="px-3 py-2">Area</th>
             <th className="px-3 py-2 min-w-[180px]">Designer</th>
             <th className="px-3 py-2 min-w-[110px]">Checklist</th>
             <th className="px-3 py-2">Planned Start</th>
@@ -1378,8 +1501,13 @@ const MasterSheetGrid = ({
               r.stage === 'Revision Required' ? 'border-l-4 border-l-[var(--error)]' :
               '';
             const rowBg = isSelected ? 'bg-[var(--primary)]/5' : '';
+            const isVerExpanded = expandedVersionsTaskId === String(r.taskId);
+            // Show the expand caret only when more than one version exists, so
+            // there's actually previous data to reveal beneath the row.
+            const hasVersions = !!r.drawing && ((r.drawing.version || 1) > 1 || (r.drawing.revisionsCount || 1) > 1);
             return (
-              <tr key={r.taskId} className={`border-b border-[var(--border)] hover:bg-[var(--bg)]/60 ${rowTone} ${rowBg}`}>
+              <React.Fragment key={r.taskId}>
+              <tr className={`border-b border-[var(--border)] hover:bg-[var(--bg)]/60 ${rowTone} ${rowBg}`}>
                 <td className={`px-2 py-2 sticky left-0 z-[5] ${isSelected ? 'bg-[var(--primary)]/5' : 'bg-[var(--surface)]'}`}>
                   <button
                     type="button"
@@ -1390,7 +1518,23 @@ const MasterSheetGrid = ({
                     {isSelected ? <CheckSquare size={14} className="text-[var(--primary)]" /> : <Square size={14} />}
                   </button>
                 </td>
-                <td className={`px-3 py-2 text-[11px] font-mono text-[var(--text-muted)] sticky left-8 ${isSelected ? 'bg-[var(--primary)]/5' : 'bg-[var(--surface)]'}`}>{idx + 1}</td>
+                <td className={`px-3 py-2 sticky left-8 ${isSelected ? 'bg-[var(--primary)]/5' : 'bg-[var(--surface)]'}`}>
+                  <div className="flex items-center gap-1">
+                    {hasVersions ? (
+                      <button
+                        type="button"
+                        onClick={() => onToggleVersionsExpand(r)}
+                        title={isVerExpanded ? 'Hide previous versions' : 'Show previous versions'}
+                        className={`p-0.5 rounded hover:bg-[var(--primary)]/10 transition-colors ${isVerExpanded ? 'text-[var(--primary)]' : 'text-[var(--text-muted)] hover:text-[var(--primary)]'}`}
+                      >
+                        <ChevronRight size={14} className={`transition-transform ${isVerExpanded ? 'rotate-90' : ''}`} />
+                      </button>
+                    ) : (
+                      <span className="inline-block w-[20px]" aria-hidden />
+                    )}
+                    <span className="text-[11px] font-mono text-[var(--text-muted)]">{idx + 1}</span>
+                  </div>
+                </td>
                 <td className={`px-3 py-2 sticky left-16 ${isSelected ? 'bg-[var(--primary)]/5' : 'bg-[var(--surface)]'}`}>
                   <EditableTextCell
                     value={r.title}
@@ -1433,6 +1577,14 @@ const MasterSheetGrid = ({
                     placeholder="Floor"
                     autoSize
                     onSave={(v) => onPatch(r.taskId, { planning: { floor: v } })}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <EditableTextCell
+                    value={r.planning.area}
+                    placeholder="Area"
+                    autoSize
+                    onSave={(v) => onPatch(r.taskId, { planning: { area: v } })}
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -1507,6 +1659,15 @@ const MasterSheetGrid = ({
                   </div>
                 </td>
               </tr>
+              {isVerExpanded && (
+                <VersionRows
+                  row={r}
+                  state={versionsCache[String(r.taskId)]}
+                  onViewVersion={onViewVersion}
+                  totalCols={TOTAL_COLS}
+                />
+              )}
+              </React.Fragment>
             );
           })}
             </React.Fragment>
@@ -2310,11 +2471,19 @@ const ProjectPlannerTab = ({ project }) => {
         isCurrent:    true,
         status:       d.status,
         fileName:     d.fileName,
-        uploadedAt:   d.updatedAt || d.createdAt,
+        // createdAt = when THIS version was uploaded (updatedAt shifts on status
+        // changes), so each row shows its own upload date/time.
+        uploadedAt:   d.createdAt || d.updatedAt,
         uploadedBy:   d.uploadedBy,
         notes:        d.revisionNotes,
         rejectionReason: d.rejectionReason,
         approvalDate: d.approvalDate,
+        rejectedAt:   d.rejectedAt,
+        zoneName:     d.zoneName,
+        floor:        d.floor,
+        area:         d.area,
+        checklistSnapshot: d.checklistSnapshot,
+        taskSnapshot: d.taskSnapshot,
         historyVersion: null,
       });
       for (const r of (d.revisionHistory || [])) {
@@ -2444,45 +2613,26 @@ const ProjectPlannerTab = ({ project }) => {
     }
   }, [selectedTaskIds, finishBulk]);
 
-  // Map planner task type → Drawing.drawingType enum so the upload lands in the
-  // right S3 folder + filter group.
-  const drawingTypeFor = (taskType) => {
-    switch (taskType) {
-      case 'civil_drawing':           return 'civil';
-      case 'technical_drawing':       return 'technical_detail';
-      case 'ac_coordination':         return 'ac_coordination';
-      case 'automation_coordination': return 'automation';
-      case 'kitchen_drawing':         return 'kitchen';
-      case 'bathroom_drawing':        return 'bathroom';
-      case '3d_render':               return '3d_render';
-      case 'concept_making':          return 'concept';
-      case 'site_measurement':        return 'site_photo';
-      case 'furniture_layout':        return 'plan';
-      default:                        return 'plan';
-    }
-  };
-
-  // Inline upload — uses existing multipart endpoint. On success, refresh.
+  // Inline upload — same multipart endpoint as the task workspace. Backend bumps
+  // the version automatically via the (projectId, zoneName, title) lookup, so a
+  // re-upload on an existing row creates the next version. Shares the FormData
+  // builder + taskType→drawingType mapping with the Upload modal, and carries
+  // the row's zone/floor/area onto the new drawing version.
   const handleInlineUpload = useCallback(async (row, file) => {
     if (!file || !projectId) return;
     setUploadingTaskId(String(row.taskId));
     try {
-      const isRevision = !!row.drawing?._id;
-      if (isRevision) {
-        // /revise expects the existing fileUrl semantics. We use the multipart
-        // upload endpoint with the SAME title + zone — backend bumps version
-        // automatically because of the (projectId, zoneName, title) lookup.
-      }
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('projectId',   projectId);
-      fd.append('taskId',      row.taskId);
-      fd.append('title',       row.title || file.name);
-      fd.append('zoneName',    row.planning?.zoneName || '');
-      fd.append('drawingType', drawingTypeFor(row.taskType));
-      if (row.planning?.zoneName) {
-        fd.append('description', `Auto-uploaded from master sheet · ${row.planning.zoneName}`);
-      }
+      const fd = buildDrawingUploadFormData({
+        projectId,
+        taskId:      row.taskId,
+        title:       row.title || file.name,
+        zoneName:    row.planning?.zoneName || '',
+        floor:       row.planning?.floor || '',
+        area:        row.planning?.area || '',
+        drawingType: taskTypeToDrawingType(row.taskType),
+        description: row.planning?.zoneName ? `Auto-uploaded from master sheet · ${row.planning.zoneName}` : '',
+        file,
+      });
       await pmsService.uploadDrawingFile(fd);
       fetchSheet(true);
     } catch (err) {

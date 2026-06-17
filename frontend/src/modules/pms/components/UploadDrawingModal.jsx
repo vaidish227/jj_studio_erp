@@ -4,6 +4,7 @@ import { Modal, Button, FormField, Input, Select } from '../../../shared/compone
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { DRAWING_TYPE_LABELS } from './DrawingCard';
+import { buildDrawingUploadFormData } from '../utils/workItem';
 
 const DRAWING_TYPE_OPTIONS = [
   { value: '',                 label: 'Select drawing type...' },
@@ -16,6 +17,8 @@ const MAX_BYTES = 20 * 1024 * 1024;
 
 const INITIAL = {
   zoneName:    '',
+  floor:       '',
+  area:        '',
   title:       '',                                    // a.k.a. Design Name
   description: '',
   drawingType: '',
@@ -36,7 +39,7 @@ const fileIcon = (file) => {
   return UploadCloud;
 };
 
-const UploadDrawingModal = ({ isOpen, onClose, projectId, taskId, onUploaded }) => {
+const UploadDrawingModal = ({ isOpen, onClose, projectId, taskId, prefill, onUploaded }) => {
   const toast = useToast();
   const [form, setForm]               = useState(INITIAL);
   const [file, setFile]               = useState(null);
@@ -46,12 +49,22 @@ const UploadDrawingModal = ({ isOpen, onClose, projectId, taskId, onUploaded }) 
   const [nextVersion, setNextVersion] = useState(1);
   const fileInputRef                  = useRef(null);
 
-  // Reset when modal opens/closes so reopens are clean.
+  // Reset when modal opens/closes so reopens are clean. When opened from a task
+  // workspace, seed Design Name / Zone / Floor / Area / Drawing Type from the
+  // task so the designer doesn't re-enter data the Master Sheet already holds.
   useEffect(() => {
     if (isOpen) {
-      setForm(INITIAL); setFile(null); setErrors({}); setNextVersion(1);
+      setForm({
+        ...INITIAL,
+        title:       prefill?.title       || '',
+        zoneName:    prefill?.zoneName     || '',
+        floor:       prefill?.floor        || '',
+        area:        prefill?.area         || '',
+        drawingType: prefill?.drawingType  || '',
+      });
+      setFile(null); setErrors({}); setNextVersion(1);
     }
-  }, [isOpen]);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-revision: fetch the next version whenever (project, zone, designName)
   // settles. Debounced via a 350ms timer to avoid spamming the API while typing.
@@ -111,15 +124,18 @@ const UploadDrawingModal = ({ isOpen, onClose, projectId, taskId, onUploaded }) 
 
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append('projectId',    projectId);
-      if (taskId) fd.append('taskId', taskId);
-      fd.append('title',        form.title.trim());
-      fd.append('zoneName',     form.zoneName.trim());
-      fd.append('description',  form.description.trim());
-      fd.append('drawingType',  form.drawingType);
-      if (form.revisionNotes.trim()) fd.append('revisionNotes', form.revisionNotes.trim());
-      fd.append('file', file, file.name);
+      const fd = buildDrawingUploadFormData({
+        projectId,
+        taskId,
+        title:         form.title,
+        zoneName:      form.zoneName,
+        floor:         form.floor,
+        area:          form.area,
+        drawingType:   form.drawingType,
+        description:   form.description,
+        revisionNotes: form.revisionNotes,
+        file,
+      });
 
       const res = await pmsService.uploadDrawingFile(fd);
       toast.success(res?.message || 'Drawing uploaded');
@@ -154,6 +170,25 @@ const UploadDrawingModal = ({ isOpen, onClose, projectId, taskId, onUploaded }) 
               value={form.title}
               onChange={(e) => set('title', e.target.value)}
               placeholder="e.g. AC Coordination"
+            />
+          </FormField>
+        </div>
+
+        {/* Floor + Area — prefilled from the Master Sheet when available; the
+            designer can fill them here and they sync back to the task row. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Floor" error={errors.floor}>
+            <Input
+              value={form.floor}
+              onChange={(e) => set('floor', e.target.value)}
+              placeholder="e.g. Ground Floor"
+            />
+          </FormField>
+          <FormField label="Area" error={errors.area}>
+            <Input
+              value={form.area}
+              onChange={(e) => set('area', e.target.value)}
+              placeholder="e.g. 250 sq.ft"
             />
           </FormField>
         </div>

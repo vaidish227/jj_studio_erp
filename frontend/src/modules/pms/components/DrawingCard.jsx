@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileText, ChevronDown, ChevronUp, Clock, AlertCircle, MessageCircle, GitBranch, Eye, CheckCircle2, Download } from 'lucide-react';
 import { Button } from '../../../shared/components';
+import { getParentTaskId } from '../utils/workItem';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import DrawingStatusBadge from './DrawingStatusBadge';
 import DrawingVersionHistory from './DrawingVersionHistory';
@@ -44,6 +46,21 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
   // Phase 2 — Principal Designer review status (only fetched for 3D drawings)
   const { hasPermission } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
+
+  // Centralized workflow: a drawing's parent Task is the single work item.
+  // Card click + designer work-actions open that task's unified workspace
+  // (/tasks/:taskId) so the Tasks tab and Drawings tab never diverge.
+  const parentTaskId = getParentTaskId(drawing);
+  const openWorkspace = () => { if (parentTaskId) navigate(`/tasks/${parentTaskId}`); };
+  // Route designer work-actions (Revise / Send-for-Approval / Re-submit) to the
+  // task page when linked; fall back to the legacy inline modal only for orphan
+  // drawings that have no taskId.
+  const designerWork = (fallback) => () => {
+    if (parentTaskId) openWorkspace();
+    else fallback?.(drawing);
+  };
+
   const [pdReview, setPDReview] = useState(null);
   const [pdMode, setPDMode] = useState(null); // 'request' | 'respond' | null
   const isThreeD = drawing.drawingType === '3d_render';
@@ -109,9 +126,13 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
         <div className="w-9 h-9 rounded-lg bg-[var(--accent-blue)]/10 flex items-center justify-center shrink-0">
           <FileText size={16} className="text-[var(--accent-blue)]" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div
+          className={`flex-1 min-w-0 ${parentTaskId ? 'cursor-pointer group/title' : ''}`}
+          onClick={parentTaskId ? openWorkspace : undefined}
+          title={parentTaskId ? 'Open in workspace' : undefined}
+        >
           <div className="flex items-center gap-2 mb-0.5">
-            <p className="text-sm font-semibold text-[var(--text-primary)] truncate leading-snug">
+            <p className={`text-sm font-semibold truncate leading-snug text-[var(--text-primary)] ${parentTaskId ? 'group-hover/title:text-[var(--primary)] transition-colors' : ''}`}>
               {drawing.title}
             </p>
             <span className="text-[10px] font-black text-[var(--text-muted)] shrink-0 bg-[var(--border)] px-1.5 py-0.5 rounded">
@@ -189,7 +210,7 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
         <div className="flex items-center gap-2 ml-auto flex-wrap">
           {(drawing.status === 'draft' || drawing.status === 'rejected') && (
             <PermissionGate permission="drawings.upload">
-              <Button size="sm" variant="ghost" onClick={() => onRevise?.(drawing)}>
+              <Button size="sm" variant="ghost" onClick={designerWork(onRevise)}>
                 Revise
               </Button>
             </PermissionGate>
@@ -197,7 +218,7 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
 
           {drawing.status === 'draft' && (
             <PermissionGate permission="drawings.upload">
-              <Button size="sm" onClick={() => onSendForApproval?.(drawing)}>
+              <Button size="sm" onClick={designerWork(onSendForApproval)}>
                 Send for Approval
               </Button>
             </PermissionGate>
@@ -205,7 +226,7 @@ const DrawingCard = ({ drawing, onSendForApproval, onApprove, onRelease, onRevis
 
           {drawing.status === 'rejected' && (
             <PermissionGate permission="drawings.upload">
-              <Button size="sm" onClick={() => onSendForApproval?.(drawing)}>
+              <Button size="sm" onClick={designerWork(onSendForApproval)}>
                 Re-submit
               </Button>
             </PermissionGate>

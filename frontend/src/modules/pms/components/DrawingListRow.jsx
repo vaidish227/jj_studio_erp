@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileText, Eye, Download } from 'lucide-react';
 import { Button } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import DrawingStatusBadge from './DrawingStatusBadge';
 import PreviewDrawingModal from './PreviewDrawingModal';
 import { DRAWING_TYPE_LABELS } from './DrawingCard';
+import { getParentTaskId } from '../utils/workItem';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 
@@ -21,8 +23,18 @@ const fmt = (d) => d
  */
 const DrawingListRow = ({ drawing, onSendForApproval, onApprove, onRelease, onRevise }) => {
   const toast = useToast();
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  // Centralized workflow — name + designer work-actions open the parent task's
+  // unified workspace; orphan drawings (no taskId) keep the inline fallback.
+  const parentTaskId = getParentTaskId(drawing);
+  const openWorkspace = () => { if (parentTaskId) navigate(`/tasks/${parentTaskId}`); };
+  const designerWork = (fallback) => () => {
+    if (parentTaskId) openWorkspace();
+    else fallback?.(drawing);
+  };
 
   const handleDownload = async () => {
     if (busy) return;
@@ -57,7 +69,11 @@ const DrawingListRow = ({ drawing, onSendForApproval, onApprove, onRelease, onRe
           </div>
           <div className="min-w-0">
             <div className="flex items-start gap-1.5">
-              <p className="text-sm font-semibold text-[var(--text-primary)] leading-snug break-words max-w-[420px]">
+              <p
+                className={`text-sm font-semibold text-[var(--text-primary)] leading-snug break-words max-w-[420px] ${parentTaskId ? 'cursor-pointer hover:text-[var(--primary)] transition-colors' : ''}`}
+                onClick={parentTaskId ? openWorkspace : undefined}
+                title={parentTaskId ? 'Open in workspace' : undefined}
+              >
                 {drawing.title}
               </p>
               <span className="text-[10px] font-black text-[var(--text-muted)] shrink-0 bg-[var(--border)] px-1.5 py-0.5 rounded mt-0.5">
@@ -118,17 +134,17 @@ const DrawingListRow = ({ drawing, onSendForApproval, onApprove, onRelease, onRe
 
           {(drawing.status === 'draft' || drawing.status === 'rejected') && (
             <PermissionGate permission="drawings.upload">
-              <Button size="sm" variant="ghost" onClick={() => onRevise?.(drawing)}>Revise</Button>
+              <Button size="sm" variant="ghost" onClick={designerWork(onRevise)}>Revise</Button>
             </PermissionGate>
           )}
           {drawing.status === 'draft' && (
             <PermissionGate permission="drawings.upload">
-              <Button size="sm" onClick={() => onSendForApproval?.(drawing)}>Send</Button>
+              <Button size="sm" onClick={designerWork(onSendForApproval)}>Send</Button>
             </PermissionGate>
           )}
           {drawing.status === 'rejected' && (
             <PermissionGate permission="drawings.upload">
-              <Button size="sm" onClick={() => onSendForApproval?.(drawing)}>Re-submit</Button>
+              <Button size="sm" onClick={designerWork(onSendForApproval)}>Re-submit</Button>
             </PermissionGate>
           )}
           {drawing.status === 'sent_for_approval' && (

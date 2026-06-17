@@ -249,6 +249,87 @@ async function ensureSheetRowForDrawing(drawing, actorId) {
 }
 
 /**
+ * Push designer-entered location (zone / floor / area) up to the parent Task's
+ * planning block — but ONLY for fields that are still empty, so a PM-assigned
+ * value on the Master Sheet is never overwritten by a later upload. This is the
+ * "designer fills it in → it appears on the Master Sheet" half of the
+ * bi-directional Zone/Floor/Area sync. Best-effort: never throws.
+ */
+async function syncDrawingLocationToTask(drawing) {
+  try {
+    if (!drawing?.taskId) return;
+    const task = await Task.findById(drawing.taskId).select("planning").lean();
+    if (!task) return;
+    const p = task.planning || {};
+    const z = (drawing.zoneName || "").trim();
+    const f = (drawing.floor || "").trim();
+    const a = (drawing.area || "").trim();
+    const set = {};
+    if (z && !(p.zoneName || "").trim()) set["planning.zoneName"] = z;
+    if (f && !(p.floor || "").trim())    set["planning.floor"]    = f;
+    if (a && !(p.area || "").trim())     set["planning.area"]     = a;
+    if (Object.keys(set).length) {
+      await Task.updateOne({ _id: drawing.taskId }, { $set: set });
+    }
+  } catch (err) {
+    console.error("[syncDrawingLocationToTask]", err.message);
+  }
+}
+
+const SNAPSHOT_DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Freeze the parent Task's plan state onto a drawing version so the Master
+ * Sheet version history can show REAL per-version data (priority, work status,
+ * planned dates, hours, progress, delay, checklist, assignee) as it stood when
+ * this version was created. Best-effort: never throws.
+ */
+async function snapshotTaskOntoDrawing(drawing) {
+  try {
+    if (!drawing?.taskId) return;
+    const task = await Task.findById(drawing.taskId)
+      .select("priority workStatus status planning startDate completedAt checklist assignedTo")
+      .populate("assignedTo", "name")
+      .lean();
+    if (!task) return;
+
+    const p = task.planning || {};
+    const plannedDays = (p.plannedStartDate && p.plannedEndDate)
+      ? Math.max(0, Math.round((new Date(p.plannedEndDate).getTime() - new Date(p.plannedStartDate).getTime()) / SNAPSHOT_DAY_MS))
+      : null;
+
+    let delayDays = 0;
+    if (p.plannedEndDate && !["completed", "on_hold"].includes(task.status)) {
+      const diff = Math.round((Date.now() - new Date(p.plannedEndDate).getTime()) / SNAPSHOT_DAY_MS);
+      delayDays = diff > 0 ? diff : 0;
+    }
+
+    const ck = Array.isArray(task.checklist) ? task.checklist : [];
+
+    const snapshot = {
+      priority:         task.priority || "",
+      workStatus:       task.workStatus || "",
+      plannedStartDate: p.plannedStartDate || null,
+      plannedEndDate:   p.plannedEndDate || null,
+      plannedDays,
+      plannedHours:     p.plannedHours || 0,
+      actualHours:      p.actualHours || 0,
+      progressPercent:  p.progressPercent || 0,
+      delayDays,
+      assignedToName:   task.assignedTo?.name || "",
+      checklistDone:    ck.filter((c) => c.isCompleted).length,
+      checklistTotal:   ck.length,
+      capturedAt:       new Date(),
+    };
+
+    await Drawing.updateOne({ _id: drawing._id }, { $set: { taskSnapshot: snapshot } });
+    drawing.taskSnapshot = snapshot; // reflect on the in-memory doc for the response
+  } catch (err) {
+    console.error("[snapshotTaskOntoDrawing]", err.message);
+  }
+}
+
+/**
  * @route GET /api/pms/drawing/next-version?projectId=&zoneName=&title=
  * Tiny helper for the upload modal — drives the auto-revision badge.
  */
@@ -337,6 +418,8 @@ const uploadDrawing = async (req, res) => {
         taskId:        value.taskId || undefined,
         title:         value.title,
         zoneName:      (value.zoneName || "").trim(),
+        floor:         (value.floor || "").trim(),
+        area:          (value.area || "").trim(),
         description:   (value.description || "").trim(),
         drawingType:   value.drawingType || "plan",
         fileUrl:       put.url,
@@ -365,6 +448,10 @@ const uploadDrawing = async (req, res) => {
       // Auto-link the drawing to a planner-sheet row so it appears in the
       // Master Sheet immediately. Creates a new task if none exists.
       await ensureSheetRowForDrawing(drawing, req.user._id);
+      // Designer-entered location flows back to the Master Sheet (fill-if-empty).
+      await syncDrawingLocationToTask(drawing);
+      // Freeze the task's plan state onto this version for the version history.
+      await snapshotTaskOntoDrawing(drawing);
 
       return res.status(201).json({
         message: version > 1 ? `Drawing version v${version} uploaded` : "Drawing uploaded successfully",
@@ -387,6 +474,8 @@ const uploadDrawing = async (req, res) => {
     const drawing = await Drawing.create({
       ...value,
       zoneName:    (value.zoneName || "").trim(),
+      floor:       (value.floor || "").trim(),
+      area:        (value.area || "").trim(),
       description: (value.description || "").trim(),
       version,
       uploadedBy: req.user._id,
@@ -405,6 +494,10 @@ const uploadDrawing = async (req, res) => {
     // Auto-link the drawing to a planner-sheet row so it appears in the
     // Master Sheet immediately. Creates a new task if none exists.
     await ensureSheetRowForDrawing(drawing, req.user._id);
+    // Designer-entered location flows back to the Master Sheet (fill-if-empty).
+    await syncDrawingLocationToTask(drawing);
+    // Freeze the task's plan state onto this version for the version history.
+    await snapshotTaskOntoDrawing(drawing);
 
     res.status(201).json({
       message: version > 1 ? `Drawing version v${version} uploaded` : "Drawing uploaded successfully",
@@ -525,7 +618,7 @@ const previewDrawing  = (req, res) => signedUrlHandler(req, res, "inline");
  */
 const reviseDrawing = async (req, res) => {
   try {
-    const { error, value } = reviseDrawingSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = reviseDrawingSchema.validate(req.body || {}, { abortEarly: false });
     if (error) {
       return res.status(400).json({ message: error.details.map((d) => d.message).join('; ') });
     }
@@ -580,6 +673,8 @@ const reviseDrawing = async (req, res) => {
     if (updated && !updated.taskId) {
       await ensureSheetRowForDrawing(updated, req.user._id);
     }
+    // Freeze the task's plan state onto the new revision for version history.
+    if (updated) await snapshotTaskOntoDrawing(updated);
 
     res.status(200).json({
       message: `Drawing revised to v${newVersion}`,
@@ -705,8 +800,10 @@ const sendForApproval = async (req, res) => {
     drawing.rejectedBy      = undefined;
     drawing.rejectedAt      = undefined;
     drawing.rejectionReason = undefined;
-    if (req.body.submissionNotes) {
-      drawing.submissionNotes = req.body.submissionNotes;
+    // req.body is undefined on a body-less PATCH (Express 5) — guard before reading.
+    const submissionNotes = req.body?.submissionNotes;
+    if (submissionNotes) {
+      drawing.submissionNotes = submissionNotes;
     }
     await drawing.save();
 
@@ -797,7 +894,7 @@ async function notifyMDsOnDrawingSubmission({ drawing, actor }) {
  */
 const approveDrawing = async (req, res) => {
   try {
-    const { error, value } = approveDrawingSchema.validate(req.body);
+    const { error, value } = approveDrawingSchema.validate(req.body || {});
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }
@@ -869,7 +966,7 @@ const approveDrawing = async (req, res) => {
  */
 const rejectDrawing = async (req, res) => {
   try {
-    const { error, value } = rejectDrawingSchema.validate(req.body);
+    const { error, value } = rejectDrawingSchema.validate(req.body || {});
     if (error) {
       return res.status(400).json({ message: error.details[0].message });
     }

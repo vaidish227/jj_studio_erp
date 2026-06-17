@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Send, X, FileText, AlertTriangle } from 'lucide-react';
 import { Button } from '../../../shared/components';
-import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
+import { submitTaskForReview } from '../utils/workItem';
 
 /**
  * `drawingCount` (optional) — when 0, the modal blocks submission with a
@@ -22,7 +22,7 @@ const SubmitForReviewModal = ({ task, isOpen, onClose, onSubmitted, drawingCount
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      const res = await pmsService.submitTask(task._id, { submissionNotes: notes });
+      const res = await submitTaskForReview(task._id, notes);
       toast.success('Task submitted for review');
       onSubmitted?.(res.task);
       onClose();
