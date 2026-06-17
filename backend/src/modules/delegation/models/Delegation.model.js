@@ -106,16 +106,17 @@ delegationSchema.index({ projectId: 1 });
 delegationSchema.index({ clientId: 1 });
 delegationSchema.index({ title: "text" });
 
-// ─── Auto-generate trackingId (DLG-YYYY-0001) — mirrors Project.model ────────
+// ─── Auto-generate trackingId (DLG-YYYY-0001) via an ATOMIC per-year counter ──
+// Uses Counter.nextSeq (findOneAndUpdate $inc) so concurrent creates can never
+// produce the same id — eliminating the race in the old countDocuments approach
+// and giving a true per-year sequence that resets each January.
+const Counter = require("./Counter.model");
+
 delegationSchema.pre("validate", async function () {
   if (this.isNew && !this.trackingId) {
-    try {
-      const year = new Date().getFullYear();
-      const count = await mongoose.model("Delegation").countDocuments();
-      this.trackingId = `DLG-${year}-${String(count + 1).padStart(4, "0")}`;
-    } catch (error) {
-      console.error("Error generating delegation trackingId:", error);
-    }
+    const year = new Date().getFullYear();
+    const seq = await Counter.nextSeq(`delegation:${year}`);
+    this.trackingId = `DLG-${year}-${String(seq).padStart(4, "0")}`;
   }
 });
 

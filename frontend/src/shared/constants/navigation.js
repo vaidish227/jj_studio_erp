@@ -12,6 +12,7 @@ import {
   Crown,
   CheckSquare,
   CalendarDays,
+  ListTodo,
 } from 'lucide-react';
 
 // Each item has an optional `permission` key.
@@ -127,6 +128,17 @@ export const NAV_ITEMS = [
       // Self-scoped calendar (backend returns only the designer's own events).
       // id 'calendar' matches the last URL segment so it highlights when active.
       { id: 'calendar',           icon: CalendarDays,    label: 'Calendar',  path: '/pms/calendar',       permission: 'calendar.read' },
+    ],
+  },
+  {
+    id: 'delegation',
+    label: 'Delegation',
+    icon: ListTodo,
+    permission: 'delegation.read',
+    children: [
+      { id: 'delegation-dashboard',   label: 'Dashboard',       path: '/delegation',             permission: 'delegation.read' },
+      { id: 'delegation-list',        label: 'All Delegations', path: '/delegation/list',        permission: 'delegation.read' },
+      { id: 'delegation-departments', label: 'Departments',     path: '/delegation/departments', permission: 'delegation.department.manage' },
     ],
   },
   {

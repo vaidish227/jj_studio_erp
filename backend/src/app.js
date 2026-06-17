@@ -182,9 +182,11 @@ app.use("/api/notifications", notificationRoutes);
 const aiRoutes = require("./modules/ai/routes/ai.route");
 app.use("/api/ai", aiRoutes);
 
-// ─── Delegation Management — Departments (master data) ───────────────────────
-// Sprint 1: Department CRUD only. Delegation APIs land in Sprint 2.
+// ─── Delegation Management ───────────────────────────────────────────────────
 const departmentRoutes = require("./modules/department/routes/department.route");
 app.use("/api/departments", departmentRoutes);
+
+const delegationRoutes = require("./modules/delegation/routes/delegation.route");
+app.use("/api/delegations", delegationRoutes);
 
 module.exports = app;

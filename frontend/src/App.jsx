@@ -64,6 +64,12 @@ import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
 import DocumentRepositoryPage from './modules/pms/pages/DocumentRepositoryPage';
 import NotificationsPage from './modules/notifications/pages/NotificationsPage';
+import {
+  DelegationListPage,
+  DelegationDetailPage,
+  DelegationDashboardPage,
+  DepartmentAdminPage,
+} from './modules/delegation';
 // KIT — Keep In Touch (communication automation). Aliased to avoid clashing with
 // the proposal module's TemplateEditorPage import above.
 import {
@@ -106,6 +112,14 @@ export default function App() {
               <Route element={<AppLayout />}>
                 <Route path="/dashboard"     element={<DashboardPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
+
+                {/* Delegation Management (internal-only MVP) */}
+                <Route path="/delegation/departments" element={<ProtectedRoute permission="delegation.department.manage"><DepartmentAdminPage /></ProtectedRoute>} />
+                <Route element={<ProtectedRoute permission="delegation.read"><Outlet /></ProtectedRoute>}>
+                  <Route path="/delegation"      element={<DelegationDashboardPage />} />
+                  <Route path="/delegation/list" element={<DelegationListPage />} />
+                  <Route path="/delegation/:id"  element={<DelegationDetailPage />} />
+                </Route>
 
                 {/* CRM Module */}
                 <Route element={<ProtectedRoute permission="crm.read"><CRMProvider><Outlet /></CRMProvider></ProtectedRoute>}>
