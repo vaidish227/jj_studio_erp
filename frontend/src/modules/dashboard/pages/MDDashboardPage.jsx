@@ -388,17 +388,19 @@ const WeeklyTrendCard = ({ trend }) => {
   );
 };
 
-const AlertsRollup = ({ alerts }) => {
-  const total = (alerts?.delayedCount || 0)
-    + (alerts?.openGates || 0)
-    + (alerts?.pendingPdReviews || 0)
-    + (alerts?.proposalsAwaitingApproval || 0);
+// Projects overdue by more than this many days are flagged "Critical".
+// Keep in sync with CRITICAL_DAYS in the backend MDDashboard controller.
+const CRITICAL_DAYS = 20;
 
-  if (total === 0) {
+const AlertsRollup = ({ alerts }) => {
+  const delayed  = alerts?.delayedCount  || 0;
+  const critical = alerts?.criticalCount || 0;
+
+  if (delayed === 0) {
     return (
       <SectionCard title="Alerts" icon={CheckCircle2} color="var(--success)" badge={<SnapshotBadge variant="live" />}>
         <p className="text-xs text-[var(--success)] flex items-center gap-1.5">
-          <CheckCircle2 size={13} /> No critical alerts. All systems are healthy.
+          <CheckCircle2 size={13} /> No delayed projects. All systems are healthy.
         </p>
       </SectionCard>
     );
@@ -406,37 +408,62 @@ const AlertsRollup = ({ alerts }) => {
 
   return (
     <SectionCard title="Alerts Rollup" icon={AlertTriangle} color="var(--error)" badge={<SnapshotBadge variant="live" />}>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-        <Link to="/pms/dashboard" className="bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-lg p-2 text-center transition-all hover:-translate-y-0.5 hover:shadow-sm hover:bg-[var(--error)]/15">
-          <p className="text-2xl font-extrabold text-[var(--error)] tabular-nums">{alerts?.delayedCount || 0}</p>
-          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mt-0.5">Delayed</p>
+      <div className="grid grid-cols-2 gap-2.5 mb-3">
+        {/* Delayed — every project past its estimated completion date */}
+        <Link
+          to="/pms/dashboard"
+          className="group flex items-center gap-3 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-sm hover:bg-[var(--warning)]/15"
+        >
+          <span className="shrink-0 grid place-items-center w-9 h-9 rounded-lg bg-[var(--warning)]/15 text-[var(--warning)]">
+            <Clock size={18} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-2xl font-extrabold text-[var(--warning)] tabular-nums leading-none">{delayed}</p>
+            <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mt-1">Delayed</p>
+          </div>
         </Link>
-        <Link to="/pms/analytics" className="bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-lg p-2 text-center transition-all hover:-translate-y-0.5 hover:shadow-sm hover:bg-[var(--warning)]/15">
-          <p className="text-2xl font-extrabold text-[var(--warning)] tabular-nums">{alerts?.openGates || 0}</p>
-          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mt-0.5">Open Gates</p>
-        </Link>
-        <Link to="/pms/review-design" className="bg-[var(--accent-blue)]/10 border border-[var(--accent-blue)]/30 rounded-lg p-2 text-center transition-all hover:-translate-y-0.5 hover:shadow-sm hover:bg-[var(--accent-blue)]/15">
-          <p className="text-2xl font-extrabold text-[var(--accent-blue)] tabular-nums">{alerts?.pendingPdReviews || 0}</p>
-          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mt-0.5">PD Reviews</p>
-        </Link>
-        <Link to="/proposal/approval" className="bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-lg p-2 text-center transition-all hover:-translate-y-0.5 hover:shadow-sm hover:bg-[var(--primary)]/15">
-          <p className="text-2xl font-extrabold text-[var(--primary)] tabular-nums">{alerts?.proposalsAwaitingApproval || 0}</p>
-          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mt-0.5">Proposals</p>
+
+        {/* Critical — delayed by more than 20 days; the worst offenders */}
+        <Link
+          to="/pms/dashboard"
+          className="group relative flex items-center gap-3 bg-[var(--error)]/10 border border-[var(--error)]/30 rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-sm hover:bg-[var(--error)]/15"
+        >
+          <span className="shrink-0 grid place-items-center w-9 h-9 rounded-lg bg-[var(--error)]/15 text-[var(--error)]">
+            <AlertTriangle size={18} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-2xl font-extrabold text-[var(--error)] tabular-nums leading-none">{critical}</p>
+            <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase mt-1">
+              Critical
+              <span className="ml-1 normal-case font-semibold text-[var(--text-muted)]/80">&gt;{CRITICAL_DAYS}d</span>
+            </p>
+          </div>
         </Link>
       </div>
+
       {(alerts?.topDelayedProjects?.length || 0) > 0 && (
         <div>
           <p className="text-[10px] uppercase font-bold tracking-widest text-[var(--text-muted)] mb-2">Top Delayed Projects</p>
           <div className="space-y-1">
-            {alerts.topDelayedProjects.map((p) => (
-              <Link key={p._id} to={`/projects/${p._id}`} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[var(--bg)] transition-colors">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{p.name}</p>
-                  <p className="text-[10px] text-[var(--text-muted)]">{p.trackingId}{p.clientName ? ` · ${p.clientName}` : ''}</p>
-                </div>
-                <span className="text-xs font-bold text-[var(--error)] tabular-nums ml-2">{p.daysLate}d late</span>
-              </Link>
-            ))}
+            {alerts.topDelayedProjects.map((p) => {
+              const isCritical = p.daysLate > CRITICAL_DAYS;
+              return (
+                <Link key={p._id} to={`/projects/${p._id}`} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[var(--bg)] transition-colors">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{p.name}</p>
+                    <p className="text-[10px] text-[var(--text-muted)]">{p.trackingId}{p.clientName ? ` · ${p.clientName}` : ''}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                    {isCritical && (
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-[var(--error)] bg-[var(--error)]/10 border border-[var(--error)]/25 rounded px-1.5 py-0.5">
+                        Critical
+                      </span>
+                    )}
+                    <span className={`text-xs font-bold tabular-nums ${isCritical ? 'text-[var(--error)]' : 'text-[var(--warning)]'}`}>{p.daysLate}d late</span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}

@@ -17,7 +17,6 @@ import AlertsSection           from '../components/dashboard/AlertsSection';
 import ProjectHealthGrid       from '../components/dashboard/ProjectHealthGrid';
 import PhaseDistributionChart  from '../components/dashboard/PhaseDistributionChart';
 import ActiveProjectsTimeline  from '../components/dashboard/ActiveProjectsTimeline';
-import DesignerKRAScoreboard   from '../components/dashboard/DesignerKRAScoreboard';
 import PendingMyApprovalList   from '../components/dashboard/PendingMyApprovalList';
 import GateAgingBars           from '../components/dashboard/GateAgingBars';
 import RecentActivityFeed      from '../components/dashboard/RecentActivityFeed';
@@ -40,7 +39,7 @@ import DeliveryTrendCards      from '../components/dashboard/DeliveryTrendCards'
  */
 const PMSDashboardPage = () => {
   const [range, setRange] = useDashboardRange(PMS_DASHBOARD_CONFIG.storageKey, PMS_DASHBOARD_CONFIG.defaultRange);
-  const { data, kra, alerts, isLoading, error, refresh } = usePMSDashboard(range);
+  const { data, alerts, isLoading, error, refresh } = usePMSDashboard(range);
   const [showOverdueModal, setShowOverdueModal] = useState(false);
   const [downloading, setDownloading] = useState(null); // 'kpi' | 'projects' | null
   const toast = useToast();
@@ -207,17 +206,7 @@ const PMSDashboardPage = () => {
 
       <ActiveProjectsTimeline projects={data?.activeProjects || []} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          {/* Range-driven: Designer KRA scoreboard */}
-          <DashboardRefetchOverlay active={isRefetching}>
-            <DesignerKRAScoreboard designers={kra?.designers || []} period={legacyPeriod} />
-          </DashboardRefetchOverlay>
-        </div>
-        <div className="lg:col-span-1">
-          <PendingMyApprovalList items={data?.pendingMyApproval || []} />
-        </div>
-      </div>
+      <PendingMyApprovalList items={data?.pendingMyApproval || []} />
 
       <DeliveryTrendCards data={data?.weeklyTrend || []} />
 

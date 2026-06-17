@@ -360,6 +360,22 @@ const updateProposalStatus = async (req, res) => {
       await CRMClient.findByIdAndUpdate(targetClientId, { lifecycleStage: "proposal_sent" });
     }
 
+    // Advance receipt recorded → convert the CRM client so it surfaces on the
+    // Converted page (mirrors the recordAdvancePayment endpoint). No PMS project
+    // is auto-created here — that happens later on "Initiate Project".
+    if (status === "payment_received") {
+      await CRMClient.findByIdAndUpdate(targetClientId, {
+        status: "converted",
+        lifecycleStage: "advance_received",
+        advancePayment: {
+          received: true,
+          amount: req.body.amount || updatedProposal.advancePayment?.amount || 0,
+          receivedAt: req.body.paidOn ? new Date(req.body.paidOn) : new Date(),
+          movedToProjectManagement: false,
+        },
+      });
+    }
+
     if (status === "project_started") {
       await CRMClient.findByIdAndUpdate(targetClientId, {
         lifecycleStage: "converted",

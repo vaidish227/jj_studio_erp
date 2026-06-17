@@ -93,7 +93,7 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       icon: UserCog,
       iconBg: 'bg-[var(--success)]/10',
       iconColor: 'text-[var(--success)]',
-      title: 'Site Supervisor and Contractor',
+      title: 'Site Supervisor and Designer',
       description: 'Supervisors, contractors & on-site team with assigned scope and contact details.',
       tab: 'team',
       onClick: go('team'),

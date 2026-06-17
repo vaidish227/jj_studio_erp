@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react';
-import { Users, Loader2, FilePlus, Phone, Mail, ArrowRight, MapPin, CalendarDays, Building2, CheckSquare, Square, X } from 'lucide-react';
+import { Users, Loader2, FilePlus, FileText, Phone, Mail, ArrowRight, MapPin, CalendarDays, Building2, CheckSquare, Square, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { crmService } from '../../../shared/services/crmService';
 import Button from '../../../shared/components/Button/Button';
@@ -17,6 +17,10 @@ const ProposalClientsPage = () => {
   const toast = useToast();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Map of leadId -> existing proposal _id (most recent). Lets us route a click
+  // to the proposal review page when the lead already has a proposal, instead of
+  // always starting a fresh draft.
+  const [proposalByLead, setProposalByLead] = useState({});
 
   const {
     filters,
@@ -44,9 +48,34 @@ const ProposalClientsPage = () => {
     }
   }, [toast]);
 
+  // Build a leadId -> proposalId map so existing proposals open in the review
+  // page rather than re-routing through the create flow. Proposals come back
+  // sorted newest-first, so the first one seen per lead is the most recent.
+  const fetchExistingProposals = useCallback(async () => {
+    try {
+      const response = await crmService.getProposals();
+      const map = {};
+      (response.proposals || []).forEach((p) => {
+        const leadId = p.leadId?._id || p.leadId;
+        if (leadId && !map[leadId]) map[leadId] = p._id;
+      });
+      setProposalByLead(map);
+    } catch (err) {
+      // Non-fatal: without the map we simply fall back to the create flow.
+    }
+  }, []);
+
   useEffect(() => {
     fetchInterestedLeads();
-  }, [fetchInterestedLeads]);
+    fetchExistingProposals();
+  }, [fetchInterestedLeads, fetchExistingProposals]);
+
+  // Route a client to its existing proposal (review page) when one exists,
+  // otherwise start a new draft.
+  const goToLead = useCallback((leadId) => {
+    const proposalId = proposalByLead[leadId];
+    navigate(proposalId ? `/proposal/review/${proposalId}` : `/proposal/create?leadId=${leadId}`);
+  }, [navigate, proposalByLead]);
 
   // Apply reusable filter system
   const filteredLeads = process(leads);
@@ -96,7 +125,7 @@ const ProposalClientsPage = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
           </p>
         </div>
-        <Button variant="outline" onClick={fetchInterestedLeads}>Refresh Data</Button>
+        <Button variant="outline" onClick={() => { fetchInterestedLeads(); fetchExistingProposals(); }}>Refresh Data</Button>
       </div>
 
       {/* Advanced Filter System */}
@@ -171,7 +200,7 @@ const ProposalClientsPage = () => {
               className={`bg-[var(--surface)] border rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md hover:shadow-black/5 transition-all duration-200 group cursor-pointer
                 ${isSelected ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-[var(--border)]'}
               `}
-              onClick={() => navigate(`/proposal/create?leadId=${lead._id}`)}
+              onClick={() => goToLead(lead._id)}
             >
               {/* Checkbox — selection only; doesn't navigate */}
               <button
@@ -225,11 +254,11 @@ const ProposalClientsPage = () => {
                   className="h-8 px-3 text-[9px] font-black uppercase tracking-widest"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/proposal/create?leadId=${lead._id}`);
+                    goToLead(lead._id);
                   }}
                 >
-                  <FilePlus size={12} />
-                  Draft Proposal
+                  {proposalByLead[lead._id] ? <FileText size={12} /> : <FilePlus size={12} />}
+                  {proposalByLead[lead._id] ? 'View Proposal' : 'Draft Proposal'}
                 </Button>
                 <Button
                   variant="outline"
@@ -237,7 +266,7 @@ const ProposalClientsPage = () => {
                   className="aspect-square !p-0 w-8 h-8 flex items-center justify-center hover:bg-[var(--primary)] hover:text-black border-[var(--border)]"
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/proposal/create?leadId=${lead._id}`);
+                    goToLead(lead._id);
                   }}
                 >
                   <ArrowRight size={14} className="text-[var(--text-primary)] group-hover:text-black transition-colors" />

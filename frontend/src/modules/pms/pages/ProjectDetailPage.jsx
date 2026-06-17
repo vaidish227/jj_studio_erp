@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { CommunicationTimeline } from '../../kit';
 import {
   ChevronRight, RefreshCw, Calendar, MapPin,
-  Briefcase, User, IndianRupee, ArrowLeft,
+  Briefcase, User, ArrowLeft,
 } from 'lucide-react';
 import { Button, Loader } from '../../../shared/components';
 import ProjectStatusBadge from '../components/ProjectStatusBadge';
@@ -42,10 +42,6 @@ import { canViewProjectTab } from '../constants/projectTabs';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-  : '—';
-
-const fmtCurrency = (n) => (n || n === 0)
-  ? Number(n).toLocaleString('en-IN')
   : '—';
 
 // Phase 3a — Tab consolidation.
@@ -234,7 +230,7 @@ const ProjectDetailPage = () => {
         </div>
 
         {/* Meta grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-5 pt-5 border-t border-[var(--border)]">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-5 pt-5 border-t border-[var(--border)]">
           <div className="flex items-start gap-2">
             <MapPin size={14} className="text-[var(--text-muted)] mt-0.5 shrink-0" />
             <div>
@@ -249,13 +245,6 @@ const ProjectDetailPage = () => {
             <div>
               <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Est. Completion</p>
               <p className="text-sm text-[var(--text-primary)]">{fmt(project.estimatedCompletionDate)}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2">
-            <IndianRupee size={14} className="text-[var(--text-muted)] mt-0.5 shrink-0" />
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Budget</p>
-              <p className="text-sm text-[var(--text-primary)]">{fmtCurrency(project.budget)}</p>
             </div>
           </div>
           <div className="flex items-start gap-2">
@@ -410,7 +399,7 @@ const MODULE_TITLES = {
   workflow:  'Project Planner / Master Sheet',
   drawings:  'Design and Drawing Management',
   site:      'Site Execution and Monitoring System',
-  team:      'Site Supervisor and Contractor',
+  team:      'Site Supervisor and Designer',
   documents: 'Document Repository',
   activity:  'Activity Log',
 };

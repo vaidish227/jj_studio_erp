@@ -100,7 +100,7 @@ async function buildPMSBlock(periodStart, prevWindow) {
     (p) => p.estimatedCompletionDate && new Date(p.estimatedCompletionDate) < now,
   ).length;
 
-  const topDelayed = decorated
+  const delayedWithDays = decorated
     .filter((p) => p.estimatedCompletionDate && new Date(p.estimatedCompletionDate) < now)
     .map((p) => ({
       _id:        p._id,
@@ -109,8 +109,12 @@ async function buildPMSBlock(periodStart, prevWindow) {
       clientName: p.clientId?.name || null,
       daysLate:   Math.max(1, Math.floor((now - new Date(p.estimatedCompletionDate)) / DAY)),
     }))
-    .sort((a, b) => b.daysLate - a.daysLate)
-    .slice(0, 5);
+    .sort((a, b) => b.daysLate - a.daysLate);
+
+  // "Critical" = overdue by more than CRITICAL_DAYS days (a worse subset of delayed).
+  const CRITICAL_DAYS = 20;
+  const criticalCount = delayedWithDays.filter((p) => p.daysLate > CRITICAL_DAYS).length;
+  const topDelayed = delayedWithDays.slice(0, 5);
 
   // Previous-period deltas: compare active project count + delayed at the
   // start of the previous window vs now. Cheap heuristic — uses createdAt as
@@ -124,6 +128,7 @@ async function buildPMSBlock(periodStart, prevWindow) {
     projectHealth,
     alerts: {
       delayedCount:        delayedProjects,
+      criticalCount,
       openGates:           openGates.length,
       pendingPdReviews,
       topDelayedProjects:  topDelayed,
@@ -460,6 +465,7 @@ const getMDOverview = async (req, res) => {
       profitability: profitBlock,
       alerts: {
         delayedCount:               pmsBlock.alerts.delayedCount,
+        criticalCount:              pmsBlock.alerts.criticalCount,
         openGates:                  pmsBlock.alerts.openGates,
         pendingPdReviews:           pmsBlock.alerts.pendingPdReviews,
         proposalsAwaitingApproval:  proposalBlock.proposalsAwaitingApproval,
