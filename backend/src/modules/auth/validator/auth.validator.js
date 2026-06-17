@@ -16,7 +16,7 @@ const signupSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(6).required(),
   phone: Joi.string().allow('', null),
-  role: Joi.string().valid("admin", "md", "manager", "sales", "accounts", "designer", "supervisor", "vendor", "client").default("sales"),
+  role: Joi.string().valid("admin", "md", "manager", "sales", "accounts", "designer", "supervisor", "vendor", "client", "mis", "marketing", "hr").default("sales"),
 });
 
 module.exports = { loginSchema, signupSchema, changePasswordSchema };

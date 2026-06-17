@@ -358,6 +358,46 @@ const PERMISSION_REGISTRY = [
     ],
   },
 
+  // ─── Delegation ──────────────────────────────────────────────────────────────
+  {
+    key: "delegation",
+    label: "Delegation",
+    group: "Project Management",
+    icon: "projects",
+    color: "#4A8F7C",
+    description:
+      "Cross-department task delegation — create, assign, and track work across " +
+      "Design, MIS, Accounts, Marketing, HR, and future teams.",
+    sections: [
+      {
+        key: "delegations",
+        label: "Delegations",
+        description: "Delegation records and their lifecycle",
+        actions: [
+          a("delegation.read", "View",
+            "See the Delegation menu and open delegations assigned to or created by the user."),
+          a("delegation.viewAll", "View All",
+            "See delegations across every user and department — not just the user's own."),
+          a("delegation.create", "Create", "Create a new delegation."),
+          a("delegation.update", "Edit",
+            "Edit a delegation, change its status, update its checklist, and add comments / attachments."),
+          a("delegation.delete", "Delete", "Cancel or delete a delegation."),
+          a("delegation.assign", "Assign", "Assign a delegation to a team member."),
+          a("delegation.reassign", "Reassign", "Move a delegation to a different team member."),
+        ],
+      },
+      {
+        key: "departments",
+        label: "Departments",
+        description: "Department master data (admin-managed; categorization only, not access control)",
+        actions: [
+          a("delegation.department.manage", "Manage Departments",
+            "Create, edit, and deactivate the departments used to categorize delegations."),
+        ],
+      },
+    ],
+  },
+
   // ─── Design ──────────────────────────────────────────────────────────────────
   {
     key: "design",

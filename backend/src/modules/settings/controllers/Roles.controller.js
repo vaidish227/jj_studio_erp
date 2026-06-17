@@ -157,7 +157,7 @@ const getAllUsers = async (req, res) => {
 const updateUserRole = async (req, res) => {
   try {
     const { role, customPermissions } = req.body;
-    const validRoles = ["admin", "md", "manager", "sales", "accounts", "designer", "supervisor", "vendor", "client"];
+    const validRoles = ["admin", "md", "manager", "sales", "accounts", "designer", "supervisor", "vendor", "client", "mis", "marketing", "hr"];
 
     if (role && !validRoles.includes(role)) {
       return res.status(400).json({ message: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
@@ -182,7 +182,7 @@ const updateUserRole = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { name, email, phone, department, designation, role, isActive, customPermissions } = req.body;
-    const validRoles = ["admin", "md", "manager", "sales", "accounts", "designer", "supervisor", "vendor", "client"];
+    const validRoles = ["admin", "md", "manager", "sales", "accounts", "designer", "supervisor", "vendor", "client", "mis", "marketing", "hr"];
 
     if (role && !validRoles.includes(role)) {
       return res.status(400).json({ message: `Invalid role: ${role}` });

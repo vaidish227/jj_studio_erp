@@ -75,6 +75,11 @@ const DEFAULT_ROLES = [
 
       // AI Assistant rollout — chat + knowledge base read
       "ai.chat", "ai.docs.read",
+
+      // Delegation Management (cross-department task delegation)
+      "delegation.read", "delegation.viewAll", "delegation.create",
+      "delegation.update", "delegation.assign", "delegation.reassign",
+      "delegation.department.manage",
     ],
     isSystem: true,
     color: "#3A6EA5",
@@ -129,6 +134,10 @@ const DEFAULT_ROLES = [
 
       // AI Assistant rollout — chat + knowledge base read & manage
       "ai.chat", "ai.docs.read", "ai.docs.manage",
+
+      // Delegation Management (cross-department task delegation)
+      "delegation.read", "delegation.viewAll", "delegation.create",
+      "delegation.update", "delegation.delete", "delegation.assign", "delegation.reassign",
     ],
     isSystem: true,
     color: "#4A8F7C",
@@ -154,6 +163,9 @@ const DEFAULT_ROLES = [
 
       // AI Assistant rollout — chat + knowledge base read
       "ai.chat", "ai.docs.read",
+
+      // Delegation Management — participate (own delegations)
+      "delegation.read", "delegation.create", "delegation.update",
     ],
     isSystem: true,
     color: "#D4B76C",
@@ -183,6 +195,9 @@ const DEFAULT_ROLES = [
 
       // AI Assistant rollout — chat + knowledge base read
       "ai.chat", "ai.docs.read",
+
+      // Delegation Management — participate (own delegations)
+      "delegation.read", "delegation.create", "delegation.update",
     ],
     isSystem: true,
     color: "#9B59B6",
@@ -210,6 +225,9 @@ const DEFAULT_ROLES = [
 
       // AI Assistant rollout — chat + knowledge base read
       "ai.chat", "ai.docs.read",
+
+      // Delegation Management — participate (own delegations)
+      "delegation.read", "delegation.create", "delegation.update",
     ],
     isSystem: true,
     color: "#E67E22",
@@ -229,6 +247,9 @@ const DEFAULT_ROLES = [
 
       // AI Assistant rollout — chat + knowledge base read
       "ai.chat", "ai.docs.read",
+
+      // Delegation Management — participate (own delegations)
+      "delegation.read", "delegation.create", "delegation.update",
     ],
     isSystem: true,
     color: "#27AE60",
@@ -252,6 +273,43 @@ const DEFAULT_ROLES = [
     ],
     isSystem: true,
     color: "#2980B9",
+  },
+
+  // ─── Department-team roles (Delegation module) ───────────────────────────────
+  // New internal teams that participate in delegations. Permission-identical
+  // (employee tier); they differ only by which department's work they handle.
+  {
+    name: "mis",
+    displayName: "MIS Team",
+    description: "Management Information Systems team — receives and acts on delegated data/report tasks.",
+    permissions: [
+      "dashboard.read",
+      "delegation.read", "delegation.create", "delegation.update",
+    ],
+    isSystem: true,
+    color: "#2F6F8F",
+  },
+  {
+    name: "marketing",
+    displayName: "Marketing Team",
+    description: "Marketing team — receives and acts on delegated campaign / content tasks.",
+    permissions: [
+      "dashboard.read",
+      "delegation.read", "delegation.create", "delegation.update",
+    ],
+    isSystem: true,
+    color: "#B5547F",
+  },
+  {
+    name: "hr",
+    displayName: "HR Team",
+    description: "Human Resources team — receives and acts on delegated HR / onboarding tasks.",
+    permissions: [
+      "dashboard.read",
+      "delegation.read", "delegation.create", "delegation.update",
+    ],
+    isSystem: true,
+    color: "#6F8F3F",
   },
 ];
 
@@ -286,4 +344,11 @@ async function seed() {
   }
 }
 
-seed();
+// Run the seed only when invoked directly (`node seedRoles.js`). Requiring this
+// module (e.g. from seedDelegationPermissions.js) exposes DEFAULT_ROLES without
+// opening a DB connection or seeding.
+if (require.main === module) {
+  seed();
+}
+
+module.exports = { DEFAULT_ROLES, seed };
