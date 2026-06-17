@@ -15,6 +15,7 @@ const WhatsAppTemplate = require("../../whatsapp/models/WhatsAppTemplate.model")
 const { generateProposalPdfBuffer, saveProposalPdf } = require("../utils/proposalPdf");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 const kitEvents = require("../../kit/services/kitEvents");
+const { resolveDateRange, DateRangeError } = require("../../../shared/dateRange/resolveDateRange");
 require("dotenv").config();
 
 const mongoose = require("mongoose");
@@ -168,10 +169,21 @@ const VALID_STATUSES = new Set([
 //  GET PROPOSALS
 const getProposals = async (req, res) => {
   try {
-    const { leadId, clientId, status } = req.query;
+    const { leadId, clientId, status, preset, from, to } = req.query;
     const filter = {};
     if (leadId) filter.leadId = leadId;
     if (clientId) filter.clientId = clientId;
+    // Date-range scoping for the Proposal Dashboard (cohort by createdAt). Only
+    // applied when a range is supplied — existing callers (list pages: status
+    // only) are unaffected. 'all_time' resolves to epoch→now ⇒ effectively all.
+    if (preset || from || to) {
+      const { start, end } = resolveDateRange({
+        preset: preset != null ? String(preset).toLowerCase() : undefined,
+        from,
+        to,
+      });
+      filter.createdAt = { $gte: start, $lte: end };
+    }
     if (status) {
       // Validate against the enum so a typo (e.g. ?status=draf) returns 400
       // instead of silently returning [] — easier to debug. (#42)
@@ -193,6 +205,9 @@ const getProposals = async (req, res) => {
 
     res.json({ message: "Proposals fetched", proposals });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     res.status(500).json({ message: err.message });
   }
 };
@@ -343,6 +358,22 @@ const updateProposalStatus = async (req, res) => {
 
     if (status === "sent") {
       await CRMClient.findByIdAndUpdate(targetClientId, { lifecycleStage: "proposal_sent" });
+    }
+
+    // Advance receipt recorded → convert the CRM client so it surfaces on the
+    // Converted page (mirrors the recordAdvancePayment endpoint). No PMS project
+    // is auto-created here — that happens later on "Initiate Project".
+    if (status === "payment_received") {
+      await CRMClient.findByIdAndUpdate(targetClientId, {
+        status: "converted",
+        lifecycleStage: "advance_received",
+        advancePayment: {
+          received: true,
+          amount: req.body.amount || updatedProposal.advancePayment?.amount || 0,
+          receivedAt: req.body.paidOn ? new Date(req.body.paidOn) : new Date(),
+          movedToProjectManagement: false,
+        },
+      });
     }
 
     if (status === "project_started") {

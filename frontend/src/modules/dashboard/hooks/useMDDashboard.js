@@ -1,51 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import useDashboardQuery from '../../../shared/dashboard-filter/hooks/useDashboardQuery';
 import { mdDashboardService } from '../../../shared/services/mdDashboardService';
+import { MD_DASHBOARD_CONFIG } from '../config/mdDashboardConfig';
 
-const POLL_INTERVAL_MS = 60000;
-
-const useMDDashboard = (period = 'month') => {
-  const [state, setState] = useState({
-    data: null,
-    isLoading: true,
-    error: '',
+/**
+ * MD Dashboard data hook — thin wrapper over the shared useDashboardQuery.
+ * Behavior (range-aware fetch, keep-data on refetch, 60s polling) is identical
+ * to the previous bespoke implementation.
+ *
+ * @param {{preset?:string, from?:string, to?:string}} range
+ */
+const useMDDashboard = (range) =>
+  useDashboardQuery(mdDashboardService.getMDOverview, range, {
+    pollMs: MD_DASHBOARD_CONFIG.pollMs,
+    errorMessage: MD_DASHBOARD_CONFIG.errorMessage,
   });
-
-  const isMountedRef = useRef(true);
-
-  const fetchOverview = useCallback(async () => {
-    setState((prev) => ({ ...prev, isLoading: true, error: '' }));
-    try {
-      const res = await mdDashboardService.getMDOverview(period);
-      if (!isMountedRef.current) return;
-      setState({
-        data: res ?? null,
-        isLoading: false,
-        error: '',
-      });
-    } catch (err) {
-      if (!isMountedRef.current) return;
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: err?.message || 'Failed to load MD dashboard.',
-      }));
-    }
-  }, [period]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    fetchOverview();
-    const intervalId = window.setInterval(fetchOverview, POLL_INTERVAL_MS);
-    return () => {
-      isMountedRef.current = false;
-      window.clearInterval(intervalId);
-    };
-  }, [fetchOverview]);
-
-  return {
-    ...state,
-    refresh: fetchOverview,
-  };
-};
 
 export default useMDDashboard;

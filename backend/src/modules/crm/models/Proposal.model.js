@@ -150,4 +150,8 @@ const proposalSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Dashboard date-range cohort scoping (createdAt) + status-scoped list pages.
+proposalSchema.index({ createdAt: 1 });
+proposalSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Proposal", proposalSchema);

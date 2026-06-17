@@ -688,6 +688,12 @@ const LeadDetailsPage = () => {
           </Card>
 
 
+          {/* Lead Qualification is only meaningful before a proposal is sent.
+              Once the lead is at proposal_sent or beyond (converted / lost
+              included), hide it so it doesn't reappear as a pending action for
+              an already-qualified lead. */}
+          {!['proposal_sent', 'advance_received', 'project_moved', 'project_started', 'converted', 'lost']
+            .includes(lead.lifecycleStage) && lead.status !== 'converted' && lead.status !== 'lost' && (
           <Card className="space-y-6 overflow-hidden border-none shadow-xl shadow-black/5 bg-[var(--surface)]">
             <div className="flex items-center justify-between">
               <SectionTitle title="Lead Qualification" icon={CheckCircle2} />
@@ -724,7 +730,7 @@ const LeadDetailsPage = () => {
               </button>
 
               <button
-                disabled={actionLoading || lead.status === 'lost'}
+                disabled={actionLoading || lead.status === 'lost' || lead.status === 'converted'}
                 onClick={() => runAction(() => transitionStatus(id, LEAD_ACTIONS.MARK_LOST), 'Lead marked as Not Interested (Lost).')}
                 className={`flex-1 flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-2 transition-all group ${lead.status === 'lost'
                   ? 'border-[var(--error)] bg-[var(--error)]/5 cursor-default'
@@ -758,6 +764,7 @@ const LeadDetailsPage = () => {
               </div>
             )}
           </Card>
+          )}
         </div>
 
         <div className="space-y-6">

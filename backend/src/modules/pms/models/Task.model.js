@@ -257,6 +257,9 @@ taskSchema.index({ taskType: 1 });
 // Planner — delay scans and zone filters
 taskSchema.index({ projectId: 1, "planning.plannedEndDate": 1 });
 taskSchema.index({ projectId: 1, "planning.zoneName": 1 });
+// Dashboard Designer-KRA "done in window" gate (completedAt / approvedAt fallback)
+taskSchema.index({ completedAt: 1 });
+taskSchema.index({ approvedAt: 1 });
 
 // --- workStatus + progress auto-sync ---
 // The Master Sheet "Work Status" and "Progress" columns auto-follow workflow

@@ -25,12 +25,27 @@ const initialState = {
   ageChildren: ''
 };
 
+// PhoneInput emits E.164 values (e.g. "+919876543210"). Strip the +91 country
+// code so we validate the 10-digit LOCAL number, not 12 digits. A leading "+"
+// guarantees a country code is present (so "+91" + 8 typed digits is correctly
+// rejected); for legacy bare values we only strip "91" when it's clearly a
+// prefix (length > 10), so a real 10-digit number starting with 91 is kept.
+const localPhoneDigits = (raw) => {
+  const s = String(raw || '').trim();
+  const hasPlus = s.startsWith('+');
+  let digits = s.replace(/\D/g, '');
+  if (digits.startsWith('91') && (hasPlus || digits.length > 10)) {
+    digits = digits.slice(2);
+  }
+  return digits;
+};
+
 const validateForm = (data) => {
   const errors = {};
   if (!data.name.trim()) errors.name = 'Client name is required';
   if (!data.contactNumber.trim()) {
     errors.contactNumber = 'Contact number is required';
-  } else if (!/^\d{10}$/.test(data.contactNumber.replace(/\D/g, ''))) {
+  } else if (!/^\d{10}$/.test(localPhoneDigits(data.contactNumber))) {
     errors.contactNumber = 'Enter a valid 10-digit number';
   }
   if (!data.email.trim()) {

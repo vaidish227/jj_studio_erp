@@ -5,7 +5,12 @@
  * and Profitability into one round-trip. Composes data from existing
  * aggregators / services — does not introduce a new data model.
  *
- * @route GET /api/md/dashboard/overview?period=week|month|quarter|all
+ * @route GET /api/md/dashboard/overview
+ *   New filter params (preferred):
+ *     ?preset=today|yesterday|last_7_days|last_30_days|this_month|last_month
+ *     ?from=YYYY-MM-DD&to=YYYY-MM-DD            (custom range, inclusive)
+ *   Legacy param (still supported, mapped internally to an equivalent range):
+ *     ?period=week|month|quarter|all
  * @permission md.dashboard.read
  */
 
@@ -19,8 +24,6 @@ let PurchaseOrder = null;
 try { PurchaseOrder = require("../../pms/models/PurchaseOrder.model"); } catch (e) { /* optional */ }
 
 const {
-  startOfPeriod,
-  previousPeriodWindow,
   classifyHealth,
   ACTIVE_STATUSES,
   TASK_DONE,
@@ -29,6 +32,7 @@ const {
 
 const crmAggregates = require("../../crm/service/crmAggregates.service");
 const proposalAggregates = require("../../proposal/service/proposalAggregates.service");
+const { resolveDateRange, DateRangeError } = require("../../../shared/dateRange/resolveDateRange");
 
 const PHASES = ["kickoff", "layout", "design", "procurement", "release", "execution", "handover"];
 const HEALTHS = ["on_track", "at_risk", "blocked", "on_hold", "delayed"];
@@ -96,7 +100,7 @@ async function buildPMSBlock(periodStart, prevWindow) {
     (p) => p.estimatedCompletionDate && new Date(p.estimatedCompletionDate) < now,
   ).length;
 
-  const topDelayed = decorated
+  const delayedWithDays = decorated
     .filter((p) => p.estimatedCompletionDate && new Date(p.estimatedCompletionDate) < now)
     .map((p) => ({
       _id:        p._id,
@@ -105,8 +109,12 @@ async function buildPMSBlock(periodStart, prevWindow) {
       clientName: p.clientId?.name || null,
       daysLate:   Math.max(1, Math.floor((now - new Date(p.estimatedCompletionDate)) / DAY)),
     }))
-    .sort((a, b) => b.daysLate - a.daysLate)
-    .slice(0, 5);
+    .sort((a, b) => b.daysLate - a.daysLate);
+
+  // "Critical" = overdue by more than CRITICAL_DAYS days (a worse subset of delayed).
+  const CRITICAL_DAYS = 20;
+  const criticalCount = delayedWithDays.filter((p) => p.daysLate > CRITICAL_DAYS).length;
+  const topDelayed = delayedWithDays.slice(0, 5);
 
   // Previous-period deltas: compare active project count + delayed at the
   // start of the previous window vs now. Cheap heuristic — uses createdAt as
@@ -120,6 +128,7 @@ async function buildPMSBlock(periodStart, prevWindow) {
     projectHealth,
     alerts: {
       delayedCount:        delayedProjects,
+      criticalCount,
       openGates:           openGates.length,
       pendingPdReviews,
       topDelayedProjects:  topDelayed,
@@ -252,15 +261,19 @@ async function countProjectsStartedPerWeek(weekStarts) {
  * leaderboard. We then keep only role === "designer" for display, and roll the
  * survivors up into a team summary.
  */
-async function buildDesignerBlock(periodStart) {
+async function buildDesignerBlock(periodStart, periodEnd) {
   const ACTIVE = ["in_progress", "pending_review", "revision_requested", "not_started", "blocked"];
 
+  // The three date branches are bounded to [periodStart, periodEnd] purely to
+  // narrow the fetch — the authoritative "done in window" test is the JS gate
+  // below (endTs within range). The ACTIVE branch stays date-unbounded so the
+  // current in-flight task count is unaffected.
   const tasks = await Task.find({
     assignedTo: { $ne: null },
     $or: [
-      { createdAt:   { $gte: periodStart } },
-      { completedAt: { $gte: periodStart } },
-      { approvedAt:  { $gte: periodStart } },
+      { createdAt:   { $gte: periodStart, $lte: periodEnd } },
+      { completedAt: { $gte: periodStart, $lte: periodEnd } },
+      { approvedAt:  { $gte: periodStart, $lte: periodEnd } },
       { status: { $in: ACTIVE } },
     ],
   })
@@ -281,7 +294,7 @@ async function buildDesignerBlock(periodStart) {
     if (ACTIVE.includes(t.status)) u.active++;
 
     const endTs = t.completedAt || t.approvedAt;
-    if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart) {
+    if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart && new Date(endTs) <= periodEnd) {
       u.done++;
       u.throughput++;
       if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) u.onTimeDone++;
@@ -347,24 +360,90 @@ async function buildDesignerBlock(periodStart) {
   };
 }
 
+// ── Request → date window ────────────────────────────────────────────────────
+// resolveDateRange() (the Step-1 utility) is the single source of truth for all
+// window math. This layer only decides WHICH input to feed it:
+//   1. new-style preset / from+to  → straight through
+//   2. legacy ?period=…            → mapped to an equivalent range
+//   3. nothing                     → historic default (≈ last 30 days)
+
+const LEGACY_PERIODS = ["week", "month", "quarter", "all"];
+// week/month have exact preset equivalents; quarter/all become rolling custom windows.
+const LEGACY_PRESET_MAP = { week: "last_7_days", month: "last_30_days" };
+const LEGACY_PERIOD_DAYS = { quarter: 90, all: 3650 };
+
+/** 'YYYY-MM-DD' for an instant in Asia/Kolkata — matches the resolver's IST basis. */
+function istDateString(ms) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+}
+
+/** Map a legacy period bucket onto an equivalent {start,end,prevStart,prevEnd} window. */
+function resolveLegacyPeriod(period) {
+  if (LEGACY_PRESET_MAP[period]) {
+    const range = resolveDateRange({ preset: LEGACY_PRESET_MAP[period] });
+    return { ...range, label: period };
+  }
+  // quarter (90d) / all (3650d): rolling custom window ending today (IST), inclusive.
+  const days = LEGACY_PERIOD_DAYS[period];
+  const now = Date.now();
+  const to = istDateString(now);
+  const from = istDateString(now - (days - 1) * DAY);
+  const range = resolveDateRange({ from, to });
+  return { ...range, label: period };
+}
+
+/**
+ * Resolve the request's query params into a date window.
+ * @throws {DateRangeError} on UNKNOWN_PRESET / INVALID_DATE / INVALID_RANGE / MISSING_RANGE
+ * @returns {{start,end,prevStart,prevEnd,preset,label}}
+ */
+function resolveRequestRange(query) {
+  const preset = query.preset != null ? String(query.preset).toLowerCase() : null;
+  const from = query.from != null ? String(query.from) : null;
+  const to = query.to != null ? String(query.to) : null;
+  const period = query.period != null ? String(query.period).toLowerCase() : null;
+
+  // 1. Explicit new-style request wins.
+  if (preset || from || to) {
+    const range = resolveDateRange({ preset, from, to });
+    return { ...range, label: range.preset };
+  }
+
+  // 2. Legacy ?period=…
+  if (period && LEGACY_PERIODS.includes(period)) {
+    return resolveLegacyPeriod(period);
+  }
+
+  // 3. Default — preserves the historic "month" behavior.
+  return resolveLegacyPeriod("month");
+}
+
 const getMDOverview = async (req, res) => {
   try {
-    const period = String(req.query.period || "month").toLowerCase();
-    const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
-    const periodStart = startOfPeriod(validPeriod);
-    const prevWindow  = previousPeriodWindow(validPeriod);
+    const { start, end, prevStart, prevEnd, label } = resolveRequestRange(req.query);
+    const prevWindow = { start: prevStart, end: prevEnd };
 
+    // Step 3: the three flow aggregators now receive the inclusive upper bound
+    // (`end`) and apply `$lte: end` to their in-period date matches, so past-ending
+    // windows (yesterday, last_month, custom-in-past) no longer over-include.
+    // buildPMSBlock / buildProfitBlock / buildWeeklyTrend remain snapshot/fixed and
+    // are intentionally left unbounded.
     const [crmBlock, pmsBlock, proposalBlock, profitBlock, weeklyTrend, designerBlock] = await Promise.all([
-      crmAggregates.getFunnelAndKpis(periodStart, prevWindow),
-      buildPMSBlock(periodStart, prevWindow),
-      proposalAggregates.getStatusCountsAndCashflow(periodStart, prevWindow),
+      crmAggregates.getFunnelAndKpis(start, end, prevWindow),
+      buildPMSBlock(start, prevWindow),
+      proposalAggregates.getStatusCountsAndCashflow(start, end, prevWindow),
       buildProfitBlock(),
       buildWeeklyTrend(),
-      buildDesignerBlock(periodStart),
+      buildDesignerBlock(start, end),
     ]);
 
     res.status(200).json({
-      period: validPeriod,
+      period: label,
       executiveKpis: {
         totalLeads:            crmBlock.kpis.totalLeads,
         activePipeline:        crmBlock.kpis.activePipeline,
@@ -386,6 +465,7 @@ const getMDOverview = async (req, res) => {
       profitability: profitBlock,
       alerts: {
         delayedCount:               pmsBlock.alerts.delayedCount,
+        criticalCount:              pmsBlock.alerts.criticalCount,
         openGates:                  pmsBlock.alerts.openGates,
         pendingPdReviews:           pmsBlock.alerts.pendingPdReviews,
         proposalsAwaitingApproval:  proposalBlock.proposalsAwaitingApproval,
@@ -395,6 +475,10 @@ const getMDOverview = async (req, res) => {
       designerPerformance: designerBlock,
     });
   } catch (err) {
+    // Bad filter input → 400 (UNKNOWN_PRESET | INVALID_DATE | INVALID_RANGE | MISSING_RANGE | MISSING_PRESET)
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[md.dashboard.overview]", err);
     res.status(500).json({ message: err.message });
   }

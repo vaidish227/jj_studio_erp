@@ -1,4 +1,9 @@
 import apiClient from './apiClient';
+import { rangeToParams } from '../dashboard-filter/dateRangePresets';
+
+// Analytics date params are additive/optional: no range → no params (legacy
+// unbounded behavior); a range object → ?preset=… | ?from=&to=.
+const analyticsOpts = (range) => (range ? { params: rangeToParams(range) } : undefined);
 
 // KIT (Keep In Touch) — communication automation engine API client.
 // Phase 2 surface: template library + variable catalog + render preview.
@@ -61,9 +66,9 @@ export const kitService = {
   updateCommSettings: (channel, data) => apiClient.patch(`/communication/settings/${channel}`, data),
 
   // ─── Analytics ────────────────────────────────────────────────────────────────
-  getAnalyticsOverview:  () => apiClient.get('/kit/analytics/overview'),
-  getCampaignAnalytics:  () => apiClient.get('/kit/analytics/campaigns'),
-  getTemplateAnalytics:  () => apiClient.get('/kit/analytics/templates'),
+  getAnalyticsOverview:  (range) => apiClient.get('/kit/analytics/overview',  analyticsOpts(range)),
+  getCampaignAnalytics:  (range) => apiClient.get('/kit/analytics/campaigns', analyticsOpts(range)),
+  getTemplateAnalytics:  (range) => apiClient.get('/kit/analytics/templates', analyticsOpts(range)),
 
   // ─── Timeline + message logs ──────────────────────────────────────────────────
   getTimeline: (entityType, entityId) => apiClient.get(`/kit/timeline/${entityType}/${entityId}`),

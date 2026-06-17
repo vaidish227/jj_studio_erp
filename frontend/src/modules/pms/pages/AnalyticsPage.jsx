@@ -1,18 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BarChart3, Clock, Users, ShoppingBag, IndianRupee,
-  TrendingUp, TrendingDown, AlertTriangle, RefreshCw, Activity,
+  TrendingUp, TrendingDown, AlertTriangle, Activity,
   FileSpreadsheet, Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar as RBar, XAxis, YAxis, CartesianGrid, LineChart, Line,
 } from 'recharts';
-import { Button, Loader } from '../../../shared/components';
+import { Loader } from '../../../shared/components';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { exportReportAsExcel } from '../../../shared/utils/excelExport';
+import {
+  GlobalDateFilter, SnapshotBadge, useDashboardRange, rangeToParams,
+} from '../../../shared/dashboard-filter';
+import { PMS_ANALYTICS_CONFIG } from '../config/pmsAnalyticsConfig';
+import { toLegacyPeriod } from '../config/pmsDashboardConfig';
 
 /**
  * AnalyticsPage — Phase 4.
@@ -101,18 +106,29 @@ const Bar = ({ value, max, color = 'var(--primary)' }) => {
 };
 
 // ── 1. Release SLA ───────────────────────────────────────────────────────────
-const ReleaseSLAPanel = () => {
+const ReleaseSLAPanel = ({ range }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    pmsService.getDrawingReleaseSLA()
-      .then(setData)
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res = await pmsService.getDrawingReleaseSLA(rangeToParams(range));
+        if (!cancelled) setData(res || null);
+      } catch {
+        if (!cancelled) setData(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [range]);
 
-  if (loading) return <PanelLoader />;
-  if (!data || data.total === 0) return <EmptyPanel icon={<Clock size={28} />} msg="No drawings released yet." />;
+  if (loading && !data) return <PanelLoader />;
+  if (!data || data.total === 0) return <EmptyPanel icon={<Clock size={28} />} msg="No drawings released in this range." />;
 
   const maxByType = Math.max(...data.byType.map((t) => t.avgHours), 1);
 
@@ -409,36 +425,36 @@ const EmptyPanel = ({ icon, msg }) => (
   </div>
 );
 // ── Project Overview (Phase B) ───────────────────────────────────────────────
-const PERIOD_OPTIONS = [
-  { value: 'week',    label: 'Last 7 Days' },
-  { value: 'month',   label: 'Last 30 Days' },
-  { value: 'quarter', label: 'Last 90 Days' },
-  { value: 'all',     label: 'All Time' },
-];
-
-const ProjectOverviewPanel = () => {
+const ProjectOverviewPanel = ({ range }) => {
   const toast = useToast();
-  const [period, setPeriod] = useState('month');
+  const legacyPeriod = toLegacyPeriod(range.preset); // for report endpoints (legacy period vocab)
   const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    pmsService.getProjectAnalytics(period)
-      .then((res) => { if (!cancelled) setData(res || null); })
-      .catch(() => { if (!cancelled) setData(null); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res = await pmsService.getProjectAnalytics(range);
+        if (!cancelled) setData(res || null);
+      } catch {
+        if (!cancelled) setData(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
     return () => { cancelled = true; };
-  }, [period]);
+  }, [range]);
 
   const downloadDesignerKpi = async () => {
     setDownloading('kpi');
     try {
-      const res = await pmsService.getDesignerKpiReport(period);
+      const res = await pmsService.getDesignerKpiReport(legacyPeriod);
       exportReportAsExcel(res, {
-        fileName: `designer-kpi-${period}`,
+        fileName: `designer-kpi-${legacyPeriod}`,
         columns: [
           { header: 'Name',           key: 'name',          width: 22 },
           { header: 'Role',           key: 'role',          width: 14 },
@@ -460,9 +476,9 @@ const ProjectOverviewPanel = () => {
   const downloadProjectSummary = async () => {
     setDownloading('projects');
     try {
-      const res = await pmsService.getProjectSummaryReport(period);
+      const res = await pmsService.getProjectSummaryReport(legacyPeriod);
       exportReportAsExcel(res, {
-        fileName: `project-summary-${period}`,
+        fileName: `project-summary-${legacyPeriod}`,
         columns: [
           { header: 'Tracking ID',  key: 'trackingId',   width: 16 },
           { header: 'Name',         key: 'name',         width: 30 },
@@ -486,7 +502,7 @@ const ProjectOverviewPanel = () => {
     } finally { setDownloading(null); }
   };
 
-  if (loading) return <PanelLoader />;
+  if (loading && !data) return <PanelLoader />;
   if (!data) return <EmptyPanel icon={<Activity size={28} />} msg="No analytics data available." />;
 
   const statusData = (data.statusDistribution || [])
@@ -509,13 +525,6 @@ const ProjectOverviewPanel = () => {
           <Stat label="Designers Active" value={data.totals?.designersActive ?? 0} tone="primary" />
         </SummaryRow>
         <div className="flex items-center gap-2">
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className="px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
-          >
-            {PERIOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
           <button
             type="button"
             onClick={downloadDesignerKpi}
@@ -667,6 +676,8 @@ const ProjectOverviewPanel = () => {
 const AnalyticsPage = () => {
   const { hasPermission } = useAuth();
   const [active, setActive] = useState('overview');
+  const [range, setRange] = useDashboardRange(PMS_ANALYTICS_CONFIG.storageKey, PMS_ANALYTICS_CONFIG.defaultRange);
+  const isFlowTab = active === 'overview' || active === 'sla';
 
   if (!hasPermission('reports.read')) {
     return (
@@ -686,14 +697,27 @@ const AnalyticsPage = () => {
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto space-y-5">
-      <div>
-        <div className="flex items-center gap-2">
-          <BarChart3 size={20} className="text-[var(--primary)]" />
-          <h1 className="text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">PMS Analytics</h1>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <BarChart3 size={20} className="text-[var(--primary)]" />
+            <h1 className="text-xl lg:text-2xl font-extrabold text-[var(--text-primary)]">PMS Analytics</h1>
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">
+            Cross-project workflow insight. All read-only.
+          </p>
         </div>
-        <p className="text-sm text-[var(--text-muted)] mt-0.5">
-          Cross-project workflow insight. All read-only.
-        </p>
+        {isFlowTab ? (
+          <div className="flex flex-col items-start lg:items-end gap-1">
+            <GlobalDateFilter value={range} onChange={setRange} defaultRange={PMS_ANALYTICS_CONFIG.defaultRange} />
+            <span className="text-[11px] text-[var(--text-muted)]">Overview &amp; SLA reflect the selected date range.</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <SnapshotBadge variant="snapshot" />
+            <span className="text-[11px] text-[var(--text-muted)]">Current cumulative state — not date-filtered.</span>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--border)] scrollbar-hide">
@@ -717,7 +741,7 @@ const AnalyticsPage = () => {
         })}
       </div>
 
-      <Panel />
+      <Panel range={range} />
     </div>
   );
 };

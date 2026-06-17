@@ -46,5 +46,9 @@ const kitMessageLogSchema = new mongoose.Schema(
 kitMessageLogSchema.index({ entityType: 1, entityId: 1, createdAt: -1 });
 kitMessageLogSchema.index({ campaignId: 1 });
 kitMessageLogSchema.index({ status: 1 });
+// Analytics date-range scans (delivery / per-campaign / per-template flow metrics)
+kitMessageLogSchema.index({ createdAt: 1 });
+kitMessageLogSchema.index({ campaignId: 1, createdAt: 1 });
+kitMessageLogSchema.index({ templateId: 1, createdAt: 1 });
 
 module.exports = mongoose.model("KitMessageLog", kitMessageLogSchema);

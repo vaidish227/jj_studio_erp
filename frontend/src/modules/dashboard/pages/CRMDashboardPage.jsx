@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -22,8 +22,11 @@ import {
 import useCRMDashboard from '../hooks/useCRMDashboard';
 import useFollowups from '../hooks/useFollowups';
 import KPIStatCard from '../components/crm/KPIStatCard';
-import RangeSwitcher from '../components/crm/RangeSwitcher';
 import SectionPanel from '../components/crm/SectionPanel';
+import {
+  GlobalDateFilter, SnapshotBadge, DashboardRefetchOverlay, useDashboardRange, formatRangeLabel,
+} from '../../../shared/dashboard-filter';
+import { CRM_DASHBOARD_CONFIG } from '../config/crmDashboardConfig';
 import HotLeadsPanel from '../components/crm/HotLeadsPanel';
 import FollowUpsPanel from '../components/FollowUpsPanel';
 import AreaLineChart from '../components/charts/AreaLineChart';
@@ -63,16 +66,11 @@ const formatINR = (value) => {
   return `₹${value}`;
 };
 
-const RANGE_LABELS = {
-  '3m': 'last 3 months',
-  '6m': 'last 6 months',
-  '1y': 'last 12 months',
-};
-
 const CRMDashboardPage = () => {
   const navigate = useNavigate();
-  const [range, setRange] = useState('3m');
+  const [range, setRange] = useDashboardRange(CRM_DASHBOARD_CONFIG.storageKey, CRM_DASHBOARD_CONFIG.defaultRange);
   const { data, isLoading, error, refresh } = useCRMDashboard(range);
+  const isRefetching = isLoading && !!data; // range change / poll → overlay (cards stay)
 
   const ai = resolveEntry('dashboard');
   const followups = useFollowups(5);
@@ -174,12 +172,12 @@ const CRMDashboardPage = () => {
             </h1>
           </div>
           <p className="text-sm text-[var(--text-muted)] mt-1.5 ml-12">
-            Live pipeline analytics · {RANGE_LABELS[range]} · auto-refresh every 30s
+            Live pipeline analytics · {formatRangeLabel(range)} · auto-refresh every 30s
           </p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <RangeSwitcher value={range} onChange={setRange} />
+          <GlobalDateFilter value={range} onChange={setRange} defaultRange={CRM_DASHBOARD_CONFIG.defaultRange} disabled={isRefetching} />
           <button
             onClick={refresh}
             disabled={isLoading}
@@ -206,13 +204,21 @@ const CRMDashboardPage = () => {
         </div>
       )}
 
+      <DashboardRefetchOverlay active={isRefetching} className="space-y-6">
+      {/* Snapshot hint — explains which widgets don't move with the filter */}
+      <p className="text-[11px] text-[var(--text-muted)]">
+        Flow metrics (leads, conversion, acquisition trend) follow the selected range. Cards marked
+        <SnapshotBadge variant="snapshot" className="mx-1 align-middle" />
+        show current totals and don’t change with the date.
+      </p>
+
       {/* ── Zone 1 — KPI Hero Row ──────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <KPIStatCard
           title="Total Leads"
           value={data?.kpis?.totalLeads?.value ?? 0}
           delta={data?.kpis?.totalLeads?.delta}
-          deltaLabel={`vs prev ${range}`}
+          deltaLabel="vs prev period"
           icon={Users}
           iconBg="bg-[var(--primary)]/10"
           iconColor="text-[var(--primary)]"
@@ -283,6 +289,7 @@ const CRMDashboardPage = () => {
           <span className="text-xs font-medium text-[var(--text-muted)]">
             Current pipeline distribution
           </span>
+          <SnapshotBadge variant="snapshot" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {STAGE_CARDS.map((card) => (
@@ -305,7 +312,7 @@ const CRMDashboardPage = () => {
         <div className="lg:col-span-2">
           <SectionPanel
             title="Lead Acquisition Trend"
-            subtitle={`Daily new leads · ${RANGE_LABELS[range]}`}
+            subtitle={`Daily new leads · ${formatRangeLabel(range)}`}
             icon={LineChart}
             badge={`${totalLeadsInRange} total`}
             actionLabel="All Leads"
@@ -321,6 +328,7 @@ const CRMDashboardPage = () => {
           icon={PieChart}
           iconBg="bg-[var(--accent-blue)]/10"
           iconColor="text-[var(--accent-blue)]"
+          badge={<SnapshotBadge variant="snapshot" />}
         >
           <div className="flex flex-col items-center py-2">
             <DonutChart
@@ -345,6 +353,7 @@ const CRMDashboardPage = () => {
             iconColor="text-[var(--primary)]"
             actionLabel="Pipeline"
             onAction={() => navigate('/crm/new-leads')}
+            badge={<SnapshotBadge variant="snapshot" />}
           >
             <FunnelChart stages={funnelData} />
           </SectionPanel>
@@ -356,6 +365,7 @@ const CRMDashboardPage = () => {
           icon={Building2}
           iconBg="bg-[var(--accent-teal)]/10"
           iconColor="text-[var(--accent-teal)]"
+          badge={<SnapshotBadge variant="snapshot" />}
         >
           <div className="flex flex-col gap-4 items-center">
             <DonutChart
@@ -413,6 +423,7 @@ const CRMDashboardPage = () => {
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--success)] mr-1.5 animate-pulse" />
         {isLoading ? 'Refreshing data…' : 'Synced · auto-refresh every 30s'}
       </div>
+      </DashboardRefetchOverlay>
     </div>
   );
 };

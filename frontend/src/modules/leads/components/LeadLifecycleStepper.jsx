@@ -33,13 +33,17 @@ const STEPS = [
 const LeadLifecycleStepper = ({ lifecycleStage, status }) => {
   const isLost = status === 'lost' || lifecycleStage === 'lost';
   const currentStep = isLost ? -1 : (STAGE_TO_STEP[lifecycleStage] ?? 0);
+  // The terminal "Converted" step can never satisfy `currentStep > idx`, so it
+  // would stay stuck as "current". When the lead has actually converted, mark
+  // the final step as complete instead.
+  const isConverted = status === 'converted' || lifecycleStage === 'converted';
 
   return (
     <div className="w-full overflow-x-auto pb-2">
       <div className="flex items-start min-w-max gap-0">
         {STEPS.map((step, idx) => {
-          const isDone = currentStep > idx;
-          const isCurrent = currentStep === idx;
+          const isDone = currentStep > idx || (currentStep === idx && isConverted);
+          const isCurrent = currentStep === idx && !isDone;
 
           return (
             <React.Fragment key={step.label}>

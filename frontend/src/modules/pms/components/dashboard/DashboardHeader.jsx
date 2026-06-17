@@ -1,14 +1,8 @@
-import React from 'react';
 import { RotateCcw, LayoutDashboard } from 'lucide-react';
+import { GlobalDateFilter } from '../../../../shared/dashboard-filter';
+import { PMS_DASHBOARD_CONFIG } from '../../config/pmsDashboardConfig';
 
-const PERIODS = [
-  { id: 'week',    label: 'This Week'    },
-  { id: 'month',   label: 'This Month'   },
-  { id: 'quarter', label: 'This Quarter' },
-  { id: 'all',     label: 'All Time'     },
-];
-
-const DashboardHeader = ({ period, onPeriodChange, onRefresh, isLoading }) => {
+const DashboardHeader = ({ range, onRangeChange, onRefresh, isLoading, isRefetching }) => {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-center gap-3">
@@ -26,15 +20,12 @@ const DashboardHeader = ({ period, onPeriodChange, onRefresh, isLoading }) => {
       </div>
 
       <div className="flex items-center gap-2">
-        <select
-          value={period}
-          onChange={(e) => onPeriodChange(e.target.value)}
-          className="text-sm font-semibold bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 outline-none focus:border-[var(--primary)] cursor-pointer"
-        >
-          {PERIODS.map((p) => (
-            <option key={p.id} value={p.id}>{p.label}</option>
-          ))}
-        </select>
+        <GlobalDateFilter
+          value={range}
+          onChange={onRangeChange}
+          defaultRange={PMS_DASHBOARD_CONFIG.defaultRange}
+          disabled={isRefetching}
+        />
         <button
           type="button"
           onClick={onRefresh}

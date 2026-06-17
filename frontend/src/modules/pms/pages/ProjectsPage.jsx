@@ -4,6 +4,7 @@ import {
   Plus, LayoutGrid, List, Search, Briefcase,
   Calendar, MapPin, ChevronRight, MoreHorizontal,
   SlidersHorizontal, X, ArrowDownUp,
+  ClipboardList, PenTool, HardHat, UserCog, Truck, FolderOpen,
 } from 'lucide-react';
 import { Button, Loader } from '../../../shared/components';
 import DatePicker from '../../../shared/components/DatePicker/DatePicker';
@@ -40,18 +41,20 @@ const PHASE_ACCENT = {
   cancelled:       'from-[var(--error)] via-[var(--error)]/80 to-transparent',
 };
 
-// Smart due-date: relative inside 30 days, absolute beyond — tone drives chip color.
+// Smart due-date chip — only surfaces urgency (overdue / due within 30 days).
+// Beyond that the explicit END date box already shows the date, so `show:false`
+// suppresses the chip to avoid duplicating it.
 const dueDateMeta = (dateStr) => {
-  if (!dateStr) return { label: 'No due date', tone: 'muted' };
+  if (!dateStr) return { show: false };
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const due   = new Date(dateStr); due.setHours(0, 0, 0, 0);
   const days  = Math.round((due - today) / 86400000);
 
-  if (days < 0)    return { label: `Overdue ${Math.abs(days)}d`, tone: 'error' };
-  if (days === 0)  return { label: 'Due today',                  tone: 'warning' };
-  if (days <= 7)   return { label: `Due in ${days}d`,            tone: 'warning' };
-  if (days <= 30)  return { label: `Due in ${days}d`,            tone: 'default' };
-  return { label: fmt(dateStr), tone: 'default' };
+  if (days < 0)    return { show: true, label: `Overdue ${Math.abs(days)}d`, tone: 'error' };
+  if (days === 0)  return { show: true, label: 'Due today',                  tone: 'warning' };
+  if (days <= 7)   return { show: true, label: `Due in ${days}d`,            tone: 'warning' };
+  if (days <= 30)  return { show: true, label: `Due in ${days}d`,            tone: 'default' };
+  return { show: false };
 };
 
 const DUE_TONE = {
@@ -169,6 +172,24 @@ const ProjectCard = ({ project, onClick }) => {
           </div>
         )}
 
+        {/* Start & End dates */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="min-w-0 px-2.5 py-1.5 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
+            <div className="flex items-center gap-1 text-[var(--text-muted)]">
+              <Calendar size={10} className="shrink-0" />
+              <span className="text-[9px] uppercase tracking-wider font-bold">Start</span>
+            </div>
+            <p className="text-[11px] font-semibold text-[var(--text-primary)] truncate mt-0.5">{fmt(project.startDate)}</p>
+          </div>
+          <div className="min-w-0 px-2.5 py-1.5 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
+            <div className="flex items-center gap-1 text-[var(--text-muted)]">
+              <Calendar size={10} className="shrink-0" />
+              <span className="text-[9px] uppercase tracking-wider font-bold">End</span>
+            </div>
+            <p className="text-[11px] font-semibold text-[var(--text-primary)] truncate mt-0.5">{fmt(project.estimatedCompletionDate)}</p>
+          </div>
+        </div>
+
         {/* Soft fade divider */}
         <div className="h-px bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
 
@@ -189,11 +210,13 @@ const ProjectCard = ({ project, onClick }) => {
             </span>
           )}
 
-          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold shrink-0
-                            ${DUE_TONE[due.tone]}`}>
-            <Calendar size={11} />
-            {due.label}
-          </span>
+          {due.show && (
+            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold shrink-0
+                              ${DUE_TONE[due.tone]}`}>
+              <Calendar size={11} />
+              {due.label}
+            </span>
+          )}
         </div>
 
         {/* Progress footer */}
@@ -225,6 +248,137 @@ const ProjectCard = ({ project, onClick }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+// ─── Project module shortcuts (mirror the Overview module cards) ──────────────
+// Each entry deep-links into the project detail page's corresponding tab.
+const PROJECT_MODULES = [
+  { tab: 'planner',           label: 'Project Planner / Master Sheet',    icon: ClipboardList, color: 'text-[var(--warning)]',     bg: 'bg-[var(--warning)]/10' },
+  { tab: 'drawings',          label: 'Design and Drawing Management',     icon: PenTool,       color: 'text-[var(--primary)]',     bg: 'bg-[var(--primary)]/10' },
+  { tab: 'logs',              label: 'Site Execution and Monitoring',     icon: HardHat,       color: 'text-[var(--accent-blue)]', bg: 'bg-[var(--accent-blue)]/10' },
+  { tab: 'team',              label: 'Site Supervisor and Designer',      icon: UserCog,       color: 'text-[var(--success)]',     bg: 'bg-[var(--success)]/10' },
+  { tab: 'vendor_engagement', label: 'Procurement and Vendor Management', icon: Truck,         color: 'text-[var(--accent-teal)]', bg: 'bg-[var(--accent-teal)]/10' },
+  { tab: 'documents',         label: 'Document Repository',               icon: FolderOpen,    color: 'text-[var(--accent-blue)]', bg: 'bg-[var(--accent-blue)]/10' },
+];
+
+// Three-dots row menu — opens the 6 project modules and deep-links into each.
+// Uses fixed positioning (computed from the button rect) so the popover escapes
+// the table's `overflow-hidden` clipping instead of getting cut off.
+const RowActionsMenu = ({ project }) => {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const MENU_W = 288;
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      const margin = 10;
+      const spaceBelow = window.innerHeight - r.bottom - margin;
+      const spaceAbove = r.top - margin;
+      // Flip upward for bottom rows where there isn't enough room below.
+      const openUp = spaceBelow < 300 && spaceAbove > spaceBelow;
+      const left = Math.max(margin, Math.min(r.right - MENU_W, window.innerWidth - MENU_W - margin));
+      const maxHeight = Math.max(200, (openUp ? spaceAbove : spaceBelow) - 6);
+      setCoords(openUp
+        ? { bottom: window.innerHeight - r.top + 6, left, maxHeight }
+        : { top: r.bottom + 6, left, maxHeight });
+    }
+    setOpen((o) => !o);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const onDocClick = (e) => {
+      if (menuRef.current?.contains(e.target) || btnRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [open]);
+
+  const openModule = (tab) => (e) => {
+    e.stopPropagation();
+    setOpen(false);
+    navigate(`/projects/${project._id}?tab=${tab}`);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        aria-label="Open project modules"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`p-1.5 rounded-lg transition-colors ${open
+          ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
+          : 'hover:bg-[var(--border)] text-[var(--text-muted)]'}`}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+
+      {open && (
+        <div
+          ref={menuRef}
+          role="menu"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            top: coords.top,
+            bottom: coords.bottom,
+            left: coords.left,
+            width: MENU_W,
+            maxHeight: coords.maxHeight,
+          }}
+          className="fixed z-50 flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-2xl
+                     shadow-[0_20px_50px_-20px_rgba(0,0,0,0.35)] overflow-hidden"
+        >
+          <div className="px-3 pt-2.5 pb-2 border-b border-[var(--border)] shrink-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Open module</p>
+            <p className="text-xs font-bold text-[var(--text-primary)] truncate mt-0.5">{project.name}</p>
+          </div>
+          <div className="p-2 overflow-y-auto">
+            {PROJECT_MODULES.map((m) => (
+              <button
+                key={m.tab}
+                role="menuitem"
+                onClick={openModule(m.tab)}
+                className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left
+                           hover:bg-[var(--bg)] transition-colors group"
+              >
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${m.bg}`}>
+                  <m.icon size={16} className={m.color} />
+                </span>
+                <span className="flex-1 text-[13px] font-semibold text-[var(--text-primary)] leading-snug
+                                 group-hover:text-[var(--primary)] transition-colors">
+                  {m.label}
+                </span>
+                <ChevronRight
+                  size={14}
+                  className="text-[var(--text-muted)] shrink-0
+                             group-hover:text-[var(--primary)] group-hover:translate-x-0.5 transition-all"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -260,13 +414,8 @@ const ProjectRow = ({ project, onClick }) => (
     <td className="px-4 py-3 text-sm text-[var(--text-secondary)] whitespace-nowrap">
       {fmt(project.startDate)}
     </td>
-    <td className="px-4 py-3">
-      <button
-        onClick={(e) => e.stopPropagation()}
-        className="p-1.5 rounded-lg hover:bg-[var(--border)] text-[var(--text-muted)] transition-colors"
-      >
-        <MoreHorizontal size={16} />
-      </button>
+    <td className="px-4 py-3 text-right">
+      <RowActionsMenu project={project} />
     </td>
   </tr>
 );
@@ -617,7 +766,7 @@ const ProjectsPage = () => {
                 ? 'bg-[var(--primary)] text-black shadow-sm'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
           >
-            <List size={14} /> Table
+            <List size={14} /> Lists
           </button>
           <button
             onClick={() => setView('grid')}

@@ -34,5 +34,7 @@ mailLogSchema.index({ status: 1 });
 mailLogSchema.index({ "relatedTo.recordId": 1 });
 mailLogSchema.index({ createdAt: -1 });
 mailLogSchema.index({ to: 1 });
+// KIT analytics: module-attributed delivery counts within a date range
+mailLogSchema.index({ "relatedTo.module": 1, createdAt: 1 });
 
 module.exports = mongoose.model("MailLog", mailLogSchema);

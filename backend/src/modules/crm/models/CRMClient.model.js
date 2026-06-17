@@ -263,6 +263,8 @@ crmClientSchema.index({ email: 1 });
 crmClientSchema.index({ trackingId: 1 });
 crmClientSchema.index({ status: 1, lifecycleStage: 1 });
 crmClientSchema.index({ whatsappSent: 1, createdAt: -1 }); // Optimized for welcome message cron
+crmClientSchema.index({ createdAt: 1 });                   // dashboard date-range (acquisition / in-range KPIs)
+crmClientSchema.index({ status: 1, updatedAt: 1 });        // dashboard converted/lost trends in-range
 
 
 module.exports = mongoose.model("CRMClient", crmClientSchema);

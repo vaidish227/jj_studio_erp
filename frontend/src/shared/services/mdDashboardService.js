@@ -1,6 +1,7 @@
 import apiClient from './apiClient';
+import { rangeToParams } from '../dashboard-filter/dateRangePresets';
 
 export const mdDashboardService = {
-  getMDOverview: (period = 'month') =>
-    apiClient.get('/md/dashboard/overview', { params: { period } }),
+  getMDOverview: (range = {}) =>
+    apiClient.get('/md/dashboard/overview', { params: rangeToParams(range) }),
 };

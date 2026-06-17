@@ -184,5 +184,7 @@ drawingSchema.index({ isReleased: 1 });
 drawingSchema.index({ drawingType: 1 });
 // Supports the auto-revision lookup (next version per project+zone+name).
 drawingSchema.index({ projectId: 1, zoneName: 1, title: 1, version: -1 });
+// Dashboard "released this period" KPI (date-range bounded)
+drawingSchema.index({ isReleased: 1, releasedAt: 1 });
 
 module.exports = mongoose.model("Drawing", drawingSchema, "pms_drawings");

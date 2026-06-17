@@ -1,14 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart2, Loader2, Send, CheckCircle2, Eye, AlertTriangle, Megaphone, Zap, Users, Award } from 'lucide-react';
+import { BarChart2, Loader2, Send, CheckCircle2, Eye, AlertTriangle, Megaphone, Zap, Users, Award, RotateCcw } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
-import { useToast } from '../../../shared/notifications/ToastProvider';
 import { kitService } from '../../../shared/services/kitService';
+import {
+  GlobalDateFilter, SnapshotBadge, DashboardRefetchOverlay, useDashboardRange, useDashboardQuery,
+} from '../../../shared/dashboard-filter';
+import { KIT_ANALYTICS_CONFIG } from '../config/kitDashboardConfig';
 
-const StatCard = ({ icon: Icon, label, value, sub, color = 'var(--primary)' }) => (
+// Composite fetch — 3 analytics endpoints; flow metrics honor `range`, state counts stay all-time.
+const fetchKitAnalytics = (range) =>
+  Promise.all([
+    kitService.getAnalyticsOverview(range),
+    kitService.getCampaignAnalytics(range),
+    kitService.getTemplateAnalytics(range),
+  ]).then(([o, c, t]) => ({ overview: o?.data || null, campaigns: c?.data || [], templates: t?.data || [] }));
+
+const StatCard = ({ icon: Icon, label, value, sub, color = 'var(--primary)', badge }) => (
   <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
-    <div className="flex items-center justify-between">
-      <span className="text-xs font-black uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}>
+    <div className="flex items-center justify-between gap-2">
+      <span className="flex items-center gap-1.5 min-w-0">
+        <span className="text-xs font-black uppercase tracking-wider text-[var(--text-muted)] truncate">{label}</span>
+        {badge}
+      </span>
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}>
         <Icon size={16} />
       </div>
     </div>
@@ -18,33 +31,18 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'var(--primary)' }) =
 );
 
 const AnalyticsPage = () => {
-  const toast = useToast();
-  const [overview, setOverview] = useState(null);
-  const [campaigns, setCampaigns] = useState([]);
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useDashboardRange(KIT_ANALYTICS_CONFIG.storageKey, KIT_ANALYTICS_CONFIG.defaultRange);
+  const { data, isLoading, error, refresh } = useDashboardQuery(fetchKitAnalytics, range, {
+    pollMs: KIT_ANALYTICS_CONFIG.pollMs,
+    errorMessage: KIT_ANALYTICS_CONFIG.errorMessage,
+  });
+  const overview = data?.overview || null;
+  const campaigns = data?.campaigns || [];
+  const templates = data?.templates || [];
+  const isInitialLoading = isLoading && !data;  // first load → full loader
+  const isRefetching = isLoading && !!data;     // range change / poll → overlay
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [o, c, t] = await Promise.all([
-        kitService.getAnalyticsOverview(),
-        kitService.getCampaignAnalytics(),
-        kitService.getTemplateAnalytics(),
-      ]);
-      setOverview(o?.data || null);
-      setCampaigns(c?.data || []);
-      setTemplates(t?.data || []);
-    } catch (err) {
-      toast.error(err?.message || 'Failed to load analytics');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  if (loading) {
+  if (isInitialLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-[var(--text-muted)]">
         <Loader2 size={40} className="animate-spin mb-4 opacity-20" />
@@ -58,26 +56,52 @@ const AnalyticsPage = () => {
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
-          <BarChart2 size={24} />
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'color-mix(in srgb, var(--primary) 14%, transparent)', color: 'var(--primary)' }}>
+            <BarChart2 size={24} />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">KIT Analytics</h1>
+            <p className="text-[var(--text-muted)] font-medium">Delivery health, campaign performance, and lead-to-sale attribution</p>
+          </div>
         </div>
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">KIT Analytics</h1>
-          <p className="text-[var(--text-muted)] font-medium">Delivery health, campaign performance, and lead-to-sale attribution</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <GlobalDateFilter value={range} onChange={setRange} defaultRange={KIT_ANALYTICS_CONFIG.defaultRange} disabled={isRefetching} />
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--primary)] hover:border-[var(--primary)]/40 transition-colors disabled:opacity-50"
+          >
+            <RotateCcw size={14} className={isLoading ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">{error}</div>
+      )}
+
+      {/* Flow vs snapshot hint */}
+      <p className="text-[11px] text-[var(--text-muted)]">
+        Delivery &amp; engagement metrics reflect the <strong>selected date range</strong>. Operational counts marked
+        <SnapshotBadge variant="snapshot" className="mx-1 align-middle" />
+        (active campaigns, automations, enrollments) are current-state snapshots.
+      </p>
+
+      <DashboardRefetchOverlay active={isRefetching} className="space-y-8">
       {/* Overview stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <StatCard icon={Send} label="Messages Sent" value={d.totalSent ?? 0} sub={`${d.totalFailed ?? 0} failed`} />
         <StatCard icon={CheckCircle2} label="Send Success" value={`${d.sendSuccessRate ?? 0}%`} sub="delivered to provider" color="var(--success, #27AE60)" />
         <StatCard icon={Eye} label="WhatsApp Read" value={d.whatsapp?.read ?? 0} sub={`${d.whatsapp?.readRate ?? 0}% read rate`} color="var(--accent-blue, #3A6EA5)" />
         <StatCard icon={AlertTriangle} label="Failures" value={d.totalFailed ?? 0} sub={`${d.kitSideFailures ?? 0} no-recipient`} color="var(--error)" />
-        <StatCard icon={Megaphone} label="Active Campaigns" value={t.activeCampaigns ?? 0} sub={`${t.totalCampaigns ?? 0} total`} />
-        <StatCard icon={Zap} label="Active Automations" value={t.activeWorkflows ?? 0} sub={`${t.triggerEvents ?? 0} events fired`} color="var(--warning)" />
-        <StatCard icon={Users} label="Active Enrollments" value={t.activeEnrollments ?? 0} sub={`${t.completedEnrollments ?? 0} completed`} />
-        <StatCard icon={Award} label="KIT Messages" value={t.kitMessages ?? 0} sub="all-time" />
+        <StatCard icon={Megaphone} label="Active Campaigns" value={t.activeCampaigns ?? 0} sub={`${t.totalCampaigns ?? 0} total`} badge={<SnapshotBadge variant="snapshot" />} />
+        <StatCard icon={Zap} label="Active Automations" value={t.activeWorkflows ?? 0} sub={`${t.triggerEvents ?? 0} events fired`} color="var(--warning)" badge={<SnapshotBadge variant="snapshot" />} />
+        <StatCard icon={Users} label="Active Enrollments" value={t.activeEnrollments ?? 0} sub={`${t.completedEnrollments ?? 0} completed`} badge={<SnapshotBadge variant="snapshot" />} />
+        <StatCard icon={Award} label="KIT Messages" value={t.kitMessages ?? 0} sub="in selected range" />
       </div>
 
       {/* Channel breakdown */}
@@ -169,6 +193,7 @@ const AnalyticsPage = () => {
           </div>
         </Card>
       </div>
+      </DashboardRefetchOverlay>
     </div>
   );
 };

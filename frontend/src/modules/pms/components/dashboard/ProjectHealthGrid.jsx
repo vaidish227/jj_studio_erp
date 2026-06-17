@@ -1,6 +1,7 @@
 ﻿import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Heart, Calendar, MapPin, Briefcase, ArrowRight, AlertTriangle } from 'lucide-react';
+import { SnapshotBadge } from '../../../../shared/dashboard-filter';
 
 /**
  * ProjectHealthGrid — card grid of projects sorted by health (delayed → blocked
@@ -187,7 +188,10 @@ const ProjectHealthGrid = React.forwardRef(({ projects = [], healthSummary }, re
         <div className="flex items-center gap-2 min-w-0">
           <Heart size={16} className="text-[var(--primary)]" />
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Project Health — Needs Your Attention</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">Project Health — Needs Your Attention</h3>
+              <SnapshotBadge variant="snapshot" />
+            </div>
             <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Delayed and at-risk projects first</p>
           </div>
         </div>

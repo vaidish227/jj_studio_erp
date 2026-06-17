@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   FileText,
   Clock,
@@ -8,9 +8,7 @@ import {
   PenTool,
   CreditCard,
   Search,
-  Filter,
   Loader2,
-  ChevronRight,
   Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -20,33 +18,31 @@ import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import { crmService } from '../../../shared/services/crmService';
 import { formatDateShort } from '../../../shared/utils/dateUtils';
 import { matchesMilestone } from '../utils/milestoneFilter';
+import {
+  GlobalDateFilter, DashboardRefetchOverlay, useDashboardRange, useDashboardQuery, rangeToParams,
+} from '../../../shared/dashboard-filter';
+import { PROPOSAL_DASHBOARD_CONFIG } from '../config/proposalDashboardConfig';
 
 // Sub-components
 import SummaryCard from './components/SummaryCard';
 import QuickActions from './components/QuickActions';
 
+// Cohort fetch — date-bounded by Proposal.createdAt server-side (all_time ⇒ all).
+const fetchProposals = (range) =>
+  crmService.getProposals(rangeToParams(range)).then((res) => res?.proposals || []);
+
 const ProposalDashboard = () => {
   const navigate = useNavigate();
-  const [proposals, setProposals] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [range, setRange] = useDashboardRange(PROPOSAL_DASHBOARD_CONFIG.storageKey, PROPOSAL_DASHBOARD_CONFIG.defaultRange);
+  const { data, isLoading, error, refresh } = useDashboardQuery(fetchProposals, range, {
+    pollMs: PROPOSAL_DASHBOARD_CONFIG.pollMs,
+    errorMessage: PROPOSAL_DASHBOARD_CONFIG.errorMessage,
+  });
+  const proposals = useMemo(() => data || [], [data]);
+  const isInitialLoading = isLoading && !data;  // first load → table spinner
+  const isRefetching = isLoading && !!data;     // range change / poll → overlay
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-
-  const fetchDashboardData = async () => {
-    setIsLoading(true);
-    try {
-      const response = await crmService.getProposals();
-      setProposals(response.proposals || []);
-    } catch (err) {
-      console.error('Failed to fetch dashboard data', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
 
   const stats = useMemo(() => {
     // Count by milestone reached (shared with the list page's ?milestone filter)
@@ -94,12 +90,25 @@ const ProposalDashboard = () => {
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Proposal Dashboard</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">Centralized tracking for all quotations and agreements.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={fetchDashboardData}>Refresh</Button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <GlobalDateFilter value={range} onChange={setRange} defaultRange={PROPOSAL_DASHBOARD_CONFIG.defaultRange} disabled={isRefetching} />
+          <Button variant="outline" onClick={refresh}>Refresh</Button>
           <Button variant="primary" onClick={() => navigate('/proposal/create')}>+ New Proposal</Button>
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
+          {error}
+        </div>
+      )}
+
+      {/* Cohort hint — Proposal KPIs are created-in-window counts, not live snapshots */}
+      <p className="text-[11px] text-[var(--text-muted)]">
+        Metrics reflect proposals <strong>created within the selected date range</strong> (cohort), bucketed by their current milestone.
+      </p>
+
+      <DashboardRefetchOverlay active={isRefetching} className="space-y-8">
       {/* Summary Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         {stats.map((stat, idx) => (
@@ -166,7 +175,7 @@ const ProposalDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
-                  {isLoading ? (
+                  {isInitialLoading ? (
                     <tr>
                       <td colSpan="5" className="px-6 py-12 text-center">
                         <Loader2 size={24} className="animate-spin mx-auto text-[var(--primary)] opacity-50" />
@@ -241,6 +250,7 @@ const ProposalDashboard = () => {
           />
         </div>
       </div>
+      </DashboardRefetchOverlay>
     </div>
   );
 };

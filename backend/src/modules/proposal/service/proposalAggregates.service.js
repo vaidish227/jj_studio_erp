@@ -30,11 +30,12 @@ const OPEN_STATUSES = [
 ];
 
 /**
- * @param {Date} periodStart
+ * @param {Date} periodStart   — start of the active window (inclusive)
+ * @param {Date} periodEnd     — end of the active window (inclusive)
  * @param {{start: Date, end: Date}} prevWindow
  * @returns {Promise<{byStatus, kpis, totalValueOpen, proposalsAwaitingApproval}>}
  */
-async function getStatusCountsAndCashflow(periodStart, prevWindow) {
+async function getStatusCountsAndCashflow(periodStart, periodEnd, prevWindow) {
   const facet = await Proposal.aggregate([
     {
       $facet: {
@@ -48,7 +49,7 @@ async function getStatusCountsAndCashflow(periodStart, prevWindow) {
           },
         ],
         sentInPeriod: [
-          { $match: { sentAt: { $gte: periodStart } } },
+          { $match: { sentAt: { $gte: periodStart, $lte: periodEnd } } },
           { $count: "n" },
         ],
         sentInPrev: [
@@ -60,7 +61,7 @@ async function getStatusCountsAndCashflow(periodStart, prevWindow) {
           {
             $match: {
               "payments.status":      "received",
-              "payments.received_at": { $gte: periodStart },
+              "payments.received_at": { $gte: periodStart, $lte: periodEnd },
             },
           },
           {
@@ -73,7 +74,7 @@ async function getStatusCountsAndCashflow(periodStart, prevWindow) {
         ],
         // Plus advance payment cashflow (legacy field, still populated)
         advanceInPeriod: [
-          { $match: { "advancePayment.paymentDate": { $gte: periodStart } } },
+          { $match: { "advancePayment.paymentDate": { $gte: periodStart, $lte: periodEnd } } },
           {
             $group: {
               _id:    null,

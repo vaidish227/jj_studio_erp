@@ -35,11 +35,12 @@ const pctDelta = (curr, prev) => {
 /**
  * Funnel + period KPIs for the MD dashboard.
  *
- * @param {Date} periodStart   — start of the active window
+ * @param {Date} periodStart   — start of the active window (inclusive)
+ * @param {Date} periodEnd     — end of the active window (inclusive)
  * @param {{start: Date, end: Date}} prevWindow — previous-window for delta calc
  * @returns {Promise<{funnel, kpis}>}
  */
-async function getFunnelAndKpis(periodStart, prevWindow) {
+async function getFunnelAndKpis(periodStart, periodEnd, prevWindow) {
   const facet = await CRMClient.aggregate([
     {
       $facet: {
@@ -60,7 +61,7 @@ async function getFunnelAndKpis(periodStart, prevWindow) {
           },
         ],
         inRange: [
-          { $match: { createdAt: { $gte: periodStart } } },
+          { $match: { createdAt: { $gte: periodStart, $lte: periodEnd } } },
           {
             $group: {
               _id: null,
