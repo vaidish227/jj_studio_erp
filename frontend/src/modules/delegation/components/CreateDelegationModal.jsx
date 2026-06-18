@@ -79,18 +79,18 @@ const CreateDelegationModal = ({ isOpen, onClose, onCreated }) => {
     <Modal isOpen={isOpen} onClose={onClose} title="New Delegation">
       <div className="space-y-4">
         {error && (
-          <div className="text-sm text-[var(--error)] bg-[var(--error)]/10 border border-[var(--error)]/20 rounded-lg px-3 py-2">
+          <div role="alert" className="text-sm text-[var(--error)] bg-[var(--error)]/10 border border-[var(--error)]/20 rounded-lg px-3 py-2">
             {error}
           </div>
         )}
         <FormField label="Title" required>
-          <input className={inputCls} value={form.title} onChange={set('title')} placeholder="e.g. 3D render — master bedroom" />
+          <input autoFocus className={inputCls} value={form.title} onChange={set('title')} placeholder="e.g. 3D render — master bedroom" />
         </FormField>
         <FormField label="Description">
           <textarea className={inputCls} rows={2} value={form.description} onChange={set('description')} placeholder="Details…" />
         </FormField>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FormField label="Department">
             <select className={inputCls} value={form.departmentId} onChange={set('departmentId')}>
               <option value="">— none (optional) —</option>
@@ -109,6 +109,7 @@ const CreateDelegationModal = ({ isOpen, onClose, onCreated }) => {
                   <button
                     key={p}
                     type="button"
+                    aria-pressed={active}
                     onClick={() => setForm((f) => ({ ...f, priority: p }))}
                     className="rounded-xl border px-2 py-2 text-xs font-bold transition-all"
                     style={
@@ -125,7 +126,7 @@ const CreateDelegationModal = ({ isOpen, onClose, onCreated }) => {
           </FormField>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className={`grid gap-3 ${canAssign ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
           {canAssign && (
             <FormField label="Assign to">
               <select className={inputCls} value={form.assignedTo} onChange={set('assignedTo')}>
@@ -148,7 +149,7 @@ const CreateDelegationModal = ({ isOpen, onClose, onCreated }) => {
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }}
               placeholder="Add a checklist item and press Enter"
             />
-            <button type="button" onClick={addItem} className="px-3 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)]">
+            <button type="button" aria-label="Add checklist item" onClick={addItem} className="px-3 rounded-xl border border-[var(--border)] hover:bg-[var(--bg)]">
               <Plus size={16} />
             </button>
           </div>
@@ -157,7 +158,7 @@ const CreateDelegationModal = ({ isOpen, onClose, onCreated }) => {
               {checklist.map((item, i) => (
                 <li key={i} className="flex items-center justify-between text-sm bg-[var(--bg)] rounded-lg px-3 py-1.5">
                   <span>{item}</span>
-                  <button type="button" onClick={() => setChecklist((c) => c.filter((_, j) => j !== i))} className="text-[var(--text-muted)] hover:text-[var(--error)]">
+                  <button type="button" aria-label="Remove checklist item" onClick={() => setChecklist((c) => c.filter((_, j) => j !== i))} className="text-[var(--text-muted)] hover:text-[var(--error)]">
                     <Trash2 size={14} />
                   </button>
                 </li>

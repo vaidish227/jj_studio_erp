@@ -138,7 +138,12 @@ const DelegationDetailPage = () => {
   const nextStatuses = ALLOWED_TRANSITIONS[delegation.status] || [];
   const checklist = delegation.checklist || [];
   const doneCount = checklist.filter((c) => c.isCompleted).length;
-  const progress = delegation.progressPercent ?? (checklist.length ? Math.round((doneCount / checklist.length) * 100) : 0);
+  // Progress is backend-authoritative (delegation.progressPercent). The fallback
+  // recomputes from the checklist when the field is absent, and the final guard is
+  // a safety net for historical records persisted before progress became
+  // status-aware: a completed delegation with no checklist still showing 0 → 100%.
+  const computedProgress = delegation.progressPercent ?? (checklist.length ? Math.round((doneCount / checklist.length) * 100) : 0);
+  const progress = (delegation.status === 'completed' && checklist.length === 0 && !computedProgress) ? 100 : computedProgress;
   const due = dueDateInfo(delegation.dueDate, delegation.status);
   const canAct = canUpdate || canAssign || canReassign;
   const showReassign = (canAssign || canReassign) && delegation.status !== 'cancelled';

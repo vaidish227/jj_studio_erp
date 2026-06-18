@@ -148,7 +148,7 @@ const createDelegation = async (req, res) => {
       doc.assignedBy = req.user._id;
       doc.status = "assigned";
     }
-    doc.progressPercent = computeProgress(doc.checklist);
+    doc.progressPercent = computeProgress(doc.checklist, doc.status);
 
     const created = await Delegation.create(doc);
 
@@ -391,6 +391,10 @@ const changeStatus = async (req, res) => {
     }
 
     Object.assign(delegation, buildStatusPatch(delegation, to));
+    // Keep progress in sync with the workflow state. For checklist-less
+    // delegations this is the only place progress can reach 100 (completed)
+    // or reset to 0 (reopened); checklist-backed delegations are unaffected.
+    delegation.progressPercent = computeProgress(delegation.checklist, to);
     await delegation.save();
 
     logDelegationActivity({
@@ -441,7 +445,7 @@ const updateChecklist = async (req, res) => {
       }
     }
 
-    delegation.progressPercent = computeProgress(delegation.checklist);
+    delegation.progressPercent = computeProgress(delegation.checklist, delegation.status);
     await delegation.save();
 
     logDelegationActivity({
