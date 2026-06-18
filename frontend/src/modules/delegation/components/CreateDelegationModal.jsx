@@ -8,6 +8,7 @@ import { useToast } from '../../../shared/notifications/ToastProvider';
 import { delegationService } from '../services/delegationService';
 import { departmentService } from '../services/departmentService';
 import { PRIORITIES, PRIORITY_META } from '../constants/delegationStatus';
+import { PRIORITY_ACCENT } from './delegationFormat';
 
 const inputCls =
   'w-full border border-[var(--border)] bg-[var(--surface)] rounded-xl px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30';
@@ -100,9 +101,27 @@ const CreateDelegationModal = ({ isOpen, onClose, onCreated }) => {
             )}
           </FormField>
           <FormField label="Priority">
-            <select className={inputCls} value={form.priority} onChange={set('priority')}>
-              {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
-            </select>
+            <div className="grid grid-cols-4 gap-1.5">
+              {PRIORITIES.map((p) => {
+                const active = form.priority === p;
+                const accent = PRIORITY_ACCENT[p] || 'var(--text-muted)';
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, priority: p }))}
+                    className="rounded-xl border px-2 py-2 text-xs font-bold transition-all"
+                    style={
+                      active
+                        ? { borderColor: accent, color: accent, background: `color-mix(in srgb, ${accent} 12%, transparent)` }
+                        : { borderColor: 'var(--border)', color: 'var(--text-muted)' }
+                    }
+                  >
+                    {PRIORITY_META[p].label}
+                  </button>
+                );
+              })}
+            </div>
           </FormField>
         </div>
 

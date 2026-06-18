@@ -10,12 +10,18 @@ const TONE = {
   err:   'bg-[var(--error)]/10 text-[var(--error)] border-[var(--error)]/20',
 };
 
+// Solid dot color per tone (uses currentColor of the badge, so a single class works).
 const CLS =
-  'inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border';
+  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border';
 
 export const DelegationStatusBadge = ({ status, className = '' }) => {
   const m = STATUS_META[status] || { label: status || '—', tone: 'muted' };
-  return <span className={`${CLS} ${TONE[m.tone]} ${className}`}>{m.label}</span>;
+  return (
+    <span className={`${CLS} ${TONE[m.tone]} ${className}`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+      {m.label}
+    </span>
+  );
 };
 
 export const PriorityChip = ({ priority, className = '' }) => {

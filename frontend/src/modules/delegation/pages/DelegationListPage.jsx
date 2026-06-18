@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Loader2, Search, Inbox } from 'lucide-react';
+import { Plus, Search, Inbox, ListChecks } from 'lucide-react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useDelegationList } from '../hooks/useDelegationList';
 import { DelegationStatusBadge, PriorityChip } from '../components/DelegationStatusBadge';
 import CreateDelegationModal from '../components/CreateDelegationModal';
+import { UserChip, DeptChip, DueDatePill, ProgressBar, SkeletonCard } from '../components/delegationVisuals';
+import { PRIORITY_ACCENT } from '../components/delegationFormat';
 import { STATUSES, STATUS_META, PRIORITIES, PRIORITY_META } from '../constants/delegationStatus';
 
 const selectCls =
-  'border border-[var(--border)] bg-[var(--surface)] rounded-lg px-3 py-2 text-xs font-semibold text-[var(--text-secondary)]';
+  'border border-[var(--border)] bg-[var(--surface)] rounded-xl px-3 py-2.5 text-xs font-semibold text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 cursor-pointer';
 
 const QUICK = [
   { key: 'all', label: 'All' },
@@ -17,9 +19,7 @@ const QUICK = [
   { key: 'overdue', label: 'Overdue' },
 ];
 
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
-const isOverdue = (d) =>
-  d.dueDate && new Date(d.dueDate) < new Date() && !['completed', 'cancelled'].includes(d.status);
+const inProgressLike = (s) => ['in_progress', 'review', 'reopened'].includes(s);
 
 const DelegationListPage = () => {
   const navigate = useNavigate();
@@ -46,26 +46,49 @@ const DelegationListPage = () => {
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-extrabold text-[var(--text-primary)]">All Delegations</h1>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Browse, filter and manage delegated work.</p>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-11 h-11 rounded-2xl flex items-center justify-center text-black shadow-sm shrink-0"
+            style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-active))' }}
+          >
+            <ListChecks size={22} />
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-[var(--text-primary)] flex items-center gap-2">
+              All Delegations
+              {!isLoading && !error && (
+                <span className="text-xs font-bold text-[var(--text-muted)] bg-[var(--bg)] border border-[var(--border)] rounded-full px-2.5 py-0.5">
+                  {delegations.length}
+                </span>
+              )}
+            </h1>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">Browse, filter and manage delegated work.</p>
+          </div>
         </div>
         {canCreate && (
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-[var(--primary)] text-black font-semibold rounded-xl px-4 py-2.5 text-sm hover:bg-[var(--primary-hover)]">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 bg-[var(--primary)] text-black font-semibold rounded-xl px-4 py-2.5 text-sm shadow-sm transition-all duration-200 hover:bg-[var(--primary-hover)] hover:shadow-md hover:shadow-[var(--primary)]/25 active:scale-[0.98]"
+          >
             <Plus size={16} /> New Delegation
           </button>
         )}
       </div>
 
-      {/* Quick filters */}
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-xl border border-[var(--border)] overflow-hidden bg-[var(--surface)]">
+        <div className="inline-flex rounded-xl border border-[var(--border)] overflow-hidden bg-[var(--surface)] p-1 gap-1">
           {QUICK.map((qf) => (
             <button
               key={qf.key}
               onClick={() => setQuick(qf.key)}
-              className={`px-3 py-2 text-xs font-semibold ${quick === qf.key ? 'bg-[var(--primary)] text-black' : 'text-[var(--text-muted)] hover:bg-[var(--bg)]'}`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                quick === qf.key
+                  ? 'bg-[var(--primary)] text-black shadow-sm'
+                  : 'text-[var(--text-muted)] hover:bg-[var(--bg)]'
+              }`}
             >
               {qf.label}
             </button>
@@ -78,7 +101,7 @@ const DelegationListPage = () => {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search title…"
-            className="pl-9 pr-3 py-2 text-sm border border-[var(--border)] bg-[var(--surface)] rounded-lg w-56"
+            className="pl-9 pr-3 py-2.5 text-sm border border-[var(--border)] bg-[var(--surface)] rounded-xl w-56 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
           />
         </div>
         <select className={selectCls} value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -92,43 +115,87 @@ const DelegationListPage = () => {
       </div>
 
       {/* List */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16 text-[var(--text-muted)]">
-            <Loader2 className="animate-spin mr-2" size={18} /> Loading…
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : error ? (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl py-12 text-center text-[var(--error)] text-sm">
+          {error}
+        </div>
+      ) : delegations.length === 0 ? (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl py-16 text-center text-[var(--text-muted)]">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--bg)] flex items-center justify-center mx-auto">
+            <Inbox size={28} className="opacity-50" />
           </div>
-        ) : error ? (
-          <div className="py-12 text-center text-[var(--error)] text-sm">{error}</div>
-        ) : delegations.length === 0 ? (
-          <div className="py-16 text-center text-[var(--text-muted)]">
-            <Inbox size={34} className="mx-auto opacity-40" />
-            <p className="font-semibold mt-2 text-[var(--text-secondary)]">No delegations found</p>
-            <p className="text-xs mt-1">Try a different filter{canCreate ? ' or create one.' : '.'}</p>
-          </div>
-        ) : (
-          delegations.map((d) => (
-            <div
-              key={d._id}
-              onClick={() => navigate(`/delegation/${d._id}`)}
-              className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--border)] last:border-0 hover:bg-[var(--primary)]/5 cursor-pointer"
+          <p className="font-semibold mt-3 text-[var(--text-secondary)]">No delegations found</p>
+          <p className="text-xs mt-1">Try a different filter{canCreate ? ' or create one.' : '.'}</p>
+          {canCreate && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="mt-4 inline-flex items-center gap-2 bg-[var(--primary)] text-black font-semibold rounded-xl px-4 py-2 text-sm hover:bg-[var(--primary-hover)]"
             >
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm text-[var(--text-primary)] truncate">{d.title}</div>
-                <div className="text-xs text-[var(--text-muted)] mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 items-center">
-                  <span className="font-mono">{d.trackingId}</span>
-                  {d.departmentId?.name && <span>· {d.departmentId.name}</span>}
-                  {d.assignedTo?.name && <span>· {d.assignedTo.name}</span>}
+              <Plus size={15} /> New Delegation
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {delegations.map((d) => {
+            const accent = PRIORITY_ACCENT[d.priority] || 'var(--text-muted)';
+            const showProgress = inProgressLike(d.status) && (d.progressPercent || 0) > 0;
+            return (
+              <div
+                key={d._id}
+                onClick={() => navigate(`/delegation/${d._id}`)}
+                className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl pl-5 pr-4 py-4 cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-[var(--primary)]/30"
+              >
+                {/* Priority accent stripe */}
+                <span
+                  className="absolute left-0 top-0 bottom-0 w-1.5"
+                  style={{ background: accent }}
+                />
+
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm text-[var(--text-primary)] truncate group-hover:text-[var(--primary-active)] transition-colors">
+                      {d.title}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <span className="font-mono text-[var(--text-muted)] bg-[var(--bg)] rounded px-1.5 py-0.5">
+                        {d.trackingId}
+                      </span>
+                      {d.departmentId?.name && (
+                        <DeptChip name={d.departmentId.name} color={d.departmentId.color} />
+                      )}
+                      {d.assignedTo?.name ? (
+                        <UserChip name={d.assignedTo.name} size={20} />
+                      ) : (
+                        <span className="text-[var(--text-muted)]">Unassigned</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <PriorityChip priority={d.priority} />
+                    <DelegationStatusBadge status={d.status} />
+                    <DueDatePill delegation={d} />
+                  </div>
                 </div>
+
+                {showProgress && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <ProgressBar value={d.progressPercent} className="flex-1" />
+                    <span className="text-[10px] font-bold text-[var(--text-muted)] tabular-nums w-9 text-right">
+                      {Math.round(d.progressPercent)}%
+                    </span>
+                  </div>
+                )}
               </div>
-              <PriorityChip priority={d.priority} />
-              <DelegationStatusBadge status={d.status} />
-              <span className={`text-xs whitespace-nowrap ${isOverdue(d) ? 'text-[var(--error)] font-bold' : 'text-[var(--text-muted)]'}`}>
-                {isOverdue(d) ? '⚠ ' : ''}{fmtDate(d.dueDate)}
-              </span>
-            </div>
-          ))
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       <CreateDelegationModal isOpen={showCreate} onClose={() => setShowCreate(false)} onCreated={refresh} />
     </div>

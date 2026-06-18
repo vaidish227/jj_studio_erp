@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JJ Studio · Delegation Management — MVP Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  /* ===== Modern Luxe tokens (mirrors src/styles/theme.css) ===== */
+  :root{
+    --primary:#C19A45; --primary-hover:#AD8638; --primary-active:#98762F; --primary-rgb:193 154 69;
+    --bg:#EFEAE2; --surface:#FCFAF6;
+    --sidebar-bg:#241B12; --sidebar-hover:#34281C; --sidebar-text:#EDE4D3; --sidebar-text-muted:#B7A88E;
+    --border:#E6DECE; --divider:#D9D0BF;
+    --text-primary:#2A2017; --text-secondary:#574B3C; --text-muted:#7C6B56; --text:#2A2017;
+    --accent-blue:#356293; --accent-teal:#3F7E6C; --accent-green:#5E7A50;
+    --success:#3C8A4D; --warning:#A87320; --error:#C23B28;
+    --radius:14px; --shadow:0 1px 2px rgba(42,32,23,.06),0 8px 24px rgba(42,32,23,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+  .app{display:flex;min-height:100vh}
+  .badge-mvp{background:var(--success);color:#fff;font-size:9px;font-weight:900;letter-spacing:1px;border-radius:6px;padding:2px 6px;text-transform:uppercase}
+
+  /* Sidebar */
+  .sidebar{width:240px;background:var(--sidebar-bg);color:var(--sidebar-text);flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .brand{padding:20px 18px;font-weight:900;font-size:18px;letter-spacing:.5px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .brand .dot{width:26px;height:26px;border-radius:8px;background:var(--primary);display:grid;place-items:center;color:#241B12;font-weight:900}
+  .nav{padding:10px 8px;flex:1;overflow:auto}
+  .nav-group{font-size:10px;text-transform:uppercase;letter-spacing:1.4px;color:var(--sidebar-text-muted);padding:14px 12px 6px}
+  .nav-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;color:var(--sidebar-text);cursor:pointer;font-size:13.5px;font-weight:500;margin:2px 0}
+  .nav-item:hover{background:var(--sidebar-hover)}
+  .nav-item.active{background:rgba(var(--primary-rgb)/.16);color:#fff;font-weight:600;position:relative}
+  .nav-item.active::before{content:"";position:absolute;left:-8px;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--primary)}
+  .nav-item .ico{width:18px;text-align:center;opacity:.9}
+  .nav-item.dis{opacity:.32;cursor:not-allowed}
+  .sb-foot{padding:12px;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px;font-size:12px;color:var(--sidebar-text-muted)}
+  .sb-foot .av{width:30px;height:30px;border-radius:50%;background:var(--primary);color:#241B12;display:grid;place-items:center;font-weight:800}
+
+  /* Main */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 26px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:5}
+  .topbar h1{font-size:18px;font-weight:800}
+  .topbar .sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+  .spacer{flex:1}
+  .content{padding:22px 26px;max-width:1180px;width:100%}
+
+  /* Buttons / chips */
+  .btn{border:none;border-radius:10px;padding:9px 15px;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-family:inherit}
+  .btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-hover)}
+  .btn-ghost{background:transparent;color:var(--text-secondary);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg)}
+  .btn-sm{padding:6px 11px;font-size:12px;border-radius:8px}
+  .btn-ok{background:rgba(60,138,77,.12);color:var(--success);border:1px solid rgba(60,138,77,.25)}
+  .select{border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:600;color:var(--text-secondary);cursor:pointer;font-family:inherit}
+  .search{flex:1;max-width:300px;border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:9px 13px;font-size:13px;font-family:inherit}
+  .qf{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+  .qf button{border:none;background:transparent;padding:8px 13px;font-size:12.5px;font-weight:600;color:var(--text-muted);cursor:pointer;font-family:inherit}
+  .qf button.active{background:var(--primary);color:#fff}
+
+  .chip{display:inline-flex;align-items:center;padding:3px 9px;border-radius:8px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:1px;border:1px solid}
+  .c-muted{background:var(--bg);color:var(--text-muted);border-color:var(--border)}
+  .c-gold{background:rgba(var(--primary-rgb)/.12);color:var(--primary-active);border-color:rgba(var(--primary-rgb)/.25)}
+  .c-blue{background:rgba(53,98,147,.1);color:var(--accent-blue);border-color:rgba(53,98,147,.22)}
+  .c-teal{background:rgba(63,126,108,.1);color:var(--accent-teal);border-color:rgba(63,126,108,.22)}
+  .c-warn{background:rgba(168,115,32,.1);color:var(--warning);border-color:rgba(168,115,32,.22)}
+  .c-ok{background:rgba(60,138,77,.1);color:var(--success);border-color:rgba(60,138,77,.22)}
+  .c-err{background:rgba(194,59,40,.1);color:var(--error);border-color:rgba(194,59,40,.22)}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .grid{display:grid;gap:16px}
+  .kpis{grid-template-columns:repeat(4,1fr)}
+  .kpi{padding:16px 18px;position:relative;overflow:hidden}
+  .kpi .lbl{font-size:11.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+  .kpi .val{font-size:30px;font-weight:900;margin-top:6px}
+  .kpi .delta{font-size:11.5px;font-weight:700;margin-top:4px}
+  .kpi .wm{position:absolute;right:-6px;bottom:-10px;font-size:64px;opacity:.06}
+  .sec-title{font-size:14px;font-weight:800;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .row2{grid-template-columns:1fr 1fr}
+
+  .drow{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+  .drow:last-child{border-bottom:none}
+  .drow:hover{background:rgba(var(--primary-rgb)/.04);cursor:pointer}
+  .av{width:30px;height:30px;border-radius:50%;background:var(--accent-teal);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0}
+  .av.b{background:var(--accent-blue)}.av.g{background:var(--primary)}.av.p{background:#7c5cbf}
+  .dtitle{font-weight:700;font-size:14px}
+  .dmeta{font-size:12px;color:var(--text-muted);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .id{font-family:ui-monospace,monospace;font-size:11px;color:var(--text-muted)}
+
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);padding:0 4px;flex-wrap:wrap}
+  .tab{padding:11px 15px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--text-secondary)}
+  .tab.active{color:var(--primary-active);border-bottom-color:var(--primary)}
+  .badge-n{background:var(--bg);border:1px solid var(--border);border-radius:20px;font-size:10px;font-weight:800;padding:0 7px;margin-left:6px}
+
+  .pbar{height:7px;background:var(--bg);border-radius:6px;overflow:hidden;border:1px solid var(--border)}
+  .pbar > i{display:block;height:100%;background:var(--primary)}
+  .bar{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:12.5px}
+  .bar .nm{width:84px;color:var(--text-secondary);font-weight:600}
+  .bar .tr{flex:1;height:12px;background:var(--bg);border-radius:6px;overflow:hidden;border:1px solid var(--border)}
+  .bar .tr > i{display:block;height:100%}
+  .bar .vv{width:30px;text-align:right;font-weight:700;font-size:12px}
+
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;padding:50px 16px;z-index:50}
+  .ov.show{display:flex}
+  .modal{background:var(--surface);border-radius:18px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:86vh;overflow:auto}
+  .modal .mh{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border)}
+  .modal .mh h3{font-size:17px;font-weight:800}
+  .modal .mb{padding:20px 22px}
+  .fl{display:block;font-size:12.5px;font-weight:700;margin:14px 0 6px}
+  .fl:first-child{margin-top:0}
+  .inp{width:100%;border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:10px 12px;font-size:13px;font-family:inherit}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .drop{border:1.5px dashed var(--divider);border-radius:12px;padding:18px;text-align:center;color:var(--text-muted);font-size:12.5px}
+  .chkrow{display:flex;gap:8px;align-items:center;margin:7px 0;font-size:13px}
+  .mf{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--border)}
+
+  .screen{display:none}.screen.active{display:block}
+  .muted{color:var(--text-muted)}
+  .hint{font-size:11px;color:var(--text-muted);background:var(--bg);border:1px dashed var(--divider);border-radius:8px;padding:6px 10px;display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);padding:10px 12px;border-bottom:1px solid var(--border)}
+  td{padding:11px 12px;border-bottom:1px solid var(--border)}
+  @media(max-width:900px){.sidebar{display:none}.kpis{grid-template-columns:repeat(2,1fr)}.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand"><span class="dot">JJ</span> JJ Studio</div>
+    <nav class="nav">
+      <div class="nav-group">Workspace</div>
+      <div class="nav-item"><span class="ico">▤</span> Dashboard</div>
+      <div class="nav-item"><span class="ico">◇</span> CRM</div>
+      <div class="nav-item"><span class="ico">▦</span> Projects</div>
+      <div class="nav-group">Delegation · <span class="badge-mvp">MVP</span></div>
+      <div class="nav-item active" onclick="go('dashboard',this)"><span class="ico">📊</span> Dashboard</div>
+      <div class="nav-item" onclick="go('list',this)"><span class="ico">≣</span> All Delegations</div>
+      <div class="nav-item" onclick="go('depts',this)"><span class="ico">🏢</span> Departments <span style="margin-left:auto;font-size:9px;opacity:.6">admin</span></div>
+      <div class="nav-group">Admin</div>
+      <div class="nav-item"><span class="ico">⚙</span> Settings</div>
+    </nav>
+    <div class="sb-foot"><span class="av">RY</span><div>Rahul Yadav<br><span style="opacity:.7">Manager · Design</span></div></div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div><h1 id="ptitle">Delegation Dashboard</h1><div class="sub" id="psub">At-a-glance overview</div></div>
+      <div class="spacer"></div>
+      <select class="select"><option>Last 30 days ▾</option><option>This week</option><option>This quarter</option></select>
+      <button class="btn btn-ghost btn-sm">⟳</button>
+      <button class="btn btn-primary" onclick="openModal()">+ New Delegation</button>
+    </header>
+
+    <div class="content">
+
+    <!-- ===== DASHBOARD-LITE ===== -->
+    <section class="screen active" id="dashboard">
+      <div class="grid kpis" style="margin-bottom:16px">
+        <div class="card kpi"><div class="lbl">Pending</div><div class="val">12</div><div class="delta muted">awaiting action</div><div class="wm">⏳</div></div>
+        <div class="card kpi"><div class="lbl">Overdue</div><div class="val" style="color:var(--error)">4</div><div class="delta" style="color:var(--error)">needs attention</div><div class="wm">⚠</div></div>
+        <div class="card kpi"><div class="lbl">In Review</div><div class="val" style="color:var(--warning)">6</div><div class="delta muted">pending approval</div><div class="wm">👁</div></div>
+        <div class="card kpi"><div class="lbl">Completed</div><div class="val" style="color:var(--success)">38</div><div class="delta" style="color:var(--success)">this period</div><div class="wm">✓</div></div>
+      </div>
+      <div class="grid row2">
+        <div class="card" style="padding:18px"><h3 class="sec-title">Department Workload</h3>
+          <div class="bar"><span class="nm">Design</span><span class="tr"><i style="width:90%;background:var(--primary)"></i></span><span class="vv">18</span></div>
+          <div class="bar"><span class="nm">MIS</span><span class="tr"><i style="width:50%;background:var(--accent-blue)"></i></span><span class="vv">9</span></div>
+          <div class="bar"><span class="nm">Accounts</span><span class="tr"><i style="width:30%;background:var(--accent-teal)"></i></span><span class="vv">5</span></div>
+          <div class="bar"><span class="nm">Marketing</span><span class="tr"><i style="width:22%;background:#7c5cbf"></i></span><span class="vv">4</span></div>
+          <div class="bar"><span class="nm">HR</span><span class="tr"><i style="width:16%;background:var(--accent-green)"></i></span><span class="vv">3</span></div>
+        </div>
+        <div class="card" style="padding:18px"><h3 class="sec-title">Recent Activity</h3>
+          <div style="font-size:12.5px;line-height:2.2;color:var(--text-secondary)">
+            • R.Kumar <b>accepted</b> "Site survey"<br>
+            • You <b>reassigned</b> "Brochure" → Neha<br>
+            • A.Shah moved "GST filing" to <b>In Progress</b><br>
+            • N.Patel <b>commented</b> on "3D render"<br>
+            • HR <b>created</b> "Payroll run"
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:14px">Dashboard-Lite = 4 KPI tiles + department workload + recent activity (single role-scoped endpoint <code>GET /api/delegations/dashboard</code>).</p>
+    </section>
+
+    <!-- ===== LIST ===== -->
+    <section class="screen" id="list">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <div class="qf"><button class="active">All</button><button>Assigned to me</button><button>Created by me</button><button>Overdue</button></div>
+        <div class="spacer"></div>
+        <input class="search" placeholder="🔍 Search…">
+        <select class="select">Status ▾</select><select class="select">Dept ▾</select><select class="select">Priority ▾</select>
+      </div>
+      <div class="card">
+        <div class="drow"><span class="av g">AS</span><div style="flex:1"><div class="dtitle">Prepare GST filing — Q1</div><div class="dmeta"><span class="id">DLG-0042</span> · Accounts · A.Shah</div></div><span class="chip c-warn">High</span><span class="chip c-blue">In Progress</span><span class="muted" style="font-size:12px">Jun 20</span></div>
+        <div class="drow"><span class="av b">NP</span><div style="flex:1"><div class="dtitle">3D render — living room</div><div class="dmeta"><span class="id">DLG-0041</span> · Design · N.Patel</div></div><span class="chip c-err">Urgent</span><span class="chip c-warn">Review</span><span class="chip c-err">⚠ -2d</span></div>
+        <div class="drow"><span class="av p">KR</span><div style="flex:1"><div class="dtitle">Instagram campaign assets</div><div class="dmeta"><span class="id">DLG-0040</span> · Marketing · K.Reddy</div></div><span class="chip c-muted">Medium</span><span class="chip c-gold">Assigned</span><span class="muted" style="font-size:12px">Jun 25</span></div>
+        <div class="drow"><span class="av">HR</span><div style="flex:1"><div class="dtitle">New-hire onboarding — designer</div><div class="dmeta"><span class="id">DLG-0039</span> · HR · HR Team</div></div><span class="chip c-warn">High</span><span class="chip c-teal">Created</span><span class="muted" style="font-size:12px">Jun 24</span></div>
+        <div class="drow"><span class="av">RK</span><div style="flex:1"><div class="dtitle">Site measurement — Mehta Villa</div><div class="dmeta"><span class="id">DLG-0038</span> · Design · R.Kumar</div></div><span class="chip c-warn">High</span><span class="chip c-ok">Completed</span></div>
+        <div style="text-align:center;padding:14px;color:var(--text-muted);font-size:12px">‹ 1 2 3 … ›</div>
+      </div>
+      <p class="hint" style="margin-top:12px">MVP = List view only (quick filters via <code>?assignedTo / ?createdBy / ?overdue</code>). Kanban & Calendar are Phase 2.</p>
+    </section>
+
+    <!-- ===== DETAIL ===== -->
+    <section class="screen" id="detail">
+      <div class="card" style="padding:18px 20px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span class="id">DLG-2026-0041</span>
+          <h2 style="font-size:18px;font-weight:800">3D render — living room</h2>
+          <span class="chip c-warn">Review</span>
+          <div class="spacer"></div>
+          <button class="btn btn-ok btn-sm">Approve → Completed</button>
+          <button class="btn btn-ghost btn-sm">Reopen</button>
+          <button class="btn btn-ghost btn-sm">Reassign</button>
+        </div>
+        <div class="dmeta" style="margin-top:10px">👤 N.Patel · 🏢 Design · <span class="chip c-err">Urgent</span> · 📅 due Jun 15</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px"><span class="muted" style="font-size:12px">Checklist progress 75%</span><span class="pbar" style="flex:1"><i style="width:75%"></i></span></div>
+      </div>
+      <div class="card">
+        <div class="tabs">
+          <div class="tab active">Overview</div>
+          <div class="tab">Checklist<span class="badge-n">3/4</span></div>
+          <div class="tab">Comments<span class="badge-n">5</span></div>
+          <div class="tab">Attachments<span class="badge-n">3</span></div>
+          <div class="tab">Activity</div>
+        </div>
+        <div class="grid row2" style="padding:18px">
+          <div>
+            <h3 class="sec-title">Details</h3>
+            <p style="font-size:13px;line-height:1.7;color:var(--text-secondary)">Produce a photoreal render of the living room based on the approved concept. Reference files attached. Match the warm palette from the moodboard.</p>
+            <div style="margin-top:14px;font-size:12.5px;color:var(--text-muted)">🔗 Project: <b style="color:var(--text)">Mehta Villa</b> (optional link)</div>
+            <h3 class="sec-title" style="margin-top:18px">Checklist</h3>
+            <div class="chkrow"><input type="checkbox" checked> Base model blocked out</div>
+            <div class="chkrow"><input type="checkbox" checked> Lighting setup</div>
+            <div class="chkrow"><input type="checkbox" checked> Camera angles</div>
+            <div class="chkrow"><input type="checkbox"> Final material pass</div>
+          </div>
+          <div>
+            <h3 class="sec-title">Attachments</h3>
+            <div class="card" style="padding:11px;margin-bottom:8px;font-size:13px">📄 concept-brief.pdf <span class="muted" style="font-size:11px">· 1.2MB</span></div>
+            <div class="card" style="padding:11px;margin-bottom:8px;font-size:13px">🖼 moodboard.png <span class="muted" style="font-size:11px">· 880KB</span></div>
+            <div class="card" style="padding:11px;font-size:13px">🖼 render-wip-v2.png <span class="muted" style="font-size:11px">· 2.1MB</span></div>
+            <h3 class="sec-title" style="margin-top:18px">Activity</h3>
+            <div style="font-size:12.5px;line-height:2;color:var(--text-secondary)">
+              ● created by Manager — Jun 10<br>● assigned → N.Patel — Jun 11<br>● status → In Progress — Jun 12<br>● status → Review — Jun 14
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:12px">MVP detail tabs: Overview · Checklist · Comments · Attachments · Activity. (Subtasks, Deliverables, Dependencies, Effort are Phase 2/3.)</p>
+    </section>
+
+    <!-- ===== DEPARTMENT ADMIN ===== -->
+    <section class="screen" id="depts">
+      <div style="display:flex;align-items:center;margin-bottom:14px">
+        <span class="hint" style="display:inline-block">Admin-managed master data · created here, never seeded · system works with zero departments</span>
+        <div class="spacer"></div>
+        <button class="btn btn-primary btn-sm" onclick="openDept()">+ Add Department</button>
+      </div>
+      <div class="card" style="padding:4px 4px 0"><table>
+        <tr><th>Name</th><th>Color</th><th>Icon</th><th>Order</th><th>Active</th><th></th></tr>
+        <tr><td colspan="6" style="text-align:center;padding:34px;color:var(--text-muted)">
+          <div style="font-size:34px;opacity:.4">🏢</div>
+          <div style="font-weight:700;margin-top:8px">No departments yet</div>
+          <div style="font-size:12.5px;margin-top:4px">Add departments like Design, MIS, Accounts, HR, Marketing — or whatever fits your org.</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openDept()">+ Add your first department</button>
+        </td></tr>
+      </table></div>
+      <p class="hint" style="margin-top:12px;display:block">Endpoints: <code>GET/POST/PATCH/DELETE /api/departments</code> (manage = admin/MD). Delete is a soft-deactivate, never a hard delete when referenced.</p>
+    </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== DEPARTMENT MODAL ===== -->
+<div class="ov" id="ovd">
+  <div class="modal" style="max-width:420px">
+    <div class="mh"><h3>Add Department</h3><button class="btn btn-ghost btn-sm" onclick="closeDept()">✕</button></div>
+    <div class="mb">
+      <label class="fl">Name *</label><input class="inp" placeholder="e.g. Design">
+      <div class="two">
+        <div><label class="fl">Color</label><input class="inp" type="color" value="#C19A45" style="height:42px;padding:4px"></div>
+        <div><label class="fl">Order</label><input class="inp" type="number" placeholder="1"></div>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12.5px;font-weight:600"><input type="checkbox" checked> Active</label>
+    </div>
+    <div class="mf"><button class="btn btn-ghost" onclick="closeDept()">Cancel</button><button class="btn btn-primary" onclick="closeDept()">Save Department</button></div>
+  </div>
+</div>
+
+<!-- ===== CREATE MODAL ===== -->
+<div class="ov" id="ov">
+  <div class="modal">
+    <div class="mh"><h3>New Delegation</h3><button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button></div>
+    <div class="mb">
+      <label class="fl">Title *</label><input class="inp" placeholder="e.g. 3D render — master bedroom">
+      <label class="fl">Description</label><textarea class="inp" rows="2" placeholder="Details…"></textarea>
+      <div class="two">
+        <div><label class="fl">Department <span class="muted" style="font-weight:500">(optional)</span></label><select class="inp"><option>— none —</option><option disabled>No departments configured yet</option></select></div>
+        <div><label class="fl">Priority</label><select class="inp"><option>Medium</option><option>High</option><option>Urgent</option><option>Low</option></select></div>
+      </div>
+      <p class="hint" style="display:block;margin-top:6px">Departments are configured by an admin under <b>Departments</b>. The system works with zero departments — assignment stays optional until then.</p>
+      <div class="two">
+        <div><label class="fl">Assign to</label><input class="inp" placeholder="🔍 employee…"></div>
+        <div><label class="fl">Due date</label><input class="inp" type="date"></div>
+      </div>
+      <label class="fl">Link project <span class="muted" style="font-weight:500">(optional)</span></label><input class="inp" placeholder="🔍 project…">
+      <label class="fl">Checklist</label>
+      <div class="chkrow"><input type="checkbox" disabled> <input class="inp" style="padding:7px 10px" placeholder="Add checklist item…"></div>
+      <label class="fl">Attachments <span class="muted" style="font-weight:500">(PDF / Image / Document)</span></label>
+      <div class="drop">⬆ Drop files here</div>
+    </div>
+    <div class="mf"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="closeModal()">Create Delegation</button></div>
+  </div>
+</div>
+
+<script>
+  const titles={dashboard:['Delegation Dashboard','At-a-glance overview'],list:['All Delegations','Browse, filter and manage'],detail:['Delegation Detail',''],depts:['Departments','Configure department master data (admin)']};
+  function go(id,el){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    if(el)el.classList.add('active');
+    document.getElementById('ptitle').textContent=titles[id][0];
+    document.getElementById('psub').textContent=titles[id][1];
+    window.scrollTo(0,0);
+  }
+  function openModal(){document.getElementById('ov').classList.add('show')}
+  function closeModal(){document.getElementById('ov').classList.remove('show')}
+  function openDept(){document.getElementById('ovd').classList.add('show')}
+  function closeDept(){document.getElementById('ovd').classList.remove('show')}
+  document.querySelectorAll('#list .drow').forEach(r=>r.addEventListener('click',e=>{if(e.target.tagName==='INPUT')return;go('detail');}));
+  // quick-filter toggle
+  document.querySelectorAll('.qf button').forEach(b=>b.addEventListener('click',function(){this.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('active'));this.classList.add('active');}));
+  // tab toggle (visual only)
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',function(){this.parentElement.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));this.classList.add('active');}));
+</script>
+</body>
+</html>
