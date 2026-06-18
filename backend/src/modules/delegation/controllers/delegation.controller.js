@@ -23,7 +23,7 @@ const {
   buildStatusPatch,
   actionForStatus,
 } = require("../services/delegationWorkflow.service");
-const { notify } = require("../services/delegationNotify.service");
+const { notify, findAssignerIds } = require("../services/delegationNotify.service");
 
 const POPULATE = [
   { path: "departmentId", select: "name slug color icon" },
@@ -53,6 +53,11 @@ const findInScope = async (req, id) => {
 const validationError = (res, error) =>
   res.status(400).json({ message: error.details.map((d) => d.message).join("; ") });
 
+// Escape user-supplied text before using it in a $regex so special characters
+// are matched literally — prevents ReDoS / unintended pattern matching on the
+// title search (R5).
+const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Notify the assignee + creator (minus the actor) of an event.
 const stakeholderIds = (delegation) =>
   [delegation.assignedTo, delegation.createdBy].filter(Boolean).map(String);
@@ -72,7 +77,7 @@ const listDelegations = async (req, res) => {
       filter.dueDate = { $lt: new Date() };
       filter.status = { $nin: ["completed", "cancelled"] };
     }
-    if (q && q.trim()) filter.title = { $regex: q.trim(), $options: "i" };
+    if (q && q.trim()) filter.title = { $regex: escapeRegex(q.trim()), $options: "i" };
 
     const pg = Math.max(1, Number(page));
     const lim = Math.min(100, Math.max(1, Number(limit)));
@@ -168,6 +173,26 @@ const createDelegation = async (req, res) => {
           html: `<p>You have been assigned a new delegation.</p><p><b>${created.title}</b> (${created.trackingId})</p>`,
         },
       });
+    } else {
+      // No assignee yet — alert the users who can assign so the delegation
+      // doesn't sit unassigned with nobody notified (B1). In-app only: emailing
+      // the whole assigner pool on every unassigned create would be noise. The
+      // dispatcher also copies admin/md by default; this additionally reaches
+      // managers (and any custom-permission assigners). The creator is filtered
+      // out automatically as the actor. Fully fire-and-forget — like the
+      // assigned path, it must not add latency to or fail the create request.
+      findAssignerIds()
+        .then((assignerIds) =>
+          notify({
+            type: "delegation.created",
+            title: `Unassigned delegation: ${created.title}`,
+            message: `"${created.title}" (${created.trackingId}) was created with no assignee and needs an owner.`,
+            delegation: created,
+            actor: req.user,
+            recipients: assignerIds,
+          })
+        )
+        .catch((err) => console.error("[createDelegation:notifyAssigners]", err.message));
     }
 
     await created.populate(POPULATE);
@@ -577,7 +602,7 @@ const removeAttachment = async (req, res) => {
     logDelegationActivity({
       delegationId: delegation._id,
       actorId: req.user._id,
-      action: "attachment_added",
+      action: "attachment_removed",
       description: `Removed attachment ${att.fileName || att.name}`,
       metadata: { removed: att.fileName },
     });

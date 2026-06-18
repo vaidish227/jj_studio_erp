@@ -1,6 +1,8 @@
 const { dispatch } = require("../../notifications/services/notificationDispatcher");
 const { enqueue } = require("../../mail/service/mail.queue.service");
 const User = require("../../auth/models/user.model");
+const Role = require("../../auth/models/Role.model");
+const { aliasesFor } = require("../../auth/permissions/aliases");
 
 /**
  * delegationNotify — fire-and-forget tri-... bi-channel notifier for delegation
@@ -19,6 +21,39 @@ const resolveEmails = async (userIds = []) => {
     .select("email")
     .lean();
   return [...new Set(users.map((u) => u.email).filter(Boolean))];
+};
+
+/**
+ * Resolve active users who can assign delegations — i.e. anyone holding
+ * `delegation.assign`, one of its aliases, or the admin wildcard `*`, granted
+ * either via their role or via custom permissions. Used to alert potential
+ * owners when a delegation is created with no assignee (otherwise it would sit
+ * unassigned with nobody notified). Returns an array of user-id strings.
+ *
+ * This is a recipient lookup only — it grants no new access. Every user it
+ * returns already has org-wide visibility via `delegation.viewAll`/`*`, so they
+ * can already see the delegation; we are only pinging them.
+ */
+const findAssignerIds = async () => {
+  try {
+    const grants = [
+      ...new Set(["delegation.assign", "*", ...aliasesFor("delegation.assign")]),
+    ];
+    const roles = await Role.find({ permissions: { $in: grants } })
+      .select("name")
+      .lean();
+    const roleNames = roles.map((r) => r.name);
+    const users = await User.find({
+      isActive: true,
+      $or: [{ role: { $in: roleNames } }, { customPermissions: { $in: grants } }],
+    })
+      .select("_id")
+      .lean();
+    return [...new Set(users.map((u) => String(u._id)))];
+  } catch (err) {
+    console.error("[delegationNotify:findAssignerIds]", err.message);
+    return [];
+  }
 };
 
 /**
@@ -72,4 +107,4 @@ const notify = async ({ type, title, message, delegation, actor, recipients = []
   }
 };
 
-module.exports = { notify, resolveEmails, deepLink };
+module.exports = { notify, resolveEmails, deepLink, findAssignerIds };

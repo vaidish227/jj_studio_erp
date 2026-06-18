@@ -26,6 +26,7 @@ const delegationActivitySchema = new mongoose.Schema(
         "status_changed",
         "commented",
         "attachment_added",
+        "attachment_removed",
         "checklist_updated",
         "reopened",
         "cancelled",
