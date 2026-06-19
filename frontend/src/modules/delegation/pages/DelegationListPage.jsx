@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Inbox, ListChecks } from 'lucide-react';
+import { Plus, Search, Inbox, ListChecks, LayoutGrid, List } from 'lucide-react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useDelegationList } from '../hooks/useDelegationList';
 import { DelegationStatusBadge, PriorityChip } from '../components/DelegationStatusBadge';
@@ -21,6 +21,57 @@ const QUICK = [
 
 const inProgressLike = (s) => ['in_progress', 'review', 'reopened'].includes(s);
 
+// A single delegation card. Renders as a wide row in `list` view, or a compact
+// vertical card (badges wrap beneath the meta) in `grid` view — same content
+// and visuals either way.
+const DelegationCard = ({ d, grid, onClick }) => {
+  const accent = PRIORITY_ACCENT[d.priority] || 'var(--text-muted)';
+  const showProgress = inProgressLike(d.status) && (d.progressPercent || 0) > 0;
+  return (
+    <div
+      onClick={onClick}
+      className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl pl-5 pr-4 py-4 cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-[var(--primary)]/30"
+    >
+      {/* Priority accent stripe */}
+      <span className="absolute left-0 top-0 bottom-0 w-1.5" style={{ background: accent }} />
+
+      <div className={grid ? 'flex flex-col gap-3' : 'flex items-start gap-3'}>
+        <div className={grid ? 'min-w-0' : 'flex-1 min-w-0'}>
+          <div className="font-bold text-sm text-[var(--text-primary)] truncate group-hover:text-[var(--primary-active)] transition-colors">
+            {d.title}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="font-mono text-[var(--text-muted)] bg-[var(--bg)] rounded px-1.5 py-0.5">
+              {d.trackingId}
+            </span>
+            {d.departmentId?.name && <DeptChip name={d.departmentId.name} color={d.departmentId.color} />}
+            {d.assignedTo?.name ? (
+              <UserChip name={d.assignedTo.name} size={20} />
+            ) : (
+              <span className="text-[var(--text-muted)]">Unassigned</span>
+            )}
+          </div>
+        </div>
+
+        <div className={`flex items-center gap-2 ${grid ? 'flex-wrap' : 'shrink-0'}`}>
+          <PriorityChip priority={d.priority} />
+          <DelegationStatusBadge status={d.status} />
+          <DueDatePill delegation={d} />
+        </div>
+      </div>
+
+      {showProgress && (
+        <div className="mt-3 flex items-center gap-2">
+          <ProgressBar value={d.progressPercent} className="flex-1" />
+          <span className="text-[10px] font-bold text-[var(--text-muted)] tabular-nums w-9 text-right">
+            {Math.round(d.progressPercent)}%
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const DelegationListPage = () => {
   const navigate = useNavigate();
   const { user, hasPermission } = useAuth();
@@ -29,6 +80,10 @@ const DelegationListPage = () => {
   const [priority, setPriority] = useState('');
   const [q, setQ] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [view, setView] = useState(() => localStorage.getItem('delegation.listView') || 'list');
+
+  useEffect(() => { localStorage.setItem('delegation.listView', view); }, [view]);
+  const isGrid = view === 'grid';
 
   const filters = useMemo(() => {
     const f = { limit: 100 };
@@ -112,12 +167,40 @@ const DelegationListPage = () => {
           <option value="">Priority: All</option>
           {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_META[p].label}</option>)}
         </select>
+
+        {/* View toggle */}
+        <div className="inline-flex rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 gap-1">
+          <button
+            type="button"
+            aria-label="List view"
+            aria-pressed={!isGrid}
+            title="List view"
+            onClick={() => setView('list')}
+            className={`p-2 rounded-lg transition-colors ${
+              !isGrid ? 'bg-[var(--primary)] text-black shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--bg)]'
+            }`}
+          >
+            <List size={16} />
+          </button>
+          <button
+            type="button"
+            aria-label="Grid view"
+            aria-pressed={isGrid}
+            title="Grid view"
+            onClick={() => setView('grid')}
+            className={`p-2 rounded-lg transition-colors ${
+              isGrid ? 'bg-[var(--primary)] text-black shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--bg)]'
+            }`}
+          >
+            <LayoutGrid size={16} />
+          </button>
+        </div>
       </div>
 
       {/* List */}
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+        <div className={isGrid ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-3'}>
+          {Array.from({ length: isGrid ? 6 : 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : error ? (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl py-12 text-center text-[var(--error)] text-sm">
@@ -140,60 +223,15 @@ const DelegationListPage = () => {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {delegations.map((d) => {
-            const accent = PRIORITY_ACCENT[d.priority] || 'var(--text-muted)';
-            const showProgress = inProgressLike(d.status) && (d.progressPercent || 0) > 0;
-            return (
-              <div
-                key={d._id}
-                onClick={() => navigate(`/delegation/${d._id}`)}
-                className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl pl-5 pr-4 py-4 cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-[var(--primary)]/30"
-              >
-                {/* Priority accent stripe */}
-                <span
-                  className="absolute left-0 top-0 bottom-0 w-1.5"
-                  style={{ background: accent }}
-                />
-
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm text-[var(--text-primary)] truncate group-hover:text-[var(--primary-active)] transition-colors">
-                      {d.title}
-                    </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                      <span className="font-mono text-[var(--text-muted)] bg-[var(--bg)] rounded px-1.5 py-0.5">
-                        {d.trackingId}
-                      </span>
-                      {d.departmentId?.name && (
-                        <DeptChip name={d.departmentId.name} color={d.departmentId.color} />
-                      )}
-                      {d.assignedTo?.name ? (
-                        <UserChip name={d.assignedTo.name} size={20} />
-                      ) : (
-                        <span className="text-[var(--text-muted)]">Unassigned</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <PriorityChip priority={d.priority} />
-                    <DelegationStatusBadge status={d.status} />
-                    <DueDatePill delegation={d} />
-                  </div>
-                </div>
-
-                {showProgress && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <ProgressBar value={d.progressPercent} className="flex-1" />
-                    <span className="text-[10px] font-bold text-[var(--text-muted)] tabular-nums w-9 text-right">
-                      {Math.round(d.progressPercent)}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className={isGrid ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-3'}>
+          {delegations.map((d) => (
+            <DelegationCard
+              key={d._id}
+              d={d}
+              grid={isGrid}
+              onClick={() => navigate(`/delegation/${d._id}`)}
+            />
+          ))}
         </div>
       )}
 

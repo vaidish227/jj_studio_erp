@@ -7,6 +7,8 @@ import {
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { exportReportAsExcel } from '../../../shared/utils/excelExport';
+import MetricInfoTooltip from '../../delegation/components/MetricInfoTooltip';
+import { DESIGNER_KRA_HELP } from '../constants/designerKraHelp';
 
 /**
  * DesignerScoreboardPage — the "Full Report" target for the dashboard's
@@ -73,7 +75,7 @@ const Avatar = ({ name }) => {
   );
 };
 
-const StatCard = ({ icon: Icon, label, value, suffix, tone = 'default', sub }) => {
+const StatCard = ({ icon: Icon, label, value, suffix, tone = 'default', sub, help }) => {
   const tones = {
     default: 'text-[var(--text-primary)]',
     success: 'text-[var(--success)]',
@@ -83,7 +85,8 @@ const StatCard = ({ icon: Icon, label, value, suffix, tone = 'default', sub }) =
     primary: 'text-[var(--primary)]',
   };
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
+    <div className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
+      {help && <MetricInfoTooltip help={help} overlay />}
       <div className="flex items-center gap-2 mb-1.5">
         <Icon size={14} className={tones[tone]} />
         <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{label}</p>
@@ -184,8 +187,15 @@ const Row = ({ d, rank, onOpen }) => {
 };
 
 const TH_ALIGN = { left: 'text-left', center: 'text-center', right: 'text-right' };
-const Th = ({ children, align = 'left' }) => (
-  <th className={`px-3 lg:px-4 py-2.5 text-[10px] font-black uppercase tracking-widest ${TH_ALIGN[align]}`}>{children}</th>
+const Th = ({ children, align = 'left', help }) => (
+  <th className={`px-3 lg:px-4 py-2.5 text-[10px] font-black uppercase tracking-widest ${TH_ALIGN[align]}`}>
+    {help ? (
+      <span className={`group inline-flex items-center gap-1 ${align === 'right' ? 'flex-row-reverse' : ''}`}>
+        {children}
+        <MetricInfoTooltip help={help} />
+      </span>
+    ) : children}
+  </th>
 );
 
 const DesignerScoreboardPage = () => {
@@ -325,8 +335,11 @@ const DesignerScoreboardPage = () => {
           <div className="w-11 h-11 rounded-full bg-[var(--primary)]/12 text-[var(--primary)] flex items-center justify-center shrink-0">
             <Trophy size={20} />
           </div>
-          <div className="min-w-0">
-            <h1 className="text-base lg:text-xl font-extrabold text-[var(--text-primary)]">Designer KPI / KRA Scoreboard</h1>
+          <div className="min-w-0 group">
+            <h1 className="text-base lg:text-xl font-extrabold text-[var(--text-primary)] inline-flex items-center gap-1.5">
+              Designer KPI / KRA Scoreboard
+              <MetricInfoTooltip help={DESIGNER_KRA_HELP.kraScore} alwaysShow />
+            </h1>
             <p className="text-[11px] lg:text-xs text-[var(--text-muted)] mt-0.5">
               {PERIOD_LABEL[period]} · auto-calculated · ranked by KRA score · click a row for full detail
             </p>
@@ -363,7 +376,7 @@ const DesignerScoreboardPage = () => {
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatCard icon={Users}        label="Designers"  value={summary.count}          tone="default" sub="active in period" />
-        <StatCard icon={Award}        label="Avg KRA"    value={summary.avgKra} suffix="/5" tone={summary.avgKra >= 4 ? 'success' : summary.avgKra >= 3 ? 'warning' : 'primary'} sub="team average" />
+        <StatCard icon={Award}        label="Avg KRA"    value={summary.avgKra} suffix="/5" tone={summary.avgKra >= 4 ? 'success' : summary.avgKra >= 3 ? 'warning' : 'primary'} sub="team average" help={DESIGNER_KRA_HELP.avgKra} />
         <StatCard icon={CheckCircle2} label="On-Time"    value={summary.weightedOnTime} suffix="%" tone="success" sub="weighted by delivery" />
         <StatCard icon={Activity}     label="Delivered"  value={summary.totalDone}      tone="info" sub="tasks completed" />
         <StatCard icon={TrendingUp}   label="Active"     value={summary.totalActive}    tone="primary" sub="tasks in progress" />
@@ -433,10 +446,10 @@ const DesignerScoreboardPage = () => {
                 <tr>
                   <Th>Designer</Th>
                   <Th align="center">Active</Th>
-                  <Th align="center">Delivered</Th>
-                  <Th>On-Time %</Th>
-                  <Th align="right">First-Pass</Th>
-                  <Th align="right">KRA Score</Th>
+                  <Th align="center" help={DESIGNER_KRA_HELP.throughput}>Delivered</Th>
+                  <Th help={DESIGNER_KRA_HELP.onTime}>On-Time %</Th>
+                  <Th align="right" help={DESIGNER_KRA_HELP.firstPass}>First-Pass</Th>
+                  <Th align="right" help={DESIGNER_KRA_HELP.kraScore}>KRA Score</Th>
                   <th className="pr-3 lg:pr-4" />
                 </tr>
               </thead>

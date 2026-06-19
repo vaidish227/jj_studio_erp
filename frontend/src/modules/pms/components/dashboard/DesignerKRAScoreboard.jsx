@@ -1,6 +1,8 @@
 ﻿import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Trophy, Star, ArrowRight } from 'lucide-react';
+import MetricInfoTooltip from '../../../delegation/components/MetricInfoTooltip';
+import { DESIGNER_KRA_HELP } from '../../constants/designerKraHelp';
 
 /**
  * DesignerKRAScoreboard — performance leaderboard the MD can rank designers by.
@@ -120,8 +122,11 @@ const DesignerKRAScoreboard = ({ designers = [], period = 'month' }) => {
       <div className="flex items-start justify-between gap-2 px-5 py-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-2">
           <Trophy size={16} className="text-[var(--primary)]" />
-          <div>
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">Designer KPI / KRA Scoreboard</h3>
+          <div className="group">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] inline-flex items-center gap-1.5">
+              Designer KPI / KRA Scoreboard
+              <MetricInfoTooltip help={DESIGNER_KRA_HELP.kraScore} alwaysShow />
+            </h3>
             <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
               {periodLabel} · auto-calculated · ranked by KRA score
             </p>
