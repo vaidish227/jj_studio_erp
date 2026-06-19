@@ -5,7 +5,7 @@
 /* Priority → accent color used for the card left-stripe + dots. Escalates
    cool → warm so urgency reads at a glance even before the chip is parsed. */
 export const PRIORITY_ACCENT = {
-  low: 'var(--text-muted)',
+  low: 'var(--success)',
   medium: 'var(--accent-blue)',
   high: 'var(--warning)',
   urgent: 'var(--error)',

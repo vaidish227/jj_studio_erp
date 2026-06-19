@@ -661,7 +661,42 @@ const getDashboard = async (req, res) => {
     const now = new Date();
     const openStatuses = ["created", "assigned", "in_progress", "review", "reopened"];
 
-    const [pending, inProgress, inReview, completed, overdue, byDeptRaw] = await Promise.all([
+    // 14-day trend window: start-of-day, 13 days ago → 14 daily buckets incl. today.
+    const trendStart = new Date(now);
+    trendStart.setHours(0, 0, 0, 0);
+    trendStart.setDate(trendStart.getDate() - 13);
+
+    // "Due soon" = open work due within the next 3 days.
+    const soonThreshold = new Date(now);
+    soonThreshold.setDate(soonThreshold.getDate() + 3);
+
+    // Age-bucket boundaries (by createdAt) for open work: 0-2d / 3-7d / 8-14d / 15d+.
+    const age2 = new Date(now); age2.setDate(age2.getDate() - 2);
+    const age7 = new Date(now); age7.setDate(age7.getDate() - 7);
+    const age14 = new Date(now); age14.setDate(age14.getDate() - 14);
+    const openMatch = { ...base, status: { $in: openStatuses } };
+
+    const [
+      pending,
+      inProgress,
+      inReview,
+      completed,
+      overdue,
+      byDeptRaw,
+      statusRaw,
+      priorityRaw,
+      createdTrendRaw,
+      completedTrendRaw,
+      cycleAgg,
+      dueSoon,
+      total,
+      assigneeRaw,
+      attentionRaw,
+      age0to2,
+      age3to7,
+      age8to14,
+      age15plus,
+    ] = await Promise.all([
       Delegation.countDocuments({ ...base, status: { $in: ["created", "assigned"] } }),
       Delegation.countDocuments({ ...base, status: "in_progress" }),
       Delegation.countDocuments({ ...base, status: "review" }),
@@ -672,7 +707,97 @@ const getDashboard = async (req, res) => {
         { $group: { _id: "$departmentId", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
+      // Status mix across ALL delegations in scope.
+      Delegation.aggregate([
+        { $match: { ...base } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      // Priority mix among OPEN delegations.
+      Delegation.aggregate([
+        { $match: { ...base, status: { $in: openStatuses } } },
+        { $group: { _id: "$priority", count: { $sum: 1 } } },
+      ]),
+      // Created-per-day over the trend window.
+      Delegation.aggregate([
+        { $match: { ...base, createdAt: { $gte: trendStart } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
+      // Completed-per-day over the trend window (keyed on completedAt).
+      Delegation.aggregate([
+        { $match: { ...base, completedAt: { $gte: trendStart } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$completedAt" } }, count: { $sum: 1 } } },
+      ]),
+      // Cycle time + on-time delivery for completed work.
+      Delegation.aggregate([
+        { $match: { ...base, status: "completed", completedAt: { $ne: null } } },
+        {
+          $project: {
+            cycleMs: { $subtract: ["$completedAt", "$createdAt"] },
+            onTime: { $cond: [{ $and: [{ $ne: ["$dueDate", null] }, { $lte: ["$completedAt", "$dueDate"] }] }, 1, 0] },
+            hasDue: { $cond: [{ $ne: ["$dueDate", null] }, 1, 0] },
+          },
+        },
+        { $group: { _id: null, avgCycleMs: { $avg: "$cycleMs" }, onTime: { $sum: "$onTime" }, withDue: { $sum: "$hasDue" } } },
+      ]),
+      Delegation.countDocuments({ ...base, status: { $in: openStatuses }, dueDate: { $gte: now, $lte: soonThreshold } }),
+      Delegation.countDocuments({ ...base }),
+      // Open work per assignee (top 6; null bucket = unassigned). Single-assignee
+      // schema → group directly on the scalar assignedTo field.
+      Delegation.aggregate([
+        { $match: openMatch },
+        { $group: { _id: "$assignedTo", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 6 },
+      ]),
+      // Attention list: open work that is overdue or due within 3 days, soonest first.
+      Delegation.find({ ...openMatch, dueDate: { $ne: null, $lte: soonThreshold } })
+        .select("trackingId title dueDate priority status assignedTo")
+        .populate({ path: "assignedTo", select: "name" })
+        .sort({ dueDate: 1 })
+        .limit(8)
+        .lean(),
+      // Aging buckets by createdAt (open work only).
+      Delegation.countDocuments({ ...openMatch, createdAt: { $gte: age2 } }),
+      Delegation.countDocuments({ ...openMatch, createdAt: { $lt: age2, $gte: age7 } }),
+      Delegation.countDocuments({ ...openMatch, createdAt: { $lt: age7, $gte: age14 } }),
+      Delegation.countDocuments({ ...openMatch, createdAt: { $lt: age14 } }),
     ]);
+
+    // ── Status mix (stable key order so the donut colors never reshuffle) ──
+    const statusCountMap = Object.fromEntries(statusRaw.map((s) => [s._id, s.count]));
+    const statusMix = [
+      "created", "assigned", "in_progress", "review", "completed", "reopened", "cancelled",
+    ].map((status) => ({ status, count: statusCountMap[status] || 0 }));
+
+    // ── Priority mix among open work ──
+    const priorityCountMap = Object.fromEntries(priorityRaw.map((p) => [p._id, p.count]));
+    const priorityMix = ["urgent", "high", "medium", "low"].map((priority) => ({
+      priority,
+      count: priorityCountMap[priority] || 0,
+    }));
+
+    // ── 14-day trend, zero-filled so every day renders ──
+    const createdByDay = Object.fromEntries(createdTrendRaw.map((d) => [d._id, d.count]));
+    const completedByDay = Object.fromEntries(completedTrendRaw.map((d) => [d._id, d.count]));
+    const trend = [];
+    for (let i = 0; i < 14; i += 1) {
+      const d = new Date(trendStart);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      trend.push({ date: key, created: createdByDay[key] || 0, completed: completedByDay[key] || 0 });
+    }
+
+    // ── Headline summary metrics ──
+    const cyc = cycleAgg[0] || {};
+    const totalActive = openStatuses.reduce((sum, s) => sum + (statusCountMap[s] || 0), 0);
+    const summary = {
+      total,
+      totalActive,
+      completionRate: total ? Math.round((completed / total) * 100) : 0,
+      avgCycleDays: cyc.avgCycleMs ? Math.round((cyc.avgCycleMs / 86400000) * 10) / 10 : null,
+      onTimeRate: cyc.withDue ? Math.round((cyc.onTime / cyc.withDue) * 100) : null,
+      dueSoon,
+    };
 
     // Attach department names to workload buckets.
     const deptIds = byDeptRaw.map((d) => d._id).filter(Boolean);
@@ -683,6 +808,37 @@ const getDashboard = async (req, res) => {
       name: d._id ? deptMap[String(d._id)]?.name || "Unknown" : "Unassigned",
       color: d._id ? deptMap[String(d._id)]?.color : undefined,
       count: d.count,
+    }));
+
+    // Attach assignee names to the per-person workload buckets.
+    const assigneeIds = assigneeRaw.map((a) => a._id).filter(Boolean);
+    const assigneeUsers = await User.find({ _id: { $in: assigneeIds } }).select("name").lean();
+    const assigneeMap = Object.fromEntries(assigneeUsers.map((u) => [String(u._id), u.name]));
+    const assignees = assigneeRaw.map((a) => ({
+      userId: a._id,
+      name: a._id ? assigneeMap[String(a._id)] || "Unknown" : "Unassigned",
+      count: a.count,
+    }));
+
+    // Aging buckets for open work (by createdAt).
+    const aging = [
+      { bucket: "0-2d", label: "0–2 days", count: age0to2 },
+      { bucket: "3-7d", label: "3–7 days", count: age3to7 },
+      { bucket: "8-14d", label: "8–14 days", count: age8to14 },
+      { bucket: "15d+", label: "15+ days", count: age15plus },
+    ];
+
+    // Attention list: flag overdue vs due-soon so the UI can color each row.
+    // Single-assignee schema → assignedTo populates to one user (or null).
+    const attention = attentionRaw.map((d) => ({
+      _id: d._id,
+      trackingId: d.trackingId,
+      title: d.title,
+      dueDate: d.dueDate,
+      priority: d.priority,
+      status: d.status,
+      assignee: d.assignedTo?.name || null,
+      overdue: d.dueDate < now,
     }));
 
     // Recent activity across in-scope delegations.
@@ -700,7 +856,14 @@ const getDashboard = async (req, res) => {
     res.status(200).json({
       message: "Dashboard data",
       kpis: { pending, inProgress, inReview, completed, overdue },
+      summary,
+      statusMix,
+      priorityMix,
+      trend,
       workload,
+      assignees,
+      aging,
+      attention,
       recentActivity,
     });
   } catch (error) {
