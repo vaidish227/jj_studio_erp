@@ -136,8 +136,9 @@ export const NAV_ITEMS = [
     icon: ListTodo,
     permission: 'delegation.read',
     children: [
-      { id: 'delegation-dashboard',   label: 'Dashboard',       path: '/delegation',             permission: 'delegation.read' },
-      { id: 'delegation-list',        label: 'All Delegations', path: '/delegation/list',        permission: 'delegation.read' },
+      { id: 'delegation-dashboard',   label: 'Dashboard',          path: '/delegation',             permission: 'delegation.read' },
+      { id: 'delegation-create',      label: 'Create Delegation',  path: '/delegation/create',      permission: 'delegation.create' },
+      { id: 'delegation-list',        label: 'All Delegations',    path: '/delegation/list',        permission: 'delegation.read' },
       { id: 'delegation-departments', label: 'Departments',     path: '/delegation/departments', permission: 'delegation.department.manage' },
     ],
   },
