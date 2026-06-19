@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useToast } from '../../../shared/notifications/ToastProvider';
-import Button from '../../../shared/components/Button/Button';
 import { delegationService } from '../services/delegationService';
 import { departmentService } from '../services/departmentService';
 import { PRIORITIES, PRIORITY_META } from '../constants/delegationStatus';
@@ -57,14 +56,25 @@ const CreateDelegationPage = () => {
   const [departments, setDepartments] = useState([]);
   const [assignees, setAssignees] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [busyLabel, setBusyLabel] = useState('');
+  const [deptLoading, setDeptLoading] = useState(true);
+  const [assigneeLoading, setAssigneeLoading] = useState(canAssign);
   const [error, setError] = useState('');
-  const [result, setResult] = useState(null); // { delegation, assigneeName, dueDate }
+  const [result, setResult] = useState(null); // { delegation, assigneeName, departmentName, dueDate }
   const titleRef = useRef(null);
 
   useEffect(() => {
-    departmentService.list({ active: true }).then((r) => setDepartments(r.departments || [])).catch(() => {});
+    // deptLoading / assigneeLoading start true (see useState) — the fetches below
+    // just flip them off when done, so the empty-state hints never flash mid-load.
+    departmentService.list({ active: true })
+      .then((r) => setDepartments(r.departments || []))
+      .catch(() => {})
+      .finally(() => setDeptLoading(false));
     if (canAssign) {
-      delegationService.assignees().then((r) => setAssignees(r.users || [])).catch(() => {});
+      delegationService.assignees()
+        .then((r) => setAssignees(r.users || []))
+        .catch(() => {})
+        .finally(() => setAssigneeLoading(false));
     }
   }, [canAssign]);
 
@@ -80,31 +90,6 @@ const CreateDelegationPage = () => {
     [assignees, form.assignedTo],
   );
   const duePast = !!form.dueDate && startOfDay(form.dueDate) < startOfDay(new Date());
-
-  // Live readiness checks shown in the sticky panel.
-  const checks = useMemo(() => {
-    const list = [
-      {
-        key: 'title',
-        state: titleValid ? 'ok' : 'warn',
-        label: titleValid ? 'Title entered' : 'Title required (min 3 characters)',
-      },
-    ];
-    if (canAssign) {
-      list.push({
-        key: 'assignee',
-        state: form.assignedTo ? 'ok' : 'info',
-        label: form.assignedTo ? 'Assignee selected' : 'No assignee (can assign later)',
-      });
-    }
-    list.push({ key: 'priority', state: 'ok', label: `Priority set: ${PRIORITY_META[form.priority].label}` });
-    list.push({
-      key: 'due',
-      state: form.dueDate ? (duePast ? 'warn' : 'ok') : 'warn',
-      label: form.dueDate ? (duePast ? 'Due date is in the past' : 'Due date set') : 'Due date not set',
-    });
-    return list;
-  }, [titleValid, canAssign, form.assignedTo, form.priority, form.dueDate, duePast]);
 
   const addItem = () => {
     const v = newItem.trim();
@@ -143,6 +128,7 @@ const CreateDelegationPage = () => {
       return;
     }
     setSaving(true);
+    setBusyLabel('Creating delegation…');
     setError('');
     try {
       const payload = {
@@ -159,6 +145,7 @@ const CreateDelegationPage = () => {
 
       // Attachments use the existing post-create upload endpoint (one call each).
       if (files.length && created?._id) {
+        setBusyLabel(`Uploading ${files.length} attachment${files.length === 1 ? '' : 's'}…`);
         const failed = [];
         for (const f of files) {
           try {
@@ -178,6 +165,7 @@ const CreateDelegationPage = () => {
       setError(err?.message || 'Failed to create delegation');
     } finally {
       setSaving(false);
+      setBusyLabel('');
     }
   };
 
@@ -283,22 +271,22 @@ const CreateDelegationPage = () => {
             <div className={`grid gap-4 ${canAssign ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
               <div>
                 <Label>Department</Label>
-                <select className={inputCls} value={form.departmentId} onChange={set('departmentId')}>
-                  <option value="">— none (optional) —</option>
+                <select className={inputCls} value={form.departmentId} onChange={set('departmentId')} disabled={deptLoading}>
+                  <option value="">{deptLoading ? 'Loading departments…' : '— none (optional) —'}</option>
                   {departments.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
                 </select>
-                {departments.length === 0 && (
+                {!deptLoading && departments.length === 0 && (
                   <p className="text-[11px] text-[var(--text-muted)] mt-1">No departments configured yet — add them under Departments.</p>
                 )}
               </div>
               {canAssign && (
                 <div>
                   <Label>Assign to</Label>
-                  <select className={inputCls} value={form.assignedTo} onChange={set('assignedTo')}>
-                    <option value="">— unassigned —</option>
+                  <select className={inputCls} value={form.assignedTo} onChange={set('assignedTo')} disabled={assigneeLoading}>
+                    <option value="">{assigneeLoading ? 'Loading users…' : '— unassigned —'}</option>
                     {assignees.map((u) => <option key={u._id} value={u._id}>{u.name} ({u.role})</option>)}
                   </select>
-                  {assignees.length === 0 && (
+                  {!assigneeLoading && assignees.length === 0 && (
                     <p className="text-[11px] text-[var(--text-muted)] mt-1">No assignable users found — you can assign this later.</p>
                   )}
                 </div>
@@ -348,26 +336,26 @@ const CreateDelegationPage = () => {
           </Section>
         </div>
 
-        {/* Sticky summary + actions */}
-        <div className="lg:sticky lg:top-6 space-y-4">
+        {/* Sticky live preview + actions */}
+        <div className="lg:sticky lg:top-6">
           <ReviewSummaryPanel
             title={form.title.trim()}
+            description={form.description.trim()}
             assigneeName={assigneeName}
             department={department}
             priority={form.priority}
             dueDate={form.dueDate}
             checklistCount={checklist.length}
             attachmentCount={files.length}
-            checks={checks}
+            canAssign={canAssign}
+            titleValid={titleValid}
+            duePast={duePast}
+            saving={saving}
+            busyLabel={busyLabel}
+            canSubmit={titleValid}
+            onSubmit={submit}
+            onCancel={() => navigate('/delegation/list')}
           />
-          <div className="flex flex-col gap-2">
-            <Button variant="primary" size="md" fullWidth isLoading={saving} disabled={!titleValid} onClick={submit}>
-              Create Delegation
-            </Button>
-            <Button variant="ghost" size="sm" fullWidth onClick={() => navigate('/delegation/list')} disabled={saving}>
-              Cancel
-            </Button>
-          </div>
         </div>
       </div>
     </div>
