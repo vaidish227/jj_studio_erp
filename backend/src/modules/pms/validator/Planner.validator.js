@@ -94,6 +94,8 @@ const patchRowSchema = Joi.object({
   dependsOn:  Joi.array().items(OID).max(50),
   checklist:  Joi.array().items(checklistItemPatch).max(100),
   planning:   planningPatch,
+  // Scheduling — lock a row out of auto-shift (no cascade implications).
+  scheduleLocked: Joi.boolean(),
   // Optimistic concurrency
   updatedAt:  Joi.date(),
 }).min(1);
@@ -131,6 +133,20 @@ const phaseDeleteSchema = Joi.object({
   name: Joi.string().trim().min(1).max(80).required(),
 });
 
+// Set a phase's day budget (startDayOffset / dayBudget). At least one budget
+// field must accompany the phase name.
+const phaseBudgetSchema = Joi.object({
+  name:           Joi.string().trim().min(1).max(80).required(),
+  startDayOffset: Joi.number().integer().min(0).max(3650),
+  dayBudget:      Joi.number().integer().min(0).max(3650).allow(null),
+}).or("startDayOffset", "dayBudget");
+
+// Project-level scheduling settings — partial update (both fields optional).
+const settingsPatchSchema = Joi.object({
+  autoShiftEnabled: Joi.boolean(),
+  calendarMode:     Joi.string().valid("calendar_days", "working_days"),
+}).min(1);
+
 const masterQuerySchema = Joi.object({
   floor:        Joi.string().allow(""),
   zone:         Joi.string().allow(""),
@@ -142,6 +158,8 @@ const masterQuerySchema = Joi.object({
   workStatus:   Joi.string().valid(...WORK_STATUSES, ""),
   delayedOnly:  Joi.boolean().truthy("true").falsy("false"),
   search:       Joi.string().allow("").max(120),
+  // Nest subtasks under their parent row (default). false → flat shape (back-compat).
+  nest:         Joi.boolean().truthy("true").falsy("false").default(true),
 }).unknown(true);
 
 module.exports = {
@@ -157,4 +175,6 @@ module.exports = {
   phaseCreateSchema,
   phaseRenameSchema,
   phaseDeleteSchema,
+  phaseBudgetSchema,
+  settingsPatchSchema,
 };

@@ -77,6 +77,7 @@ const DatePicker = ({
   disabled = false,
   error,
   className = '',
+  compact = false, // tighter padding + smaller text for dense layouts (e.g. dashboard custom-range popover)
 }) => {
   const wrapperRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -234,10 +235,12 @@ const DatePicker = ({
 
   // ─── Trigger styling matches <Input> ──────────────────────────────────
   const triggerBase = `
-    w-full bg-[var(--surface)] border rounded-xl py-3 pr-4 transition-all duration-200
+    w-full bg-[var(--surface)] border rounded-xl transition-all duration-200
     text-left flex items-center gap-2
     focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]
-    ${Icon ? 'pl-12' : 'pl-4'}
+    ${compact ? 'py-2 text-sm' : 'py-3'}
+    ${Icon ? (compact ? 'pl-10' : 'pl-12') : (compact ? 'pl-3' : 'pl-4')}
+    ${compact ? 'pr-3' : 'pr-4'}
     ${error ? 'border-[var(--error)] focus:ring-[var(--error)]' : 'border-[var(--border)]'}
     ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-[var(--primary)]/50'}
   `;
@@ -267,7 +270,7 @@ const DatePicker = ({
           onClick={() => !disabled && setOpen((o) => !o)}
           className={`${triggerBase} ${className}`}
         >
-          <span className={`flex-1 ${selectedDate ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
+          <span className={`flex-1 min-w-0 truncate ${selectedDate ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`}>
             {selectedDate ? formatHuman(selectedDate) : placeholder}
           </span>
           <ChevronDown
@@ -282,6 +285,7 @@ const DatePicker = ({
           <div
             ref={popoverRef}
             style={popoverStyle}
+            data-datepicker-popover=""
             className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl shadow-black/15 p-3"
           >
             {/* Header: month + year dropdowns + nav */}

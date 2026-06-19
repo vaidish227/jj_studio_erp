@@ -51,7 +51,7 @@ const LoginPage = () => {
             />
             <span className="text-2xl font-bold tracking-tight">
               {/* <span className="text-[var(--text-primary)]">Tech</span> */}
-              <span className="text-[var(--primary)]">ERP</span>
+              <span className="text-[var(--primary)]">JJ-Studio</span>
             </span>
             
           </div>

@@ -376,6 +376,22 @@ const updateTask = async (req, res) => {
       value.completedAt = new Date();
     }
 
+    // Parent/subtask completion guard — a parent cannot be marked
+    // completed/approved/released while any of its subtasks is still open.
+    // No-op for childless tasks (countDocuments returns 0).
+    if (["completed", "approved", "released_to_site"].includes(value.status)) {
+      const openChildren = await Task.countDocuments({
+        parentTaskId: req.params.id,
+        status: { $nin: ["completed", "approved", "released_to_site", "on_hold", "cancelled"] },
+      });
+      if (openChildren > 0) {
+        return res.status(409).json({
+          code: "SUBTASKS_INCOMPLETE",
+          message: `Cannot complete this task — ${openChildren} subtask(s) still open.`,
+        });
+      }
+    }
+
     // Capture pre-update state so we can detect changes that trigger workflow side-effects.
     const before = await Task.findById(req.params.id).select("taskType routing startDate").lean();
 
@@ -705,6 +721,19 @@ const approveTask = async (req, res) => {
 
     if (task.status !== "pending_review") {
       return res.status(400).json({ message: `Cannot approve — task status is "${task.status}", must be pending_review` });
+    }
+
+    // Parent/subtask completion guard — don't approve a parent whose subtasks
+    // are still open. No-op for childless tasks.
+    const openChildren = await Task.countDocuments({
+      parentTaskId: task._id,
+      status: { $nin: ["completed", "approved", "released_to_site", "on_hold", "cancelled"] },
+    });
+    if (openChildren > 0) {
+      return res.status(409).json({
+        code: "SUBTASKS_INCOMPLETE",
+        message: `Cannot approve — ${openChildren} subtask(s) still open.`,
+      });
     }
 
     task.status     = "approved";

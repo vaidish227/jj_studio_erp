@@ -21,7 +21,7 @@ const fmt = (d) => d
  * Deep collaboration (comments / revisions / version history / PD review)
  * lives in the grid card view; the table view is optimised for scanning.
  */
-const DrawingListRow = ({ drawing, onSendForApproval, onApprove, onRelease, onRevise }) => {
+const DrawingListRow = ({ drawing, onSendForApproval, onApprove, onRelease, onRevise, hideProject = false }) => {
   const toast = useToast();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -92,10 +92,12 @@ const DrawingListRow = ({ drawing, onSendForApproval, onApprove, onRelease, onRe
         {DRAWING_TYPE_LABELS[drawing.drawingType] || drawing.drawingType || '—'}
       </td>
 
-      {/* Project */}
-      <td className="px-4 py-2.5 hidden lg:table-cell text-xs text-[var(--text-secondary)]">
-        <span className="block truncate max-w-[220px]" title={drawing.projectId?.name || ''}>{drawing.projectId?.name || '—'}</span>
-      </td>
+      {/* Project — omitted in the project-grouped view where it's the heading */}
+      {!hideProject && (
+        <td className="px-4 py-2.5 hidden lg:table-cell text-xs text-[var(--text-secondary)]">
+          <span className="block truncate max-w-[220px]" title={drawing.projectId?.name || ''}>{drawing.projectId?.name || '—'}</span>
+        </td>
+      )}
 
       {/* Uploaded by */}
       <td className="px-4 py-2.5 hidden xl:table-cell text-xs text-[var(--text-muted)]">

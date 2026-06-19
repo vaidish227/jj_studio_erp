@@ -23,6 +23,17 @@ const ProjectPlan = require("../models/ProjectPlan.model");
 const PlannerImportLog = require("../models/PlannerImportLog.model");
 const { logActivity } = require("../../../shared/activityLogger");
 const workflowEngine = require("../services/workflowEngine");
+const scheduleEngine = require("../services/scheduleEngine");
+
+// Humanized labels for the read-only Schedule Status column.
+const SCHEDULE_STATUS_LABEL = {
+  on_track:  "On Track",
+  due_today: "Due Today",
+  overdue:   "Overdue",
+  shifted:   "Shifted",
+  blocked:   "Blocked",
+  completed: "Completed",
+};
 
 const TASK_STATUSES = new Set([
   "not_started", "blocked", "in_progress",
@@ -51,6 +62,10 @@ const COLUMNS = [
   { key: "assignedToName",    header: "Designer",        width: 22, editable: false },
   { key: "plannedStartDate",  header: "Planned Start",   width: 14, editable: true, isDate: true },
   { key: "plannedEndDate",    header: "Deadline",        width: 14, editable: true, isDate: true },
+  { key: "durationDays",      header: "Duration Days",   width: 12, editable: false, isNumber: true },
+  { key: "scheduleStatus",    header: "Schedule Status", width: 14, editable: false },
+  { key: "scheduleLocked",    header: "Lock Schedule",   width: 12, editable: true, isBool: true },
+  { key: "shiftCount",        header: "Shift Count",     width: 10, editable: false, isNumber: true },
   { key: "plannedHours",      header: "Planned Hrs",     width: 12, editable: true, isNumber: true },
   { key: "actualHours",       header: "Actual Hrs",      width: 12, editable: true, isNumber: true },
   { key: "progressPercent",   header: "Progress %",      width: 12, editable: false, isNumber: true },
@@ -75,6 +90,13 @@ function coerce(value, col) {
     const n = Number(value);
     if (Number.isNaN(n)) throw new Error(`Invalid number for ${col.header}`);
     return n;
+  }
+  if (col.isBool) {
+    if (typeof value === "boolean") return value;
+    const s = String(value).trim().toLowerCase();
+    if (["yes", "true", "y", "1"].includes(s))  return true;
+    if (["no", "false", "n", "0"].includes(s))  return false;
+    throw new Error(`Invalid Yes/No for ${col.header}`);
   }
   return String(value).trim();
 }
@@ -127,6 +149,10 @@ exports.exportMasterSheet = async (req, res) => {
         assignedToName:    t.assignedTo?.name || "",
         plannedStartDate:  t.planning?.plannedStartDate || null,
         plannedEndDate:    t.planning?.plannedEndDate || null,
+        durationDays:      t.durationDays ?? "",
+        scheduleStatus:    SCHEDULE_STATUS_LABEL[scheduleEngine.getScheduleStatus(t)] || "",
+        scheduleLocked:    t.scheduleLocked ? "Yes" : "No",
+        shiftCount:        t.shiftCount ?? 0,
         plannedHours:      t.planning?.plannedHours ?? 0,
         actualHours:       t.planning?.actualHours ?? 0,
         progressPercent:   t.planning?.progressPercent ?? 0,
@@ -188,7 +214,11 @@ const COLUMN_HELP = {
   floor:            "Editable. Free-text floor label (e.g. G, 1, 2).",
   assignedToName:   "Read-only via import. Use the Designer cell in the planner UI to (re)assign — name matching here is too error-prone.",
   plannedStartDate: "Editable. Date format dd-mmm-yyyy preferred (Excel will format it automatically).",
-  plannedEndDate:   "Editable. Must be on/after Planned Start.",
+  plannedEndDate:   "Editable. Must be on/after Planned Start. This + Planned Start define the schedule range.",
+  durationDays:     "Read-only. Day span derived from Planned Start → Deadline; edit the dates to change it.",
+  scheduleStatus:   "Read-only. On Track / Due Today / Overdue / Shifted / Blocked / Completed — derived live.",
+  scheduleLocked:   "Editable. Yes/No. When Yes, the scheduling engine never auto-shifts this row.",
+  shiftCount:       "Read-only. Number of times this row's dates have been shifted.",
   plannedHours:     "Editable. Whole or decimal hours (e.g. 4, 8.5). Must be ≥ 0.",
   actualHours:      "Editable. Whole or decimal hours. Must be ≥ 0.",
   progressPercent:  "Read-only. Auto-derived from Status (not started 0% · in progress / revision 50% · pending review 80% · approved/completed 100%) — ignored on import.",
@@ -237,6 +267,10 @@ exports.getImportTemplate = async (req, res) => {
       assignedToName:    "(read-only — use UI to change)",
       plannedStartDate:  new Date(),
       plannedEndDate:    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      durationDays:      "(auto — from dates)",
+      scheduleStatus:    "(auto — read-only)",
+      scheduleLocked:    "No",
+      shiftCount:        "(auto — read-only)",
       plannedHours:      12,
       actualHours:       4,
       progressPercent:   "(auto — from status)",
@@ -367,7 +401,7 @@ function buildUpdate(data) {
     try { v = coerce(data[key], col); }
     catch (e) { return { error: e.message }; }
 
-    if (v === null && (col.isDate || col.isNumber)) continue; // skip empties for dates/numbers
+    if (v === null && (col.isDate || col.isNumber || col.isBool)) continue; // skip empties for dates/numbers/bools
     if (v === null) v = ""; // strings can be cleared
 
     if (key === "status") {
@@ -402,6 +436,8 @@ function buildUpdate(data) {
     } else if (key === "actualHours") {
       if (v < 0) return { error: "Actual Hrs cannot be negative" };
       set["planning.actualHours"] = v;
+    } else if (key === "scheduleLocked") {
+      set.scheduleLocked = v; // boolean — independent, no cascade implications
     }
   }
 

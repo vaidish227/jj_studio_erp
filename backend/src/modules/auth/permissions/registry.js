@@ -272,6 +272,9 @@ const PERMISSION_REGISTRY = [
           a("planner.dashboard", "Dashboard"),
           a("planner.import", "Import"),
           a("planner.export", "Export"),
+          // Scheduling engine — cascade shift + project recalculation
+          a("planner.schedule.shift", "Shift Schedule"),
+          a("planner.schedule.recalculate", "Recalculate Schedule"),
         ],
       },
       {
@@ -353,6 +356,96 @@ const PERMISSION_REGISTRY = [
         label: "Documents",
         actions: [
           a("pms.tab.documents", "Documents"),
+        ],
+      },
+      {
+        key: "closure_tabs",
+        label: "Finalization & Handover",
+        actions: [
+          a("pms.tab.material_finalization", "Material Finalization"),
+          a("pms.tab.snag_list", "Snag List"),
+          a("pms.tab.final_handover", "Final Handover"),
+          a("pms.tab.contractor", "Contractor"),
+        ],
+      },
+    ],
+  },
+
+  {
+    key: "material_finalization",
+    label: "Material Finalization",
+    group: "Project Management",
+    icon: "projects",
+    color: "#4A8F7C",
+    description: "Finalized material entries with reference images and supporting documents",
+    sections: [
+      {
+        key: "entries",
+        label: "Entries",
+        actions: [
+          a("material_finalization.read", "View"),
+          a("material_finalization.create", "Create"),
+          a("material_finalization.update", "Edit"),
+          a("material_finalization.delete", "Delete"),
+        ],
+      },
+    ],
+  },
+  {
+    key: "snag_list",
+    label: "Snag List",
+    group: "Project Management",
+    icon: "projects",
+    color: "#E67E22",
+    description: "Site snags / defects with photos, severity and resolution status",
+    sections: [
+      {
+        key: "snags",
+        label: "Snags",
+        actions: [
+          a("snag_list.read", "View"),
+          a("snag_list.create", "Create"),
+          a("snag_list.update", "Edit"),
+          a("snag_list.delete", "Delete"),
+        ],
+      },
+    ],
+  },
+  {
+    key: "final_handover",
+    label: "Final Handover",
+    group: "Project Management",
+    icon: "projects",
+    color: "#27AE60",
+    description: "Final handover document upload and management (completion docs, warranties, manuals)",
+    sections: [
+      {
+        key: "documents",
+        label: "Handover Documents",
+        actions: [
+          a("final_handover.read", "View"),
+          a("final_handover.upload", "Upload"),
+          a("final_handover.delete", "Delete"),
+        ],
+      },
+    ],
+  },
+  {
+    key: "contractor",
+    label: "Contractor",
+    group: "Project Management",
+    icon: "projects",
+    color: "#E67E22",
+    description: "Contractor directory, assigned scope, agreements and payment tracking",
+    sections: [
+      {
+        key: "contractors",
+        label: "Contractors",
+        actions: [
+          a("contractor.read", "View"),
+          a("contractor.create", "Create"),
+          a("contractor.update", "Edit"),
+          a("contractor.delete", "Delete"),
         ],
       },
     ],

@@ -318,6 +318,10 @@ const taskEditSchema = Joi.object({
   responsibilitySlug: Joi.string().trim().allow("").optional(),
   checklistTemplateName: Joi.string().trim().allow("").optional(),
   notes: Joi.string().allow("").max(500).optional(),
+  // Subtask: key (or client draft id) of the parent task. Remapped + validated
+  // server-side; references that don't survive the save are dropped.
+  parentKey:    Joi.string().trim().allow("", null).optional(),
+  subtaskOrder: Joi.number().integer().min(0).max(999).optional(),
 });
 
 const gateEditSchema = Joi.object({
@@ -331,6 +335,9 @@ const phaseEditSchema = Joi.object({
   order:    Joi.number().integer().min(1).max(99).required(),
   taskKeys: Joi.array().items(Joi.string().trim()).default([]),
   gateKeys: Joi.array().items(Joi.string().trim()).default([]),
+  // Phase day budget (milestone). Both optional.
+  startDayOffset: Joi.number().integer().min(0).max(3650).optional(),
+  dayBudget:      Joi.number().integer().min(0).max(3650).allow(null).optional(),
 });
 
 const updateWorkflowSchema = Joi.object({
@@ -450,6 +457,9 @@ const updateWorkflowTemplate = async (req, res) => {
             responsibilitySlug:    edit.responsibilitySlug    ?? existing.responsibilitySlug,
             checklistTemplateName: edit.checklistTemplateName ?? existing.checklistTemplateName,
             notes:                 edit.notes                 ?? existing.notes,
+            // Raw parentKey carried here; remapped/validated in the sweep below.
+            parentKey:    edit.parentKey !== undefined ? (edit.parentKey || null) : (existing.parentKey || null),
+            subtaskOrder: edit.subtaskOrder ?? existing.subtaskOrder ?? 0,
           });
           continue;
         }
@@ -472,18 +482,39 @@ const updateWorkflowTemplate = async (req, res) => {
           notes:                     edit.notes                 || "",
           dependsOnKeys:             [],
           requiresGateKeys:          [],
+          parentKey:                 edit.parentKey || null,
+          subtaskOrder:              edit.subtaskOrder || 0,
         });
       }
 
       // Sweep dependsOnKeys / requiresGateKeys on surviving tasks — drop refs
       // to removed task keys / gate keys so we don't ship dangling references.
       const survivingKeys = usedKeys;
-      template.tasks = nextTasks.map((t) => ({
-        ...t,
-        dependsOnKeys:    (t.dependsOnKeys || []).filter((k) => survivingKeys.has(k)),
-        // gate sweep happens after we decide gate diff below
-        requiresGateKeys: t.requiresGateKeys || [],
-      }));
+
+      // Resolve parentKey: remap client draft ids → final keys, then drop
+      // dangling / self references.
+      const finalParentOf = new Map();
+      for (const t of nextTasks) {
+        let pk = t.parentKey || null;
+        if (pk) pk = submittedKeyToFinalKey.get(pk) || pk;
+        if (pk && (!survivingKeys.has(pk) || pk === t.key)) pk = null;
+        finalParentOf.set(t.key, pk);
+      }
+
+      template.tasks = nextTasks.map((t) => {
+        // Keep subtasks one level deep: if this task's parent is itself a
+        // subtask, flatten this task to top-level.
+        let pk = finalParentOf.get(t.key);
+        if (pk && finalParentOf.get(pk)) pk = null;
+        return {
+          ...t,
+          parentKey:        pk,
+          subtaskOrder:     Number(t.subtaskOrder) || 0,
+          dependsOnKeys:    (t.dependsOnKeys || []).filter((k) => survivingKeys.has(k)),
+          // gate sweep happens after we decide gate diff below
+          requiresGateKeys: t.requiresGateKeys || [],
+        };
+      });
     }
 
     // ── Gates: label-only edits, no add/remove via this endpoint yet.
@@ -533,6 +564,8 @@ const updateWorkflowTemplate = async (req, res) => {
           order:    idx + 1,
           taskKeys: (p.taskKeys || []).map(remapTaskKey).filter((k) => survivingTaskKeys.has(k)),
           gateKeys: (p.gateKeys || []).filter((k) => survivingGateKeys.has(k)),
+          startDayOffset: Number(p.startDayOffset) || 0,
+          dayBudget:      p.dayBudget != null ? Number(p.dayBudget) : null,
         }));
     }
 

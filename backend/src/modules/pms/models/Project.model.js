@@ -96,6 +96,12 @@ const projectSchema = new mongoose.Schema(
           name:     { type: String, trim: true },
           order:    Number,
           taskKeys: [String],
+          // Phase-wise day budget (Phase 2). startDayOffset = days from project
+          // start where the phase nominally begins; dayBudget = nominal phase
+          // length in days. Advisory — the actual computed range comes from the
+          // phase's tasks/subtasks. Both optional; default to 0/null.
+          startDayOffset: { type: Number, default: 0 },
+          dayBudget:      { type: Number, default: null },
         },
       ],
       tasks: [
@@ -207,6 +213,21 @@ const projectSchema = new mongoose.Schema(
     },
     estimatedCompletionDate: Date,
     actualCompletionDate: Date,
+
+    // --- Scheduling engine settings (project-level defaults) ---
+    // autoShiftEnabled: gates the nightly auto-shift cron (Phase 2) for THIS
+    //   project. Ships false — opt-in per project. A task may override via its
+    //   own tri-state task.autoShiftEnabled.
+    // calendarMode: how the engine counts days. working_days skips Sat/Sun.
+    //   A task may override via task.calendarMode.
+    settings: {
+      autoShiftEnabled: { type: Boolean, default: false },
+      calendarMode: {
+        type: String,
+        enum: ["calendar_days", "working_days"],
+        default: "calendar_days",
+      },
+    },
 
     // --- Metadata ---
     notes: String,

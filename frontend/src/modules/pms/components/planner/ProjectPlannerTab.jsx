@@ -5,7 +5,7 @@ import {
   Eye, History as HistoryIcon, X, ExternalLink, FileText, RotateCcw, ChevronRight,
   UserCog, CalendarRange, ArrowLeftRight, Zap, CheckSquare, Square,
   Upload, Replace, Calendar as CalendarIcon, UserPlus, MessageSquare,
-  Rocket, Lock, Download, FileSpreadsheet, Layers,
+  Rocket, Lock, Download, FileSpreadsheet, Layers, GitBranch, Settings,
 } from 'lucide-react';
 import { pmsService } from '../../../../shared/services/pmsService';
 import { useAuth } from '../../../../shared/context/AuthContext';
@@ -16,10 +16,17 @@ import { useToast } from '../../../../shared/notifications/ToastProvider';
 import {
   StatCard, ModalShell, PRIORITY_OPTIONS, PRIORITY_BADGE,
   EditableTextCell, EditableNumberCell, EditablePriorityCell,
+  EditableDurationCell, LockToggleCell,
   PhaseHeaderRow, AddDashedRow,
 } from './sheetCells';
+import { ScheduleStatusBadge, AutoShiftedIndicator } from './ScheduleBadges';
+import SubtaskModal from './SubtaskModal';
+import DependencyPicker from './DependencyPicker';
+import ShiftHistoryModal from './ShiftHistoryModal';
+import DelayReasonModal from './DelayReasonModal';
 import SelectTemplateModal from './SelectTemplateModal';
 import { taskTypeToDrawingType, buildDrawingUploadFormData } from '../../utils/workItem';
+import { getAllAssignedUsers } from '../../utils/teamHelpers';
 
 const fmt = (d) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
@@ -101,7 +108,7 @@ const DelayBadge = ({ days }) => {
   );
 };
 
-const PlannerHeader = ({ project, plan, counters, template, canChangeTemplate, onChangeTemplate, onRefresh, onAddRow, onAutoSchedule, onActivate, onExport, onImport, exporting, refreshing }) => (
+const PlannerHeader = ({ project, plan, counters, template, canChangeTemplate, onChangeTemplate, onRefresh, onAddRow, onAutoSchedule, onActivate, onExport, onImport, onRecalculate, canRecalc, onOpenSettings, canEditPlanner, exporting, refreshing }) => (
   <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4">
     {/* Row 1 — title + meta on the left, primary actions on the right */}
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
@@ -190,6 +197,30 @@ const PlannerHeader = ({ project, plan, counters, template, canChangeTemplate, o
       >
         <FileSpreadsheet size={13} /> Import
       </button>
+      {/* Auto-shift status indicator — reflects project.settings.autoShiftEnabled */}
+      <span
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg border whitespace-nowrap ${
+          project?.settings?.autoShiftEnabled
+            ? 'text-[var(--success)] border-[var(--success)]/40 bg-[var(--success)]/10'
+            : 'text-[var(--text-muted)] border-[var(--border)] bg-[var(--bg)]'
+        }`}
+        title={project?.settings?.autoShiftEnabled
+          ? 'Nightly auto-shift is ON for this project — overdue unlocked tasks shift automatically.'
+          : 'Nightly auto-shift is OFF — dates only move when someone acts.'}
+      >
+        <Zap size={13} /> Auto-shift {project?.settings?.autoShiftEnabled ? 'ON' : 'OFF'}
+        <span className="text-[var(--text-muted)] font-semibold">· {project?.settings?.calendarMode === 'working_days' ? 'Working days' : 'Calendar days'}</span>
+      </span>
+      {canEditPlanner && (
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)]"
+          title="Scheduling settings (auto-shift, calendar mode)"
+        >
+          <Settings size={13} /> Settings
+        </button>
+      )}
       {canChangeTemplate && !plan?.effectiveAt && (
         <button
           type="button"
@@ -200,10 +231,20 @@ const PlannerHeader = ({ project, plan, counters, template, canChangeTemplate, o
           <Layers size={13} /> Select Template
         </button>
       )}
+      {canRecalc && (
+        <button
+          type="button"
+          onClick={onRecalculate}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] ml-auto"
+          title="Re-derive planned dates from project start, durations and dependencies"
+        >
+          <RefreshCw size={13} /> Recalculate
+        </button>
+      )}
       <button
         type="button"
         onClick={onAutoSchedule}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--primary)] border border-[var(--primary)]/40 bg-[var(--primary)]/10 rounded-lg hover:bg-[var(--primary)]/15 ml-auto"
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--primary)] border border-[var(--primary)]/40 bg-[var(--primary)]/10 rounded-lg hover:bg-[var(--primary)]/15 ${canRecalc ? '' : 'ml-auto'}`}
         title="Auto-fill Planned Start + Deadline for every task using the template's Day offsets"
       >
         <Zap size={13} /> Auto-Schedule
@@ -561,7 +602,7 @@ const ChecklistModal = ({ open, row, onClose, onSave, busy }) => {
  * Designer cell — chip-style display that swaps to EmployeePicker on click.
  * Submits the new assigneeId via onChange (string, "" for unassigned).
  */
-const DesignerCell = ({ value, onChange }) => {
+const DesignerCell = ({ value, onChange, restrictToIds }) => {
   const [editing, setEditing] = useState(false);
   // EmployeePicker expects a full user object — we have name/email from populate.
   const pickerValue = value?._id
@@ -598,6 +639,8 @@ const DesignerCell = ({ value, onChange }) => {
           if (String(nextId) !== String(prevId)) onChange(nextId);
         }}
         placeholder="Pick designer…"
+        restrictToIds={restrictToIds}
+        emptyHint="No team members — build the project team first"
       />
     </div>
   );
@@ -722,7 +765,7 @@ const DrawingCell = ({
   );
 };
 
-const AddRowModal = ({ open, onClose, onCreate, busy, defaultPhase }) => {
+const AddRowModal = ({ open, onClose, onCreate, busy, defaultPhase, teamUserIds }) => {
   const [form, setForm] = useState({
     title: '', taskType: 'technical_drawing', priority: 'medium',
     zoneName: '', floor: '', area: '',
@@ -852,7 +895,9 @@ const AddRowModal = ({ open, onClose, onCreate, busy, defaultPhase }) => {
               value={form.designer}
               onChange={(user) => set('designer', user)}
               placeholder="Assign a designer…"
-              filterRoles={['designer', 'supervisor']}
+              restrictToIds={teamUserIds}
+              filterRoles={teamUserIds ? undefined : ['designer', 'supervisor']}
+              emptyHint="No team members — build the project team first"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -1338,7 +1383,10 @@ const VersionRows = ({ row, state, onViewVersion, totalCols }) => {
         {/* Planned Start / Deadline / Days / Hrs / Progress / Delay — from THIS version's snapshot */}
         <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)] whitespace-nowrap">{ts.plannedStartDate ? fmt(ts.plannedStartDate) : '—'}</td>{/* Planned Start */}
         <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)] whitespace-nowrap">{ts.plannedEndDate ? fmt(ts.plannedEndDate) : '—'}</td>{/* Deadline */}
-        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{ts.plannedDays != null ? ts.plannedDays : '—'}</td>{/* Days */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{ts.plannedDays != null ? ts.plannedDays : '—'}</td>{/* Duration */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-muted)]">—</td>{/* Schedule */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-muted)]">—</td>{/* Predecessor */}
+        <td className="px-3 py-2 text-[11px] text-[var(--text-muted)]">—</td>{/* Auto-Shift */}
         <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{ts.plannedHours != null ? ts.plannedHours : '—'}</td>{/* Planned Hrs */}
         <td className="px-3 py-2 text-[11px] text-[var(--text-secondary)]">{ts.actualHours != null ? ts.actualHours : '—'}</td>{/* Actual Hrs */}
         <td className="px-3 py-2">{DRAWING_TO_PROGRESS[v.status] != null ? <ProgressCell value={DRAWING_TO_PROGRESS[v.status]} /> : <span className="text-[11px] text-[var(--text-muted)]">—</span>}</td>{/* Progress */}
@@ -1359,13 +1407,122 @@ const VersionRows = ({ row, state, onViewVersion, totalCols }) => {
   });
 };
 
+/**
+ * SubtaskRow — one interactive child row rendered beneath its parent. Mirrors
+ * the VersionRows indentation language (sticky blank + "↳" connector, left
+ * border) but every cell is editable, just like a normal task row. Column count
+ * matches the parent grid exactly so everything stays aligned.
+ *
+ * `h` bundles the schedule/edit handlers so we don't thread a dozen props.
+ */
+const SubtaskRow = ({ sub, h, teamUserIds, canSchedule }) => {
+  const locked = !!sub.scheduleLocked;
+  const dateDisabled = locked;
+  return (
+    <tr className="bg-[var(--bg)]/40 border-b border-[var(--border)]">
+      {/* checkbox + # (sticky, blank w/ connector) */}
+      <td className="px-2 py-2 sticky left-0 z-[5] bg-[var(--bg)]" />
+      <td className="px-3 py-2 sticky left-8 z-[5] bg-[var(--bg)] text-[11px] font-mono text-[var(--text-muted)]">↳</td>
+      {/* Title (indented) */}
+      <td className="px-3 py-2 sticky left-16 z-[5] bg-[var(--bg)]">
+        <div className="flex items-center gap-2 pl-3 border-l-2 border-[var(--primary)]/30">
+          <EditableTextCell value={sub.title} onSave={(v) => h.onPatch(sub.taskId, { title: v })} width="w-44" />
+        </div>
+      </td>
+      {/* Stage */}
+      <td className="px-3 py-2"><StageBadge stage={sub.stage} /></td>
+      {/* Work Status */}
+      <td className="px-3 py-2">
+        <EditableWorkStatusCell value={sub.workStatus} onSave={(v) => h.onPatch(sub.taskId, { workStatus: v })} />
+      </td>
+      {/* Priority */}
+      <td className="px-3 py-2">
+        <EditablePriorityCell value={sub.priority} onSave={(p) => h.onPatch(sub.taskId, { priority: p })} />
+      </td>
+      {/* Zone / Floor / Area */}
+      <td className="px-3 py-2"><EditableTextCell value={sub.planning?.zoneName} placeholder="Zone" autoSize onSave={(v) => h.onPatch(sub.taskId, { planning: { zoneName: v } })} /></td>
+      <td className="px-3 py-2"><EditableTextCell value={sub.planning?.floor} placeholder="Floor" autoSize onSave={(v) => h.onPatch(sub.taskId, { planning: { floor: v } })} /></td>
+      <td className="px-3 py-2"><EditableTextCell value={sub.planning?.area} placeholder="Area" autoSize onSave={(v) => h.onPatch(sub.taskId, { planning: { area: v } })} /></td>
+      {/* Designer */}
+      <td className="px-3 py-2">
+        <DesignerCell value={sub.assignedTo} onChange={(userId) => h.onPatch(sub.taskId, { assignedTo: userId || null })} restrictToIds={teamUserIds} />
+      </td>
+      {/* Checklist */}
+      <td className="px-3 py-2"><ChecklistCell row={sub} onOpen={() => h.onOpenChecklist(sub)} /></td>
+      {/* Planned Start / Deadline */}
+      <td className="px-3 py-2">
+        <EditableDateCell value={sub.planning?.plannedStartDate} disabled={dateDisabled}
+          onSave={(iso) => h.onScheduleDateEdit(sub, { planning: { plannedStartDate: iso } })} />
+      </td>
+      <td className="px-3 py-2">
+        <EditableDateCell value={sub.planning?.plannedEndDate} disabled={dateDisabled}
+          onSave={(iso) => h.onScheduleDateEdit(sub, { planning: { plannedEndDate: iso } })} />
+      </td>
+      {/* Duration */}
+      <td className="px-3 py-2">
+        <EditableDurationCell value={sub.durationDays} startDate={sub.planning?.plannedStartDate} disabled={dateDisabled}
+          onSave={(n) => h.onDurationEdit(sub, n)} />
+      </td>
+      {/* Schedule status */}
+      <td className="px-3 py-2"><ScheduleStatusBadge status={sub.scheduleStatus} /></td>
+      {/* Predecessor */}
+      <td className="px-3 py-2">
+        <DependencyChip count={(sub.dependsOn || []).length} onClick={() => h.onOpenDependency(sub)} disabled={!canSchedule} />
+      </td>
+      {/* Auto-Shift */}
+      <td className="px-3 py-2"><AutoShiftedIndicator shiftCount={sub.shiftCount} onClick={() => h.onOpenShiftHistory(sub)} /></td>
+      {/* Planned / Actual hrs */}
+      <td className="px-3 py-2"><EditableNumberCell value={sub.planning?.plannedHours} onSave={(n) => h.onPatch(sub.taskId, { planning: { plannedHours: n } })} /></td>
+      <td className="px-3 py-2"><EditableNumberCell value={sub.planning?.actualHours} onSave={(n) => h.onPatch(sub.taskId, { planning: { actualHours: n } })} /></td>
+      {/* Progress / Delay */}
+      <td className="px-3 py-2"><ProgressCell value={sub.planning?.progressPercent} /></td>
+      <td className="px-3 py-2"><DelayBadge days={sub.delayDays} /></td>
+      {/* Drawing (subtasks rarely carry their own; show minimal state) */}
+      <td className="px-3 py-2 text-[11px] text-[var(--text-muted)]">
+        {sub.drawing ? <span className="font-mono">v{sub.drawing.version}</span> : '—'}
+      </td>
+      {/* Actions — lock + history + delete */}
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-0.5">
+          <LockToggleCell locked={locked} disabled={!canSchedule} onToggle={(v) => h.onToggleLock(sub, v)} />
+          <button type="button" onClick={() => h.onOpenShiftHistory(sub)} title="Shift history"
+            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--accent-blue)] hover:bg-[var(--bg)]">
+            <HistoryIcon size={12} />
+          </button>
+          <button type="button" onClick={() => h.onDelete(sub.taskId, sub.title, sub)} title="Delete subtask"
+            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10">
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+};
+
+// Compact dependency chip used in the Predecessor column.
+const DependencyChip = ({ count, onClick, disabled }) => (
+  <button type="button" onClick={onClick} disabled={disabled}
+    title={count ? `${count} predecessor(s) — click to edit` : 'Set dependencies'}
+    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold transition-colors ${
+      count
+        ? 'text-[var(--primary)] bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20'
+        : 'text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--bg)]'
+    } disabled:opacity-40 disabled:cursor-not-allowed`}>
+    <GitBranch size={11} /> {count || '—'}
+  </button>
+);
+
 const MasterSheetGrid = ({
   rows, phases, onPatch, onDelete, onViewDrawing, onShowVersions, onUpload, onOpenNotes, onOpenChecklist,
   uploadingTaskId, selectedTaskIds, onToggleRow, onToggleAll, onAddToPhase,
   // Per-project phase management (planner.edit)
-  canManagePhases, onAddPhase, onRenamePhase, onDeletePhase,
+  canManagePhases, onAddPhase, onRenamePhase, onDeletePhase, onEditPhaseBudget,
   // Inline version-history dropdown
   expandedVersionsTaskId, versionsCache, onToggleVersionsExpand, onViewVersion,
+  // Restrict the designer picker to the project team (null = all assignable)
+  teamUserIds,
+  // Scheduling engine — subtasks + cascade-aware edits
+  expandedSubtasksTaskId, onToggleSubtasks, sched, canSchedule,
 }) => {
   // Per-phase collapse — Set of phase keys currently hidden. Phase headers act
   // as the accordion toggle; clicking the chevron (or the row outside the Add
@@ -1395,9 +1552,13 @@ const MasterSheetGrid = ({
   // Phase groups for grouped rendering — seeded from the snapshot phase list so
   // empty phases still render; row order preserved from the server sort.
   const phaseGroups = groupRowsByPhase(rows, phaseList);
+  // Lookup of enriched phase info (budget + computed range/progress) by ci name.
+  const phaseInfoByKey = new Map(
+    phaseList.map((p) => [String(p.name || '').trim().toLowerCase(), p])
+  );
   // Total columns including the sticky checkbox + # — used for phase-header colspan
-  // and the expandable version sub-rows.
-  const TOTAL_COLS = 20;
+  // and the expandable version / subtask sub-rows.
+  const TOTAL_COLS = 23;
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-x-auto">
@@ -1428,7 +1589,10 @@ const MasterSheetGrid = ({
             <th className="px-3 py-2 min-w-[110px]">Checklist</th>
             <th className="px-3 py-2">Planned Start</th>
             <th className="px-3 py-2">Deadline</th>
-            <th className="px-3 py-2" title="Auto-computed from Start &amp; Deadline">Days</th>
+            <th className="px-3 py-2" title="Duration in days — start + duration = due">Duration</th>
+            <th className="px-3 py-2" title="Schedule status">Schedule</th>
+            <th className="px-3 py-2" title="Predecessor / dependency tasks">Predecessor</th>
+            <th className="px-3 py-2" title="Times this row's dates were shifted">Auto-Shift</th>
             <th className="px-3 py-2">Planned Hrs</th>
             <th className="px-3 py-2">Actual Hrs</th>
             <th className="px-3 py-2">Progress</th>
@@ -1459,13 +1623,37 @@ const MasterSheetGrid = ({
                     </span>
                   )
                 }
-                metaSlot={
-                  <span className="text-[10px] text-[var(--text-muted)] ml-1">
-                    {group.rows.length} task{group.rows.length !== 1 ? 's' : ''}
-                  </span>
-                }
+                metaSlot={(() => {
+                  const info = phaseInfoByKey.get(group.key);
+                  return (
+                    <span className="text-xs text-[var(--text-secondary)] ml-1 inline-flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold">{group.rows.length} task{group.rows.length !== 1 ? 's' : ''}</span>
+                      {info?.computedStart && info?.computedEnd && (
+                        <span className="text-[var(--text-primary)]">· {fmt(info.computedStart)} → {fmt(info.computedEnd)}{info.computedDays != null ? ` (${info.computedDays}d)` : ''}</span>
+                      )}
+                      {info && info.progressPercent != null && info.taskCount > 0 && (
+                        <span className="font-semibold text-[var(--text-primary)]">· {info.progressPercent}%</span>
+                      )}
+                      {info?.dayBudget != null && (
+                        <span className={`font-bold ${info.computedDays != null && info.computedDays > info.dayBudget ? 'text-[var(--error)]' : 'text-[var(--text-primary)]'}`}>
+                          · Budget {info.dayBudget}d{info.computedDays != null && info.computedDays > info.dayBudget ? ' ⚠' : ''}
+                        </span>
+                      )}
+                    </span>
+                  );
+                })()}
                 actionsSlot={(
                   <>
+                    {canManagePhases && !isOther && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onEditPhaseBudget?.(phaseInfoByKey.get(group.key) || { name: group.name }); }}
+                        className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10"
+                        title="Set phase day budget"
+                      >
+                        <CalendarRange size={12} />
+                      </button>
+                    )}
                     {onAddToPhase && !isOther && (
                       <button
                         type="button"
@@ -1505,6 +1693,9 @@ const MasterSheetGrid = ({
             // Show the expand caret only when more than one version exists, so
             // there's actually previous data to reveal beneath the row.
             const hasVersions = !!r.drawing && ((r.drawing.version || 1) > 1 || (r.drawing.revisionsCount || 1) > 1);
+            const hasSubtasks = Array.isArray(r.subtasks) && r.subtasks.length > 0;
+            const isSubExpanded = expandedSubtasksTaskId === String(r.taskId);
+            const parentDatesLocked = r.scheduleLocked || hasSubtasks; // children own the dates
             return (
               <React.Fragment key={r.taskId}>
               <tr className={`border-b border-[var(--border)] hover:bg-[var(--bg)]/60 ${rowTone} ${rowBg}`}>
@@ -1520,7 +1711,16 @@ const MasterSheetGrid = ({
                 </td>
                 <td className={`px-3 py-2 sticky left-8 ${isSelected ? 'bg-[var(--primary)]/5' : 'bg-[var(--surface)]'}`}>
                   <div className="flex items-center gap-1">
-                    {hasVersions ? (
+                    {hasSubtasks ? (
+                      <button
+                        type="button"
+                        onClick={() => onToggleSubtasks(r)}
+                        title={isSubExpanded ? 'Hide subtasks' : `Show ${r.subtasks.length} subtask(s)`}
+                        className={`p-0.5 rounded hover:bg-[var(--primary)]/10 transition-colors ${isSubExpanded ? 'text-[var(--primary)]' : 'text-[var(--text-muted)] hover:text-[var(--primary)]'}`}
+                      >
+                        <ChevronRight size={14} className={`transition-transform ${isSubExpanded ? 'rotate-90' : ''}`} />
+                      </button>
+                    ) : hasVersions ? (
                       <button
                         type="button"
                         onClick={() => onToggleVersionsExpand(r)}
@@ -1591,6 +1791,7 @@ const MasterSheetGrid = ({
                   <DesignerCell
                     value={r.assignedTo}
                     onChange={(userId) => onPatch(r.taskId, { assignedTo: userId || null })}
+                    restrictToIds={teamUserIds}
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -1599,16 +1800,32 @@ const MasterSheetGrid = ({
                 <td className="px-3 py-2">
                   <EditableDateCell
                     value={r.planning.plannedStartDate}
-                    onSave={(iso) => onPatch(r.taskId, { planning: { plannedStartDate: iso } })}
+                    disabled={parentDatesLocked}
+                    onSave={(iso) => sched.onScheduleDateEdit(r, { planning: { plannedStartDate: iso } })}
                   />
                 </td>
                 <td className="px-3 py-2">
                   <EditableDateCell
                     value={r.planning.plannedEndDate}
-                    onSave={(iso) => onPatch(r.taskId, { planning: { plannedEndDate: iso } })}
+                    disabled={parentDatesLocked}
+                    onSave={(iso) => sched.onScheduleDateEdit(r, { planning: { plannedEndDate: iso } })}
                   />
                 </td>
-                <td className="px-3 py-2 text-xs text-[var(--text-muted)]">{r.plannedDays ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <EditableDurationCell
+                    value={r.durationDays}
+                    startDate={r.planning.plannedStartDate}
+                    disabled={parentDatesLocked}
+                    onSave={(n) => sched.onDurationEdit(r, n)}
+                  />
+                </td>
+                <td className="px-3 py-2"><ScheduleStatusBadge status={r.scheduleStatus} /></td>
+                <td className="px-3 py-2">
+                  <DependencyChip count={(r.dependsOn || []).length} onClick={() => sched.onOpenDependency(r)} disabled={!canSchedule} />
+                </td>
+                <td className="px-3 py-2">
+                  <AutoShiftedIndicator shiftCount={r.shiftCount} onClick={() => sched.onOpenShiftHistory(r)} />
+                </td>
                 <td className="px-3 py-2">
                   <EditableNumberCell
                     value={r.planning.plannedHours}
@@ -1639,7 +1856,7 @@ const MasterSheetGrid = ({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <button
                       type="button"
                       onClick={() => onOpenNotes(r)}
@@ -1647,6 +1864,25 @@ const MasterSheetGrid = ({
                       title={r.notes ? 'View / edit notes' : 'Add notes'}
                     >
                       <MessageSquare size={12} />
+                    </button>
+                    {!r.isSubtask && (
+                      <button
+                        type="button"
+                        onClick={() => sched.onAddSubtask(r)}
+                        className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10"
+                        title="Add subtask"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    )}
+                    <LockToggleCell locked={!!r.scheduleLocked} disabled={!canSchedule} onToggle={(v) => sched.onToggleLock(r, v)} />
+                    <button
+                      type="button"
+                      onClick={() => sched.onOpenShiftHistory(r)}
+                      className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--accent-blue)] hover:bg-[var(--bg)]"
+                      title="Shift history"
+                    >
+                      <HistoryIcon size={12} />
                     </button>
                     <button
                     type="button"
@@ -1659,6 +1895,32 @@ const MasterSheetGrid = ({
                   </div>
                 </td>
               </tr>
+              {isSubExpanded && hasSubtasks && (
+                <>
+                  {r.subtasks.map((sub) => (
+                    <SubtaskRow
+                      key={sub.taskId}
+                      sub={sub}
+                      teamUserIds={teamUserIds}
+                      canSchedule={canSchedule}
+                      h={sched.subtaskHandlers}
+                    />
+                  ))}
+                  <tr className="bg-[var(--bg)]/40">
+                    <td className="px-2 py-1.5 sticky left-0 z-[5] bg-[var(--bg)]" />
+                    <td className="px-3 py-1.5 sticky left-8 z-[5] bg-[var(--bg)]" />
+                    <td colSpan={Math.max(1, TOTAL_COLS - 2)} className="px-3 py-1.5">
+                      <button
+                        type="button"
+                        onClick={() => sched.onAddSubtask(r)}
+                        className="inline-flex items-center gap-1 pl-3 text-[11px] font-bold text-[var(--primary)] hover:underline"
+                      >
+                        <Plus size={12} /> Add subtask
+                      </button>
+                    </td>
+                  </tr>
+                </>
+              )}
               {isVerExpanded && (
                 <VersionRows
                   row={r}
@@ -1740,7 +2002,7 @@ const AddPhaseModal = ({ open, phases, onClose, onConfirm, busy }) => {
 // backdrop with header, body, and Cancel + Confirm buttons. Each handles its
 // own input state.
 
-const AssignDesignerModal = ({ open, count, onClose, onConfirm, busy }) => {
+const AssignDesignerModal = ({ open, count, onClose, onConfirm, busy, restrictToIds }) => {
   const [user, setUser] = useState(null);
   useEffect(() => { if (open) setUser(null); }, [open]);
   if (!open) return null;
@@ -1763,7 +2025,13 @@ const AssignDesignerModal = ({ open, count, onClose, onConfirm, busy }) => {
         </>
       )}
     >
-      <EmployeePicker value={user} onChange={setUser} placeholder="Pick designer…" />
+      <EmployeePicker
+        value={user}
+        onChange={setUser}
+        placeholder="Pick designer…"
+        restrictToIds={restrictToIds}
+        emptyHint="No team members — build the project team first"
+      />
     </ModalShell>
   );
 };
@@ -2250,7 +2518,7 @@ const ImportExcelModal = ({ open, projectId, onClose, onDone }) => {
 };
 
 // ─── Bulk action toolbar ─────────────────────────────────────────────────────
-const BulkToolbar = ({ selectedCount, onAssign, onSetDates, onShiftDates, onClear }) => (
+const BulkToolbar = ({ selectedCount, onAssign, onSetDates, onShiftDates, onLock, onUnlock, canSchedule, onClear }) => (
   <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-lg p-3 flex flex-wrap items-center gap-2">
     <span className="text-xs font-extrabold text-[var(--primary)]">
       {selectedCount} selected
@@ -2268,6 +2536,18 @@ const BulkToolbar = ({ selectedCount, onAssign, onSetDates, onShiftDates, onClea
       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-[var(--border)] bg-[var(--surface)] rounded-md hover:border-[var(--primary)] hover:text-[var(--primary)]">
       <ArrowLeftRight size={12} /> Shift Dates
     </button>
+    {canSchedule && (
+      <>
+        <button type="button" onClick={onLock}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-[var(--border)] bg-[var(--surface)] rounded-md hover:border-[var(--warning)] hover:text-[var(--warning)]">
+          <Lock size={12} /> Lock
+        </button>
+        <button type="button" onClick={onUnlock}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-[var(--text-primary)] border border-[var(--border)] bg-[var(--surface)] rounded-md hover:border-[var(--primary)] hover:text-[var(--primary)]">
+          <Lock size={12} className="opacity-50" /> Unlock
+        </button>
+      </>
+    )}
     <div className="ml-auto">
       <button type="button" onClick={onClear}
         className="inline-flex items-center gap-1 px-2 py-1.5 text-[11px] font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]">
@@ -2354,6 +2634,8 @@ const ProjectPlannerTab = ({ project }) => {
   const canEditPlanner = !!hasPermission?.('planner.edit');
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
   const [phaseBusy,    setPhaseBusy]    = useState(false);
+  const [phaseBudgetTarget, setPhaseBudgetTarget] = useState(null);
+  const [phaseBudgetBusy,   setPhaseBudgetBusy]   = useState(false);
 
   // Inline upload + notes
   const [uploadingTaskId, setUploadingTaskId] = useState(null);
@@ -2364,7 +2646,51 @@ const ProjectPlannerTab = ({ project }) => {
   const [importOpen,      setImportOpen]      = useState(false);
   const [exporting,       setExporting]       = useState(false);
 
+  // Scheduling engine — subtasks + cascade-aware edits
+  const [expandedSubtasksTaskId, setExpandedSubtasksTaskId] = useState(null);
+  const [subtaskModal,   setSubtaskModal]   = useState({ open: false, mode: 'create', parent: null, subtask: null });
+  const [subtaskBusy,    setSubtaskBusy]    = useState(false);
+  const [shiftHistoryRow, setShiftHistoryRow] = useState(null);
+  const [dependencyRow,  setDependencyRow]  = useState(null);
+  const [dependencyBusy, setDependencyBusy] = useState(false);
+  const [pendingShift,   setPendingShift]   = useState(null); // { row, payload } awaiting a reason
+  const [shiftBusy,      setShiftBusy]      = useState(false);
+  const [recalcOpen,     setRecalcOpen]     = useState(false);
+  const [recalcBusy,     setRecalcBusy]     = useState(false);
+  const [settingsOpen,   setSettingsOpen]   = useState(false);
+  const [settingsBusy,   setSettingsBusy]   = useState(false);
+  const canSchedule = !!hasPermission?.('planner.schedule.shift');
+  const canRecalc   = !!hasPermission?.('planner.schedule.recalculate');
+
   const projectId = project?._id;
+
+  // Scope the master-sheet designer pickers to the people on the project team
+  // (built via the "Build Team" flow → project.assignments). When no team has
+  // been built yet we fall back to all assignable users (null = no restriction)
+  // so the sheet is never blocked.
+  const teamUserIds = useMemo(() => {
+    const ids = getAllAssignedUsers(project).map((u) => String(u._id));
+    return ids.length ? ids : null;
+  }, [project]);
+
+  // Flat list of every task (parents + subtasks) for the dependency picker.
+  const allTaskRows = useMemo(() => {
+    const out = [];
+    for (const r of (data?.rows || [])) {
+      out.push({ taskId: String(r.taskId), title: r.title, phase: r.phase });
+      for (const s of (r.subtasks || [])) out.push({ taskId: String(s.taskId), title: s.title, phase: s.phase });
+    }
+    return out;
+  }, [data]);
+
+  // Candidates for the dependency picker — exclude self + direct children so the
+  // UI can't trivially build a cycle (the backend re-validates regardless).
+  const dependencyCandidates = useMemo(() => {
+    if (!dependencyRow) return [];
+    const selfId = String(dependencyRow.taskId);
+    const childIds = new Set((dependencyRow.subtasks || []).map((s) => String(s.taskId)));
+    return allTaskRows.filter((t) => t.taskId !== selfId && !childIds.has(t.taskId));
+  }, [dependencyRow, allTaskRows]);
 
   const fetchSheet = useCallback(async (isRefresh = false) => {
     if (!projectId) return;
@@ -2445,6 +2771,178 @@ const ProjectPlannerTab = ({ project }) => {
       toast.error(err?.message || 'Failed to create row');
     } finally {
       setCreating(false);
+    }
+  }, [projectId, fetchSheet, toast]);
+
+  // ─── Scheduling engine handlers ───────────────────────────────────────────
+  const handleToggleSubtasks = useCallback((row) => {
+    const id = String(row.taskId);
+    setExpandedSubtasksTaskId((prev) => (prev === id ? null : id));
+  }, []);
+
+  // Subtask inline edits reuse the planner patch endpoint (works on any task);
+  // no optimistic update since subtasks live nested under parents.
+  const handleSubtaskPatch = useCallback(async (subtaskId, patch) => {
+    try {
+      await pmsService.patchPlannerRow(subtaskId, patch);
+      fetchSheet(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to save change');
+      fetchSheet(true);
+    }
+  }, [fetchSheet, toast]);
+
+  const handleAddSubtask = useCallback((parentRow) => {
+    setSubtaskModal({ open: true, mode: 'create', parent: parentRow, subtask: null });
+  }, []);
+
+  const handleSubmitSubtask = useCallback(async (payload) => {
+    setSubtaskBusy(true);
+    try {
+      if (subtaskModal.mode === 'edit' && subtaskModal.subtask) {
+        await pmsService.updateSubtask(subtaskModal.subtask.taskId, payload);
+        toast.success('Subtask updated');
+      } else {
+        await pmsService.createSubtask(projectId, subtaskModal.parent.taskId, payload);
+        toast.success('Subtask added');
+        setExpandedSubtasksTaskId(String(subtaskModal.parent.taskId));
+      }
+      setSubtaskModal({ open: false, mode: 'create', parent: null, subtask: null });
+      fetchSheet(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to save subtask');
+    } finally {
+      setSubtaskBusy(false);
+    }
+  }, [subtaskModal, projectId, fetchSheet, toast]);
+
+  // Date edit on a row: if it has dependents, capture a reason and cascade;
+  // otherwise save directly (no cascade needed).
+  const handleScheduleDateEdit = useCallback((row, patch) => {
+    if (row.hasDependents) {
+      setPendingShift({ row, patch });
+      return;
+    }
+    handleSubtaskPatch(row.taskId, patch); // patchPlannerRow works for parents + subtasks
+  }, [handleSubtaskPatch]);
+
+  // Duration edit always routes through the scheduling engine (it recomputes the
+  // end date and cascades). A reason is required when there are dependents.
+  const handleDurationEdit = useCallback(async (row, durationDays) => {
+    if (row.hasDependents) {
+      setPendingShift({ row, payload: { durationDays } });
+      return;
+    }
+    try {
+      await pmsService.manualShiftTask(row.taskId, { durationDays, reason: 'Duration adjusted', cascade: true });
+      fetchSheet(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to update duration');
+    }
+  }, [fetchSheet, toast]);
+
+  // Confirm a cascading shift after the reason modal.
+  const handleConfirmShift = useCallback(async (reason) => {
+    if (!pendingShift) return;
+    const { row, patch, payload } = pendingShift;
+    setShiftBusy(true);
+    try {
+      let body;
+      if (payload) {
+        body = { ...payload, reason, cascade: true };
+      } else if (patch?.planning?.plannedStartDate !== undefined) {
+        body = { plannedStartDate: patch.planning.plannedStartDate, reason, cascade: true };
+      } else if (patch?.planning?.plannedEndDate !== undefined) {
+        body = { plannedEndDate: patch.planning.plannedEndDate, reason, cascade: true };
+      } else {
+        body = { reason, cascade: true };
+      }
+      await pmsService.manualShiftTask(row.taskId, body);
+      toast.success('Schedule shifted');
+      setPendingShift(null);
+      fetchSheet(true);
+    } catch (err) {
+      const code = err?.response?.data?.code;
+      toast.error(code === 'DEPENDENCY_CYCLE'
+        ? 'Circular dependency — schedule not shifted.'
+        : (err?.response?.data?.message || err?.message || 'Failed to shift schedule'));
+    } finally {
+      setShiftBusy(false);
+    }
+  }, [pendingShift, fetchSheet, toast]);
+
+  const handleToggleLock = useCallback(async (row, locked) => {
+    try {
+      await pmsService.patchPlannerRow(row.taskId, { scheduleLocked: locked });
+      fetchSheet(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to toggle lock');
+    }
+  }, [fetchSheet, toast]);
+
+  const handleSaveDependency = useCallback(async (ids) => {
+    if (!dependencyRow) return;
+    setDependencyBusy(true);
+    try {
+      if (dependencyRow.isSubtask) {
+        await pmsService.updateSubtask(dependencyRow.taskId, { dependsOn: ids });
+      } else {
+        await pmsService.patchPlannerRow(dependencyRow.taskId, { dependsOn: ids });
+      }
+      setDependencyRow(null);
+      fetchSheet(true);
+    } catch (err) {
+      const code = err?.response?.data?.code;
+      toast.error(code === 'DEPENDENCY_CYCLE'
+        ? 'That dependency would create a circular reference.'
+        : (err?.response?.data?.message || err?.message || 'Failed to save dependencies'));
+    } finally {
+      setDependencyBusy(false);
+    }
+  }, [dependencyRow, fetchSheet, toast]);
+
+  const handleSavePhaseBudget = useCallback(async (payload) => {
+    setPhaseBudgetBusy(true);
+    try {
+      await pmsService.updatePhaseBudget(projectId, payload);
+      toast.success('Phase budget saved');
+      setPhaseBudgetTarget(null);
+      fetchSheet(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to save phase budget');
+    } finally {
+      setPhaseBudgetBusy(false);
+    }
+  }, [projectId, fetchSheet, toast]);
+
+  const handleSaveSettings = useCallback(async (payload) => {
+    setSettingsBusy(true);
+    try {
+      await pmsService.updatePlannerSettings(projectId, payload);
+      toast.success('Scheduling settings saved');
+      setSettingsOpen(false);
+      fetchSheet(true);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to save settings');
+    } finally {
+      setSettingsBusy(false);
+    }
+  }, [projectId, fetchSheet, toast]);
+
+  const handleRecalc = useCallback(async () => {
+    setRecalcBusy(true);
+    try {
+      const res = await pmsService.recalcProjectSchedule(projectId, { overwriteExisting: true });
+      toast.success(`Schedule recalculated — ${res?.scheduled ?? 0} task(s) dated`);
+      setRecalcOpen(false);
+      fetchSheet(true);
+    } catch (err) {
+      const code = err?.response?.data?.code;
+      toast.error(code === 'DEPENDENCY_CYCLE'
+        ? 'Circular dependency — schedule not recalculated.'
+        : (err?.response?.data?.message || err?.message || 'Failed to recalculate'));
+    } finally {
+      setRecalcBusy(false);
     }
   }, [projectId, fetchSheet, toast]);
 
@@ -2612,6 +3110,22 @@ const ProjectPlannerTab = ({ project }) => {
       alert(err?.message || 'Bulk shift failed');
     }
   }, [selectedTaskIds, finishBulk]);
+
+  const handleBulkLock = useCallback(async (locked) => {
+    if (selectedTaskIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await pmsService.bulkSchedulePatch({
+        taskIds: Array.from(selectedTaskIds),
+        patch: { scheduleLocked: locked },
+      });
+      toast.success(locked ? 'Rows locked' : 'Rows unlocked');
+      finishBulk();
+    } catch (err) {
+      setBulkBusy(false);
+      toast.error(err?.response?.data?.message || err?.message || 'Bulk lock failed');
+    }
+  }, [selectedTaskIds, finishBulk, toast]);
 
   // Inline upload — same multipart endpoint as the task workspace. Backend bumps
   // the version automatically via the (projectId, zoneName, title) lookup, so a
@@ -2829,6 +3343,10 @@ const ProjectPlannerTab = ({ project }) => {
         onActivate={() => setActivateOpen(true)}
         onExport={handleExport}
         onImport={() => setImportOpen(true)}
+        onRecalculate={() => setRecalcOpen(true)}
+        canRecalc={canRecalc}
+        onOpenSettings={() => setSettingsOpen(true)}
+        canEditPlanner={canEditPlanner}
         exporting={exporting}
         refreshing={refreshing}
       />
@@ -2864,6 +3382,9 @@ const ProjectPlannerTab = ({ project }) => {
               onAssign={() => setAssignOpen(true)}
               onSetDates={() => setSetDatesOpen(true)}
               onShiftDates={() => setShiftOpen(true)}
+              onLock={() => handleBulkLock(true)}
+              onUnlock={() => handleBulkLock(false)}
+              canSchedule={canSchedule}
               onClear={clearSelection}
             />
           )}
@@ -2886,10 +3407,33 @@ const ProjectPlannerTab = ({ project }) => {
             onAddPhase={() => setAddPhaseOpen(true)}
             onRenamePhase={handleRenamePhase}
             onDeletePhase={handleDeletePhase}
+            onEditPhaseBudget={setPhaseBudgetTarget}
             expandedVersionsTaskId={expandedVersionsTaskId}
             versionsCache={versionsCache}
             onToggleVersionsExpand={toggleVersionsExpand}
             onViewVersion={handleViewVersion}
+            teamUserIds={teamUserIds}
+            expandedSubtasksTaskId={expandedSubtasksTaskId}
+            onToggleSubtasks={handleToggleSubtasks}
+            canSchedule={canSchedule}
+            sched={{
+              onScheduleDateEdit: handleScheduleDateEdit,
+              onDurationEdit: handleDurationEdit,
+              onToggleLock: handleToggleLock,
+              onOpenShiftHistory: setShiftHistoryRow,
+              onOpenDependency: setDependencyRow,
+              onAddSubtask: handleAddSubtask,
+              subtaskHandlers: {
+                onPatch: handleSubtaskPatch,
+                onDelete: handleDelete,
+                onOpenChecklist: setChecklistRow,
+                onScheduleDateEdit: handleScheduleDateEdit,
+                onDurationEdit: handleDurationEdit,
+                onToggleLock: handleToggleLock,
+                onOpenShiftHistory: setShiftHistoryRow,
+                onOpenDependency: setDependencyRow,
+              },
+            }}
           />
         </>
       )}
@@ -2899,6 +3443,7 @@ const ProjectPlannerTab = ({ project }) => {
         onCreate={handleCreate}
         busy={creating}
         defaultPhase={addPhase}
+        teamUserIds={teamUserIds}
       />
       <RevisionDrawer
         open={!!drawerRow}
@@ -2916,6 +3461,7 @@ const ProjectPlannerTab = ({ project }) => {
         onClose={() => !bulkBusy && setAssignOpen(false)}
         onConfirm={handleBulkAssign}
         busy={bulkBusy}
+        restrictToIds={teamUserIds}
       />
       <SetDatesModal
         open={setDatesOpen}
@@ -2979,7 +3525,213 @@ const ProjectPlannerTab = ({ project }) => {
         onConfirm={handleAddPhase}
         busy={phaseBusy}
       />
+      {/* ─── Scheduling engine modals ─── */}
+      <SubtaskModal
+        open={subtaskModal.open}
+        mode={subtaskModal.mode}
+        subtask={subtaskModal.subtask}
+        parentTitle={subtaskModal.parent?.title}
+        teamUserIds={teamUserIds}
+        busy={subtaskBusy}
+        onClose={() => !subtaskBusy && setSubtaskModal({ open: false, mode: 'create', parent: null, subtask: null })}
+        onSubmit={handleSubmitSubtask}
+      />
+      <ShiftHistoryModal
+        open={!!shiftHistoryRow}
+        taskId={shiftHistoryRow?.taskId}
+        taskTitle={shiftHistoryRow?.title}
+        onClose={() => setShiftHistoryRow(null)}
+      />
+      <DependencyPicker
+        open={!!dependencyRow}
+        candidates={dependencyCandidates}
+        value={dependencyRow?.dependsOn || []}
+        busy={dependencyBusy}
+        onClose={() => !dependencyBusy && setDependencyRow(null)}
+        onSave={handleSaveDependency}
+      />
+      <DelayReasonModal
+        open={!!pendingShift}
+        mode="shiftConfirm"
+        title={pendingShift?.row?.title}
+        affectedCount={0}
+        busy={shiftBusy}
+        onClose={() => !shiftBusy && setPendingShift(null)}
+        onConfirm={handleConfirmShift}
+      />
+      <RecalcScheduleModal
+        open={recalcOpen}
+        busy={recalcBusy}
+        onClose={() => !recalcBusy && setRecalcOpen(false)}
+        onConfirm={handleRecalc}
+      />
+      <PlannerSettingsModal
+        open={settingsOpen}
+        settings={data?.project?.settings}
+        busy={settingsBusy}
+        onClose={() => !settingsBusy && setSettingsOpen(false)}
+        onSave={handleSaveSettings}
+      />
+      <PhaseBudgetModal
+        open={!!phaseBudgetTarget}
+        phase={phaseBudgetTarget}
+        busy={phaseBudgetBusy}
+        onClose={() => !phaseBudgetBusy && setPhaseBudgetTarget(null)}
+        onSave={handleSavePhaseBudget}
+      />
     </div>
+  );
+};
+
+// Small confirm modal for the "Recalculate Schedule" toolbar action.
+const RecalcScheduleModal = ({ open, busy, onClose, onConfirm }) => {
+  if (!open) return null;
+  return (
+    <ModalShell
+      title="Recalculate Schedule"
+      subtitle="Re-derive planned dates from project start, durations and dependencies."
+      onClose={onClose}
+      footer={(
+        <>
+          <button type="button" onClick={onClose} disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50">
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm} disabled={busy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50">
+            {busy && <Loader2 size={12} className="animate-spin" />} Recalculate
+          </button>
+        </>
+      )}
+    >
+      <p className="text-xs text-[var(--text-secondary)]">
+        Locked rows and completed/approved tasks are never moved. Dependent tasks are
+        chained after their predecessors. This overwrites existing planned dates for
+        unlocked tasks.
+      </p>
+    </ModalShell>
+  );
+};
+
+// Scheduling settings — project-level auto-shift toggle + calendar mode.
+const PlannerSettingsModal = ({ open, settings, busy, onClose, onSave }) => {
+  const [autoShift, setAutoShift] = useState(false);
+  const [calMode, setCalMode] = useState('calendar_days');
+  useEffect(() => {
+    if (open) {
+      setAutoShift(!!settings?.autoShiftEnabled);
+      setCalMode(settings?.calendarMode || 'calendar_days');
+    }
+  }, [open, settings]);
+  if (!open) return null;
+  return (
+    <ModalShell
+      title="Scheduling Settings"
+      subtitle="Applies to this project only."
+      onClose={onClose}
+      footer={(
+        <>
+          <button type="button" onClick={onClose} disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50">
+            Cancel
+          </button>
+          <button type="button" onClick={() => onSave({ autoShiftEnabled: autoShift, calendarMode: calMode })} disabled={busy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50">
+            {busy && <Loader2 size={12} className="animate-spin" />} Save
+          </button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={autoShift}
+            onChange={(e) => setAutoShift(e.target.checked)}
+            className="mt-0.5 accent-[var(--primary)]"
+          />
+          <span>
+            <span className="text-sm font-bold text-[var(--text-primary)]">Enable nightly auto-shift</span>
+            <span className="block text-[11px] text-[var(--text-muted)] mt-0.5">
+              When on, overdue tasks that aren't locked/completed shift forward automatically each
+              night (also requires the server-side <code>PMS_AUTO_SHIFT_ENABLED</code> flag). Off by default.
+            </span>
+          </span>
+        </label>
+        <div>
+          <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Calendar mode</label>
+          <select
+            value={calMode}
+            onChange={(e) => setCalMode(e.target.value)}
+            className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--primary)]"
+          >
+            <option value="calendar_days">Calendar days (weekends count)</option>
+            <option value="working_days">Working days (skip Sat/Sun)</option>
+          </select>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">
+            Controls how durations and shifts count days. Existing dates are not changed — use
+            Recalculate to re-derive the schedule under the new mode.
+          </p>
+        </div>
+      </div>
+    </ModalShell>
+  );
+};
+
+// Phase day budget — startDayOffset + dayBudget for a single phase.
+const PhaseBudgetModal = ({ open, phase, busy, onClose, onSave }) => {
+  const [startOffset, setStartOffset] = useState('');
+  const [budget, setBudget] = useState('');
+  useEffect(() => {
+    if (open) {
+      setStartOffset(phase?.startDayOffset != null ? String(phase.startDayOffset) : '');
+      setBudget(phase?.dayBudget != null ? String(phase.dayBudget) : '');
+    }
+  }, [open, phase]);
+  if (!open) return null;
+
+  const save = () => {
+    const payload = { name: phase.name };
+    payload.startDayOffset = startOffset === '' ? 0 : Number(startOffset);
+    payload.dayBudget = budget === '' ? null : Number(budget);
+    onSave(payload);
+  };
+
+  return (
+    <ModalShell
+      title={`Phase Budget — ${phase?.name || ''}`}
+      subtitle="Advisory only — does not move task dates. Use Recalculate to apply the offset."
+      onClose={onClose}
+      footer={(
+        <>
+          <button type="button" onClick={onClose} disabled={busy}
+            className="px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--bg)] disabled:opacity-50">
+            Cancel
+          </button>
+          <button type="button" onClick={save} disabled={busy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50">
+            {busy && <Loader2 size={12} className="animate-spin" />} Save
+          </button>
+        </>
+      )}
+    >
+      <div className="space-y-3">
+        <div>
+          <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Start day offset</label>
+          <input type="number" min="0" max="3650" value={startOffset} onChange={(e) => setStartOffset(e.target.value)}
+            placeholder="Days from project start"
+            className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--primary)]" />
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Tasks in this phase with no offset of their own start here (on Recalculate).</p>
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Day budget</label>
+          <input type="number" min="0" max="3650" value={budget} onChange={(e) => setBudget(e.target.value)}
+            placeholder="Nominal phase length (days) — leave blank for none"
+            className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--primary)]" />
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">The phase header flags when the computed span exceeds this budget.</p>
+        </div>
+      </div>
+    </ModalShell>
   );
 };
 

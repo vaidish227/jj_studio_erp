@@ -33,6 +33,12 @@ const GlobalDateFilter = ({ value, onChange, defaultRange = { preset: 'last_30_d
   useEffect(() => {
     if (!presetOpen && !customOpen) return undefined;
     const onDown = (e) => {
+      // The Custom Range popover hosts a <DatePicker> whose calendar is rendered
+      // through a portal on document.body — i.e. OUTSIDE rootRef. Without this
+      // guard, clicking a day (or the month/year selects) counts as an outside
+      // click and closes the popover on mousedown, before the day's click →
+      // pick() can fire, so dates can never be chosen.
+      if (typeof e.target?.closest === 'function' && e.target.closest('[data-datepicker-popover]')) return;
       if (rootRef.current && !rootRef.current.contains(e.target)) {
         setPresetOpen(false);
         setCustomOpen(false);
@@ -147,17 +153,17 @@ const GlobalDateFilter = ({ value, onChange, defaultRange = { preset: 'last_30_d
           <div
             role="dialog"
             aria-label="Custom date range"
-            className="absolute right-0 mt-2 w-72 max-w-[92vw] bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg z-50 p-3"
+            className="absolute right-0 mt-2 w-80 max-w-[92vw] bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg z-50 p-3"
           >
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Custom range</p>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] mb-1">From</label>
-                <DatePicker name="from" icon={null} value={from} onChange={(e) => setFrom(e.target.value)} placeholder="Start" max={to || undefined} />
+                <DatePicker compact name="from" icon={null} value={from} onChange={(e) => setFrom(e.target.value)} placeholder="Start" max={to || undefined} />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] mb-1">To</label>
-                <DatePicker name="to" icon={null} value={to} onChange={(e) => setTo(e.target.value)} placeholder="End" min={from || undefined} />
+                <DatePicker compact name="to" icon={null} value={to} onChange={(e) => setTo(e.target.value)} placeholder="End" min={from || undefined} />
               </div>
             </div>
             <div className="flex gap-2 mt-3">

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   PenTool, HardHat, Truck, UserCog, ClipboardList,
   ArrowRight, History, FolderOpen,
+  PackageCheck, ListChecks, KeyRound, Hammer,
 } from 'lucide-react';
 import KickstartChecklist from '../KickstartChecklist';
 import ClientApprovalTracker from '../ClientApprovalTracker';
@@ -117,6 +118,46 @@ const OverviewTab = ({ project, onProjectUpdated, onSwitchToTab }) => {
       description: 'Agreements, BOQ, MOMs, design files & SOPs — review or download in one place.',
       tab: 'documents',
       onClick: go('documents'),
+    },
+    {
+      number: '07',
+      icon: PackageCheck,
+      iconBg: 'bg-[var(--accent-teal)]/10',
+      iconColor: 'text-[var(--accent-teal)]',
+      title: 'Material Finalization',
+      description: 'Finalized material selections with reference images and supporting documents.',
+      tab: 'material_finalization',
+      onClick: go('material_finalization'),
+    },
+    {
+      number: '08',
+      icon: ListChecks,
+      iconBg: 'bg-[var(--warning)]/10',
+      iconColor: 'text-[var(--warning)]',
+      title: 'Snag List',
+      description: 'Track site snags and defects with photos, severity and resolution status.',
+      tab: 'snag_list',
+      onClick: go('snag_list'),
+    },
+    {
+      number: '09',
+      icon: KeyRound,
+      iconBg: 'bg-[var(--success)]/10',
+      iconColor: 'text-[var(--success)]',
+      title: 'Final Handover',
+      description: 'Upload, preview and manage final handover documents for the project.',
+      tab: 'final_handover',
+      onClick: go('final_handover'),
+    },
+    {
+      number: '10',
+      icon: Hammer,
+      iconBg: 'bg-[var(--warning)]/10',
+      iconColor: 'text-[var(--warning)]',
+      title: 'Contractor Management',
+      description: 'Contractor directory, assigned scope, agreements & payment tracking.',
+      tab: 'contractor',
+      onClick: go('contractor'),
     },
   ];
 

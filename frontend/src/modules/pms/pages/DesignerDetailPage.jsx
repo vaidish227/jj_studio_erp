@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Award, CheckCircle2, Clock, AlertTriangle, Activity,
   TrendingUp, ListChecks, Briefcase, Mail, Phone, Loader2, RefreshCw, FileDown,
@@ -12,13 +12,14 @@ import {
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import useDesignerDetail from '../hooks/useDesignerDetail';
+import GlobalDateFilter from '../../../shared/dashboard-filter/components/GlobalDateFilter';
+import {
+  isValidRange, rangeFromSearchParams, writeRangeToSearchParams,
+} from '../../../shared/dashboard-filter/dateRangePresets';
 
-const PERIOD_OPTIONS = [
-  { value: 'week',    label: 'Last 7 Days' },
-  { value: 'month',   label: 'Last 30 Days' },
-  { value: 'quarter', label: 'Last 90 Days' },
-  { value: 'all',     label: 'All Time' },
-];
+// Filesystem-safe slug for the downloaded PDF filename.
+const rangeSlug = (range) =>
+  range?.preset === 'custom' ? `${range.from}_to_${range.to}` : (range?.preset || 'range');
 
 const STATUS_LABEL = {
   not_started:           'Not Started',
@@ -112,20 +113,27 @@ const DesignerDetailPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const [period, setPeriod] = useState('month');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [range, setRange] = useState(() => rangeFromSearchParams(searchParams));
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const { data, isLoading, error, refresh } = useDesignerDetail(userId, period);
+  const { data, isLoading, error, refresh } = useDesignerDetail(userId, range);
+
+  const changeRange = (next) => {
+    if (!next || !isValidRange(next)) return;
+    setRange(next);
+    setSearchParams(writeRangeToSearchParams(new URLSearchParams(searchParams), next), { replace: true });
+  };
 
   // Downloads the server-rendered report card — same data as this page,
   // rendered as a fixed A4 PDF (see backend services/designerReportPdf.js).
   const handleDownloadPdf = async () => {
     setDownloadingPdf(true);
     try {
-      const blob = await pmsService.downloadDesignerReportPdf(userId, period);
+      const blob = await pmsService.downloadDesignerReportPdf(userId, range);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Designer-Report-${(data?.user?.name || 'designer').trim().replace(/\s+/g, '-')}-${period}.pdf`;
+      a.download = `Designer-Report-${(data?.user?.name || 'designer').trim().replace(/\s+/g, '-')}-${rangeSlug(range)}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -214,14 +222,8 @@ const DesignerDetailPage = () => {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className="px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
-          >
-            {PERIOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <GlobalDateFilter value={range} onChange={changeRange} />
           <button
             type="button"
             onClick={refresh}

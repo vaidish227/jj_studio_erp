@@ -35,9 +35,34 @@ const kitTemplateSchema = new mongoose.Schema(
     title:    { type: String },
     deepLink: { type: String },
 
-    // WhatsApp media
+    // WhatsApp media — legacy single-media (kept for back-compat).
     mediaType: { type: String, enum: MEDIA_TYPES, default: "none" },
     mediaUrl:  { type: String },
+    mediaKey:  { type: String },
+
+    // Multiple attachments — each is sent as its own WhatsApp message, in order,
+    // after the text. `key` is an S3 object key (signed fresh at send time);
+    // `url` is used for externally-hosted links (no key).
+    attachments: [{
+      kind: { type: String, enum: ["image", "document", "video"] },
+      url:  { type: String },
+      key:  { type: String },
+      name: { type: String },
+    }],
+
+    // Per-template email design override (email channel). Every field is optional;
+    // a blank field inherits from the global KitSettings design at send time.
+    emailDesign: {
+      headerColor:     { type: String, default: "" },
+      headerTextColor: { type: String, default: "" },
+      brandText:       { type: String, default: "" },
+      logoUrl:         { type: String, default: "" },
+      logoKey:         { type: String, default: "" },
+      footerText:      { type: String, default: "" },
+      bodyTextColor:   { type: String, default: "" },
+      accentColor:     { type: String, default: "" },
+      bgColor:         { type: String, default: "" },
+    },
 
     variables: [{ type: String }],
     isActive:  { type: Boolean, default: true },

@@ -1,6 +1,7 @@
 const ESign = require("../models/ESign.model");
 const Proposal = require("../../crm/models/Proposal.model");
 const mongoose = require("mongoose");
+const kickoffService = require("../../kit/services/kickoffService");
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -57,6 +58,12 @@ const signProposal = async (req, res) => {
       status: "esign_received",
       esign: { status: "received", signed_at: new Date() },
     });
+
+    // Project Kickoff automation — fires only once BOTH advance + e-sign are in
+    // (fire-and-forget; never blocks the response).
+    kickoffService
+      .maybeTrigger(esign.proposalId, req.user)
+      .catch((err) => console.error("[kickoff] esign trigger failed:", err?.message));
 
     res.status(200).json({
       success: true,

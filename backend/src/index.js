@@ -8,6 +8,7 @@ const { startMailQueueProcessor }     = require("./modules/mail/cron/mailQueuePr
 const { startWhatsAppQueueProcessor } = require("./modules/whatsapp/cron/whatsappQueueProcessor");
 const { startUserFactsSummarizer }    = require("./modules/ai/cron/userFactsSummarizer");
 const { startPMSReminders }           = require("./modules/pms/cron/pmsReminders");
+const { startTaskAutoShift }          = require("./modules/pms/cron/taskAutoShiftScheduler");
 const { startCampaignScheduler }      = require("./modules/kit/cron/campaignScheduler");
 const { startKitMaintenance }         = require("./modules/kit/cron/kitMaintenance");
 const { logStartupBanner: logVectorIndexBanner } = require("./modules/ai/services/vectorIndex.service");
@@ -23,6 +24,12 @@ startUserFactsSummarizer();
 
 // Phase 3b — Daily PMS overdue digest + idle gate nudges (06:30 server-local)
 startPMSReminders();
+
+// Phase 2 — Nightly auto-shift of overdue tasks (07:00). Registered by default;
+// only shifts projects/tasks that opted in via the planner Settings toggle
+// (per-project autoShiftEnabled, default false). Set PMS_AUTO_SHIFT_ENABLED=false
+// to globally hard-disable the job (panic-off).
+startTaskAutoShift();
 
 // KIT — campaign scheduler: fires due campaign steps every minute
 startCampaignScheduler();

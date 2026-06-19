@@ -67,6 +67,7 @@ const crmClientSchema = new mongoose.Schema(
     // ─── Referral Information ────────────────────────────────────────
     referredBy: String,
     referrerPhone: String,
+    referrerEmail: String,
 
     // ─── Lifecycle & Status ──────────────────────────────────────────
     status: {
@@ -168,6 +169,7 @@ const crmClientSchema = new mongoose.Schema(
     automation: {
       thankYouScheduledFor: Date,
       thankYouSentAt: Date,
+      thankYouQueuedAt: Date,
       followupReminderFor: Date,
       followupReminderSentAt: Date,
     },

@@ -5,6 +5,23 @@ const {
 
 const OID = Joi.string().pattern(/^[0-9a-fA-F]{24}$/);
 
+// Email design fields — every field optional, blank inherits the global default.
+// Shared by per-template overrides (colours/text/logo) and the global-branding
+// preview, which also carries the showHeader / showFooter toggles.
+const emailDesignSchema = Joi.object({
+  headerColor:     Joi.string().allow(""),
+  headerTextColor: Joi.string().allow(""),
+  brandText:       Joi.string().allow(""),
+  logoUrl:         Joi.string().allow(""),
+  logoKey:         Joi.string().allow(""),
+  footerText:      Joi.string().allow(""),
+  bodyTextColor:   Joi.string().allow(""),
+  accentColor:     Joi.string().allow(""),
+  bgColor:         Joi.string().allow(""),
+  showHeader:      Joi.boolean(),
+  showFooter:      Joi.boolean(),
+});
+
 // Shared field fragments. Channel-conditional requirements are applied per-schema
 // so create() can demand them while update() keeps everything optional.
 const base = {
@@ -19,6 +36,14 @@ const base = {
   deepLink:  Joi.string().max(500).allow(""),
   mediaType: Joi.string().valid(...MEDIA_TYPES).default("none"),
   mediaUrl:  Joi.string().uri().allow(""),
+  mediaKey:  Joi.string().allow(""),
+  attachments: Joi.array().items(Joi.object({
+    kind: Joi.string().valid("image", "document", "video").required(),
+    url:  Joi.string().uri().allow(""),
+    key:  Joi.string().allow(""),
+    name: Joi.string().allow(""),
+  })),
+  emailDesign: emailDesignSchema,
   variables: Joi.array().items(Joi.string().trim()),
   isActive:  Joi.boolean(),
 };
@@ -49,6 +74,7 @@ const previewSchema = Joi.object({
   entityType: Joi.string().valid(...ENTITY_TYPES),
   entityId:   OID,
   variables:  Joi.object(),
+  emailDesign: emailDesignSchema,
 }).options({ abortEarly: false });
 
 module.exports = { createTemplateSchema, updateTemplateSchema, previewSchema };

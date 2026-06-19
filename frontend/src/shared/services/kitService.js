@@ -23,6 +23,10 @@ export const kitService = {
   // ─── Variable catalog + render preview ───────────────────────────────────────
   getVariables: (entity)      => apiClient.get(`/kit/templates/variables${entity ? `?entity=${entity}` : ''}`),
   preview:      (data)        => apiClient.post('/kit/templates/preview', data),
+  // Multipart media upload (WhatsApp image/document/video). Pass a FormData with `file`.
+  uploadTemplateMedia: (formData) => apiClient.post('/kit/templates/upload-media', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 
   // ─── Campaigns ────────────────────────────────────────────────────────────────
   getCampaigns:    (params = {}) => {
@@ -64,6 +68,18 @@ export const kitService = {
   // ─── Communication settings (quiet-hours window + rate limit per channel) ─────
   getCommSettings:    (channel)       => apiClient.get(`/communication/settings/${channel}`),
   updateCommSettings: (channel, data) => apiClient.patch(`/communication/settings/${channel}`, data),
+
+  // ─── Thank-You automation settings (singleton) ────────────────────────────────
+  getThankYouSettings:    ()     => apiClient.get('/kit/thank-you/settings'),
+  updateThankYouSettings: (data) => apiClient.put('/kit/thank-you/settings', data),
+
+  // ─── Project Kickoff automation settings (singleton) ──────────────────────────
+  getKickoffSettings:    ()     => apiClient.get('/kit/kickoff/settings'),
+  updateKickoffSettings: (data) => apiClient.put('/kit/kickoff/settings', data),
+
+  // ─── Global KIT settings (email branding, singleton) ──────────────────────────
+  getKitSettings:    ()     => apiClient.get('/kit/settings'),
+  updateKitSettings: (data) => apiClient.put('/kit/settings', data),
 
   // ─── Analytics ────────────────────────────────────────────────────────────────
   getAnalyticsOverview:  (range) => apiClient.get('/kit/analytics/overview',  analyticsOpts(range)),

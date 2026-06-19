@@ -16,7 +16,10 @@ export { default as useDashboardRange } from './hooks/useDashboardRange';
 export { default as useDashboardQuery } from './hooks/useDashboardQuery';
 
 // Presets / utilities
-export { DATE_PRESETS, isValidRange, formatRangeLabel, rangeToParams } from './dateRangePresets';
+export {
+  DATE_PRESETS, isValidRange, formatRangeLabel, rangeToParams,
+  LEGACY_PERIOD_TO_PRESET, rangeFromSearchParams, writeRangeToSearchParams,
+} from './dateRangePresets';
 
 // Persistence (usually consumed via useDashboardRange, exported for direct use)
 export { loadRange, saveRange } from './persistence';

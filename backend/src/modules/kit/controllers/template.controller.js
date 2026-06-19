@@ -6,6 +6,9 @@ const {
   VARIABLES, getVariablesForEntity, findUnknownVariables,
 } = require("../constants/variableCatalog");
 const variableResolver = require("../services/variableResolver");
+const { wrapEmailHtml } = require("../../mail/service/emailLayout");
+const { resolveEmailDesign } = require("../services/emailDesignService");
+const s3 = require("../../pms/services/s3Storage");
 
 // The body fields that may contain {{variables}} — used for unknown-token checks.
 const TEXT_FIELDS = ["subject", "htmlBody", "textBody", "body", "title"];
@@ -64,7 +67,22 @@ const getTemplateById = async (req, res) => {
   try {
     const template = await KitTemplate.findById(req.params.id).populate("createdBy", "name");
     if (!template) return res.status(404).json({ message: "Template not found" });
-    res.status(200).json({ message: "Template fetched", data: template });
+    const out = template.toObject();
+    // Refresh signed URLs for uploaded media so the editor preview renders.
+    if (s3.isConfigured()) {
+      if (out.mediaKey) {
+        try { out.mediaUrl = await s3.getSignedDownloadUrl({ key: out.mediaKey, expiresIn: 3600, disposition: "inline" }); } catch { /* keep stored url */ }
+      }
+      if (Array.isArray(out.attachments)) {
+        for (const a of out.attachments) {
+          if (a && a.key) { try { a.url = await s3.getSignedDownloadUrl({ key: a.key, expiresIn: 3600, disposition: "inline" }); } catch { /* keep */ } }
+        }
+      }
+      if (out.emailDesign && out.emailDesign.logoKey) {
+        try { out.emailDesign.logoUrl = await s3.getSignedDownloadUrl({ key: out.emailDesign.logoKey, expiresIn: 3600, disposition: "inline" }); } catch { /* keep stored url */ }
+      }
+    }
+    res.status(200).json({ message: "Template fetched", data: out });
   } catch (err) {
     console.error("[kit.getTemplateById]", err);
     res.status(500).json({ message: err.message });
@@ -140,6 +158,14 @@ const previewTemplate = async (req, res) => {
       if (value[f] !== undefined) rendered[f] = variableResolver.render(value[f], vars);
     }
 
+    // Email content is authored as a body; show the branded wrapper (global design
+    // merged with this template's draft overrides) so the live preview matches
+    // exactly what gets sent.
+    if (value.channel === "email" && rendered.htmlBody !== undefined) {
+      const design = await resolveEmailDesign(value.emailDesign);
+      rendered.htmlBody = wrapEmailHtml(rendered.htmlBody, design);
+    }
+
     res.status(200).json({
       message: "Preview rendered",
       data: { rendered, usedVariables: vars, unknownVariables: collectUnknownVars(value) },
@@ -150,7 +176,34 @@ const previewTemplate = async (req, res) => {
   }
 };
 
+// ── Media upload (WhatsApp image / document / video) ──────────────────────────
+const KIT_MEDIA_PREFIX = (process.env.S3_KIT_MEDIA_PREFIX || "kit-media").replace(/^\/+|\/+$/g, "");
+
+const uploadMedia = async (req, res) => {
+  try {
+    if (req.fileFilterError) return res.status(400).json({ message: req.fileFilterError });
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    if (!s3.isConfigured()) {
+      return res.status(503).json({ message: "File storage is not configured on the server (set AWS_REGION / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / S3_BUCKET)." });
+    }
+
+    const orig = req.file.originalname || "file";
+    const dot  = orig.lastIndexOf(".");
+    const ext  = (dot >= 0 ? orig.slice(dot + 1) : "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
+    const base = s3.slugify(dot >= 0 ? orig.slice(0, dot) : orig, "media");
+    const key  = `${KIT_MEDIA_PREFIX}/${base}-${Date.now()}.${ext}`;
+
+    await s3.putObject({ key, body: req.file.buffer, contentType: req.file.mimetype });
+    const url = await s3.getSignedDownloadUrl({ key, expiresIn: 3600, disposition: "inline", filename: orig });
+
+    return res.status(201).json({ message: "Uploaded", data: { key, url, filename: orig, mimetype: req.file.mimetype } });
+  } catch (err) {
+    console.error("[kit.uploadMedia]", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   createTemplate, getTemplates, getTemplateById, updateTemplate, deleteTemplate,
-  getVariables, previewTemplate,
+  getVariables, previewTemplate, uploadMedia,
 };

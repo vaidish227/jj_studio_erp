@@ -22,6 +22,7 @@ import RequestRevisionFlow from '../components/RequestRevisionFlow';
 import ReassignTaskModal from '../components/ReassignTaskModal';
 import UploadDrawingModal from '../components/UploadDrawingModal';
 import KitchenRoutingPanel from '../components/KitchenRoutingPanel';
+import TaskScheduleSection from '../components/TaskScheduleSection';
 import DrawingFileLink from '../components/DrawingFileLink';
 import AskAIButton from '../../ai/components/AskAIButton';
 import { resolveEntry } from '../../ai/aiEntryPoints';
@@ -267,6 +268,16 @@ const TaskDetailPage = () => {
         )}
         <span className="text-[var(--text-secondary)] truncate max-w-[200px]">{task.title}</span>
       </div>
+
+      {/* ── Subtask parent link ─────────────────────────────────────────────── */}
+      {task.isSubtask && task.parentTaskId && (
+        <Link
+          to={`/tasks/${task.parentTaskId._id || task.parentTaskId}`}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--primary)] hover:underline -mt-2"
+        >
+          <GitBranch size={12} /> Subtask · View parent task
+        </Link>
+      )}
 
       {/* ── Header card ─────────────────────────────────────────────────────── */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5">
@@ -553,6 +564,14 @@ const TaskDetailPage = () => {
           ))}
         </div>
       </div>
+
+      {/* ── Schedule + Subtasks ──────────────────────────────────────────── */}
+      <TaskScheduleSection
+        task={task}
+        projectId={task.projectId?._id || task.projectId}
+        canEdit={isMyTask || hasPermission('planner.edit') || hasPermission('tasks.update')}
+        onRefresh={refresh}
+      />
 
       {/* ── Notes (full width) ───────────────────────────────────────────── */}
       {task.notes && (

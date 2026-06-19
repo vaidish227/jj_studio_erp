@@ -63,6 +63,9 @@ import AssignTaskPage from './modules/pms/pages/AssignTaskPage';
 import ReviewDesignPage from './modules/pms/pages/ReviewDesignPage';
 import WhatsAppGroupsPage from './modules/pms/pages/WhatsAppGroupsPage';
 import DocumentRepositoryPage from './modules/pms/pages/DocumentRepositoryPage';
+import FormTemplatesPage from './modules/pms/pages/FormTemplatesPage';
+import FormBuilderPage from './modules/pms/pages/FormBuilderPage';
+import PublicFormPage from './modules/pms/pages/PublicFormPage';
 import NotificationsPage from './modules/notifications/pages/NotificationsPage';
 import {
   DelegationListPage,
@@ -81,6 +84,8 @@ import {
   AutomationsPage as KitAutomationsPage,
   AutomationBuilderPage as KitAutomationBuilderPage,
   KitSettingsPage,
+  ThankYouSettingsPage,
+  KickoffSettingsPage,
   AnalyticsPage as KitAnalyticsPage,
 } from './modules/kit';
 
@@ -108,6 +113,9 @@ export default function App() {
                   }
                 />
               </Route>
+
+              {/* Client dynamic forms — shared with client, no login required */}
+              <Route path="/forms/:token" element={<PublicFormPage />} />
 
               {/* App shell — authenticated, renders once, children change inside Outlet */}
               <Route element={<AppLayout />}>
@@ -186,6 +194,8 @@ export default function App() {
                       </Route>
                       <Route path="analytics"  element={<KitAnalyticsPage />} />
                       <Route path="settings"   element={<KitSettingsPage />} />
+                      <Route path="thank-you"  element={<ThankYouSettingsPage />} />
+                      <Route path="kickoff"    element={<KickoffSettingsPage />} />
                     </Route>
                   </Route>
                 )}
@@ -213,7 +223,10 @@ export default function App() {
                 <Route path="/pms/assign-task"       element={<ProtectedRoute permission="projects.tab.assign"><AssignTaskPage /></ProtectedRoute>} />
                 <Route path="/pms/review-design"     element={<ProtectedRoute permission="projects.tab.review"><ReviewDesignPage /></ProtectedRoute>} />
                 <Route path="/pms/whatsapp-groups"   element={<ProtectedRoute permission="pms.whatsapp.manage"><WhatsAppGroupsPage /></ProtectedRoute>} />
-                <Route path="/pms/documents"         element={<DocumentRepositoryPage />} />
+                <Route path="/pms/documents"              element={<DocumentRepositoryPage />} />
+                <Route path="/pms/form-templates"         element={<ProtectedRoute permission="projects.read"><FormTemplatesPage /></ProtectedRoute>} />
+                <Route path="/pms/form-templates/create"  element={<ProtectedRoute permission="projects.read"><FormBuilderPage /></ProtectedRoute>} />
+                <Route path="/pms/form-templates/edit/:id" element={<ProtectedRoute permission="projects.read"><FormBuilderPage /></ProtectedRoute>} />
 
                 {/* PMS — Legacy routes kept for backward compatibility */}
                 <Route path="/pms/calendar"      element={<CalendarPage />} />

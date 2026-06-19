@@ -296,6 +296,8 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
       order: p.order,
       taskKeys: [...(p.taskKeys || [])],
       gateKeys: [...(p.gateKeys || [])],
+      startDayOffset: Number(p.startDayOffset) || 0,
+      dayBudget: p.dayBudget != null ? Number(p.dayBudget) : null,
     }))
   );
   const [tasks, setTasks] = useState((template.tasks || []).map((t) => ({ ...t })));
@@ -337,6 +339,10 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
   };
   const setPhaseName = (idx, newName) => {
     setPhases((prev) => prev.map((p, i) => (i === idx ? { ...p, name: newName } : p)));
+  };
+  // Phase day budget (milestone) — startDayOffset / dayBudget.
+  const setPhaseBudget = (idx, field, value) => {
+    setPhases((prev) => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
   };
 
   // Add a phase at the end. Always starts with a neutral placeholder name —
@@ -393,12 +399,142 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
     )));
   };
 
+  // Add a SUBTASK under a parent task (same phase). Inherits the parent's
+  // taskType/owner as sensible defaults; parentKey wires the nesting.
+  const addSubtaskToParent = (phaseIdx, parentKey) => {
+    const parent = tasks.find((t) => t.key === parentKey);
+    const draftId = `__draft_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const siblingCount = tasks.filter((t) => t.parentKey === parentKey).length;
+    const newTask = {
+      key: draftId,
+      __isDraft: true,
+      taskType: parent?.taskType || options?.taskTypes?.[0]?.value || 'concept_making',
+      title: 'New subtask',
+      dayOffsetFromProjectStart: parent?.dayOffsetFromProjectStart || 0,
+      plannedDays: 1,
+      plannedHours: 0,
+      priority: parent?.priority || 'medium',
+      responsibilitySlug: parent?.responsibilitySlug || '',
+      checklistTemplateName: '',
+      notes: '',
+      dependsOnKeys: [],
+      requiresGateKeys: [],
+      parentKey,
+      subtaskOrder: siblingCount + 1,
+    };
+    setTasks((prev) => [...prev, newTask]);
+    setPhases((prev) => prev.map((p, i) => (
+      i === phaseIdx ? { ...p, taskKeys: [...p.taskKeys, draftId] } : p
+    )));
+  };
+
   const deleteTask = (key) => {
-    setTasks((prev) => prev.filter((t) => t.key !== key));
+    // Drop the task, and un-nest any subtask that pointed at it (becomes top-level).
+    setTasks((prev) => prev
+      .filter((t) => t.key !== key)
+      .map((t) => (t.parentKey === key ? { ...t, parentKey: null } : t)));
     setPhases((prev) => prev.map((p) => ({
       ...p,
       taskKeys: p.taskKeys.filter((k) => k !== key),
     })));
+  };
+
+  // One editable task row — reused for parent (isSub=false) and nested subtask
+  // (isSub=true) rows so the cell markup stays in one place.
+  const renderTaskRow = (t, { isSub, num, phaseIdx }) => {
+    const availableChecklists = checklistsByType[t.taskType] || [];
+    const dependsLabel = t.dependsOnKeys?.length > 0
+      ? `${t.dependsOnKeys.length} task${t.dependsOnKeys.length !== 1 ? 's' : ''}` : '';
+    const dependsTitle = t.dependsOnKeys?.length > 0 ? `depends on: ${t.dependsOnKeys.join(', ')}` : '';
+    const inputCls = 'w-full px-1.5 py-1 text-sm text-center rounded-md border border-transparent bg-transparent text-[var(--text-primary)] tabular-nums hover:border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]';
+    return (
+      <tr key={t.key} className={`border-b border-[var(--border)] hover:bg-[var(--bg)]/60 ${isSub ? 'bg-[var(--bg)]/40' : ''}`}>
+        <td className="px-2 py-1.5 text-center text-[11px] font-mono text-[var(--text-muted)] tabular-nums">{isSub ? '↳' : num}</td>
+        <td className="px-2 py-1.5">
+          <div className={isSub ? 'pl-3 border-l-2 border-[var(--primary)]/30' : ''}>
+            <input
+              type="text"
+              value={t.title}
+              onChange={(e) => setTaskField(t.key, 'title', e.target.value)}
+              placeholder={isSub ? 'Subtask name' : 'e.g. Master Bedroom — Ceiling Layout'}
+              className="w-full px-2 py-1 text-sm font-semibold rounded-md border border-transparent bg-transparent text-[var(--text-primary)] truncate hover:border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
+            />
+            {!isSub && (
+              <button
+                type="button"
+                onClick={() => addSubtaskToParent(phaseIdx, t.key)}
+                className="mt-0.5 ml-2 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--primary)] hover:underline"
+              >
+                <Plus size={10} /> Add subtask
+              </button>
+            )}
+          </div>
+        </td>
+        <td className="px-2 py-1.5">
+          <select
+            value={t.taskType}
+            onChange={(e) => {
+              const newType = e.target.value;
+              setTasks((prev) => prev.map((x) => (x.key === t.key ? { ...x, taskType: newType, checklistTemplateName: '' } : x)));
+            }}
+            className="w-full px-2 py-1 text-[11px] font-bold rounded-md border border-transparent bg-transparent hover:border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
+          >
+            {(options?.taskTypes || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </td>
+        <td className="px-1 py-1.5 text-center">
+          <input type="number" min="0" max="730" value={t.dayOffsetFromProjectStart || 0}
+            onChange={(e) => setTaskField(t.key, 'dayOffsetFromProjectStart', Number(e.target.value))}
+            className={inputCls} title="Day offset from project start (0 = day 1)" />
+        </td>
+        <td className="px-1 py-1.5 text-center">
+          <input type="number" min="0" max="730" step="0.5" value={t.plannedDays ?? 1}
+            onChange={(e) => setTaskField(t.key, 'plannedDays', Number(e.target.value))}
+            className={inputCls} title="Estimated duration in days" />
+        </td>
+        <td className="px-1 py-1.5 text-center text-xs text-[var(--text-muted)] tabular-nums" title="Derived deadline — Start Day + Days">
+          D+{(Number(t.dayOffsetFromProjectStart) || 0) + (Number(t.plannedDays) || 0)}
+        </td>
+        <td className="px-1 py-1.5 text-center">
+          <input type="number" min="0" max="10000" step="0.5" value={t.plannedHours ?? 0}
+            onChange={(e) => setTaskField(t.key, 'plannedHours', Number(e.target.value))}
+            className={inputCls} title="Estimated effort in hours" />
+        </td>
+        <td className="px-2 py-1.5">
+          <EditablePriorityCell value={t.priority || 'medium'} onSave={(v) => setTaskField(t.key, 'priority', v)} />
+        </td>
+        <td className="px-2 py-1.5">
+          <select value={t.responsibilitySlug || ''} onChange={(e) => setTaskField(t.key, 'responsibilitySlug', e.target.value)}
+            className="w-full px-2 py-1 text-xs rounded-md border border-transparent bg-transparent text-[var(--text-primary)] hover:border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]">
+            <option value="">— Any —</option>
+            {(options?.responsibilities || []).map((r) => <option key={r.slug} value={r.slug}>{r.name}</option>)}
+          </select>
+        </td>
+        <td className="px-2 py-1.5">
+          <select value={t.checklistTemplateName || ''} onChange={(e) => setTaskField(t.key, 'checklistTemplateName', e.target.value)}
+            disabled={availableChecklists.length === 0}
+            className="w-full px-2 py-1 text-xs rounded-md border border-transparent bg-transparent text-[var(--text-primary)] hover:border-[var(--border)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)] disabled:opacity-50 disabled:cursor-not-allowed">
+            <option value="">{availableChecklists.length === 0 ? 'No checklists' : '— Default —'}</option>
+            {availableChecklists.map((c) => <option key={c.name} value={c.name}>{c.name}{c.isDefault ? ' (default)' : ''}</option>)}
+          </select>
+        </td>
+        <td className="px-2 py-1.5 text-center text-[10px] text-[var(--text-muted)]" title={dependsTitle || 'No dependencies'}>
+          {dependsLabel || '—'}
+        </td>
+        <td className="px-2 py-1.5 text-center">
+          <div className="flex items-center justify-center gap-0.5">
+            {isSub && (
+              <button type="button" onClick={() => setTaskField(t.key, 'parentKey', null)} title="Make top-level (un-nest)"
+                className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 text-[12px] leading-none">↥</button>
+            )}
+            <button type="button" onClick={() => deleteTask(t.key)} title="Delete task"
+              className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 transition-colors">
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
   };
 
   // Only tasks linked to a phase show up in the table — so stats should
@@ -465,6 +601,8 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
           order: p.order,
           taskKeys: p.taskKeys,
           gateKeys: p.gateKeys,
+          startDayOffset: Number(p.startDayOffset) || 0,
+          dayBudget: p.dayBudget != null && p.dayBudget !== '' ? Number(p.dayBudget) : null,
         })),
         // Only ship phase-linked tasks. Orphans (legacy bug debris) get
         // garbage-collected on save so they stop polluting the totals.
@@ -482,6 +620,8 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
           responsibilitySlug: t.responsibilitySlug || '',
           checklistTemplateName: t.checklistTemplateName || '',
           notes: t.notes || '',
+          parentKey: t.parentKey || null,
+          subtaskOrder: Number(t.subtaskOrder) || 0,
         })),
         gates: gates.map((g) => ({ key: g.key, label: g.label })),
       };
@@ -683,8 +823,33 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
                         />
                       )}
                       metaSlot={(
-                        <span className="text-[10px] text-[var(--text-muted)] ml-1">
-                          {phase.taskKeys.length} task{phase.taskKeys.length !== 1 ? 's' : ''}
+                        <span className="ml-1 inline-flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-[10px] text-[var(--text-muted)]">
+                            {phase.taskKeys.length} task{phase.taskKeys.length !== 1 ? 's' : ''}
+                          </span>
+                          {/* Phase day budget (milestone) — seeds into projects */}
+                          <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-muted)]" title="Day this phase begins (offset from project start)">
+                            Start day
+                            <input
+                              type="number" min="0" max="3650"
+                              value={phase.startDayOffset ?? 0}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setPhaseBudget(phaseIdx, 'startDayOffset', e.target.value === '' ? 0 : Number(e.target.value))}
+                              className="w-12 px-1 py-0.5 text-[11px] text-center rounded border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                            />
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-muted)]" title="Nominal phase length in days (milestone budget). Blank = none.">
+                            Budget
+                            <input
+                              type="number" min="0" max="3650"
+                              value={phase.dayBudget ?? ''}
+                              placeholder="—"
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setPhaseBudget(phaseIdx, 'dayBudget', e.target.value === '' ? null : Number(e.target.value))}
+                              className="w-12 px-1 py-0.5 text-[11px] text-center rounded border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                            />
+                            <span className="text-[var(--text-muted)]">d</span>
+                          </span>
                         </span>
                       )}
                       actionsSlot={(
@@ -702,153 +867,24 @@ const TemplateEditor = ({ template, onBack, onSaved }) => {
                     />
 
                     {/* Task rows for this phase */}
-                    {!isCollapsed && phase.taskKeys.map((key, taskIdxInPhase) => {
-                      const t = taskByKey[key];
-                      if (!t) return null;
-                      const availableChecklists = checklistsByType[t.taskType] || [];
-                      const dependsLabel = t.dependsOnKeys?.length > 0
-                        ? `${t.dependsOnKeys.length} task${t.dependsOnKeys.length !== 1 ? 's' : ''}`
-                        : '';
-                      const dependsTitle = t.dependsOnKeys?.length > 0
-                        ? `depends on: ${t.dependsOnKeys.join(', ')}`
-                        : '';
-                      return (
-                        <tr key={key} className="border-b border-[var(--border)] hover:bg-[var(--bg)]/60">
-                          <td className="px-2 py-1.5 text-center text-[11px] font-mono text-[var(--text-muted)] tabular-nums">{taskIdxInPhase + 1}</td>
-                          <td className="px-2 py-1.5">
-                            <input
-                              type="text"
-                              value={t.title}
-                              onChange={(e) => setTaskField(t.key, 'title', e.target.value)}
-                              placeholder="e.g. Master Bedroom — Ceiling Layout"
-                              className="w-full px-2 py-1 text-sm font-semibold rounded-md border border-transparent bg-transparent
-                                         text-[var(--text-primary)] truncate hover:border-[var(--border)]
-                                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <select
-                              value={t.taskType}
-                              onChange={(e) => {
-                                const newType = e.target.value;
-                                setTasks((prev) => prev.map((x) =>
-                                  x.key === t.key
-                                    ? { ...x, taskType: newType, checklistTemplateName: '' }
-                                    : x
-                                ));
-                              }}
-                              className="w-full px-2 py-1 text-[11px] font-bold rounded-md border border-transparent
-                                         bg-transparent hover:border-[var(--border)] text-[var(--text-primary)]
-                                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
-                            >
-                              {(options?.taskTypes || []).map((o) => (
-                                <option key={o.value} value={o.value}>{o.label}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-1 py-1.5 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              max="730"
-                              value={t.dayOffsetFromProjectStart || 0}
-                              onChange={(e) => setTaskField(t.key, 'dayOffsetFromProjectStart', Number(e.target.value))}
-                              className="w-full px-1.5 py-1 text-sm text-center rounded-md border border-transparent bg-transparent
-                                         text-[var(--text-primary)] tabular-nums hover:border-[var(--border)]
-                                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
-                              title="Day offset from project start (0 = day 1)"
-                            />
-                          </td>
-                          <td className="px-1 py-1.5 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              max="730"
-                              step="0.5"
-                              value={t.plannedDays ?? 1}
-                              onChange={(e) => setTaskField(t.key, 'plannedDays', Number(e.target.value))}
-                              className="w-full px-1.5 py-1 text-sm text-center rounded-md border border-transparent bg-transparent
-                                         text-[var(--text-primary)] tabular-nums hover:border-[var(--border)]
-                                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
-                              title="Estimated duration in days"
-                            />
-                          </td>
-                          <td
-                            className="px-1 py-1.5 text-center text-xs text-[var(--text-muted)] tabular-nums"
-                            title="Derived deadline — Start Day + Days"
-                          >
-                            D+{(Number(t.dayOffsetFromProjectStart) || 0) + (Number(t.plannedDays) || 0)}
-                          </td>
-                          <td className="px-1 py-1.5 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              max="10000"
-                              step="0.5"
-                              value={t.plannedHours ?? 0}
-                              onChange={(e) => setTaskField(t.key, 'plannedHours', Number(e.target.value))}
-                              className="w-full px-1.5 py-1 text-sm text-center rounded-md border border-transparent bg-transparent
-                                         text-[var(--text-primary)] tabular-nums hover:border-[var(--border)]
-                                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
-                              title="Estimated effort in hours"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <EditablePriorityCell
-                              value={t.priority || 'medium'}
-                              onSave={(v) => setTaskField(t.key, 'priority', v)}
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <select
-                              value={t.responsibilitySlug || ''}
-                              onChange={(e) => setTaskField(t.key, 'responsibilitySlug', e.target.value)}
-                              className="w-full px-2 py-1 text-xs rounded-md border border-transparent bg-transparent
-                                         text-[var(--text-primary)] hover:border-[var(--border)]
-                                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]"
-                            >
-                              <option value="">— Any —</option>
-                              {(options?.responsibilities || []).map((r) => (
-                                <option key={r.slug} value={r.slug}>{r.name}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <select
-                              value={t.checklistTemplateName || ''}
-                              onChange={(e) => setTaskField(t.key, 'checklistTemplateName', e.target.value)}
-                              className="w-full px-2 py-1 text-xs rounded-md border border-transparent bg-transparent
-                                         text-[var(--text-primary)] hover:border-[var(--border)]
-                                         focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:bg-[var(--surface)]
-                                         disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={availableChecklists.length === 0}
-                            >
-                              <option value="">
-                                {availableChecklists.length === 0 ? 'No checklists' : '— Default —'}
-                              </option>
-                              {availableChecklists.map((c) => (
-                                <option key={c.name} value={c.name}>
-                                  {c.name}{c.isDefault ? ' (default)' : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-2 py-1.5 text-center text-[10px] text-[var(--text-muted)]" title={dependsTitle || 'No dependencies'}>
-                            {dependsLabel || '—'}
-                          </td>
-                          <td className="px-2 py-1.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => deleteTask(t.key)}
-                              className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 transition-colors"
-                              title="Delete task"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {!isCollapsed && (() => {
+                      const phaseTasks = phase.taskKeys.map((k) => taskByKey[k]).filter(Boolean);
+                      const topLevelKeys = new Set(phaseTasks.filter((x) => !x.parentKey).map((x) => x.key));
+                      const childrenOf = (pk) => phaseTasks
+                        .filter((x) => x.parentKey === pk)
+                        .sort((a, b) => (a.subtaskOrder || 0) - (b.subtaskOrder || 0));
+                      const out = [];
+                      let num = 0;
+                      for (const t of phaseTasks) {
+                        // A task whose parent lives in this phase is rendered nested
+                        // under that parent below — skip it at the top level.
+                        if (t.parentKey && topLevelKeys.has(t.parentKey)) continue;
+                        num += 1;
+                        out.push(renderTaskRow(t, { isSub: false, num, phaseIdx }));
+                        for (const c of childrenOf(t.key)) out.push(renderTaskRow(c, { isSub: true, phaseIdx }));
+                      }
+                      return out;
+                    })()}
 
                     {/* "Add task" row — gold dashed affordance shared with the master sheet */}
                     {!isCollapsed && (

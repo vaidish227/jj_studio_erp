@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const ToastContext = createContext(null);
@@ -23,13 +23,17 @@ export const ToastProvider = ({ children }) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  const success = (msg, dur) => addToast(msg, 'success', dur);
-  const error = (msg, dur) => addToast(msg, 'error', dur);
-  const info = (msg, dur) => addToast(msg, 'info', dur);
-  const warning = (msg, dur) => addToast(msg, 'warning', dur);
+  // Stable identities so consumers (and effects that list `toast` in their deps)
+  // don't see a new reference every time a toast appears/dismisses — otherwise such
+  // effects re-run on every toast, which can wipe unsaved state (see TemplateEditorPage).
+  const success = useCallback((msg, dur) => addToast(msg, 'success', dur), [addToast]);
+  const error   = useCallback((msg, dur) => addToast(msg, 'error', dur), [addToast]);
+  const info    = useCallback((msg, dur) => addToast(msg, 'info', dur), [addToast]);
+  const warning = useCallback((msg, dur) => addToast(msg, 'warning', dur), [addToast]);
+  const value = useMemo(() => ({ success, error, info, warning }), [success, error, info, warning]);
 
   return (
-    <ToastContext.Provider value={{ success, error, info, warning }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-md w-full pointer-events-none">
         {toasts.map((toast) => (

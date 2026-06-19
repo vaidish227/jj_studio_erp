@@ -93,6 +93,7 @@ const PRESETS = [
       "milestones.read", "milestones.create", "milestones.update", "milestones.delete",
       "planner.read", "planner.edit", "planner.assign", "planner.delete",
       "planner.import", "planner.export", "planner.baseline", "planner.dashboard",
+      "planner.schedule.shift", "planner.schedule.recalculate",
       "pms.tab.tasks", "pms.tab.drawings", "pms.tab.team", "pms.whatsapp.manage",
       "documents.read", "documents.upload", "documents.update", "documents.delete",
     ],

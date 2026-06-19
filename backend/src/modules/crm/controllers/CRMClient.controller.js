@@ -7,6 +7,7 @@ const getReferrerTemplate = require("../utils/Template/referrerTemplate");
 const { sendWhatsAppMessage } = require("../../whatspp/services/whatsapp.service");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 const kitEvents = require("../../kit/services/kitEvents");
+const thankYouService = require("../../kit/services/thankYouService");
 
 
 // ─── Helper: Append to interaction timeline ──────────────────────────
@@ -39,7 +40,7 @@ const validStatus = [
 
 const createClientEnquiry = async (req, res) => {
   try {
-    const { name, phone, email, referrerName, referrerEmail } = req.body;
+    const { name, phone, email } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({
@@ -71,6 +72,7 @@ const createClientEnquiry = async (req, res) => {
       spouse: req.body.spouse || {},
       referredBy: req.body.referredBy,
       referrerPhone: req.body.referrerPhone,
+      referrerEmail: req.body.referrerEmail,
       projectType: req.body.projectType,
       area: req.body.area,
       budget: req.body.budget,
@@ -123,22 +125,6 @@ const createClientEnquiry = async (req, res) => {
       client.trackingId
     );
 
-    // Referrer Email
-    if (referrerName && referrerEmail) {
-      try {
-        await sendEmail({
-          to: referrerEmail,
-          subject: "Thank You for Your Referral",
-          html: getReferrerTemplate(referrerName, name),
-        });
-      } catch (emailErr) {
-        console.error(
-          "Failed to send referrer email:",
-          emailErr.message
-        );
-      }
-    }
-
     notify({
       type: "lead.created",
       module: "crm",
@@ -159,6 +145,13 @@ const createClientEnquiry = async (req, res) => {
       payload: { status: client.status, projectType: client.projectType, source: client.source },
       actor: req.user,
     });
+
+    // Dynamic post-enquiry thank-you automation (lead + referral, WhatsApp +
+    // Email). Fully admin-managed via KIT → Thank You Automation. Fire-and-forget
+    // so it can never block or break enquiry creation.
+    thankYouService
+      .triggerThankYou(client, req.user)
+      .catch((err) => console.error("[thankYou] trigger failed:", err?.message));
 
     return res.status(201).json({
       success: true,
