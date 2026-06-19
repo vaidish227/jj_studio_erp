@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Lock } from 'lucide-react';
 
 /**
  * sheetCells — shared presentational primitives for the master-sheet grid
@@ -87,6 +87,72 @@ export const EditableTextCell = ({ value, onSave, disabled, placeholder, width =
     />
   );
 };
+
+/**
+ * EditableDurationCell — number of days. Shows a faded "→ <due>" preview of the
+ * implied end date (start + duration) while editing so the user sees the effect
+ * before commit. Read-only (rolled up) for parent rows with children.
+ */
+export const EditableDurationCell = ({ value, startDate, onSave, disabled, previewLabel }) => {
+  const [local, setLocal] = useState(value ?? '');
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { setLocal(value ?? ''); }, [value]);
+
+  // Client-side preview of the implied due date.
+  const previewDue = () => {
+    if (!startDate || local === '' || Number.isNaN(Number(local))) return null;
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + Number(local));
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  };
+
+  if (disabled) {
+    return <span className="text-xs text-[var(--text-muted)]">{value != null ? `${value}d` : '—'}</span>;
+  }
+
+  const preview = focused ? previewDue() : null;
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        type="number"
+        min={0}
+        max={365}
+        value={local}
+        onFocus={() => setFocused(true)}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={() => {
+          setFocused(false);
+          const n = Number(local);
+          if (local !== '' && !Number.isNaN(n) && n !== Number(value ?? -1)) onSave(n);
+        }}
+        className="w-12 px-1.5 py-0.5 text-xs bg-transparent border border-transparent hover:border-[var(--border)] focus:border-[var(--primary)] rounded text-[var(--text-primary)] focus:outline-none"
+      />
+      {preview && (
+        <span className="text-[10px] text-[var(--text-muted)] whitespace-nowrap">→ {previewLabel || preview}</span>
+      )}
+    </span>
+  );
+};
+
+/**
+ * LockToggleCell — toggles a row's scheduleLocked flag. When locked the row's
+ * date/duration cells should be rendered disabled by the parent grid.
+ */
+export const LockToggleCell = ({ locked, onToggle, disabled }) => (
+  <button
+    type="button"
+    onClick={() => onToggle(!locked)}
+    disabled={disabled}
+    title={locked ? 'Schedule locked — click to unlock' : 'Lock schedule (excludes from auto-shift)'}
+    className={`p-1 rounded transition-colors ${
+      locked
+        ? 'text-[var(--warning)] hover:bg-[var(--warning)]/10'
+        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'
+    } disabled:opacity-40 disabled:cursor-not-allowed`}
+  >
+    <Lock size={13} className={locked ? '' : 'opacity-50'} />
+  </button>
+);
 
 // Inline priority dropdown with colour badge. Always-visible (no edit mode flip).
 export const PRIORITY_OPTIONS = [

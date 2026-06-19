@@ -30,12 +30,15 @@ const STATUS_LABEL = {
 };
 
 const HEALTH_COLOR = {
-  on_track: '#22c55e',
-  at_risk:  '#f59e0b',
-  blocked:  '#ef4444',
-  on_hold:  '#94a3b8',
-  delayed:  '#dc2626',
+  on_track: '#22c55e', // green  — on track (or fewer than DELAYED_DAYS late)
+  delayed:  '#f59e0b', // yellow — DELAYED_DAYS..CRITICAL_DAYS days past ETA
+  critical: '#ef4444', // red    — more than CRITICAL_DAYS days past ETA
 };
+
+// Project-health thresholds, in days past the estimated completion date.
+// Keep in sync with the backend MDDashboard controller (buildPMSBlock).
+const DELAYED_DAYS = 15;
+const CRITICAL_DAYS = 20;
 
 const cssVar = (name, fallback = '#000') => {
   if (typeof window === 'undefined') return fallback;
@@ -219,11 +222,9 @@ const ProposalPipelineCard = ({ pipeline }) => {
 
 const ProjectHealthCard = ({ health }) => {
   const data = [
-    { name: 'On Track', value: health?.onTrack || 0, key: 'on_track' },
-    { name: 'At Risk',  value: health?.atRisk  || 0, key: 'at_risk' },
-    { name: 'Blocked',  value: health?.blocked || 0, key: 'blocked' },
-    { name: 'Delayed',  value: health?.delayed || 0, key: 'delayed' },
-    { name: 'On Hold',  value: health?.onHold  || 0, key: 'on_hold' },
+    { name: 'On Track', value: health?.onTrack  || 0, key: 'on_track' },
+    { name: 'Delayed',  value: health?.delayed  || 0, key: 'delayed',  hint: `${DELAYED_DAYS}–${CRITICAL_DAYS}d late` },
+    { name: 'Critical', value: health?.critical || 0, key: 'critical', hint: `>${CRITICAL_DAYS}d late` },
   ].filter((d) => d.value > 0);
   const total = data.reduce((s, d) => s + d.value, 0);
 
@@ -258,7 +259,10 @@ const ProjectHealthCard = ({ health }) => {
               return (
                 <li key={d.key} className="flex items-center gap-2 text-xs px-1.5 py-1 rounded-lg hover:bg-[var(--bg)] transition-colors">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: HEALTH_COLOR[d.key] }} />
-                  <span className="font-semibold text-[var(--text-primary)] flex-1 truncate">{d.name}</span>
+                  <span className="font-semibold text-[var(--text-primary)] flex-1 truncate">
+                    {d.name}
+                    {d.hint && <span className="ml-1 font-normal text-[10px] text-[var(--text-muted)]">{d.hint}</span>}
+                  </span>
                   <span className="font-bold text-[var(--text-primary)] tabular-nums">{d.value}</span>
                   <span className="text-[var(--text-muted)] text-[10px] tabular-nums w-8 text-right">{pct}%</span>
                 </li>
@@ -387,10 +391,6 @@ const WeeklyTrendCard = ({ trend }) => {
     </SectionCard>
   );
 };
-
-// Projects overdue by more than this many days are flagged "Critical".
-// Keep in sync with CRITICAL_DAYS in the backend MDDashboard controller.
-const CRITICAL_DAYS = 20;
 
 const AlertsRollup = ({ alerts }) => {
   const delayed  = alerts?.delayedCount  || 0;

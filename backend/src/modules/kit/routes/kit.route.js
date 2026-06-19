@@ -1,11 +1,34 @@
 const express = require("express");
 const router  = express.Router();
 const { requirePermission } = require("../../../middleware/auth.middleware");
+const multer = require("multer");
 
 const {
   createTemplate, getTemplates, getTemplateById, updateTemplate, deleteTemplate,
-  getVariables, previewTemplate,
+  getVariables, previewTemplate, uploadMedia,
 } = require("../controllers/template.controller");
+
+// WhatsApp media upload — buffered in memory then streamed to S3 by the controller.
+const kitMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 16 * 1024 * 1024, files: 1 },   // WhatsApp video cap ≈ 16 MB
+  fileFilter: (req, file, cb) => {
+    const mt = file.mimetype || "";
+    const ok = mt.startsWith("image/") || mt.startsWith("video/") ||
+      mt === "application/pdf" || /(msword|officedocument|ms-excel|ms-powerpoint)/.test(mt) ||
+      mt === "text/plain" || mt === "text/csv";
+    if (ok) return cb(null, true);
+    req.fileFilterError = `Unsupported file type "${mt}". Allowed: images, video, PDF, Office docs.`;
+    cb(null, false);
+  },
+});
+function handleKitMulterErrors(err, req, res, next) {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") return res.status(400).json({ message: "File too large. Max 16 MB." });
+    return res.status(400).json({ message: err.message });
+  }
+  return next(err);
+}
 const {
   createCampaign, getCampaigns, getCampaignById, updateCampaign, deleteCampaign,
   addStep, updateStep, deleteStep, reorderSteps,
@@ -17,17 +40,33 @@ const {
 } = require("../controllers/workflow.controller");
 const { getTimeline, getMessages } = require("../controllers/timeline.controller");
 const { getOverview, getCampaignAnalytics, getTemplateAnalytics } = require("../controllers/analytics.controller");
+const { getThankYouSettings, updateThankYouSettings } = require("../controllers/thankYou.controller");
+const { getKickoffSettings, updateKickoffSettings } = require("../controllers/kickoff.controller");
+const { getSettings, updateSettings } = require("../controllers/settings.controller");
 
 // ─── Templates ────────────────────────────────────────────────────────────────
 // Static routes first so they aren't captured by /templates/:id.
 router.get("/templates/variables", requirePermission("kit.tab.templates"), getVariables);
 router.post("/templates/preview",  requirePermission("kit.tab.templates"), previewTemplate);
+router.post("/templates/upload-media", requirePermission("kit.manage"), kitMediaUpload.single("file"), handleKitMulterErrors, uploadMedia);
 
 router.get("/templates",     requirePermission("kit.tab.templates"), getTemplates);
 router.post("/templates",    requirePermission("kit.manage"),        createTemplate);
 router.get("/templates/:id", requirePermission("kit.tab.templates"), getTemplateById);
 router.put("/templates/:id", requirePermission("kit.manage"),        updateTemplate);
 router.delete("/templates/:id", requirePermission("kit.manage"),     deleteTemplate);
+
+// ─── Thank-You Automation settings (singleton) ──────────────────────────────
+router.get("/thank-you/settings", requirePermission("kit.read"),   getThankYouSettings);
+router.put("/thank-you/settings", requirePermission("kit.manage"), updateThankYouSettings);
+
+// ─── Project Kickoff Automation settings (singleton) ────────────────────────
+router.get("/kickoff/settings", requirePermission("kit.read"),   getKickoffSettings);
+router.put("/kickoff/settings", requirePermission("kit.manage"), updateKickoffSettings);
+
+// ─── Global KIT settings (email branding, singleton) ────────────────────────
+router.get("/settings", requirePermission("kit.read"),   getSettings);
+router.put("/settings", requirePermission("kit.manage"), updateSettings);
 
 // ─── Enrollments (static before campaigns/:id catch-alls is not needed — separate base) ──
 router.get("/enrollments",          requirePermission("kit.read"),   getEnrollments);

@@ -33,6 +33,11 @@ import VendorEngagementTab    from '../components/tabs/VendorEngagementTab';
 import DrawingReleaseTab      from '../components/tabs/DrawingReleaseTab';
 // Phase 3b — Handover
 import HandoverTab            from '../components/tabs/HandoverTab';
+// Closure modules — Material Finalization, Snag List, Final Handover
+import MaterialFinalizationTab from '../components/tabs/MaterialFinalizationTab';
+import SnagListTab             from '../components/tabs/SnagListTab';
+import FinalHandoverTab        from '../components/tabs/FinalHandoverTab';
+import ContractorTab           from '../components/tabs/ContractorTab';
 // Project Planner / Master Plan
 import ProjectPlannerTab      from '../components/planner/ProjectPlannerTab';
 import AskAIButton from '../../ai/components/AskAIButton';
@@ -67,6 +72,10 @@ const TABS_LEGACY = [
   { id: 'approvals',         label: 'Client Approvals' },
   { id: 'whatsapp',          label: 'WhatsApp' },
   { id: 'handover',          label: 'Handover' },
+  { id: 'material_finalization', label: 'Material Finalization' },
+  { id: 'snag_list',             label: 'Snag List' },
+  { id: 'final_handover',        label: 'Final Handover' },
+  { id: 'contractor',        label: 'Contractor' },
   { id: 'activity',          label: 'Activity' },
 ];
 
@@ -74,6 +83,10 @@ const TABS_LEGACY = [
 const TABS_V2 = [
   { id: 'overview',  label: 'Overview',         subTabs: ['overview'] },
   { id: 'documents', label: 'Documents',        subTabs: ['documents'] },
+  { id: 'material_finalization', label: 'Material Finalization', subTabs: ['material_finalization'] },
+  { id: 'snag_list',             label: 'Snag List',             subTabs: ['snag_list'] },
+  { id: 'final_handover',        label: 'Final Handover',        subTabs: ['final_handover'] },
+  { id: 'contractor',            label: 'Contractor',            subTabs: ['contractor'] },
   { id: 'workflow',  label: 'Workflow',         subTabs: [
     { id: 'planner',   label: 'Master Plan' },
     { id: 'gantt',     label: 'Gantt' },
@@ -388,6 +401,10 @@ const ProjectDetailPage = () => {
         {activeTabSafe === 'purchase_orders'   && <PurchaseOrdersTab   project={project} />}
         {activeTabSafe === 'whatsapp'          && <WhatsAppTab         project={project} />}
         {activeTabSafe === 'documents'         && <DocumentsTab        project={project} />}
+        {activeTabSafe === 'material_finalization' && <MaterialFinalizationTab project={project} />}
+        {activeTabSafe === 'snag_list'             && <SnagListTab             project={project} />}
+        {activeTabSafe === 'final_handover'        && <FinalHandoverTab        project={project} />}
+        {activeTabSafe === 'contractor'            && <ContractorTab           project={project} />}
         {activeTabSafe === 'activity'          && <ActivityTab         project={project} />}
       </div>
     </div>
@@ -401,6 +418,10 @@ const MODULE_TITLES = {
   site:      'Site Execution and Monitoring System',
   team:      'Site Supervisor and Designer',
   documents: 'Document Repository',
+  material_finalization: 'Material Finalization',
+  snag_list:             'Snag List',
+  final_handover:        'Final Handover',
+  contractor:            'Contractor Management',
   activity:  'Activity Log',
 };
 

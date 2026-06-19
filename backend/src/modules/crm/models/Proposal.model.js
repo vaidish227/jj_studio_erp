@@ -128,6 +128,14 @@ const proposalSchema = new mongoose.Schema(
 
     notes: String,
 
+    // Automation bookkeeping. `kickoffQueuedAt` is the idempotency stamp for the
+    // Project-Kickoff automation (kickoffService) — set the first time both the
+    // advance AND e-sign are received so the kickoff messages fire exactly once.
+    automation: {
+      kickoffQueuedAt: Date,
+      kickoffScheduledFor: Date,
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

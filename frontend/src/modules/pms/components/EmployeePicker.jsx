@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown, X, User, Briefcase } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Search, ChevronDown, X, User } from 'lucide-react';
 import useAssignableUsers from '../hooks/useAssignableUsers';
 
 const ROLE_LABELS = {
@@ -35,16 +36,27 @@ const Avatar = ({ name, size = 'sm' }) => {
   );
 };
 
+// Approx full dropdown height (search box + a few rows) used to decide whether
+// the menu should flip above the trigger when there isn't room below.
+const MENU_EST_HEIGHT = 320;
+
 /**
  * EmployeePicker — searchable employee selector with workload indicator.
  *
+ * The dropdown is rendered through a portal with fixed positioning anchored to
+ * the trigger, so it is never clipped by an ancestor that hides/scrolls
+ * overflow (e.g. a modal body or the horizontally-scrolling master sheet grid).
+ *
  * Props:
- *   value        — single mode: User | null. Multi mode: User[].
- *   onChange     — single: (user|null) => void. Multi: (User[]) => void.
- *   multi        — boolean. When true, selected users render as chips.
- *   placeholder  — string (optional)
- *   filterRoles  — string[] to restrict visible roles (optional)
- *   disabled     — boolean
+ *   value         — single mode: User | null. Multi mode: User[].
+ *   onChange      — single: (user|null) => void. Multi: (User[]) => void.
+ *   multi         — boolean. When true, selected users render as chips.
+ *   placeholder   — string (optional)
+ *   filterRoles   — string[] to restrict visible roles (optional)
+ *   restrictToIds — string[] | Set of user ids to restrict candidates to
+ *                   (e.g. the project team). null/undefined = no restriction.
+ *   emptyHint     — message shown when no candidate matches (optional)
+ *   disabled      — boolean
  */
 const EmployeePicker = ({
   value,
@@ -52,17 +64,68 @@ const EmployeePicker = ({
   multi = false,
   placeholder = 'Select employee...',
   filterRoles,
+  restrictToIds,
+  emptyHint = 'No employees found',
   disabled = false,
 }) => {
   const { users, isLoading } = useAssignableUsers();
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState('');
-  const wrapperRef        = useRef(null);
+  const [coords, setCoords] = useState(null);
+  const wrapperRef = useRef(null);
+  const menuRef    = useRef(null);
 
-  // Close on outside click
+  // Normalise the optional id allow-list to a Set<string> once.
+  const restrictSet = useMemo(() => {
+    if (!restrictToIds) return null;
+    const arr = Array.isArray(restrictToIds) ? restrictToIds : Array.from(restrictToIds);
+    return new Set(arr.map(String));
+  }, [restrictToIds]);
+
+  // Position the portal menu under (or above) the trigger using its viewport
+  // rect. Recomputed on open and whenever an ancestor scrolls / window resizes.
+  const updatePosition = useCallback(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const width = Math.max(rect.width, 280);
+    const spaceBelow = vh - rect.bottom;
+    const spaceAbove = rect.top;
+    const openUp = spaceBelow < MENU_EST_HEIGHT && spaceAbove > spaceBelow;
+    let left = rect.left;
+    if (left + width > vw - 8) left = Math.max(8, vw - 8 - width);
+    setCoords({
+      left,
+      width,
+      openUp,
+      top:    openUp ? 'auto' : rect.bottom + 4,
+      bottom: openUp ? vh - rect.top + 4 : 'auto',
+      maxHeight: Math.max(180, (openUp ? spaceAbove : spaceBelow) - 16),
+    });
+  }, []);
+
+  // Keep the menu anchored while open.
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onReflow = () => updatePosition();
+    // capture:true so we also catch scrolls inside overflow ancestors.
+    window.addEventListener('scroll', onReflow, true);
+    window.addEventListener('resize', onReflow);
+    return () => {
+      window.removeEventListener('scroll', onReflow, true);
+      window.removeEventListener('resize', onReflow);
+    };
+  }, [open, updatePosition]);
+
+  // Close on outside click — the menu lives in a portal, so check it too.
   useEffect(() => {
     const handler = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      const inTrigger = wrapperRef.current?.contains(e.target);
+      const inMenu    = menuRef.current?.contains(e.target);
+      if (!inTrigger && !inMenu) {
         setOpen(false);
         setQuery('');
       }
@@ -72,6 +135,7 @@ const EmployeePicker = ({
   }, []);
 
   const filtered = users.filter((u) => {
+    if (restrictSet && !restrictSet.has(String(u._id))) return false;
     if (filterRoles && filterRoles.length && !filterRoles.includes(u.role)) return false;
     if (!query) return true;
     const q = query.toLowerCase();
@@ -110,14 +174,19 @@ const EmployeePicker = ({
     onChange(multi ? [] : null);
   };
 
+  const toggleOpen = () => {
+    if (disabled) return;
+    setOpen((o) => !o);
+  };
+
   return (
     <div ref={wrapperRef} className="relative">
       {/* Trigger — div instead of button so child remove buttons stay valid HTML */}
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
-        onClick={() => !disabled && setOpen((o) => !o)}
-        onKeyDown={(e) => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) setOpen((o) => !o); }}
+        onClick={toggleOpen}
+        onKeyDown={(e) => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleOpen(); } }}
         className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors
           ${disabled ? 'opacity-50 cursor-not-allowed bg-[var(--bg)] border-[var(--border)]' : 'bg-[var(--bg)] border-[var(--border)] hover:border-[var(--primary)]/50 cursor-pointer'}
           ${open ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20' : ''}
@@ -175,11 +244,24 @@ const EmployeePicker = ({
         )}
       </div>
 
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 min-w-[300px] bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden">
+      {/* Dropdown — portaled to <body> so overflow:hidden / scroll containers
+          (modal body, master-sheet grid) can never clip it. */}
+      {open && coords && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: 'fixed',
+            left: coords.left,
+            width: coords.width,
+            top: coords.top,
+            bottom: coords.bottom,
+            maxHeight: coords.maxHeight,
+            zIndex: 60,
+          }}
+          className="flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden"
+        >
           {/* Search */}
-          <div className="p-2 border-b border-[var(--border)]">
+          <div className="p-2 border-b border-[var(--border)] shrink-0">
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
               <Search size={13} className="text-[var(--text-muted)] shrink-0" />
               <input
@@ -194,11 +276,11 @@ const EmployeePicker = ({
           </div>
 
           {/* List */}
-          <div className="max-h-56 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
             {isLoading ? (
               <p className="text-xs text-[var(--text-muted)] text-center py-4">Loading employees...</p>
             ) : filtered.length === 0 ? (
-              <p className="text-xs text-[var(--text-muted)] text-center py-4">No employees found</p>
+              <p className="text-xs text-[var(--text-muted)] text-center py-4">{emptyHint}</p>
             ) : (
               <>
                 {/* Clear option — single mode shows when something selected; multi mode shows when any chips */}
@@ -242,7 +324,8 @@ const EmployeePicker = ({
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

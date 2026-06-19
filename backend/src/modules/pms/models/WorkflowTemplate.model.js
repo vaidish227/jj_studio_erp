@@ -33,6 +33,11 @@ const taskDefSchema = new mongoose.Schema(
     requiresGateKeys: { type: [String], default: [] },    // gateDef.key entries this task is blocked by
     checklistTemplateName: { type: String },              // ChecklistTemplate.name to snapshot
     notes: { type: String, default: "" },
+    // Subtask support: when set, this task seeds as a SUBTASK of the task whose
+    // key === parentKey (one level deep — the parent should be a top-level task).
+    // seedProject resolves it to Task.parentTaskId/isSubtask after creating tasks.
+    parentKey: { type: String, default: null },
+    subtaskOrder: { type: Number, default: 0 },           // order among siblings under the same parent
   },
   { _id: false }
 );
@@ -71,6 +76,11 @@ const phaseDefSchema = new mongoose.Schema(
     order: { type: Number, required: true },
     taskKeys: { type: [String], default: [] },           // which taskDef.key entries belong to this phase
     gateKeys: { type: [String], default: [] },
+    // Phase day budget (milestone). startDayOffset = day the phase nominally
+    // begins; dayBudget = nominal phase length in days. Seeded into
+    // Project.planSnapshot.phases → drives the phase rollup + ProjectMilestone sync.
+    startDayOffset: { type: Number, default: 0 },
+    dayBudget:      { type: Number, default: null },
   },
   { _id: false }
 );

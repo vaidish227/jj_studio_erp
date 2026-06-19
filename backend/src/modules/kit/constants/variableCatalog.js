@@ -33,32 +33,38 @@ const ENTITY_TYPES = ["lead", "client", "project", "proposal"];
  * KIT spec ({{client_name}}, {{project_name}}, {{proposal_number}}…).
  */
 const VARIABLES = [
-  // ── Person / contact ──────────────────────────────────────────────────────
-  { key: "client_name",   label: "Client Name",   entities: ["lead", "client", "project", "proposal"], source: { entity: "lead",     path: "name",                 format: "raw" } },
-  { key: "first_name",    label: "First Name",    entities: ["lead", "client", "project", "proposal"], source: { entity: "lead",     path: "name",                 format: "first-word" } },
-  { key: "phone",         label: "Phone",         entities: ["lead", "client"],                        source: { entity: "lead",     path: "phone",                format: "raw" } },
-  { key: "email",         label: "Email",         entities: ["lead", "client"],                        source: { entity: "lead",     path: "email",                format: "raw" } },
-  { key: "city",          label: "City",          entities: ["lead", "client"],                        source: { entity: "lead",     path: "city",                 format: "raw" } },
+  // ── Customer ──────────────────────────────────────────────────────────────
+  { key: "client_name",     group: "Customer", label: "Customer Name",   entities: ["lead", "client", "project", "proposal"], source: { entity: "lead",     path: "name",            format: "raw" } },
+  { key: "first_name",      group: "Customer", label: "First Name",      entities: ["lead", "client", "project", "proposal"], source: { entity: "lead",     path: "name",            format: "first-word" } },
+  { key: "phone",           group: "Customer", label: "Phone",           entities: ["lead", "client"],                        source: { entity: "lead",     path: "phone",           format: "raw" } },
+  { key: "email",           group: "Customer", label: "Email",           entities: ["lead", "client"],                        source: { entity: "lead",     path: "email",           format: "raw" } },
+  { key: "city",            group: "Customer", label: "City",            entities: ["lead", "client"],                        source: { entity: "lead",     path: "city",            format: "raw" } },
+  { key: "project_type",    group: "Customer", label: "Project Type",    entities: ["lead", "client", "project"],             source: { entity: "lead",     path: "projectType",     format: "raw" } },
+  { key: "enquiry_details", group: "Customer", label: "Enquiry Details", entities: ["lead"],                                  source: { entity: "lead",     path: "notes",           format: "raw" } },
+
+  // ── Referral ──────────────────────────────────────────────────────────────
+  { key: "referral_name",   group: "Referral", label: "Referrer Name",   entities: ["lead"],                                  source: { entity: "lead",     path: "referredBy",      format: "raw" } },
+  { key: "referral_phone",  group: "Referral", label: "Referrer Phone",  entities: ["lead"],                                  source: { entity: "lead",     path: "referrerPhone",   format: "raw" } },
+  { key: "referral_email",  group: "Referral", label: "Referrer Email",  entities: ["lead"],                                  source: { entity: "lead",     path: "referrerEmail",   format: "raw" } },
 
   // ── Sales / pipeline ──────────────────────────────────────────────────────
-  { key: "project_type",  label: "Project Type",  entities: ["lead", "client", "project"],             source: { entity: "lead",     path: "projectType",          format: "raw" } },
-  { key: "meeting_date",  label: "Meeting Date",  entities: ["lead"],                                  source: { entity: "meeting",  path: "scheduledAt",          format: "date" } },
-  { key: "followup_date", label: "Follow-up Date",entities: ["lead"],                                  source: { entity: "followup", path: "date",                 format: "date" } },
+  { key: "meeting_date",    group: "Sales", label: "Meeting Date",       entities: ["lead"],                                  source: { entity: "meeting",  path: "scheduledAt",     format: "date" } },
+  { key: "followup_date",   group: "Sales", label: "Follow-up Date",     entities: ["lead"],                                  source: { entity: "followup", path: "date",            format: "date" } },
 
   // ── Proposal ──────────────────────────────────────────────────────────────
-  { key: "proposal_number", label: "Proposal No.", entities: ["proposal"],                             source: { entity: "proposal", path: "proposalNumber",       format: "raw" } },
-  { key: "proposal_amount", label: "Proposal Amount", entities: ["proposal"],                          source: { entity: "proposal", path: "totalAmount",          format: "currency" } },
-  { key: "proposal_status", label: "Proposal Status", entities: ["proposal"],                          source: { entity: "proposal", path: "status",               format: "raw" } },
+  { key: "proposal_number", group: "Proposal", label: "Proposal No.",     entities: ["proposal"],                            source: { entity: "proposal", path: "proposalNumber",  format: "raw" } },
+  { key: "proposal_amount", group: "Proposal", label: "Proposal Amount",  entities: ["proposal"],                            source: { entity: "proposal", path: "totalAmount",     format: "currency" } },
+  { key: "proposal_status", group: "Proposal", label: "Proposal Status",  entities: ["proposal"],                            source: { entity: "proposal", path: "status",          format: "raw" } },
 
   // ── Project (PMS) ─────────────────────────────────────────────────────────
-  { key: "project_name",    label: "Project Name",    entities: ["project"],                           source: { entity: "project",  path: "name",                 format: "raw" } },
-  { key: "project_phase",   label: "Project Phase",   entities: ["project"],                           source: { entity: "project",  path: "phase",                format: "raw" } },
-  { key: "project_progress",label: "Project Progress",entities: ["project"],                           source: { entity: "project",  path: "progressPercent",      format: "raw" } },
-  { key: "site_visit_date", label: "Site Visit Date", entities: ["project"],                           source: { entity: "siteVisit",path: "visitDate",            format: "date" } },
-  { key: "milestone_name",  label: "Milestone Name",  entities: ["project"],                           source: { entity: "milestone",path: "name",                 format: "raw" } },
+  { key: "project_name",     group: "Project", label: "Project Name",     entities: ["project"],                             source: { entity: "project",  path: "name",            format: "raw" } },
+  { key: "project_phase",    group: "Project", label: "Project Phase",    entities: ["project"],                             source: { entity: "project",  path: "phase",           format: "raw" } },
+  { key: "project_progress", group: "Project", label: "Project Progress", entities: ["project"],                             source: { entity: "project",  path: "progressPercent", format: "raw" } },
+  { key: "site_visit_date",  group: "Project", label: "Site Visit Date",  entities: ["project"],                             source: { entity: "siteVisit",path: "visitDate",       format: "date" } },
+  { key: "milestone_name",   group: "Project", label: "Milestone Name",   entities: ["project"],                             source: { entity: "milestone",path: "name",            format: "raw" } },
 
   // ── Company / sender (static, always available) ───────────────────────────
-  { key: "company_name",  label: "Company Name",  entities: ENTITY_TYPES,                              source: { entity: "static",   path: "JJ Studio",            format: "raw" } },
+  { key: "company_name",  group: "Company", label: "Company Name",  entities: ENTITY_TYPES,                              source: { entity: "static",   path: "JJ Studio",            format: "raw" } },
 ];
 
 // Convenience lookups.

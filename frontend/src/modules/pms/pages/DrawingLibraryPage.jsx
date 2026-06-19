@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FolderOpen, Plus, Search, LayoutGrid, List as ListIcon, X } from 'lucide-react';
-import { Button, Select, Loader, Pagination } from '../../../shared/components';
+import { FolderOpen, Search, LayoutGrid, List as ListIcon, Layers, X } from 'lucide-react';
+import { Select, Loader, Pagination } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import useDrawings from '../hooks/useDrawings';
 import DrawingCard, { DRAWING_TYPE_LABELS } from '../components/DrawingCard';
 import DrawingListRow from '../components/DrawingListRow';
-import UploadDrawingModal from '../components/UploadDrawingModal';
+import ProjectDrawingGroup from '../components/ProjectDrawingGroup';
 import ReviseDrawingModal from '../components/ReviseDrawingModal';
 import ApproveDrawingModal from '../components/ApproveDrawingModal';
 import ReleaseDrawingModal from '../components/ReleaseDrawingModal';
@@ -39,7 +39,14 @@ const readView = () => {
   try { return localStorage.getItem('drawingsView') || 'grid'; } catch { return 'grid'; }
 };
 
+const readGroupBy = () => {
+  try { return localStorage.getItem('drawingsGroupBy') || 'project'; } catch { return 'project'; }
+};
+
 const PAGE_SIZE = 25;
+// Pull a large slice so the project-grouped view shows every project's drawings
+// in one pass (the flat view paginates client-side at PAGE_SIZE regardless).
+const FETCH_LIMIT = 500;
 
 const DrawingLibraryPage = () => {
   const location  = useLocation();
@@ -49,26 +56,38 @@ const DrawingLibraryPage = () => {
   const isPendingTab = location.pathname.includes('pending-approvals');
 
   const { drawings, isLoading, error, filters, updateFilter, refresh } = useDrawings(
-    isPendingTab ? { status: 'sent_for_approval' } : {}
+    isPendingTab
+      ? { status: 'sent_for_approval', limit: FETCH_LIMIT }
+      : { limit: FETCH_LIMIT }
   );
 
   useEffect(() => {
     if (isPendingTab) updateFilter('status', 'sent_for_approval');
   }, [isPendingTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // View-level state (client-side search / project / sort / layout)
+  // View-level state (client-side search / project / sort / layout / grouping)
   const [viewMode, setViewMode]         = useState(readView);
+  const [groupBy, setGroupBy]           = useState(readGroupBy);
   const [search, setSearch]             = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [sortBy, setSortBy]             = useState('newest');
+
+  const grouped = groupBy === 'project';
 
   const setView = (m) => {
     setViewMode(m);
     try { localStorage.setItem('drawingsView', m); } catch { /* ignore */ }
   };
 
+  const toggleGroupBy = () => {
+    setGroupBy((g) => {
+      const next = g === 'project' ? 'none' : 'project';
+      try { localStorage.setItem('drawingsGroupBy', next); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   // Modal state
-  const [showUpload, setShowUpload] = useState(false);
   const [revising, setRevising]     = useState(null);
   const [approving, setApproving]   = useState(null);
   const [releasing, setReleasing]   = useState(null);
@@ -117,6 +136,22 @@ const DrawingLibraryPage = () => {
     return sorted;
   }, [drawings, projectFilter, search, sortBy]);
 
+  // Project-grouped view — bucket the filtered/sorted set by project, ordered
+  // by project name (drawings with no project sink to the bottom).
+  const projectGroups = useMemo(() => {
+    const map = new Map();
+    visibleDrawings.forEach((d) => {
+      const pid = d.projectId?._id || '__unassigned__';
+      if (!map.has(pid)) map.set(pid, { project: d.projectId || null, drawings: [] });
+      map.get(pid).drawings.push(d);
+    });
+    return [...map.values()].sort((a, b) => {
+      if (!a.project) return 1;
+      if (!b.project) return -1;
+      return (a.project.name || '').localeCompare(b.project.name || '');
+    });
+  }, [visibleDrawings]);
+
   const hasClientFilters = !!(search.trim() || projectFilter);
   const clearClientFilters = () => { setSearch(''); setProjectFilter(''); };
 
@@ -147,12 +182,10 @@ const DrawingLibraryPage = () => {
             <p className="text-xs text-[var(--text-muted)]">Design &amp; Drawing Management</p>
           </div>
         </div>
-        <PermissionGate permission="drawings.upload">
-          <Button onClick={() => setShowUpload(true)}>
-            <Plus size={15} className="mr-1" />
-            Upload Drawing
-          </Button>
-        </PermissionGate>
+        {/* Upload happens within a project context (a project's Drawings tab /
+            task workspace / Master Sheet), where the projectId is known. The
+            cross-project library has no project selector, so a global upload
+            button here cannot produce a valid drawing — intentionally omitted. */}
       </div>
 
       {/* ── Tabs ───────────────────────────────────────────────────────────── */}
@@ -186,33 +219,53 @@ const DrawingLibraryPage = () => {
         </PermissionGate>
       </div>
 
-      {/* ── Toolbar: search · sort · view toggle ───────────────────────────── */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+      {/* ── Toolbar — one contained bar: search · view controls · filters ──── */}
+      {/* No `overflow-hidden` here: it would clip the Select dropdown menus,
+          which render as absolutely-positioned lists overflowing the card. */}
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
+        {/* Row 1 — search (fills) + view controls (grouped, right) */}
+        <div className="flex items-center gap-2.5 flex-wrap p-3">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search title, zone, type, project…"
-              className="w-full pl-9 pr-8 py-2 text-sm rounded-lg bg-[var(--surface)] border border-[var(--border)]
+              className="w-full h-11 pl-10 pr-9 text-sm rounded-xl bg-[var(--surface)] border border-[var(--border)]
                          text-[var(--text-primary)] placeholder:text-[var(--text-muted)]
                          focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 focus:outline-none transition-colors"
             />
             {search && (
               <button type="button" onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
-                <X size={14} />
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                <X size={15} />
               </button>
             )}
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          {/* View controls — sort, then a divider, then grouping + layout */}
+          <div className="flex items-center gap-2 shrink-0">
             <div className="w-44">
               <Select value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} />
             </div>
-            <div className="flex items-center bg-[var(--surface)] border border-[var(--border)] rounded-lg p-0.5">
+
+            <span className="hidden sm:block h-7 w-px bg-[var(--border)] mx-0.5" aria-hidden="true" />
+
+            <button
+              type="button"
+              onClick={toggleGroupBy}
+              title={grouped ? 'Grouped by project — click for a flat list' : 'Group drawings by project'}
+              aria-pressed={grouped}
+              className={`inline-flex items-center gap-1.5 h-11 px-3.5 text-xs font-semibold rounded-xl border transition-all
+                ${grouped
+                  ? 'bg-[var(--primary)] text-white border-transparent shadow-sm'
+                  : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--primary)]/40 hover:text-[var(--primary)]'}`}
+            >
+              <Layers size={14} /> By project
+            </button>
+
+            <div className="flex items-center h-11 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
               {[
                 { mode: 'grid', icon: LayoutGrid, label: 'Grid view' },
                 { mode: 'list', icon: ListIcon,   label: 'List view' },
@@ -223,10 +276,11 @@ const DrawingLibraryPage = () => {
                   onClick={() => setView(mode)}
                   title={label}
                   aria-label={label}
-                  className={`p-1.5 rounded-md transition-colors
+                  aria-pressed={viewMode === mode}
+                  className={`flex items-center justify-center w-9 h-full rounded-lg transition-colors
                     ${viewMode === mode
-                      ? 'bg-[var(--primary)] text-white'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                      ? 'bg-[var(--primary)] text-white shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg)]'}`}
                 >
                   <Icon size={16} />
                 </button>
@@ -235,9 +289,9 @@ const DrawingLibraryPage = () => {
           </div>
         </div>
 
-        {/* Status pills + type + project (All tab only) */}
+        {/* Row 2 — status filter + scope selects (All Drawings tab only) */}
         {!isPendingTab && (
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap p-3 border-t border-[var(--border)] bg-[var(--bg)]/30 rounded-b-2xl">
             <div className="flex items-center gap-1.5 flex-wrap">
               {STATUS_FILTERS.map((f) => {
                 const isActive = (filters.status || '') === f.value;
@@ -246,7 +300,7 @@ const DrawingLibraryPage = () => {
                     key={f.value}
                     type="button"
                     onClick={() => updateFilter('status', f.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
+                    className={`inline-flex items-center h-9 px-3.5 rounded-lg text-xs font-semibold border transition-all
                       ${isActive
                         ? 'bg-[var(--primary)] text-white border-transparent shadow-sm'
                         : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--primary)]/40 hover:text-[var(--primary)]'}`}
@@ -257,7 +311,7 @@ const DrawingLibraryPage = () => {
               })}
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               <div className="w-44">
                 <Select
                   value={projectFilter}
@@ -282,6 +336,10 @@ const DrawingLibraryPage = () => {
         <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
           <span className="font-semibold text-[var(--text-secondary)]">{visibleDrawings.length}</span>
           drawing{visibleDrawings.length === 1 ? '' : 's'}
+          {grouped && visibleDrawings.length > 0 && (
+            <span>across <span className="font-semibold text-[var(--text-secondary)]">{projectGroups.length}</span>{' '}
+              project{projectGroups.length === 1 ? '' : 's'}</span>
+          )}
           {hasClientFilters && (
             <button type="button" onClick={clearClientFilters}
               className="ml-1 inline-flex items-center gap-1 text-[var(--primary)] hover:underline font-semibold">
@@ -313,6 +371,21 @@ const DrawingLibraryPage = () => {
               Clear filters
             </button>
           )}
+        </div>
+      ) : grouped ? (
+        <div className="space-y-4">
+          {projectGroups.map((g) => (
+            <ProjectDrawingGroup
+              key={g.project?._id || '__unassigned__'}
+              project={g.project}
+              drawings={g.drawings}
+              viewMode={viewMode}
+              onSendForApproval={handleSendForApproval}
+              onApprove={(dr) => setApproving(dr)}
+              onRelease={(dr) => setReleasing(dr)}
+              onRevise={(dr) => setRevising(dr)}
+            />
+          ))}
         </div>
       ) : viewMode === 'list' ? (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
@@ -360,8 +433,8 @@ const DrawingLibraryPage = () => {
         </div>
       )}
 
-      {/* ── Pagination ─────────────────────────────────────────────────────── */}
-      {!isLoading && !error && visibleDrawings.length > 0 && pageCount > 1 && (
+      {/* ── Pagination (flat view only — grouped view shows all per project) ── */}
+      {!isLoading && !error && !grouped && visibleDrawings.length > 0 && pageCount > 1 && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <span className="text-xs text-[var(--text-muted)]">
             Showing <span className="font-semibold text-[var(--text-secondary)]">{rangeStart}–{rangeEnd}</span> of{' '}
@@ -372,12 +445,6 @@ const DrawingLibraryPage = () => {
       )}
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
-      <UploadDrawingModal
-        isOpen={showUpload}
-        onClose={() => setShowUpload(false)}
-        projectId={null}
-        onUploaded={refresh}
-      />
       <ReviseDrawingModal
         isOpen={!!revising}
         onClose={() => setRevising(null)}

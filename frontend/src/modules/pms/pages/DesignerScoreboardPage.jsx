@@ -7,6 +7,10 @@ import {
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { exportReportAsExcel } from '../../../shared/utils/excelExport';
+import GlobalDateFilter from '../../../shared/dashboard-filter/components/GlobalDateFilter';
+import {
+  formatRangeLabel, isValidRange, rangeFromSearchParams, writeRangeToSearchParams,
+} from '../../../shared/dashboard-filter/dateRangePresets';
 
 /**
  * DesignerScoreboardPage — the "Full Report" target for the dashboard's
@@ -18,16 +22,36 @@ import { exportReportAsExcel } from '../../../shared/utils/excelExport';
  * Route: /pms/designers  (sibling of /pms/designers/:userId)
  */
 
-const PERIOD_OPTIONS = [
-  { value: 'week',    label: 'Last 7 Days' },
-  { value: 'month',   label: 'Last 30 Days' },
-  { value: 'quarter', label: 'Last 90 Days' },
-  { value: 'all',     label: 'All Time' },
-];
-
-const PERIOD_LABEL = {
-  week: 'This Week', month: 'This Month', quarter: 'This Quarter', all: 'All Time',
+// The per-designer detail page accepts ranges too, but the row drill-down keeps
+// passing a legacy week|month|quarter|all token for backward-compatible links.
+const PRESET_TO_LEGACY = {
+  today: 'week', yesterday: 'week', last_7_days: 'week',
+  last_30_days: 'month', this_month: 'month', last_month: 'month',
+  last_90_days: 'quarter', all_time: 'all',
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const daySpan = (from, to) => {
+  const a = Date.parse(from);
+  const b = Date.parse(to);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 30;
+  return Math.round(Math.abs(b - a) / DAY_MS) + 1;
+};
+const rangeToLegacyPeriod = (range) => {
+  if (!range) return 'month';
+  if (range.preset === 'custom') {
+    const d = daySpan(range.from, range.to);
+    if (d <= 10) return 'week';
+    if (d <= 45) return 'month';
+    if (d <= 120) return 'quarter';
+    return 'all';
+  }
+  return PRESET_TO_LEGACY[range.preset] || 'month';
+};
+
+// Filesystem-safe slug for the Excel filename.
+const rangeSlug = (range) =>
+  range?.preset === 'custom' ? `${range.from}_to_${range.to}` : (range?.preset || 'range');
 
 const ROLE_LABEL = {
   primary_designer: 'Primary Designer',
@@ -193,7 +217,7 @@ const DesignerScoreboardPage = () => {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [period, setPeriod]       = useState(() => searchParams.get('period') || 'month');
+  const [range, setRange]         = useState(() => rangeFromSearchParams(searchParams));
   const [data, setData]           = useState(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
@@ -208,22 +232,21 @@ const DesignerScoreboardPage = () => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    pmsService.getDesignerKRA(period)
+    pmsService.getDesignerKRA(range)
       .then((res) => { if (!cancelled) setData(res || null); })
       .catch((err) => {
         if (!cancelled) setError(err?.response?.data?.message || err?.message || 'Failed to load scoreboard');
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [period, version]);
+  }, [range, version]);
 
   const designers = useMemo(() => data?.designers || [], [data]);
 
-  const changePeriod = (p) => {
-    setPeriod(p);
-    const next = new URLSearchParams(searchParams);
-    next.set('period', p);
-    setSearchParams(next, { replace: true });
+  const changeRange = (next) => {
+    if (!next || !isValidRange(next)) return;
+    setRange(next);
+    setSearchParams(writeRangeToSearchParams(new URLSearchParams(searchParams), next), { replace: true });
   };
 
   // ── Summary KPIs (computed from the full list, ignoring filters) ────────────
@@ -273,15 +296,15 @@ const DesignerScoreboardPage = () => {
   }, [designers]);
 
   const openDesigner = (d) => {
-    if (d?.userId) navigate(`/pms/designers/${d.userId}?period=${period}`);
+    if (d?.userId) navigate(`/pms/designers/${d.userId}?period=${rangeToLegacyPeriod(range)}`);
   };
 
   const downloadExcel = async () => {
     setDownloading(true);
     try {
-      const res = await pmsService.getDesignerKpiReport(period);
+      const res = await pmsService.getDesignerKpiReport(range);
       exportReportAsExcel(res, {
-        fileName: `designer-kpi-${period}`,
+        fileName: `designer-kpi-${rangeSlug(range)}`,
         columns: [
           { header: 'Name',           key: 'name',          width: 22 },
           { header: 'Role',           key: 'role',          width: 14 },
@@ -328,18 +351,12 @@ const DesignerScoreboardPage = () => {
           <div className="min-w-0">
             <h1 className="text-base lg:text-xl font-extrabold text-[var(--text-primary)]">Designer KPI / KRA Scoreboard</h1>
             <p className="text-[11px] lg:text-xs text-[var(--text-muted)] mt-0.5">
-              {PERIOD_LABEL[period]} · auto-calculated · ranked by KRA score · click a row for full detail
+              {formatRangeLabel(range)} · auto-calculated · ranked by KRA score · click a row for full detail
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={period}
-            onChange={(e) => changePeriod(e.target.value)}
-            className="px-2.5 py-1.5 text-xs bg-[var(--bg)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
-          >
-            {PERIOD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <GlobalDateFilter value={range} onChange={changeRange} />
           <button
             type="button"
             onClick={() => setVersion((v) => v + 1)}

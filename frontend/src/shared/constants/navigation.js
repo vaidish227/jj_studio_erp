@@ -8,10 +8,8 @@ import {
   FileText,
   MessageCircle,
   FolderOpen,
-  MessagesSquare,
   Crown,
-  CheckSquare,
-  CalendarDays,
+  LayoutTemplate,
 } from 'lucide-react';
 
 // Each item has an optional `permission` key.
@@ -62,9 +60,10 @@ export const NAV_ITEMS = [
       { id: 'kit-follow-ups', label: 'Follow Ups',         path: '/kit/follow-ups' },
       { id: 'kit-campaigns',  label: 'Campaigns',          path: '/kit/campaigns',  permission: 'kit.read' },
       { id: 'kit-automations',label: 'Automations',        path: '/kit/automations',permission: 'kit.manage' },
+      { id: 'kit-thank-you',  label: 'Thank You Automation', path: '/kit/thank-you', permission: 'kit.manage' },
+      { id: 'kit-kickoff',    label: 'Project Kickoff',     path: '/kit/kickoff',    permission: 'kit.manage' },
       { id: 'kit-analytics',  label: 'Analytics',          path: '/kit/analytics',  permission: 'kit.read' },
-      { id: 'kit-whatsapp',   label: 'WhatsApp Templates', path: '/kit/whatsapp',   permission: 'kit.tab.templates' },
-      { id: 'kit-mail',       label: 'Mail Templates',     path: '/kit/mail',       permission: 'kit.tab.templates' },
+      // WhatsApp/Mail Templates moved to the consolidated Templates group below.
       { id: 'kit-settings',   label: 'Timeline Settings',  path: '/kit/settings',   permission: 'kit.manage' },
     ],
   },
@@ -77,7 +76,7 @@ export const NAV_ITEMS = [
       { id: 'proposal-list',      label: 'Proposal Dashboard', path: '/proposal' },
       { id: 'proposal-create',    label: 'Create Proposal',    path: '/proposal/create',   permission: 'proposal.create' },
       { id: 'proposal-clients',   label: 'Draft Proposals',    path: '/proposal/clients' },
-      { id: 'proposal-templates', label: 'Quotation Template', path: '/proposal/templates', permission: 'proposal.tab.templates' },
+      // Quotation Template moved to the consolidated Templates group below.
       { id: 'proposal-approval',  label: 'Manager Approval',   path: '/proposal/approval',  permission: 'proposal.tab.approval' },
       { id: 'proposal-sent',      label: 'Sent & eSign Track', path: '/proposal/sent' },
       { id: 'proposal-approved',  label: 'Approved',           path: '/proposal/approved' },
@@ -119,14 +118,13 @@ export const NAV_ITEMS = [
     // project drawings — don't see this sidebar group.
     permission: 'designer.dashboard',
     children: [
-      // Icons are used only when the sidebar is flattened (designer role) and
+      // Trimmed to Drawings only — Dashboard, Tasks and Calendar were removed
+      // from this group per product decision. Their routes (/designer/dashboard,
+      // /tasks, /pms/calendar) remain registered, so deep links still work; they
+      // are simply no longer surfaced in this sidebar group.
+      // The icon is used when the sidebar is flattened (designer role) and
       // collapsed to the icon rail; grouped/expanded views render labels only.
-      { id: 'designer-dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/designer/dashboard', permission: 'designer.dashboard' },
-      { id: 'tasks',              icon: CheckSquare,     label: 'Tasks',     path: '/tasks',              permission: 'tasks.submit' },
       { id: 'drawings',           icon: FileText,        label: 'Drawings',  path: '/drawings',           permission: 'drawings.read' },
-      // Self-scoped calendar (backend returns only the designer's own events).
-      // id 'calendar' matches the last URL segment so it highlights when active.
-      { id: 'calendar',           icon: CalendarDays,    label: 'Calendar',  path: '/pms/calendar',       permission: 'calendar.read' },
     ],
   },
   {
@@ -139,6 +137,29 @@ export const NAV_ITEMS = [
     ],
   },
   {
+    // Consolidated home for every template type across the app. The destination
+    // routes still live under their owning modules (/proposal, /settings, /kit) —
+    // only the sidebar entries are gathered here. No group-level permission: each
+    // child carries its own gate, and SidebarGroup auto-hides when none are visible.
+    id: 'templates',
+    label: 'Templates',
+    icon: LayoutTemplate,
+    children: [
+      { id: 'proposal-templates',  label: 'Quotation Template',  path: '/proposal/templates',           permission: 'proposal.tab.templates' },
+      { id: 'checklist-templates', label: 'Checklist Templates', path: '/settings/checklist-templates', permission: 'settings.checklists.manage' },
+      { id: 'workflow-templates',  label: 'Master Templates',    path: '/settings/workflow-templates',  permission: 'settings.workflows.manage' },
+      { id: 'form-templates',      label: 'Form Templates',      path: '/pms/form-templates',           permission: 'projects.read' },
+      // KIT communication templates — only surfaced when the KIT feature flag is
+      // on, since their /kit/* routes are omitted from the router otherwise.
+      ...(import.meta.env.VITE_ENABLE_KIT === 'true'
+        ? [
+            { id: 'kit-whatsapp', label: 'WhatsApp Templates', path: '/kit/whatsapp', permission: 'kit.tab.templates' },
+            { id: 'kit-mail',     label: 'Mail Templates',     path: '/kit/mail',     permission: 'kit.tab.templates' },
+          ]
+        : []),
+    ],
+  },
+  {
     id: 'settings',
     label: 'Settings',
     icon: Settings,
@@ -146,9 +167,6 @@ export const NAV_ITEMS = [
     children: [
       { id: 'users',             label: 'User Management',     path: '/settings/users',             permission: 'settings.tab.users' },
       { id: 'roles-permissions', label: 'Roles & Permissions', path: '/settings/roles-permissions', permission: 'settings.tab.roles' },
-      // Phase 3b — Template admin
-      { id: 'checklist-templates', label: 'Checklist Templates', path: '/settings/checklist-templates', permission: 'settings.checklists.manage' },
-      { id: 'workflow-templates',  label: 'Master Templates',    path: '/settings/workflow-templates',  permission: 'settings.workflows.manage' },
       { id: 'responsibilities',    label: 'Responsibilities',    path: '/settings/responsibilities',    roles: ['admin', 'md'] },
     ],
   },

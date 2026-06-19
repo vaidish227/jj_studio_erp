@@ -40,6 +40,10 @@ export const PROJECT_TAB_PERMISSIONS = {
   handover:          ['pms.tab.handover', 'projects.read'],
   activity:          ['pms.tab.activity', 'activity.read', 'projects.read'],
   gates:             ['pms.tab.gates', 'projects.read'],
+  material_finalization: ['pms.tab.material_finalization', 'material_finalization.read'],
+  snag_list:             ['pms.tab.snag_list', 'snag_list.read'],
+  final_handover:        ['pms.tab.final_handover', 'final_handover.read'],
+  contractor:            ['pms.tab.contractor', 'contractor.read'],
 };
 
 /**

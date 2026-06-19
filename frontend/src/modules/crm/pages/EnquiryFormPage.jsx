@@ -206,6 +206,15 @@ const EnquiryFormPage = () => {
                 onChange={handleChange}
                 placeholder="Optional"
               />
+              <Input
+                label="Referral Email"
+                name="referredEmail"
+                type="email"
+                value={formData.referredEmail}
+                onChange={handleChange}
+                icon={Mail}
+                placeholder="Optional"
+              />
               <Select
                 label="Project Type"
                 name="enquiryType"

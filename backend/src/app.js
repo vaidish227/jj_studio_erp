@@ -17,6 +17,10 @@ app.use("/static", express.static(path.join(__dirname, "..", "public")));
 const authRoutes = require("./modules/auth/routes/auth.routes");
 app.use("/api/auth", authRoutes);
 
+// Client form public endpoints — clients fill forms without logging in
+const { publicRouter: clientFormPublicRouter } = require("./modules/pms/routes/ClientForm.route");
+app.use("/api/client-forms/public", clientFormPublicRouter);
+
 // ─── Apply JWT verification to all routes below this line ─────────────────────
 // The frontend already sends Authorization: Bearer <token> on every request,
 // so this is backward-compatible with all existing API calls.
@@ -113,6 +117,18 @@ app.use("/api/pms/po", pmsPurchaseOrderRoutes);
 const pmsMaterialRoutes = require("./modules/pms/routes/Material.route");
 app.use("/api/pms/material", pmsMaterialRoutes);
 
+const pmsMaterialFinalizationRoutes = require("./modules/pms/routes/MaterialFinalization.route");
+app.use("/api/pms/material-finalization", pmsMaterialFinalizationRoutes);
+
+const pmsSnagRoutes = require("./modules/pms/routes/Snag.route");
+app.use("/api/pms/snag", pmsSnagRoutes);
+
+const pmsFinalHandoverRoutes = require("./modules/pms/routes/FinalHandover.route");
+app.use("/api/pms/final-handover", pmsFinalHandoverRoutes);
+
+const pmsContractorRoutes = require("./modules/pms/routes/Contractor.route");
+app.use("/api/pms/contractor", pmsContractorRoutes);
+
 const pmsApprovalRoutes = require("./modules/pms/routes/Approval.route");
 app.use("/api/pms/approval", pmsApprovalRoutes);
 
@@ -169,6 +185,10 @@ app.use("/api/pms/design-revisions", designRevisionRoutes);
 // ─── Project Planner / Master Plan ───────────────────────────────────────────
 const pmsPlannerRoutes = require("./modules/pms/routes/Planner.route");
 app.use("/api/pms/planner", pmsPlannerRoutes);
+
+// ─── Client Forms (dynamic forms sent to clients) ─────────────────────────────
+const { protectedRouter: clientFormRouter } = require("./modules/pms/routes/ClientForm.route");
+app.use("/api/client-forms", clientFormRouter);
 
 // ─── Settings & RBAC (admin only — guarded inside the route file) ─────────────
 const rolesRoutes = require("./modules/settings/routes/Roles.route");

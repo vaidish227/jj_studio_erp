@@ -142,6 +142,69 @@ const taskSchema = new mongoose.Schema(
     dueDate: Date,
     completedAt: Date,
 
+    // --- Scheduling engine (parent/subtask + day-based auto-shift) ---
+    // All fields default so existing/standalone tasks behave exactly as before.
+    // Planned dates live in `planning.plannedStartDate/plannedEndDate`; actuals
+    // in top-level `startDate`/`completedAt`; the dependency graph in `dependsOn`.
+    // The engine NEVER writes `status` — it mutates planned dates + the audit
+    // fields below via bulkWrite, so the status→workStatus/progress hooks below
+    // are never tripped.
+
+    // Parent of a subtask; null = top-level / standalone task.
+    parentTaskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Task",
+      default: null,
+    },
+    // Denormalized flag mirroring `!!parentTaskId` for cheap grouping/filtering.
+    isSubtask: { type: Boolean, default: false },
+    // Manual ordering of children under their parent.
+    subtaskOrder: { type: Number, default: 0 },
+
+    // Canonical span in days. null ⇒ derived from planned dates at read time.
+    durationDays: { type: Number, min: 0, default: null },
+
+    // When true, the schedule engine never shifts this task (manual or cron).
+    scheduleLocked: { type: Boolean, default: false },
+    // Tri-state per-task auto-shift override. null ⇒ inherit project setting.
+    autoShiftEnabled: { type: Boolean, default: null },
+    // Per-task day-arithmetic override. null ⇒ inherit project.settings.calendarMode.
+    calendarMode: {
+      type: String,
+      enum: ["calendar_days", "working_days", null],
+      default: null,
+    },
+    // Why a manual date/lock override was applied (shown in the schedule drawer).
+    manualOverrideReason: { type: String, default: "" },
+
+    // Audit counters for shifting.
+    shiftCount:    { type: Number, default: 0 },
+    lastShiftedAt: { type: Date, default: null },     // cron idempotency guard (Phase 2)
+    lastShiftedBy: {                                   // null = system / cron
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    // Capped audit trail (engine slices to the most recent 50 on push).
+    shiftHistory: [
+      {
+        _id: false,
+        shiftedAt:  { type: Date },
+        shiftedBy:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        shiftDays:  { type: Number },                 // signed
+        source: {                                     // who/what triggered it
+          type: String,
+          enum: ["manual", "cron", "cascade", "parent", "recalculate"],
+        },
+        reason:    { type: String, default: "" },
+        fromStart: { type: Date },
+        toStart:   { type: Date },
+        fromEnd:   { type: Date },
+        toEnd:     { type: Date },
+        triggeredByTaskId: { type: mongoose.Schema.Types.ObjectId, ref: "Task", default: null },
+      },
+    ],
+
     priority: {
       type: String,
       enum: ["low", "medium", "high", "urgent"],
@@ -260,6 +323,11 @@ taskSchema.index({ projectId: 1, "planning.zoneName": 1 });
 // Dashboard Designer-KRA "done in window" gate (completedAt / approvedAt fallback)
 taskSchema.index({ completedAt: 1 });
 taskSchema.index({ approvedAt: 1 });
+// Scheduling engine — parent/subtask grouping, cron overdue scan, lock filters
+taskSchema.index({ parentTaskId: 1 });
+taskSchema.index({ projectId: 1, isSubtask: 1 });
+taskSchema.index({ lastShiftedAt: 1 });
+taskSchema.index({ projectId: 1, scheduleLocked: 1 });
 
 // --- workStatus + progress auto-sync ---
 // The Master Sheet "Work Status" and "Progress" columns auto-follow workflow

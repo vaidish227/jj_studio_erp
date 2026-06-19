@@ -61,7 +61,7 @@ const Select = ({
       {open && (
         <ul className="
           absolute z-50 w-full mt-1.5 bg-[var(--surface)] border border-[var(--border)]
-          rounded-xl shadow-lg overflow-hidden
+          rounded-xl shadow-lg max-h-72 overflow-y-auto custom-scrollbar
         ">
           {options.map((opt) => (
             <li key={opt.value}>

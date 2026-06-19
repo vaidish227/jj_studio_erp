@@ -62,6 +62,14 @@ const resolveLead = async (id) => {
     email:        lead.email,
     city:         lead.city,
     project_type: lead.projectType,
+    // Lead / referral aliases (thank-you automation).
+    lead_name:       lead.name,
+    lead_phone:      lead.phone,
+    lead_email:      lead.email,
+    enquiry_details: lead.notes,
+    referral_name:   lead.referredBy,
+    referral_phone:  lead.referrerPhone,
+    referral_email:  lead.referrerEmail,
   };
 
   // Best-effort latest meeting / follow-up dates for this lead.
@@ -204,6 +212,13 @@ const sampleValues = () => ({
   email:            "asha@example.com",
   city:             "Bengaluru",
   project_type:     "Residential",
+  lead_name:        "Asha Mehta",
+  lead_phone:       "+91 98765 43210",
+  lead_email:       "asha@example.com",
+  enquiry_details:  "3BHK full interior, ready-to-move flat",
+  referral_name:    "Rohan Gupta",
+  referral_phone:   "+91 99887 76655",
+  referral_email:   "rohan@example.com",
   meeting_date:     "12 Jun 2026, 04:00 PM",
   followup_date:    "15 Jun 2026, 10:00 AM",
   proposal_number:  "PROP-1A2B3C",

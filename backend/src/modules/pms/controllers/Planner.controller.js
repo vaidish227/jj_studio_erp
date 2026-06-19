@@ -22,6 +22,8 @@ const TaskDependency = (() => {
   catch { return null; }
 })();
 const workflowEngine = require("../services/workflowEngine");
+const scheduleEngine = require("../services/scheduleEngine");
+const { DAY_MS, dayDiff, recomputePlanTotals } = require("../services/plannerHelpers");
 
 const { logActivity } = require("../../../shared/activityLogger");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
@@ -36,17 +38,16 @@ const {
   phaseCreateSchema,
   phaseRenameSchema,
   phaseDeleteSchema,
+  phaseBudgetSchema,
+  settingsPatchSchema,
 } = require("../validator/Planner.validator");
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+// DAY_MS / dayDiff / recomputePlanTotals are imported from services/plannerHelpers
+// so the scheduling engine and this controller share one implementation.
 
 const isOid = (v) => mongoose.Types.ObjectId.isValid(String(v));
 // Case-insensitive phase-name comparison key
 const phaseKey = (s) => String(s || "").trim().toLowerCase();
-const dayDiff = (a, b) => {
-  if (!a || !b) return null;
-  return Math.round((new Date(a).getTime() - new Date(b).getTime()) / DAY_MS);
-};
 
 // ---- Internal helpers ---------------------------------------------------
 
@@ -59,29 +60,6 @@ async function getOrCreatePlan(projectId, actorId) {
     { upsert: true, new: true }
   ).lean();
   return plan;
-}
-
-async function recomputePlanTotals(projectId) {
-  const tasks = await Task.find({ projectId })
-    .select("planning.plannedHours planning.actualHours planning.plannedStartDate planning.plannedEndDate")
-    .lean();
-  let plannedHours = 0;
-  let actualHours  = 0;
-  let earliest = null;
-  let latest   = null;
-  for (const t of tasks) {
-    const p = t.planning || {};
-    plannedHours += Number(p.plannedHours || 0);
-    actualHours  += Number(p.actualHours || 0);
-    if (p.plannedStartDate && (!earliest || p.plannedStartDate < earliest)) earliest = p.plannedStartDate;
-    if (p.plannedEndDate   && (!latest   || p.plannedEndDate   > latest))   latest   = p.plannedEndDate;
-  }
-  const totalPlannedDays = earliest && latest ? Math.max(0, dayDiff(latest, earliest)) : 0;
-  await ProjectPlan.updateOne(
-    { projectId },
-    { $set: { totalPlannedHours: plannedHours, totalActualHours: actualHours, totalPlannedDays } },
-    { upsert: true }
-  );
 }
 
 /**
@@ -235,7 +213,45 @@ function snapshotPhases(planSnapshot) {
   return (planSnapshot?.phases || [])
     .slice()
     .sort((a, b) => (a.order || 0) - (b.order || 0))
-    .map((p) => ({ name: p.name, order: p.order }));
+    .map((p) => ({
+      name: p.name,
+      order: p.order,
+      startDayOffset: p.startDayOffset || 0,
+      dayBudget: p.dayBudget != null ? p.dayBudget : null,
+    }));
+}
+
+/**
+ * Compute per-phase rollups from the project's tasks (parents + subtasks):
+ * computed start/end (min/max planned dates) and progress (mean of
+ * planning.progressPercent). Keyed case-insensitively by phase name.
+ */
+function computePhaseRollups(tasks) {
+  const byPhase = new Map(); // phaseKeyLower -> { start, end, progSum, count }
+  for (const t of tasks) {
+    const name = (t.phase || "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (!byPhase.has(key)) byPhase.set(key, { start: null, end: null, progSum: 0, count: 0 });
+    const agg = byPhase.get(key);
+    const s = t.planning?.plannedStartDate;
+    const e = t.planning?.plannedEndDate;
+    if (s && (!agg.start || s < agg.start)) agg.start = s;
+    if (e && (!agg.end || e > agg.end)) agg.end = e;
+    agg.progSum += Number(t.planning?.progressPercent || 0);
+    agg.count += 1;
+  }
+  const out = {};
+  for (const [key, agg] of byPhase) {
+    out[key] = {
+      computedStart: agg.start || null,
+      computedEnd: agg.end || null,
+      computedDays: agg.start && agg.end ? Math.max(0, dayDiff(agg.end, agg.start)) : null,
+      progressPercent: agg.count ? Math.round(agg.progSum / agg.count) : 0,
+      taskCount: agg.count,
+    };
+  }
+  return out;
 }
 
 function buildDrawingSummary(drawing) {
@@ -272,7 +288,7 @@ exports.getMasterSheet = async (req, res) => {
     if (qErr) return res.status(400).json({ message: qErr.message });
 
     const project = await Project.findById(projectId)
-      .select("name trackingId phase startDate estimatedCompletionDate clientApprovals status workflowTemplateId planSnapshot")
+      .select("name trackingId phase startDate estimatedCompletionDate clientApprovals status workflowTemplateId planSnapshot settings")
       .lean();
     if (!project) return res.status(404).json({ message: "Project not found" });
 
@@ -294,7 +310,7 @@ exports.getMasterSheet = async (req, res) => {
       .populate({ path: "planning.reviewerId",   select: "name email" })
       .populate({ path: "planning.coordinatorId",select: "name email" })
       .select("+checklist")
-      .sort({ "planning.plannedStartDate": 1, createdAt: 1 })
+      .sort({ subtaskOrder: 1, "planning.plannedStartDate": 1, createdAt: 1 })
       .lean();
 
     // Lazy backfill: pre-phase projects get phase / templateTaskKey filled in
@@ -331,6 +347,14 @@ exports.getMasterSheet = async (req, res) => {
       clientApprovalMap.set(ca.type, ca.status);
     }
 
+    // Which tasks are a prerequisite of some other task (drives "this edit will
+    // shift N dependents" UX). Built once from every task's dependsOn[].
+    const hasDependentsSet = new Set();
+    for (const t of tasks) {
+      for (const dep of (t.dependsOn || [])) hasDependentsSet.add(String(dep));
+    }
+
+    const now = new Date();
     const rows = tasks.map((t) => {
       const drawing = drawingsByTask.get(String(t._id)) || null;
       const stage   = deriveStage(t, drawing);
@@ -407,6 +431,22 @@ exports.getMasterSheet = async (req, res) => {
         dependsOn:   t.dependsOn || [],
         drawing:     buildDrawingSummary(drawing),
         clientApprovalStatus,
+        // --- Scheduling engine fields ---
+        parentTaskId: t.parentTaskId || null,
+        isSubtask:    !!t.isSubtask,
+        subtaskOrder: t.subtaskOrder || 0,
+        durationDays: t.durationDays != null
+          ? t.durationDays
+          : (plannedDays != null ? plannedDays : null),
+        scheduleStatus:   scheduleEngine.getScheduleStatus(t, now),
+        scheduleLocked:   !!t.scheduleLocked,
+        autoShiftEnabled: t.autoShiftEnabled,
+        calendarMode:     t.calendarMode || null,
+        manualOverride:   !!(t.manualOverrideReason && t.manualOverrideReason.length),
+        manualOverrideReason: t.manualOverrideReason || "",
+        shiftCount:       t.shiftCount || 0,
+        lastShiftedAt:    t.lastShiftedAt || null,
+        hasDependents:    hasDependentsSet.has(String(t._id)),
         updatedAt: t.updatedAt,
       };
     });
@@ -418,6 +458,35 @@ exports.getMasterSheet = async (req, res) => {
       if (q.stage && r.stage !== q.stage) return false;
       return true;
     });
+
+    // Nest subtasks under their parent (default). Subtasks are attached to
+    // `parent.subtasks[]` and removed from the top level. Orphans (parent
+    // filtered out or deleted) surface as top-level rows flagged `orphaned`
+    // so nothing is ever hidden. nest=false returns the flat shape (back-compat).
+    let responseRows = filtered;
+    if (q.nest) {
+      const parentIds = new Set(
+        filtered.filter((r) => !r.parentTaskId).map((r) => String(r.taskId))
+      );
+      const childrenByParent = new Map();
+      for (const r of filtered) {
+        if (!r.parentTaskId) continue;
+        const pid = String(r.parentTaskId);
+        if (!childrenByParent.has(pid)) childrenByParent.set(pid, []);
+        childrenByParent.get(pid).push(r);
+      }
+      responseRows = [];
+      for (const r of filtered) {
+        if (r.parentTaskId) {
+          if (!parentIds.has(String(r.parentTaskId))) {
+            responseRows.push({ ...r, orphaned: true });
+          }
+          continue; // otherwise attached under its parent below
+        }
+        const kids = childrenByParent.get(String(r.taskId)) || [];
+        responseRows.push({ ...r, subtasks: kids });
+      }
+    }
 
     // Which template this project's master sheet is built from. Snapshot is
     // authoritative; legacy projects (seeded before snapshots) fall back to
@@ -464,6 +533,10 @@ exports.getMasterSheet = async (req, res) => {
         status: project.status,
         startDate: project.startDate,
         estimatedCompletionDate: project.estimatedCompletionDate,
+        settings: {
+          autoShiftEnabled: !!project.settings?.autoShiftEnabled,
+          calendarMode: project.settings?.calendarMode || "calendar_days",
+        },
       },
       plan: {
         totalPlannedDays:  plan.totalPlannedDays,
@@ -477,10 +550,19 @@ exports.getMasterSheet = async (req, res) => {
       },
       template: templateInfo,
       // Snapshot phase list (sorted) so the UI can render freshly added
-      // EMPTY phase groups that have no rows yet.
-      phases: snapshotPhases(project.planSnapshot),
+      // EMPTY phase groups that have no rows yet — each enriched with its
+      // day budget + computed range/progress rolled up from its tasks+subtasks.
+      phases: (() => {
+        const rollups = computePhaseRollups(tasks);
+        return snapshotPhases(project.planSnapshot).map((p) => ({
+          ...p,
+          ...(rollups[String(p.name || "").toLowerCase()] || {
+            computedStart: null, computedEnd: null, computedDays: null, progressPercent: 0, taskCount: 0,
+          }),
+        }));
+      })(),
       counters,
-      rows: filtered,
+      rows: responseRows,
     });
   } catch (err) {
     console.error("[Planner.getMasterSheet]", err);
@@ -556,7 +638,7 @@ exports.patchRow = async (req, res) => {
     // controllers so workflowEngine + gateEnforcement run). workStatus is the
     // manual Master Sheet tracking column — safe to patch directly because the
     // engine never reads it.
-    for (const f of ["title", "taskType", "assignedTo", "priority", "notes", "delayReason", "workStatus"]) {
+    for (const f of ["title", "taskType", "assignedTo", "priority", "notes", "delayReason", "workStatus", "scheduleLocked"]) {
       if (value[f] !== undefined) task[f] = value[f] === "" ? "" : value[f];
     }
     // dependsOn is allowed here for planner use (Phase 1 keeps it simple; the
@@ -649,20 +731,93 @@ exports.deleteRow = async (req, res) => {
       });
     }
 
-    await Drawing.updateMany({ taskId }, { $unset: { taskId: 1 } });
-    await Task.deleteOne({ _id: taskId });
+    // Subtask guard — deleting a parent would orphan its children. Refuse unless
+    // the caller opts into cascade (?cascade=true), which deletes the subtasks too.
+    const cascade = String(req.query.cascade || "").toLowerCase() === "true";
+    const childIds = await Task.find({ parentTaskId: taskId }).select("_id").lean();
+    if (childIds.length && !cascade) {
+      return res.status(409).json({
+        code: "ROW_HAS_SUBTASKS",
+        message: `This task has ${childIds.length} subtask(s). Delete or move them first, or confirm cascade delete.`,
+        subtaskCount: childIds.length,
+      });
+    }
+
+    const idsToDelete = [taskId, ...childIds.map((c) => c._id)];
+
+    // A released drawing on ANY cascaded subtask also blocks the delete.
+    if (childIds.length) {
+      const childReleased = await Drawing.exists({ taskId: { $in: childIds.map((c) => c._id) }, status: "released_to_site" });
+      if (childReleased) {
+        return res.status(409).json({
+          code: "ROW_HAS_RELEASED_DRAWING",
+          message: "A subtask has a drawing released to site — cannot delete.",
+        });
+      }
+    }
+
+    await Drawing.updateMany({ taskId: { $in: idsToDelete } }, { $unset: { taskId: 1 } });
+    await Task.deleteMany({ _id: { $in: idsToDelete } });
     await recomputePlanTotals(task.projectId);
     await logActivity({
       projectId: task.projectId, actorId: req.user?._id,
       entityType: "task", entityId: taskId,
       action: "planner.row.deleted",
-      description: `Planner row deleted: ${task.title}`,
+      description: `Planner row deleted: ${task.title}${childIds.length ? ` (+${childIds.length} subtask(s))` : ""}`,
+      metadata: { cascadedSubtasks: childIds.length },
     });
 
-    res.json({ ok: true });
+    res.json({ ok: true, deleted: idsToDelete.length });
   } catch (err) {
     console.error("[Planner.deleteRow]", err);
     res.status(500).json({ message: "Failed to delete planner row" });
+  }
+};
+
+/**
+ * PATCH /api/pms/planner/:projectId/settings
+ * Partial update of the project's scheduling settings (autoShiftEnabled +
+ * calendarMode). Uses dot-path $set so each field is updated independently —
+ * the rest of project.settings is never clobbered.
+ */
+exports.updateSettings = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!isOid(projectId)) return res.status(400).json({ message: "Invalid projectId" });
+
+    const { value, error } = settingsPatchSchema.validate(req.body, { stripUnknown: true });
+    if (error) return res.status(400).json({ message: error.message });
+
+    const set = {};
+    if (value.autoShiftEnabled !== undefined) set["settings.autoShiftEnabled"] = value.autoShiftEnabled;
+    if (value.calendarMode !== undefined)     set["settings.calendarMode"]     = value.calendarMode;
+    if (!Object.keys(set).length) return res.status(400).json({ message: "No settings to update" });
+
+    const project = await Project.findByIdAndUpdate(
+      projectId,
+      { $set: set },
+      { new: true, runValidators: true }
+    ).select("settings name").lean();
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    await logActivity({
+      projectId, actorId: req.user?._id,
+      entityType: "project", entityId: projectId,
+      action: "planner.settings.updated",
+      description: `Scheduling settings updated`,
+      metadata: set,
+    }).catch(() => {});
+
+    res.json({
+      ok: true,
+      settings: {
+        autoShiftEnabled: !!project.settings?.autoShiftEnabled,
+        calendarMode: project.settings?.calendarMode || "calendar_days",
+      },
+    });
+  } catch (err) {
+    console.error("[Planner.updateSettings]", err);
+    res.status(500).json({ message: "Failed to update settings" });
   }
 };
 
@@ -1278,6 +1433,53 @@ exports.addPhase = async (req, res) => {
   } catch (err) {
     console.error("[Planner.addPhase]", err);
     res.status(500).json({ message: "Failed to add phase" });
+  }
+};
+
+/**
+ * PATCH /api/pms/planner/:projectId/phases/budget
+ *
+ * Set a phase's day budget (startDayOffset and/or dayBudget) on the project's
+ * plan snapshot. Advisory only — does NOT move any task dates (use Recalculate
+ * for that). Body: { name, startDayOffset?, dayBudget? }.
+ */
+exports.updatePhaseBudget = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!isOid(projectId)) return res.status(400).json({ message: "Invalid projectId" });
+
+    const { value, error } = phaseBudgetSchema.validate(req.body, { stripUnknown: true });
+    if (error) return res.status(400).json({ message: error.message });
+
+    const project = await Project.findById(projectId).select("name planSnapshot");
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    if (!project.planSnapshot || !Array.isArray(project.planSnapshot.phases) || !project.planSnapshot.phases.length) {
+      return res.status(409).json({ code: "NO_TEMPLATE_APPLIED", message: "Select a template before managing phases." });
+    }
+
+    const phase = project.planSnapshot.phases.find((p) => p.name === value.name)
+               || project.planSnapshot.phases.find((p) => phaseKey(p.name) === phaseKey(value.name));
+    if (!phase) {
+      return res.status(404).json({ code: "PHASE_NOT_FOUND", message: `Phase "${value.name}" not found.` });
+    }
+
+    if (value.startDayOffset !== undefined) phase.startDayOffset = value.startDayOffset;
+    if (value.dayBudget !== undefined)      phase.dayBudget = value.dayBudget;
+    project.markModified("planSnapshot");
+    await project.save();
+
+    await logActivity({
+      projectId, actorId: req.user?._id,
+      entityType: "project", entityId: projectId,
+      action: "planner.phase.budget_updated",
+      description: `Phase budget updated: ${phase.name}`,
+      metadata: { name: phase.name, startDayOffset: phase.startDayOffset, dayBudget: phase.dayBudget },
+    }).catch(() => {});
+
+    res.json({ phases: snapshotPhases(project.planSnapshot) });
+  } catch (err) {
+    console.error("[Planner.updatePhaseBudget]", err);
+    res.status(500).json({ message: "Failed to update phase budget" });
   }
 };
 

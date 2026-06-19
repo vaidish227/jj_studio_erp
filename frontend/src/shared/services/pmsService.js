@@ -85,6 +85,60 @@ export const pmsService = {
   updateProjectDocument:  (id, data)         => apiClient.patch(`/pms/document/${id}`, data),
   deleteProjectDocument:  (id)               => apiClient.delete(`/pms/document/${id}`),
 
+  // ─── Material Finalization ──────────────────────────────────────────────────
+  // Each entry holds embedded images[] + documents[]. Returns { count, entries }.
+  getMaterialFinalizations:   (projectId)    => apiClient.get(`/pms/material-finalization/project/${projectId}`),
+  createMaterialFinalization: (data)         => apiClient.post('/pms/material-finalization/create', data),
+  // Multipart append — FormData with files[] + kind ('image'|'document').
+  uploadMatFinFiles:          (id, formData) => apiClient.post(`/pms/material-finalization/${id}/files`, formData, {
+    headers: { 'Content-Type': undefined },
+  }),
+  getMatFinFilePreviewUrl:    (id, fileId)   => apiClient.get(`/pms/material-finalization/${id}/files/${fileId}/preview`),
+  getMatFinFileDownloadUrl:   (id, fileId)   => apiClient.get(`/pms/material-finalization/${id}/files/${fileId}/download`),
+  deleteMatFinFile:           (id, fileId)   => apiClient.delete(`/pms/material-finalization/${id}/files/${fileId}`),
+  updateMaterialFinalization: (id, data)     => apiClient.patch(`/pms/material-finalization/${id}`, data),
+  deleteMaterialFinalization: (id)           => apiClient.delete(`/pms/material-finalization/${id}`),
+
+  // ─── Snag List ──────────────────────────────────────────────────────────────
+  // Returns { count, snags, counts } — counts keyed by status for filter badges.
+  getSnags:                (projectId, params) => apiClient.get(`/pms/snag/project/${projectId}`, { params }),
+  createSnag:              (data)              => apiClient.post('/pms/snag/create', data),
+  // Multipart append — FormData with files[] + kind ('image'|'audio'|'video').
+  uploadSnagMedia:         (id, formData)      => apiClient.post(`/pms/snag/${id}/files`, formData, {
+    headers: { 'Content-Type': undefined },
+  }),
+  getSnagMediaPreviewUrl:  (id, fileId)        => apiClient.get(`/pms/snag/${id}/files/${fileId}/preview`),
+  getSnagMediaDownloadUrl: (id, fileId)        => apiClient.get(`/pms/snag/${id}/files/${fileId}/download`),
+  deleteSnagMedia:         (id, fileId)        => apiClient.delete(`/pms/snag/${id}/files/${fileId}`),
+  updateSnag:              (id, data)          => apiClient.patch(`/pms/snag/${id}`, data),
+  deleteSnag:              (id)                => apiClient.delete(`/pms/snag/${id}`),
+
+  // ─── Final Handover ─────────────────────────────────────────────────────────
+  // Returns { count, documents }.
+  getFinalHandoverDocs:      (projectId) => apiClient.get(`/pms/final-handover/project/${projectId}`),
+  // Multipart upload — FormData with file, projectId, name, description.
+  uploadFinalHandoverDoc:    (formData)  => apiClient.post('/pms/final-handover/upload', formData, {
+    headers: { 'Content-Type': undefined },
+  }),
+  getFinalHandoverPreviewUrl: (id)       => apiClient.get(`/pms/final-handover/${id}/preview`),
+  getFinalHandoverDownloadUrl:(id)       => apiClient.get(`/pms/final-handover/${id}/download`),
+  updateFinalHandoverDoc:    (id, data)  => apiClient.patch(`/pms/final-handover/${id}`, data),
+  deleteFinalHandoverDoc:    (id)        => apiClient.delete(`/pms/final-handover/${id}`),
+
+  // ─── Contractor ──────────────────────────────────────────────────────────────
+  // Each contractor holds embedded documents[]. Returns { count, contractors, counts }.
+  getContractors:            (projectId, params) => apiClient.get(`/pms/contractor/project/${projectId}`, { params }),
+  createContractor:          (data)         => apiClient.post('/pms/contractor/create', data),
+  // Multipart append — FormData with files[] + kind ('document'|'image').
+  uploadContractorFiles:     (id, formData) => apiClient.post(`/pms/contractor/${id}/files`, formData, {
+    headers: { 'Content-Type': undefined },
+  }),
+  getContractorFilePreviewUrl:  (id, fileId) => apiClient.get(`/pms/contractor/${id}/files/${fileId}/preview`),
+  getContractorFileDownloadUrl: (id, fileId) => apiClient.get(`/pms/contractor/${id}/files/${fileId}/download`),
+  deleteContractorFile:      (id, fileId)   => apiClient.delete(`/pms/contractor/${id}/files/${fileId}`),
+  updateContractor:          (id, data)     => apiClient.patch(`/pms/contractor/${id}`, data),
+  deleteContractor:          (id)           => apiClient.delete(`/pms/contractor/${id}`),
+
   // ─── Vendors ───────────────────────────────────────────────────────────────
   getVendors:            (params)            => apiClient.get('/pms/vendor/all', { params }),
   createVendor:          (data)              => apiClient.post('/pms/vendor/create', data),
@@ -231,11 +285,11 @@ export const pmsService = {
   // ─── PMS Dashboard (operational landing page) ─────────────────────────────
   getDashboardOverview:  (range = 'month')   => apiClient.get('/pms/dashboard/overview', { params: pmsRangeParams(range) }),
   getDesignerKRA:        (range = 'month')   => apiClient.get('/pms/dashboard/designer-kra', { params: pmsRangeParams(range) }),
-  getDesignerDetail:     (userId, period = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}?period=${period}`),
-  downloadDesignerReportPdf: (userId, period = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}/report.pdf?period=${period}`, { responseType: 'blob' }),
+  getDesignerDetail:     (userId, range = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}`, { params: pmsRangeParams(range) }),
+  downloadDesignerReportPdf: (userId, range = 'month') => apiClient.get(`/pms/dashboard/designer/${userId}/report.pdf`, { params: pmsRangeParams(range), responseType: 'blob' }),
   getProjectAnalytics:   (range = 'month')   => apiClient.get('/pms/dashboard/analytics', { params: pmsRangeParams(range) }),
   // Phase C — report JSON (frontend turns these into .xlsx via SheetJS)
-  getDesignerKpiReport:    (period = 'month') => apiClient.get(`/pms/dashboard/reports/designer-kpi?period=${period}`),
+  getDesignerKpiReport:    (range = 'month') => apiClient.get('/pms/dashboard/reports/designer-kpi', { params: pmsRangeParams(range) }),
   getProjectSummaryReport: (period = 'month') => apiClient.get(`/pms/dashboard/reports/project-summary?period=${period}`),
   getAlerts:             ()                  => apiClient.get('/pms/dashboard/alerts'),
   getProjectPendingApproval: (projectId)     => apiClient.get(`/pms/dashboard/project/${projectId}/pending-md-approval`),
@@ -248,9 +302,27 @@ export const pmsService = {
   getPlannerSummary:     (projectId)         => apiClient.get(`/pms/planner/${projectId}/summary`),
   createPlannerRow:      (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/rows`, data),
   patchPlannerRow:       (taskId,    data)   => apiClient.patch(`/pms/planner/rows/${taskId}`, data),
-  deletePlannerRow:      (taskId)            => apiClient.delete(`/pms/planner/rows/${taskId}`),
+  deletePlannerRow:      (taskId, opts)      => apiClient.delete(`/pms/planner/rows/${taskId}`, { params: opts || {} }),
   bulkAssignPlanner:     (data)              => apiClient.post(`/pms/planner/rows/bulk/assign`, data),
   bulkDatesPlanner:      (data)              => apiClient.post(`/pms/planner/rows/bulk/dates`, data),
+
+  // ─── Scheduling engine: subtasks, manual shift, recalc, history ──────────
+  // Create a subtask under a parent task (data: { title, taskType?, assignedTo?,
+  // durationDays?, dependsOn?, subtaskOrder?, plannedStartDate?, plannedEndDate? }).
+  createSubtask:         (projectId, parentTaskId, data) => apiClient.post(`/pms/planner/${projectId}/rows/${parentTaskId}/subtasks`, data),
+  // Update a subtask's safe fields / planning (data: same shape, minus projectId).
+  updateSubtask:         (taskId, data)       => apiClient.patch(`/pms/planner/subtasks/${taskId}`, data),
+  // Manual shift / date / duration change with required reason.
+  // data: { shiftDays? | plannedStartDate? | plannedEndDate? | durationDays?, reason, cascade? }
+  manualShiftTask:       (taskId, data)       => apiClient.post(`/pms/planner/rows/${taskId}/shift`, data),
+  // Recalculate the whole project schedule (data: { overwriteExisting?, defaultDurationDays?, reason? }).
+  recalcProjectSchedule: (projectId, data)    => apiClient.post(`/pms/planner/${projectId}/recalculate`, data || {}),
+  // Newest-first shift audit trail for a task.
+  getTaskShiftHistory:   (taskId)             => apiClient.get(`/pms/planner/rows/${taskId}/shift-history`),
+  // Bulk schedule patch — lock/unlock, auto-shift toggle (data: { taskIds, patch }).
+  bulkSchedulePatch:     (data)               => apiClient.post(`/pms/planner/rows/bulk/patch`, data),
+  // Project scheduling settings (data: { autoShiftEnabled?, calendarMode? }).
+  updatePlannerSettings: (projectId, data)    => apiClient.patch(`/pms/planner/${projectId}/settings`, data),
   freezePlannerBaseline: (projectId)         => apiClient.post(`/pms/planner/${projectId}/baseline`),
   autoSchedulePlanner:   (projectId, data)   => apiClient.post(`/pms/planner/${projectId}/auto-schedule`, data),
   getPlanActivationPreview: (projectId)      => apiClient.get(`/pms/planner/${projectId}/activation-preview`),
@@ -263,6 +335,7 @@ export const pmsService = {
   // (names go in body/query, not the URL path, to dodge encoding issues).
   addPlannerPhase:    (projectId, data) => apiClient.post(`/pms/planner/${projectId}/phases`, data),            // { name }
   renamePlannerPhase: (projectId, data) => apiClient.patch(`/pms/planner/${projectId}/phases/rename`, data),    // { from, to }
+  updatePhaseBudget:  (projectId, data) => apiClient.patch(`/pms/planner/${projectId}/phases/budget`, data),    // { name, startDayOffset?, dayBudget? }
   deletePlannerPhase: (projectId, name) => apiClient.delete(`/pms/planner/${projectId}/phases`, { params: { name } }),
   // Excel export — returns a Blob; caller is responsible for triggering download.
   exportPlannerExcel:    (projectId)         => apiClient.get(`/pms/planner/${projectId}/export`, { responseType: 'blob' }),
@@ -295,4 +368,21 @@ export const pmsService = {
   createResponsibility:    (data)           => apiClient.post('/pms/responsibility/create', data),
   updateResponsibility:    (id, data)       => apiClient.patch(`/pms/responsibility/update/${id}`, data),
   deleteResponsibility:    (id, opts = {})  => apiClient.delete(`/pms/responsibility/delete/${id}`, { params: opts }),
+
+  // ─── Client Forms (dynamic forms sent to clients) ─────────────────────────
+  // Templates (form schema definitions)
+  getClientFormTemplates:   ()             => apiClient.get('/client-forms/templates'),
+  getClientFormTemplate:    (id)           => apiClient.get(`/client-forms/templates/${id}`),
+  createClientFormTemplate: (data)         => apiClient.post('/client-forms/templates', data),
+  updateClientFormTemplate: (id, data)     => apiClient.put(`/client-forms/templates/${id}`, data),
+  deleteClientFormTemplate: (id)           => apiClient.delete(`/client-forms/templates/${id}`),
+
+  // Form links (per project — generates a shareable public URL)
+  getProjectFormLinks:      (projectId)    => apiClient.get(`/client-forms/links/project/${projectId}`),
+  createFormLink:           (data)         => apiClient.post('/client-forms/links', data),
+  deleteFormLink:           (id)           => apiClient.delete(`/client-forms/links/${id}`),
+  sendFormLink:             (id, data)     => apiClient.post(`/client-forms/links/${id}/send`, data),
+
+  // Responses
+  getProjectFormResponses:  (projectId)    => apiClient.get(`/client-forms/responses/project/${projectId}`),
 };

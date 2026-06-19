@@ -173,7 +173,18 @@ const MilestonesTab = ({ project }) => {
                             Critical
                           </span>
                         )}
+                        {m.sourcePhase && (
+                          <span
+                            className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
+                            title="Auto-synced from the master-sheet phase — recalculate the schedule to refresh."
+                          >
+                            Phase
+                          </span>
+                        )}
                         <MilestoneBadge status={m.status} />
+                        {m.sourcePhase && typeof m.progressPercent === 'number' && (
+                          <span className="text-[10px] font-bold text-[var(--text-muted)]">{m.progressPercent}%</span>
+                        )}
                       </div>
                       {m.description && (
                         <p className="text-xs text-[var(--text-muted)] mb-2">{m.description}</p>
@@ -181,7 +192,7 @@ const MilestonesTab = ({ project }) => {
                       <div className="flex items-center gap-1 text-xs">
                         <Calendar size={11} className={isOverdue ? 'text-[var(--error)]' : 'text-[var(--text-muted)]'} />
                         <span className={isOverdue ? 'text-[var(--error)] font-semibold' : 'text-[var(--text-muted)]'}>
-                          {fmt(m.dueDate)}{isOverdue ? ' — Overdue' : ''}
+                          {m.startDate ? `${fmt(m.startDate)} → ` : ''}{fmt(m.dueDate)}{isOverdue ? ' — Overdue' : ''}
                         </span>
                       </div>
                     </div>

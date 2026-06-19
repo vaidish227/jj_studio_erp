@@ -1,9 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
-  FileText, FileSpreadsheet, FileImage, BookOpen,
-  Layers, FolderOpen, Search, Plus, Eye, Download, Upload,
-  ChevronDown, Check, FileArchive, File as FileIcon,
-  ClipboardList, Trash2, ExternalLink,
+  Layers, FolderOpen, Search, Plus, Download, Upload,
+  ChevronDown, Check, ClipboardList, Trash2, ExternalLink,
 } from 'lucide-react';
 import { Button, Loader, SearchInput, Modal, PdfThumbnail, PdfViewer } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
@@ -13,6 +11,7 @@ import useProjectDocuments from '../hooks/useProjectDocuments';
 import RecordMoMModal from '../components/RecordMoMModal';
 import MoMPreviewModal from '../components/MoMPreviewModal';
 import UploadDocumentModal from '../components/UploadDocumentModal';
+import DocumentCard, { metaFor } from '../components/DocumentCard';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 
@@ -34,31 +33,6 @@ const STATUS_LABELS = {
   signed:   'Signed',
   verified: 'Verified',
 };
-
-// ─── File-type styling ───────────────────────────────────────────────────────
-// `tone` is the type's accent colour, applied via color-mix tints (same
-// pattern as the dashboard KPI tiles) — never as a full-card wash. PDF
-// deliberately avoids var(--error): the alarm red made cards look broken —
-// muted terracotta keeps the "PDF red" identity instead.
-const EXT_META = {
-  pdf:  { icon: FileText,        tone: '#B65A41' },
-  doc:  { icon: FileText,        tone: 'var(--accent-blue)' },
-  docx: { icon: FileText,        tone: 'var(--accent-blue)' },
-  xls:  { icon: FileSpreadsheet, tone: 'var(--success)' },
-  xlsx: { icon: FileSpreadsheet, tone: 'var(--success)' },
-  csv:  { icon: FileSpreadsheet, tone: 'var(--success)' },
-  png:  { icon: FileImage,       tone: 'var(--accent-teal)' },
-  jpg:  { icon: FileImage,       tone: 'var(--accent-teal)' },
-  jpeg: { icon: FileImage,       tone: 'var(--accent-teal)' },
-  webp: { icon: FileImage,       tone: 'var(--accent-teal)' },
-  dwg:  { icon: BookOpen,        tone: 'var(--warning)' },
-  dxf:  { icon: BookOpen,        tone: 'var(--warning)' },
-  zip:  { icon: FileArchive,     tone: 'var(--text-muted)' },
-  mom:  { icon: ClipboardList,   tone: 'var(--primary)' },
-  default: { icon: FileIcon,     tone: 'var(--primary)' },
-};
-
-const metaFor = (ext) => EXT_META[(ext || '').toLowerCase()] || EXT_META.default;
 
 // Types the preview panel can render inline — PDFs via the browser's viewer,
 // images natively. Everything else keeps the icon + description fallback.
@@ -102,119 +76,6 @@ const toCardDoc = (d) => {
     createdAt:   d.createdAt,
     source:      d.source,
   };
-};
-
-// ─── Document Card ───────────────────────────────────────────────────────────
-const DocumentCard = ({ doc, onPreview, onDownload }) => {
-  const meta = metaFor(doc.ext);
-  const Icon = meta.icon;
-  const canThumb = !!doc.id && INLINE_PREVIEW_EXTS.includes(doc.ext);
-
-  // Live first-page thumbnail for previewable types; while loading (or for
-  // non-previewable types / fetch errors) the coloured icon plate shows.
-  const [thumbUrl, setThumbUrl] = useState(null);
-  useEffect(() => {
-    if (!canThumb) return undefined;
-    let cancelled = false;
-    getPreviewUrl(doc.id)
-      .then((url) => { if (!cancelled) setThumbUrl(url); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [doc.id, canThumb]);
-
-  // Transparent plate — the gradient + watermark live on the card root so the
-  // meta/actions area below shares the same surface.
-  const iconPlate = (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-      <div className="w-12 h-12 rounded-xl bg-[var(--surface)] border border-[var(--border)] shadow-sm flex items-center justify-center">
-        <Icon size={22} style={{ color: meta.tone }} />
-      </div>
-      {doc.ext && (
-        <span
-          className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
-          style={{ background: `color-mix(in srgb, ${meta.tone} 14%, transparent)`, color: meta.tone }}
-        >
-          {doc.ext}
-        </span>
-      )}
-    </div>
-  );
-
-  return (
-    <div
-      className="group relative border border-[var(--border)] rounded-2xl overflow-hidden transition-all duration-200 hover:border-[var(--primary)]/40 hover:shadow-md flex flex-col"
-      style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${meta.tone} 12%, var(--surface)) 0%, color-mix(in srgb, ${meta.tone} 3%, var(--surface)) 100%)` }}
-    >
-      {/* faint oversized watermark of the file-type icon — same motif as the KPI tiles */}
-      <Icon
-        size={90}
-        className="absolute -right-4 -bottom-5 opacity-[0.07] pointer-events-none"
-        style={{ color: meta.tone }}
-      />
-      {/* Visual top — live document thumbnail, falling back to the icon plate */}
-      <button
-        type="button"
-        onClick={() => onPreview?.(doc)}
-        className="group/plate relative w-full h-28 overflow-hidden"
-      >
-        {!thumbUrl ? (
-          iconPlate
-        ) : doc.ext === 'pdf' ? (
-          <PdfThumbnail
-            url={thumbUrl}
-            alt={doc.name}
-            className="w-full h-full object-cover object-top bg-white"
-            fallback={iconPlate}
-          />
-        ) : (
-          <img src={thumbUrl} alt={doc.name} className="w-full h-full object-cover bg-white" />
-        )}
-        {doc.status && (
-          <span className="absolute top-2 right-2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--surface)]/85 text-[var(--text-secondary)] border border-[var(--border)]">
-            {doc.status}
-          </span>
-        )}
-        {/* Styled hover hint — replaces the native black tooltip */}
-        <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover/plate:bg-black/25 transition-colors">
-          <span className="opacity-0 group-hover/plate:opacity-100 transition-opacity inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--surface)] text-[11px] font-bold text-[var(--text-primary)] shadow">
-            <Eye size={12} />
-            Preview
-          </span>
-        </span>
-      </button>
-
-      {/* Meta + actions — relative so it paints above the watermark */}
-      <div className="relative p-3 flex flex-col gap-3 flex-1">
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-[var(--text-primary)] truncate" title={doc.name}>
-            {doc.name}
-          </p>
-          <p className="text-[11px] text-[var(--text-muted)] mt-0.5 truncate">
-            {doc.size || '—'}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 mt-auto">
-          <button
-            type="button"
-            onClick={() => onPreview?.(doc)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors"
-          >
-            <Eye size={12} />
-            Preview
-          </button>
-          <button
-            type="button"
-            onClick={() => onDownload?.(doc)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-[var(--surface)]/70 text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--primary)]/40 hover:text-[var(--primary)] transition-colors"
-          >
-            <Download size={12} />
-            Download
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 // ─── Document preview popup ──────────────────────────────────────────────────
@@ -736,15 +597,15 @@ const DocumentRepositoryPage = () => {
               )}
             </div>
           ) : (
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {docs.map((doc) => (
-                <div key={doc.id || doc.momId || doc.name} className="w-[200px]">
-                  <DocumentCard
-                    doc={doc}
-                    onPreview={handlePreview}
-                    onDownload={handleDownload}
-                  />
-                </div>
+                <DocumentCard
+                  key={doc.id || doc.momId || doc.name}
+                  doc={doc}
+                  getPreviewUrl={getPreviewUrl}
+                  onPreview={handlePreview}
+                  onDownload={handleDownload}
+                />
               ))}
             </div>
           )}

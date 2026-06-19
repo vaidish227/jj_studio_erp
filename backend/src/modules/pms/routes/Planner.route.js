@@ -18,12 +18,22 @@ const {
   addPhase,
   renamePhase,
   deletePhase,
+  updatePhaseBudget,
+  updateSettings,
 } = require("../controllers/Planner.controller");
 const {
   exportMasterSheet,
   importMasterSheet,
   getImportTemplate,
 } = require("../controllers/PlannerExcel.controller");
+const {
+  createSubtask,
+  updateSubtask,
+  manualShift,
+  recalculateProjectSchedule,
+  getShiftHistory,
+  bulkSchedulePatch,
+} = require("../controllers/Schedule.controller");
 
 // XLSX uploads — memory storage so the controller can parse the buffer
 // without touching the local disk. 5 MB cap is generous for a planner sheet
@@ -60,6 +70,7 @@ router.get("/:projectId/summary", requirePermission("planner.read"), getSummary)
 router.post("/:projectId/rows",          requirePermission("planner.edit"),     createRow);
 router.post("/:projectId/baseline",      requirePermission("planner.baseline"), freezeBaseline);
 router.post("/:projectId/auto-schedule", requirePermission("planner.edit"),     autoSchedule);
+router.patch("/:projectId/settings",     requirePermission("planner.edit"),     updateSettings);
 
 // "Make Plan Effective" — preview + commit
 router.get( "/:projectId/activation-preview", requirePermission("planner.read"),   getActivationPreview);
@@ -74,6 +85,7 @@ router.post("/:projectId/change-template", requirePermission("projects.customize
 // (renames cascade to task rows; delete is refused while rows still use it).
 router.post(  "/:projectId/phases",        requirePermission("planner.edit"), addPhase);
 router.patch( "/:projectId/phases/rename", requirePermission("planner.edit"), renamePhase);
+router.patch( "/:projectId/phases/budget", requirePermission("planner.edit"), updatePhaseBudget);
 router.delete("/:projectId/phases",        requirePermission("planner.edit"), deletePhase);
 
 // Excel import / export
@@ -92,6 +104,19 @@ router.post(
   },
   importMasterSheet
 );
+
+// --- Scheduling engine: subtasks, manual shift, recalculate, history ---
+// Project-scoped recalc + subtask creation (static suffix keeps these distinct
+// from the :projectId/master|summary|… reads above).
+router.post("/:projectId/recalculate",        requirePermission("planner.schedule.recalculate"), recalculateProjectSchedule);
+router.post("/:projectId/rows/:taskId/subtasks", requirePermission("planner.edit"),              createSubtask);
+
+// Row-scoped schedule actions (registered before the generic /rows/:taskId so
+// the static suffixes win).
+router.get( "/rows/:taskId/shift-history", requirePermission("planner.read"),            getShiftHistory);
+router.post("/rows/:taskId/shift",         requirePermission("planner.schedule.shift"),  manualShift);
+router.patch("/subtasks/:taskId",          requirePermission("planner.edit"),            updateSubtask);
+router.post("/rows/bulk/patch",            requirePermission("planner.edit"),            bulkSchedulePatch);
 
 // Row-scoped mutations
 router.patch("/rows/:taskId",  requirePermission("planner.edit"),   patchRow);

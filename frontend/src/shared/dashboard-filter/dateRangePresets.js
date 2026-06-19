@@ -24,6 +24,12 @@ export const DATE_PRESETS = [
 const VALID_IDS = new Set([...DATE_PRESETS.map((p) => p.id), 'custom']);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Legacy ?period= vocabulary (older deep-links + the PMS dashboard widgets use
+// these) → preset id. Kept here so every URL-driven page parses links the same way.
+export const LEGACY_PERIOD_TO_PRESET = {
+  week: 'last_7_days', month: 'last_30_days', quarter: 'last_90_days', all: 'all_time',
+};
+
 /** A range is { preset } or { preset:'custom', from:'YYYY-MM-DD', to:'YYYY-MM-DD' }. */
 export const isValidRange = (r) => {
   if (!r || typeof r !== 'object' || !VALID_IDS.has(r.preset)) return false;
@@ -60,4 +66,40 @@ export const rangeToParams = (range) => {
   if (preset === 'custom' || (from && to)) return { from, to };
   if (preset) return { preset };
   return { preset: 'last_30_days' };
+};
+
+/**
+ * Parse a URLSearchParams into a range descriptor, in priority order:
+ *   ?from=&to=  → { preset:'custom', from, to }
+ *   ?preset=    → { preset }
+ *   ?period=    → legacy alias mapped to a preset
+ * Falls back to `fallback` (default last_30_days) when nothing valid is present.
+ */
+export const rangeFromSearchParams = (sp, fallback = { preset: 'last_30_days' }) => {
+  const from = sp.get('from');
+  const to = sp.get('to');
+  if (from && to) {
+    const r = { preset: 'custom', from, to };
+    if (isValidRange(r)) return r;
+  }
+  const preset = sp.get('preset');
+  if (preset && isValidRange({ preset })) return { preset };
+  const legacy = sp.get('period');
+  if (legacy && LEGACY_PERIOD_TO_PRESET[legacy]) return { preset: LEGACY_PERIOD_TO_PRESET[legacy] };
+  return fallback;
+};
+
+/**
+ * Mutate a URLSearchParams in place to reflect `range`, clearing the alternate
+ * keys so the URL never carries a stale ?period= alongside a fresh ?preset=.
+ */
+export const writeRangeToSearchParams = (sp, range) => {
+  ['period', 'preset', 'from', 'to'].forEach((k) => sp.delete(k));
+  if (range?.preset === 'custom') {
+    sp.set('from', range.from);
+    sp.set('to', range.to);
+  } else if (range?.preset) {
+    sp.set('preset', range.preset);
+  }
+  return sp;
 };

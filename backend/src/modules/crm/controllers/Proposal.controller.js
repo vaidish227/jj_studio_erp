@@ -15,6 +15,7 @@ const WhatsAppTemplate = require("../../whatsapp/models/WhatsAppTemplate.model")
 const { generateProposalPdfBuffer, saveProposalPdf } = require("../utils/proposalPdf");
 const { dispatch: notify } = require("../../notifications/services/notificationDispatcher");
 const kitEvents = require("../../kit/services/kitEvents");
+const kickoffService = require("../../kit/services/kickoffService");
 const { resolveDateRange, DateRangeError } = require("../../../shared/dateRange/resolveDateRange");
 require("dotenv").config();
 
@@ -345,12 +346,19 @@ const updateProposalStatus = async (req, res) => {
     }
 
     // 2. If eSign Received or Payment Received -> Check for "Project Ready"
-    if (status === "esign_received" || status === "payment_received") {
+    if (status === "esign_received" || status === "payment_received" || status === "signed") {
       const p = await Proposal.findById(proposalId);
       if (p.esign?.status === "received" && p.payments?.status === "received") {
         p.status = "project_ready";
         await p.save();
       }
+
+      // Project Kickoff automation — fires only once BOTH advance + e-sign are
+      // in (fire-and-forget; never blocks the response). Safe to call on either
+      // signal: maybeTrigger re-checks both conditions and is idempotent.
+      kickoffService
+        .maybeTrigger(proposalId, req.user)
+        .catch((err) => console.error("[kickoff] proposal-status trigger failed:", err?.message));
     }
 
     // 3. Sync Lead Status + auto-create PMS project on project_started

@@ -246,6 +246,8 @@ function buildPlanSnapshot(template, { customized = false } = {}) {
       name:     p.name || "",
       order:    p.order ?? i + 1,
       taskKeys: Array.isArray(p.taskKeys) ? p.taskKeys.filter(Boolean) : [],
+      startDayOffset: Number(p.startDayOffset) || 0,
+      dayBudget:      p.dayBudget != null ? Number(p.dayBudget) : null,
     })),
     tasks: (template.tasks || []).map((t) => ({
       key:      t.key || "",
@@ -258,6 +260,8 @@ function buildPlanSnapshot(template, { customized = false } = {}) {
       responsibilitySlug:    t.responsibilitySlug || t.teamSlot || "",
       checklistTemplateName: t.checklistTemplateName || "",
       notes: t.notes || "",
+      parentKey:    t.parentKey || null,
+      subtaskOrder: Number(t.subtaskOrder) || 0,
     })),
   };
 }
@@ -429,6 +433,23 @@ async function seedProject(projectId, opts = {}) {
       toTask.dependsOn = depIds;
       await toTask.save();
     }
+  }
+
+  // 3b. Wire parent/subtask links. A taskDef with parentKey seeds as a SUBTASK
+  // of the task with that key (one level deep). The child inherits the parent's
+  // phase so the master-sheet nesting groups it under the parent's phase header.
+  for (const t of template.tasks || []) {
+    if (!t.parentKey) continue;
+    const childDoc  = taskKeyToDoc.get(t.key);
+    const parentDoc = taskKeyToDoc.get(t.parentKey);
+    // Skip self-reference or a missing/also-nested parent (keep it one level).
+    if (!childDoc || !parentDoc || String(t.parentKey) === String(t.key)) continue;
+    childDoc.parentTaskId = parentDoc._id;
+    childDoc.isSubtask    = true;
+    childDoc.subtaskOrder = Number(t.subtaskOrder) || 0;
+    const parentPhase = keyToPhaseName.get(t.parentKey);
+    if (parentPhase) childDoc.phase = parentPhase;
+    await childDoc.save();
   }
 
   // 4. Wire gate → blocked task ids (gates know which tasks they hold)

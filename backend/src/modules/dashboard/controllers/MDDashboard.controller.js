@@ -24,7 +24,6 @@ let PurchaseOrder = null;
 try { PurchaseOrder = require("../../pms/models/PurchaseOrder.model"); } catch (e) { /* optional */ }
 
 const {
-  classifyHealth,
   ACTIVE_STATUSES,
   TASK_DONE,
   DAY,
@@ -35,7 +34,14 @@ const proposalAggregates = require("../../proposal/service/proposalAggregates.se
 const { resolveDateRange, DateRangeError } = require("../../../shared/dateRange/resolveDateRange");
 
 const PHASES = ["kickoff", "layout", "design", "procurement", "release", "execution", "handover"];
-const HEALTHS = ["on_track", "at_risk", "blocked", "on_hold", "delayed"];
+
+// Project-health thresholds, measured in days past the estimated completion date.
+//   On Track (green)  → not overdue, or fewer than DELAYED_DAYS late
+//   Delayed  (yellow) → DELAYED_DAYS..CRITICAL_DAYS days late
+//   Critical (red)    → more than CRITICAL_DAYS days late
+// Keep these in sync with the MD Dashboard frontend (MDDashboardPage.jsx).
+const DELAYED_DAYS = 15;
+const CRITICAL_DAYS = 20;
 
 /**
  * Compose 12 ISO-week starts ending at the current week.
@@ -64,28 +70,27 @@ async function buildPMSBlock(periodStart, prevWindow) {
     Approval.countDocuments({ approverType: "principal_designer", status: "pending" }),
   ]);
 
-  const openGatesByProject = new Map();
-  for (const g of openGates) {
-    const k = String(g.projectId);
-    if (!openGatesByProject.has(k)) openGatesByProject.set(k, []);
-    openGatesByProject.get(k).push(g);
-  }
+  // Decorate each active project with how many whole days it is past its ETA
+  // (0 when not overdue). This single measure drives the health buckets below.
+  const decorated = activeProjectsRaw.map((p) => {
+    const overdueMs = p.estimatedCompletionDate
+      ? now.getTime() - new Date(p.estimatedCompletionDate).getTime()
+      : 0;
+    return { ...p, daysLate: overdueMs > 0 ? Math.floor(overdueMs / DAY) : 0 };
+  });
 
-  const decorated = activeProjectsRaw.map((p) => ({
-    ...p,
-    health: classifyHealth(p, openGatesByProject),
-  }));
-
-  const healthCounts = Object.fromEntries(HEALTHS.map((h) => [h, 0]));
+  // Three-bucket health, by days past ETA (see DELAYED_DAYS / CRITICAL_DAYS).
+  const health = { onTrack: 0, delayed: 0, critical: 0 };
   for (const p of decorated) {
-    if (healthCounts[p.health] !== undefined) healthCounts[p.health] += 1;
+    if (p.daysLate > CRITICAL_DAYS) health.critical += 1;
+    else if (p.daysLate >= DELAYED_DAYS) health.delayed += 1;
+    else health.onTrack += 1;
   }
+
   const projectHealth = {
-    onTrack: healthCounts.on_track,
-    atRisk:  healthCounts.at_risk,
-    blocked: healthCounts.blocked,
-    onHold:  healthCounts.on_hold,
-    delayed: healthCounts.delayed,
+    onTrack:  health.onTrack,
+    delayed:  health.delayed,
+    critical: health.critical,
     phaseDistribution: PHASES.map((phase) => ({
       phase,
       count: decorated.filter((p) => (p.phase || "kickoff") === phase).length,
@@ -107,12 +112,11 @@ async function buildPMSBlock(periodStart, prevWindow) {
       trackingId: p.trackingId,
       name:       p.name,
       clientName: p.clientId?.name || null,
-      daysLate:   Math.max(1, Math.floor((now - new Date(p.estimatedCompletionDate)) / DAY)),
+      daysLate:   Math.max(1, p.daysLate),
     }))
     .sort((a, b) => b.daysLate - a.daysLate);
 
   // "Critical" = overdue by more than CRITICAL_DAYS days (a worse subset of delayed).
-  const CRITICAL_DAYS = 20;
   const criticalCount = delayedWithDays.filter((p) => p.daysLate > CRITICAL_DAYS).length;
   const topDelayed = delayedWithDays.slice(0, 5);
 

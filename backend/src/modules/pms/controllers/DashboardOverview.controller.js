@@ -48,6 +48,19 @@ const previousPeriodWindow = (period) => {
 const LEGACY_PERIOD_TO_PRESET = { week: "last_7_days", month: "last_30_days" };
 const LEGACY_PERIOD_DAYS = { quarter: 90, all: 3650 };
 
+// Human-readable labels for the resolveRequestRange `label` (preset id or legacy
+// period token) — surfaced on the designer detail page + PDF report card.
+const PRESET_FRIENDLY = {
+  today: "Today", yesterday: "Yesterday",
+  last_7_days: "Last 7 Days", last_30_days: "Last 30 Days", last_90_days: "Last 90 Days",
+  this_month: "This Month", last_month: "Last Month", all_time: "All Time",
+  week: "Last 7 Days", month: "Last 30 Days", quarter: "Last 90 Days", all: "All Time",
+};
+const friendlyRangeLabel = (label, query) =>
+  label === "custom" && query.from && query.to
+    ? `${query.from} to ${query.to}`
+    : (PRESET_FRIENDLY[label] || label);
+
 const istDateString = (ms) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
@@ -787,8 +800,12 @@ const getDesignerKRA = async (req, res) => {
  * lists for chart-driven visualisation. Returns null when the user
  * does not exist.
  */
-const computeDesignerDetail = async (userId, validPeriod) => {
-  const periodStart = startOfPeriod(validPeriod);
+const computeDesignerDetail = async (userId, range) => {
+  // `range` is the resolved window { start, end, label } from resolveRequestRange.
+  // The period bounds gate the current-period stats; the 12-week / 6-month trend
+  // charts below stay on their own fixed rolling windows regardless of range.
+  const periodStart = range.start;
+  const periodEnd = range.end;
 
   // 1. User profile
   const user = User
@@ -829,7 +846,8 @@ const computeDesignerDetail = async (userId, validPeriod) => {
     }
 
     const endTs = t.completedAt || t.approvedAt;
-    const isDoneInPeriod = TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart;
+    const isDoneInPeriod = TASK_DONE.includes(t.status) && endTs
+      && new Date(endTs) >= periodStart && new Date(endTs) <= periodEnd;
     if (isDoneInPeriod) {
       done++;
       if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) onTimeDone++;
@@ -954,7 +972,7 @@ const computeDesignerDetail = async (userId, validPeriod) => {
       role:   user.role,
       isActive: user.isActive,
     },
-    period: validPeriod,
+    period: range.label,
     currentStats: {
       kraScore,
       onTimePct:    Math.round(onTimeRate * 100),
@@ -984,14 +1002,18 @@ const getDesignerDetail = async (req, res) => {
     const { userId } = req.params;
     if (!userId) return res.status(400).json({ message: "userId is required" });
 
-    const period = String(req.query.period || "month").toLowerCase();
-    const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
+    // Accept the shared range vocabulary: ?preset= | ?from=&to= | legacy ?period=.
+    const resolved = resolveRequestRange(req.query);
+    const range = { start: resolved.start, end: resolved.end, label: friendlyRangeLabel(resolved.label, req.query) };
 
-    const detail = await computeDesignerDetail(userId, validPeriod);
+    const detail = await computeDesignerDetail(userId, range);
     if (!detail) return res.status(404).json({ message: "User not found" });
 
     res.status(200).json(detail);
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[dashboard.designer-detail]", err);
     res.status(500).json({ message: err.message });
   }
@@ -1009,22 +1031,29 @@ const downloadDesignerReportPdf = async (req, res) => {
     const { userId } = req.params;
     if (!userId) return res.status(400).json({ message: "userId is required" });
 
-    const period = String(req.query.period || "month").toLowerCase();
-    const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
+    // Accept the shared range vocabulary: ?preset= | ?from=&to= | legacy ?period=.
+    const resolved = resolveRequestRange(req.query);
+    const range = { start: resolved.start, end: resolved.end, label: friendlyRangeLabel(resolved.label, req.query) };
 
-    const detail = await computeDesignerDetail(userId, validPeriod);
+    const detail = await computeDesignerDetail(userId, range);
     if (!detail) return res.status(404).json({ message: "User not found" });
 
     const buffer = await generateDesignerReportPdfBuffer(detail);
     const safeName = String(detail.user.name || "designer").trim().replace(/[^\w-]+/g, "-");
+    const periodSlug = resolved.label === "custom" && req.query.from && req.query.to
+      ? `${req.query.from}_to_${req.query.to}`
+      : resolved.label;
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="Designer-Report-${safeName}-${validPeriod}.pdf"`,
+      "Content-Disposition": `attachment; filename="Designer-Report-${safeName}-${periodSlug}.pdf"`,
       "Content-Length": buffer.length,
     });
     // Puppeteer ≥22 returns a Uint8Array — normalise so Express streams bytes.
     res.send(Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[dashboard.designer-report-pdf]", err);
     res.status(500).json({ message: err.message });
   }
@@ -1436,16 +1465,17 @@ const getAlerts = async (req, res) => {
  */
 const getDesignerKpiReport = async (req, res) => {
   try {
-    const period = String(req.query.period || "month").toLowerCase();
-    const validPeriod = ["week", "month", "quarter", "all"].includes(period) ? period : "month";
-    const periodStart = startOfPeriod(validPeriod);
+    // Accept the same range vocabulary as the scoreboard (designer-kra):
+    // ?preset= | ?from=&to= (custom) | legacy ?period=. Keeps the Excel export
+    // numerically identical to what the screen shows.
+    const { start: periodStart, end: periodEnd, label } = resolveRequestRange(req.query);
 
     const tasks = await Task.find({
       assignedTo: { $ne: null },
       $or: [
-        { createdAt:   { $gte: periodStart } },
-        { completedAt: { $gte: periodStart } },
-        { approvedAt:  { $gte: periodStart } },
+        { createdAt:   { $gte: periodStart, $lte: periodEnd } },
+        { completedAt: { $gte: periodStart, $lte: periodEnd } },
+        { approvedAt:  { $gte: periodStart, $lte: periodEnd } },
         { status: { $in: ["in_progress", "pending_review", "revision_requested", "not_started", "blocked"] } },
       ],
     })
@@ -1467,7 +1497,7 @@ const getDesignerKpiReport = async (req, res) => {
         if (t.dueDate && new Date(t.dueDate).getTime() < Date.now()) u.overdueActive += 1;
       }
       const endTs = t.completedAt || t.approvedAt;
-      if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart) {
+      if (TASK_DONE.includes(t.status) && endTs && new Date(endTs) >= periodStart && new Date(endTs) <= periodEnd) {
         u.done += 1;
         u.throughput += 1;
         if (t.dueDate && new Date(endTs) <= new Date(t.dueDate)) u.onTimeDone += 1;
@@ -1505,9 +1535,14 @@ const getDesignerKpiReport = async (req, res) => {
       };
     }).sort((a, b) => b.kraScore - a.kraScore);
 
+    // Friendly period label for the Excel "Summary" sheet — a date range when custom.
+    const periodLabel = label === "custom" && req.query.from && req.query.to
+      ? `${req.query.from} to ${req.query.to}`
+      : label;
+
     res.status(200).json({
       reportName: "Designer KPI Report",
-      period:     validPeriod,
+      period:     periodLabel,
       generatedAt: new Date().toISOString(),
       rows,
       summary: {
@@ -1519,6 +1554,9 @@ const getDesignerKpiReport = async (req, res) => {
       },
     });
   } catch (err) {
+    if (err instanceof DateRangeError) {
+      return res.status(400).json({ error: err.code, message: err.message });
+    }
     console.error("[reports.designer-kpi]", err);
     res.status(500).json({ message: err.message });
   }
