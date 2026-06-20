@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Info, X, ChevronDown } from 'lucide-react';
 
 // MetricInfoTooltip — contextual-help affordance for the Delegation dashboard.
@@ -87,7 +88,12 @@ const MetricInfoTooltip = ({ help, overlay = false, alwaysShow = false }) => {
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+      // The popover is portaled to <body>, so it isn't inside wrapRef — guard
+      // against both the icon wrapper and the popover before treating a click as
+      // "outside" (otherwise clicking inside the popover would close it).
+      const inWrap = wrapRef.current?.contains(e.target);
+      const inPop = popRef.current?.contains(e.target);
+      if (!inWrap && !inPop) setOpen(false);
     };
     const onKey = (e) => {
       if (e.key === 'Escape') {
@@ -130,7 +136,7 @@ const MetricInfoTooltip = ({ help, overlay = false, alwaysShow = false }) => {
         <Info size={11} strokeWidth={2.5} />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           ref={popRef}
           id={dialogId}
@@ -194,7 +200,8 @@ const MetricInfoTooltip = ({ help, overlay = false, alwaysShow = false }) => {
               )}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   );

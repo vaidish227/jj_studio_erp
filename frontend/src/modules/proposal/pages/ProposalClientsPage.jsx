@@ -1,12 +1,12 @@
 ﻿import React, { useEffect, useState, useCallback } from 'react';
-import { Users, Loader2, FilePlus, FileText, Phone, Mail, ArrowRight, MapPin, CalendarDays, Building2, CheckSquare, Square, X } from 'lucide-react';
+import { Users, Loader2, FilePlus, FileText, Phone, Mail, ArrowRight, MapPin, CalendarDays, Building2, CheckSquare, Square, X, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { crmService } from '../../../shared/services/crmService';
 import Button from '../../../shared/components/Button/Button';
 import StatusBadge from '../../../shared/components/StatusBadge/StatusBadge';
 import Avatar from '../../../shared/components/Avatar/Avatar';
 import { useToast } from '../../../shared/notifications/ToastProvider';
-import { Loader, Pagination } from '../../../shared/components';
+import { Loader, Pagination, ConfirmationModal } from '../../../shared/components';
 import useFilters from '../../../shared/filters/useFilters';
 import AdvancedFilter from '../../../shared/filters/AdvancedFilter';
 
@@ -17,9 +17,10 @@ const ProposalClientsPage = () => {
   const toast = useToast();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  // Map of leadId -> existing proposal _id (most recent). Lets us route a click
-  // to the proposal review page when the lead already has a proposal, instead of
-  // always starting a fresh draft.
+  // Map of leadId -> { id, status } for the lead's most recent proposal. Lets us
+  // route a click to the proposal review page when the lead already has a proposal
+  // (instead of always starting a fresh draft) and decide whether a "Send for
+  // Approval" action applies (only draft proposals can be submitted).
   const [proposalByLead, setProposalByLead] = useState({});
 
   const {
@@ -57,7 +58,7 @@ const ProposalClientsPage = () => {
       const map = {};
       (response.proposals || []).forEach((p) => {
         const leadId = p.leadId?._id || p.leadId;
-        if (leadId && !map[leadId]) map[leadId] = p._id;
+        if (leadId && !map[leadId]) map[leadId] = { id: p._id, status: p.status };
       });
       setProposalByLead(map);
     } catch (err) {
@@ -73,7 +74,7 @@ const ProposalClientsPage = () => {
   // Route a client to its existing proposal (review page) when one exists,
   // otherwise start a new draft.
   const goToLead = useCallback((leadId) => {
-    const proposalId = proposalByLead[leadId];
+    const proposalId = proposalByLead[leadId]?.id;
     navigate(proposalId ? `/proposal/review/${proposalId}` : `/proposal/create?leadId=${leadId}`);
   }, [navigate, proposalByLead]);
 
@@ -113,6 +114,53 @@ const ProposalClientsPage = () => {
       ? `/proposal/create?leadId=${selectedIds[0]}`
       : `/proposal/create?leadIds=${selectedIds.join(',')}`;
     navigate(url);
+  };
+
+  // --- Send for Manager Approval ---------------------------------------------
+  // Only draft proposals can be submitted (draft -> pending_approval). We track
+  // the target proposal _id(s) in the confirm modal so one handler serves both
+  // the single per-card button and the bulk action.
+  const [sendConfirm, setSendConfirm] = useState({ open: false, proposalIds: [] });
+  const [sending, setSending] = useState(false);
+
+  // Proposal ids for the currently-selected leads that are still in draft.
+  const sendableProposalIds = selectedIds
+    .map((leadId) => (proposalByLead[leadId]?.status === 'draft' ? proposalByLead[leadId].id : null))
+    .filter(Boolean);
+
+  const openSendForLead = (leadId) => {
+    const pid = proposalByLead[leadId]?.id;
+    if (pid) setSendConfirm({ open: true, proposalIds: [pid] });
+  };
+
+  const openSendForSelected = () => {
+    if (sendableProposalIds.length > 0) setSendConfirm({ open: true, proposalIds: sendableProposalIds });
+  };
+
+  const runSendForApproval = async () => {
+    const ids = sendConfirm.proposalIds;
+    setSendConfirm({ open: false, proposalIds: [] });
+    if (ids.length === 0) return;
+    try {
+      setSending(true);
+      // allSettled so one failed row doesn't swallow the rest of the batch.
+      const results = await Promise.allSettled(
+        ids.map((id) => crmService.updateProposalStatus(id, { status: 'pending_approval' }))
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      const ok = results.length - failed;
+      if (failed > 0) {
+        toast.error(`${ok} sent for approval, ${failed} failed. Retry the failed ones individually.`);
+      } else {
+        toast.success(`${ok} proposal${ok === 1 ? '' : 's'} sent for manager approval.`);
+      }
+      clearSelection();
+      fetchExistingProposals(); // refresh statuses so the buttons reflect the new state
+    } catch (err) {
+      toast.error('Failed to send for approval.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -161,6 +209,18 @@ const ProposalClientsPage = () => {
               <FilePlus size={16} className="mr-2" />
               Draft {selectedIds.length === 1 ? 'Proposal' : `${selectedIds.length} Proposals`}
             </Button>
+            {sendableProposalIds.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-black/85 border-black/10 hover:bg-black text-[var(--primary)] font-bold"
+                onClick={openSendForSelected}
+                disabled={sending}
+              >
+                <Send size={16} className="mr-2" />
+                Send {sendableProposalIds.length === 1 ? 'for Approval' : `${sendableProposalIds.length} for Approval`}
+              </Button>
+            )}
             <div className="w-px h-6 bg-black/10 mx-1" />
             <button onClick={clearSelection} className="p-2 hover:bg-black/10 rounded-lg transition-colors" title="Clear selection">
               <X size={20} />
@@ -194,6 +254,8 @@ const ProposalClientsPage = () => {
 
           {paginatedLeads.map((lead) => {
             const isSelected = selectedIds.includes(lead._id);
+            const proposal = proposalByLead[lead._id];
+            const canSendForApproval = proposal?.status === 'draft';
             return (
             <div
               key={lead._id}
@@ -257,9 +319,27 @@ const ProposalClientsPage = () => {
                     goToLead(lead._id);
                   }}
                 >
-                  {proposalByLead[lead._id] ? <FileText size={12} /> : <FilePlus size={12} />}
-                  {proposalByLead[lead._id] ? 'View Proposal' : 'Draft Proposal'}
+                  {proposal ? <FileText size={12} /> : <FilePlus size={12} />}
+                  {proposal ? 'View Proposal' : 'Draft Proposal'}
                 </Button>
+                {/* Send draft for approval — compact icon button so rows stay
+                    aligned whether or not the action is available. */}
+                {canSendForApproval && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="aspect-square !p-0 w-8 h-8 flex items-center justify-center border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary)] hover:text-black"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openSendForLead(lead._id);
+                    }}
+                    disabled={sending}
+                    title="Send this draft proposal to the manager for approval"
+                    aria-label="Send for approval"
+                  >
+                    <Send size={14} />
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -303,6 +383,21 @@ const ProposalClientsPage = () => {
           </Button>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={sendConfirm.open}
+        onClose={() => setSendConfirm({ open: false, proposalIds: [] })}
+        onConfirm={runSendForApproval}
+        title="Send for Manager Approval"
+        message={
+          sendConfirm.proposalIds.length === 1
+            ? 'Send this draft proposal to the manager for approval?'
+            : `Send ${sendConfirm.proposalIds.length} draft proposals to the manager for approval?`
+        }
+        confirmLabel="Send for Approval"
+        variant="primary"
+        isLoading={sending}
+      />
     </div>
   );
 };
