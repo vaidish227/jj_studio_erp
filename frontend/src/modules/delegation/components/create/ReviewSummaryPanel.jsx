@@ -1,6 +1,6 @@
-import { Check, AlertTriangle, User, Building2, CalendarDays, ListChecks, Paperclip } from 'lucide-react';
+import { Check, AlertTriangle, User, CalendarDays, ListChecks, Paperclip } from 'lucide-react';
 import Button from '../../../../shared/components/Button/Button';
-import { InitialsAvatar, DeptChip, ProgressBar } from '../delegationVisuals';
+import { InitialsAvatar, ProgressBar } from '../delegationVisuals';
 import { PriorityChip } from '../DelegationStatusBadge';
 import { fmtDateShort } from '../delegationFormat';
 
@@ -39,7 +39,6 @@ const ReviewSummaryPanel = ({
   title,
   description,
   assigneeName,
-  department,
   priority,
   dueDate,
   checklistCount = 0,
@@ -54,7 +53,6 @@ const ReviewSummaryPanel = ({
   onCancel,
 }) => {
   const hasAssignee = !!assigneeName;
-  const hasDepartment = !!department;
   const hasDue = !!dueDate && !duePast;
 
   // ── Completion (dynamic) ──────────────────────────────────────────────────
@@ -62,7 +60,6 @@ const ReviewSummaryPanel = ({
     { key: 'title', done: titleValid },
     { key: 'description', done: !!description },
     { key: 'priority', done: true },
-    { key: 'department', done: hasDepartment },
     { key: 'dueDate', done: !!dueDate },
     { key: 'checklist', done: checklistCount > 0 },
     { key: 'attachments', done: attachmentCount > 0 },
@@ -79,7 +76,6 @@ const ReviewSummaryPanel = ({
     ...(canAssign
       ? [{ key: 'assignee', label: hasAssignee ? 'Assignee Assigned' : 'Assignee Missing', done: hasAssignee }]
       : []),
-    { key: 'department', label: hasDepartment ? 'Department Set' : 'Department Missing', done: hasDepartment },
     { key: 'due', label: hasDue ? 'Due Date Set' : 'Due Date Missing', done: hasDue },
   ];
 
@@ -130,13 +126,6 @@ const ReviewSummaryPanel = ({
               </span>
             ) : (
               <span className="text-[var(--text-muted)] font-normal">Unassigned</span>
-            )}
-          </PreviewCell>
-          <PreviewCell icon={Building2} label="Department">
-            {hasDepartment ? (
-              <DeptChip name={department.name} color={department.color} />
-            ) : (
-              <span className="text-[var(--text-muted)] font-normal">Not selected</span>
             )}
           </PreviewCell>
           <PreviewCell icon={CalendarDays} label="Due date">

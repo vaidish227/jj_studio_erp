@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Plus, Trash2, Paperclip, Download, Send, Check,
-  Building2, CalendarDays, FileText, ListChecks, MessageSquare, History,
+  CalendarDays, FileText, ListChecks, MessageSquare, History,
   Play, Eye, CheckCircle2, RotateCcw, X, Users, UserCheck, Flag, User,
-  BarChart3, AlignLeft, Clock, CircleDot, Folder, ArrowLeftRight,
+  BarChart3, AlignLeft, Clock, CircleDot, ArrowLeftRight,
 } from 'lucide-react';
 import Modal from '../../../shared/components/Modal/Modal';
 import Button from '../../../shared/components/Button/Button';
@@ -192,11 +192,6 @@ const DelegationDetailPage = () => {
                     <InitialsAvatar name={delegation.assignedTo?.name} size={22} />
                     <span className="text-[var(--text-secondary)] font-semibold">{delegation.assignedTo?.name || 'Unassigned'}</span>
                   </span>
-                  {delegation.departmentId?.name && (
-                    <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">
-                      <Building2 size={14} className="text-[var(--text-muted)]" /> {delegation.departmentId.name}
-                    </span>
-                  )}
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarDays size={14} className="text-[var(--text-muted)]" />
                     <span className="text-[var(--text-secondary)]">Due</span> {renderDue()}
@@ -237,7 +232,7 @@ const DelegationDetailPage = () => {
 
           {/* Tabs card */}
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm">
-            <div className="flex gap-1 border-b border-[var(--border)] px-2 overflow-x-auto">
+            <div className="flex gap-1 border-b border-[var(--border)] px-2 overflow-x-auto overflow-y-hidden">
               {TABS.map(({ key, icon: Icon }) => {
                 const count =
                   key === 'Checklist' && checklist.length ? `${doneCount}/${checklist.length}` :
@@ -273,7 +268,7 @@ const DelegationDetailPage = () => {
                   </section>
 
                   {/* Meta tiles — leading icon/avatar + label-over-value */}
-                  <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <section className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                     {[
                       {
                         label: 'Created By',
@@ -282,7 +277,6 @@ const DelegationDetailPage = () => {
                       },
                       { label: 'Created On', icon: CalendarDays, value: fmtDateTimeShort(delegation.createdAt) },
                       { label: 'Last Updated', icon: Clock, value: fmtDateTimeShort(delegation.updatedAt) },
-                      { label: 'Department', icon: Folder, value: delegation.departmentId?.name || '—' },
                     ].map((m) => (
                       <div key={m.label} className="bg-[var(--bg)] rounded-xl px-3.5 py-3 flex items-center gap-2.5">
                         {m.lead || (
@@ -315,7 +309,6 @@ const DelegationDetailPage = () => {
                         { icon: BarChart3, label: 'Status', node: <DelegationStatusBadge status={delegation.status} /> },
                         { icon: CalendarDays, label: 'Due Date', node: renderDue() },
                         { icon: User, label: 'Created By', node: <span className="font-semibold text-[var(--text-secondary)]">{delegation.createdBy?.name || '—'}</span> },
-                        { icon: Folder, label: 'Department', node: <span className="font-semibold text-[var(--text-secondary)]">{delegation.departmentId?.name || '—'}</span> },
                       ].map((row) => (
                         <div key={row.label} className="flex items-center justify-between gap-3 px-1 py-3 text-sm">
                           <span className="inline-flex items-center gap-2.5 text-[var(--text-muted)] font-medium">

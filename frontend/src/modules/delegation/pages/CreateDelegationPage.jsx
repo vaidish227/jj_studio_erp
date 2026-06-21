@@ -6,7 +6,6 @@ import {
 import { useAuth } from '../../../shared/context/AuthContext';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { delegationService } from '../services/delegationService';
-import { departmentService } from '../services/departmentService';
 import { PRIORITIES, PRIORITY_META } from '../constants/delegationStatus';
 import { PRIORITY_ACCENT } from '../components/delegationFormat';
 import AttachmentDropzone, { MAX_ATTACHMENT_BYTES } from '../components/create/AttachmentDropzone';
@@ -16,7 +15,7 @@ import CreateSuccessScreen from '../components/create/CreateSuccessScreen';
 const inputCls =
   'w-full border border-[var(--border)] bg-[var(--surface)] rounded-xl px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30';
 
-const EMPTY_FORM = { title: '', description: '', departmentId: '', priority: 'medium', assignedTo: '', dueDate: '' };
+const EMPTY_FORM = { title: '', description: '', priority: 'medium', assignedTo: '', dueDate: '' };
 
 // Section wrapper — gives every block a consistent card + iconed header.
 const Section = ({ icon: Icon, title, subtitle, children }) => (
@@ -53,23 +52,17 @@ const CreateDelegationPage = () => {
   const [checklist, setChecklist] = useState([]);
   const [newItem, setNewItem] = useState('');
   const [files, setFiles] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [assignees, setAssignees] = useState([]);
   const [saving, setSaving] = useState(false);
   const [busyLabel, setBusyLabel] = useState('');
-  const [deptLoading, setDeptLoading] = useState(true);
   const [assigneeLoading, setAssigneeLoading] = useState(canAssign);
   const [error, setError] = useState('');
-  const [result, setResult] = useState(null); // { delegation, assigneeName, departmentName, dueDate }
+  const [result, setResult] = useState(null); // { delegation, assigneeName, dueDate }
   const titleRef = useRef(null);
 
   useEffect(() => {
-    // deptLoading / assigneeLoading start true (see useState) — the fetches below
-    // just flip them off when done, so the empty-state hints never flash mid-load.
-    departmentService.list({ active: true })
-      .then((r) => setDepartments(r.departments || []))
-      .catch(() => {})
-      .finally(() => setDeptLoading(false));
+    // assigneeLoading starts true (see useState) — the fetch below just flips it
+    // off when done, so the empty-state hint never flashes mid-load.
     if (canAssign) {
       delegationService.assignees()
         .then((r) => setAssignees(r.users || []))
@@ -81,10 +74,6 @@ const CreateDelegationPage = () => {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const titleValid = form.title.trim().length >= 3;
-  const department = useMemo(
-    () => departments.find((d) => d._id === form.departmentId) || null,
-    [departments, form.departmentId],
-  );
   const assigneeName = useMemo(
     () => assignees.find((u) => u._id === form.assignedTo)?.name || '',
     [assignees, form.assignedTo],
@@ -134,7 +123,6 @@ const CreateDelegationPage = () => {
       const payload = {
         title: form.title.trim(),
         description: form.description.trim() || undefined,
-        departmentId: form.departmentId || undefined,
         priority: form.priority,
         assignedTo: canAssign && form.assignedTo ? form.assignedTo : undefined,
         dueDate: form.dueDate || undefined,
@@ -160,7 +148,7 @@ const CreateDelegationPage = () => {
       }
 
       toast.success('Delegation created');
-      setResult({ delegation: created, assigneeName, departmentName: department?.name || '', dueDate: form.dueDate });
+      setResult({ delegation: created, assigneeName, dueDate: form.dueDate });
     } catch (err) {
       setError(err?.message || 'Failed to create delegation');
     } finally {
@@ -175,7 +163,6 @@ const CreateDelegationPage = () => {
         <CreateSuccessScreen
           delegation={result.delegation}
           assigneeName={result.assigneeName}
-          departmentName={result.departmentName}
           dueDate={result.dueDate}
           onView={() => navigate(`/delegation/${result.delegation._id}`)}
           onCreateAnother={resetForm}
@@ -267,32 +254,20 @@ const CreateDelegationPage = () => {
             </div>
           </Section>
 
-          <Section icon={UserCog} title="Assignment" subtitle="Who owns this work?">
-            <div className={`grid gap-4 ${canAssign ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+          {canAssign && (
+            <Section icon={UserCog} title="Assignment" subtitle="Who owns this work?">
               <div>
-                <Label>Department</Label>
-                <select className={inputCls} value={form.departmentId} onChange={set('departmentId')} disabled={deptLoading}>
-                  <option value="">{deptLoading ? 'Loading departments…' : '— none (optional) —'}</option>
-                  {departments.map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
+                <Label>Assign to</Label>
+                <select className={inputCls} value={form.assignedTo} onChange={set('assignedTo')} disabled={assigneeLoading}>
+                  <option value="">{assigneeLoading ? 'Loading users…' : '— unassigned —'}</option>
+                  {assignees.map((u) => <option key={u._id} value={u._id}>{u.name} ({u.role})</option>)}
                 </select>
-                {!deptLoading && departments.length === 0 && (
-                  <p className="text-[11px] text-[var(--text-muted)] mt-1">No departments configured yet — add them under Departments.</p>
+                {!assigneeLoading && assignees.length === 0 && (
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1">No assignable users found — you can assign this later.</p>
                 )}
               </div>
-              {canAssign && (
-                <div>
-                  <Label>Assign to</Label>
-                  <select className={inputCls} value={form.assignedTo} onChange={set('assignedTo')} disabled={assigneeLoading}>
-                    <option value="">{assigneeLoading ? 'Loading users…' : '— unassigned —'}</option>
-                    {assignees.map((u) => <option key={u._id} value={u._id}>{u.name} ({u.role})</option>)}
-                  </select>
-                  {!assigneeLoading && assignees.length === 0 && (
-                    <p className="text-[11px] text-[var(--text-muted)] mt-1">No assignable users found — you can assign this later.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </Section>
+            </Section>
+          )}
 
           <Section icon={CalendarClock} title="Timeline" subtitle="When is it due?">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -342,7 +317,6 @@ const CreateDelegationPage = () => {
             title={form.title.trim()}
             description={form.description.trim()}
             assigneeName={assigneeName}
-            department={department}
             priority={form.priority}
             dueDate={form.dueDate}
             checklistCount={checklist.length}

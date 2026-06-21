@@ -16,7 +16,9 @@ export const isOverdue = (d) =>
   new Date(d.dueDate) < new Date() &&
   !['completed', 'cancelled'].includes(d.status);
 
-export const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
+// DD/MM/YYYY (e.g. 20/06/2026) — explicit format so it doesn't vary by locale.
+export const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 export const fmtDateTime = (d) => (d ? new Date(d).toLocaleString() : '—');
 
 /* "18 Jun 2026" */

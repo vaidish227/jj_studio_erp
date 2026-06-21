@@ -136,7 +136,7 @@ export const NAV_ITEMS = [
     children: [
       { id: 'delegation-dashboard',   label: 'Dashboard',          path: '/delegation',             permission: 'delegation.read' },
       { id: 'delegation-create',      label: 'Create Delegation',  path: '/delegation/create',      permission: 'delegation.create' },
-      { id: 'delegation-list',        label: 'All Delegations',    path: '/delegation/list',        permission: 'delegation.read' },
+      { id: 'delegation-list',        label: 'Delegation List',    path: '/delegation/list',        permission: 'delegation.read' },
     ],
   },
   {
