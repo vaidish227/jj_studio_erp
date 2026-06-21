@@ -213,7 +213,7 @@ const ProposalClientsPage = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="bg-black/85 border-black/10 hover:bg-black text-[var(--primary)] font-bold"
+                className="bg-white border-transparent hover:bg-white/90 text-[var(--primary-active)] font-bold shadow-sm"
                 onClick={openSendForSelected}
                 disabled={sending}
               >
