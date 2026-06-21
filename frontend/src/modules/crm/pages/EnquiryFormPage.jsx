@@ -5,6 +5,8 @@ import {
   Mail,
   MapPin,
   Calendar,
+  Clock,
+  CalendarClock,
   Layers,
   IndianRupee,
   Briefcase,
@@ -18,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../../../shared/components/Card/Card';
 import Input from '../../../shared/components/Input/Input';
 import DatePicker from '../../../shared/components/DatePicker/DatePicker';
+import TimePicker from '../../../shared/components/TimePicker/TimePicker';
 import { PhoneInput } from '../../../shared/components';
 import Button from '../../../shared/components/Button/Button';
 import Select from '../../../shared/components/Select/Select';
@@ -48,7 +51,14 @@ const EnquiryFormPage = () => {
   const handleFormSubmit = async (e) => {
     const result = await handleSubmit(e);
     if (result?.success) {
-      toast.success('Enquiry captured successfully!');
+      if (result.meetingScheduled) {
+        toast.success('Enquiry captured & meeting scheduled!');
+      } else if (result.meetingWarning) {
+        toast.success('Enquiry captured successfully!');
+        toast.error(result.meetingWarning);
+      } else {
+        toast.success('Enquiry captured successfully!');
+      }
     } else if (result && !result.existingId && result.message) {
       toast.error(result.message);
     }
@@ -255,7 +265,17 @@ const EnquiryFormPage = () => {
                 value={formData.preferredMeetingDate}
                 onChange={handleChange}
                 icon={Calendar}
+                error={errors.preferredMeetingDate}
+                min={new Date().toISOString().split('T')[0]}
                 yearRange={{ from: new Date().getFullYear(), to: new Date().getFullYear() + 2 }}
+              />
+              <TimePicker
+                label="Preferred Meeting Time"
+                name="preferredMeetingTime"
+                value={formData.preferredMeetingTime}
+                onChange={handleChange}
+                error={errors.preferredMeetingTime}
+                icon={Clock}
               />
               <Input
                 label="City / Location"
@@ -284,6 +304,63 @@ const EnquiryFormPage = () => {
                 placeholder="Ex: 1500000"
               />
             </div>
+
+            {/* Schedule meeting now — optionally creates a real meeting from the
+                preferred date & time the moment the enquiry is registered.
+                NOTE: no `overflow-hidden` here — it would clip the Meeting Type
+                dropdown's options menu (absolutely-positioned). */}
+            <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--bg)]">
+              <div className="flex items-start gap-4 p-5">
+                <div className="w-10 h-10 rounded-xl bg-[var(--accent-teal)]/10 text-[var(--accent-teal)] flex items-center justify-center shrink-0">
+                  <CalendarClock size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-[var(--text-primary)]">Schedule this meeting now</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    Book a confirmed meeting from the preferred date &amp; time. The client receives a
+                    confirmation email and the lead moves to “Meeting Scheduled”.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={formData.scheduleMeetingNow}
+                  onClick={() => handleSelectChange('scheduleMeetingNow', !formData.scheduleMeetingNow)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors mt-0.5 ${
+                    formData.scheduleMeetingNow ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      formData.scheduleMeetingNow ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {formData.scheduleMeetingNow && (
+                <div className="border-t border-[var(--border)] p-5 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-1 duration-300">
+                  <Select
+                    label="Meeting Type"
+                    name="meetingType"
+                    value={formData.meetingType}
+                    onChange={(val) => handleSelectChange('meetingType', val)}
+                    options={[
+                      { value: 'office', label: 'Office Meeting' },
+                      { value: 'site', label: 'Site Visit' },
+                      { value: 'call', label: 'Phone Call' },
+                    ]}
+                    icon={CalendarClock}
+                  />
+                  <div className="flex items-center text-xs text-[var(--text-muted)] font-medium md:pt-7">
+                    {formData.preferredMeetingDate && formData.preferredMeetingTime
+                      ? 'Uses the Preferred Meeting Date & Time selected above.'
+                      : 'Select a Preferred Meeting Date & Time above to schedule.'}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
               <FormField label="Site Details / Address">
                 <textarea

@@ -8,6 +8,7 @@ import {
 import { Button, Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { pmsService } from '../../../shared/services/pmsService';
+import { ClientFormPreviewCard } from '../components/clientFormShared';
 
 // ─── Field type registry ──────────────────────────────────────────────────────
 const FIELD_TYPES = [
@@ -146,58 +147,9 @@ const FieldEditor = ({ field, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
   );
 };
 
-// ─── Right panel — live form preview ─────────────────────────────────────────
-const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 bg-gray-50/80 cursor-not-allowed';
-
-const FieldPreview = ({ field }) => {
-  const FType     = FIELD_TYPES.find((t) => t.type === field.type);
-  const labelText = field.label || FType?.label || 'Untitled Field';
-
-  if (field.type === 'section') {
-    return (
-      <div className="pt-2 pb-1 border-b-2 border-gray-100">
-        <h3 className="text-sm font-extrabold text-gray-800 tracking-tight">{labelText}</h3>
-        {field.description && <p className="text-xs text-gray-400 mt-0.5">{field.description}</p>}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-        {labelText}
-        {field.required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-      {field.type === 'textarea' && (
-        <textarea rows={3} placeholder={field.placeholder || ''} disabled className={`${inputCls} resize-none`} />
-      )}
-      {['text', 'email', 'phone', 'number'].includes(field.type) && (
-        <input type={field.type === 'phone' ? 'tel' : field.type} placeholder={field.placeholder || ''} disabled className={inputCls} />
-      )}
-      {field.type === 'date' && (
-        <input type="date" disabled className={inputCls} />
-      )}
-      {field.type === 'dropdown' && (
-        <select disabled className={inputCls}>
-          <option value="">Select an option…</option>
-          {(field.options || []).filter(Boolean).map((opt, i) => <option key={i}>{opt}</option>)}
-        </select>
-      )}
-      {field.type === 'checkbox' && (
-        <div className="space-y-2 pt-0.5">
-          {(field.options || []).filter(Boolean).map((opt, i) => (
-            <label key={i} className="flex items-center gap-2.5 text-sm text-gray-600 cursor-default">
-              <span className="w-4 h-4 rounded border-2 border-gray-300 shrink-0 inline-block" />
-              {opt}
-            </label>
-          ))}
-          {(field.options || []).length === 0 && <p className="text-xs text-gray-400 italic">No options yet</p>}
-        </div>
-      )}
-      {field.description && <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">{field.description}</p>}
-    </div>
-  );
-};
+// Live form preview chrome + read-only fields now live in
+// components/clientFormShared.jsx (ClientFormPreviewCard) so the builder
+// preview, the Preview modal, and the public form stay in sync.
 
 // ─── Help drawer (slide-over) ─────────────────────────────────────────────────
 const HelpDrawer = ({ onClose }) => (
@@ -313,7 +265,8 @@ const FormBuilderPage = () => {
     (async () => {
       try {
         const res = await pmsService.getClientFormTemplate(id);
-        const t   = res?.data?.template;
+        // apiClient unwraps to response.data, so `res` is the { template } payload.
+        const t   = res?.template;
         if (t) { setTitle(t.title || ''); setDescription(t.description || ''); setFields(t.fields || []); }
       } catch {
         toast.error('Failed to load template'); navigate('/pms/form-templates');
@@ -528,41 +481,12 @@ const FormBuilderPage = () => {
               <span className="text-[10px] text-[var(--text-muted)]/60">— updates as you type</span>
             </div>
 
-            {/* Form card — mirrors PublicFormPage styling */}
-            <div className="max-w-[540px] mx-auto bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-              {/* Header band */}
-              <div className="px-7 py-6" style={{ background: 'var(--primary)' }}>
-                <h2 className="text-lg font-extrabold text-black leading-snug">
-                  {title.trim() || <span className="opacity-30 font-normal italic">Form title appears here</span>}
-                </h2>
-                {description.trim() && (
-                  <p className="text-sm text-black/70 mt-1.5 leading-relaxed">{description}</p>
-                )}
-              </div>
-
-              {/* Fields */}
-              <div className="px-7 py-6 space-y-5">
-                {fields.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 flex items-center justify-center mx-auto mb-3">
-                      <Eye size={18} className="text-gray-300" />
-                    </div>
-                    <p className="text-sm text-gray-400">Add fields on the left to see the preview here</p>
-                  </div>
-                ) : (
-                  fields.map((f) => <FieldPreview key={f.id} field={f} />)
-                )}
-              </div>
-
-              {/* Submit button preview */}
-              {fields.length > 0 && (
-                <div className="px-7 py-5 bg-gray-50 border-t border-gray-100">
-                  <button type="button" disabled className="w-full py-3 rounded-xl text-sm font-bold text-black cursor-not-allowed" style={{ background: 'var(--primary)', opacity: 0.8 }}>
-                    Submit Form
-                  </button>
-                  <p className="text-center text-[10px] text-gray-400 mt-2">Preview only — not interactive</p>
-                </div>
-              )}
+            {/* Form card — shared chrome so preview matches the live client form */}
+            <div className="max-w-[560px] mx-auto">
+              <ClientFormPreviewCard
+                template={{ title, description, fields }}
+                emptyHint="Add fields on the left to see the preview here"
+              />
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import SidebarItem from './SidebarItem';
 
 // ── Flyout portalled into document.body — escapes sidebar stacking context ───
@@ -87,6 +87,18 @@ const SidebarGroup = ({
 
   useEffect(() => () => clearTimeout(closeTimer.current), []);
 
+  // ── Measured-height accordion ───────────────────────────────────────────────
+  // Animate maxHeight to the panel's *actual* pixel height (not a fixed cap) so
+  // the easing curve maps onto the real distance — true, symmetric ease-in-out.
+  const panelRef = useRef(null);
+  const [panelHeight, setPanelHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    setPanelHeight(isExpanded ? el.scrollHeight : 0);
+  }, [isExpanded, expanded, children]);
+
   const flyoutControls = {
     cancel:   () => clearTimeout(closeTimer.current),
     schedule: () => { closeTimer.current = setTimeout(() => setFlyoutOpen(false), 150); },
@@ -168,17 +180,23 @@ const SidebarGroup = ({
         <span className={`flex-1 text-left ${depth === 0 ? 'text-[15px]' : 'text-sm'}`}>{label}</span>
         {children && (
           <div className="shrink-0">
-            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            <ChevronDown
+              size={16}
+              className={`transition-transform duration-300 ease-in-out ${isExpanded ? 'rotate-180' : ''}`}
+            />
           </div>
         )}
       </button>
 
       {children && (
-        <div className={`
-          overflow-hidden transition-all duration-300 ease-in-out
-          ${isExpanded ? 'max-h-[1000px] opacity-100 mt-1 mb-1' : 'max-h-0 opacity-0'}
-        `}>
-          <div className="px-2 space-y-0.5">
+        <div
+          style={{ maxHeight: panelHeight }}
+          className={`
+            overflow-hidden transition-all duration-300 ease-in-out
+            ${isExpanded ? 'opacity-100' : 'opacity-0'}
+          `}
+        >
+          <div ref={panelRef} className="px-2 pt-1 pb-1 space-y-0.5">
             {children.map((child) =>
               child.children ? (
                 <SidebarGroup

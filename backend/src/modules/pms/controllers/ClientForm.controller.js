@@ -13,13 +13,24 @@ const whatsappQueue      = require("../../whatsapp/service/whatsapp.queue.servic
 
 const createTemplate = async (req, res) => {
   try {
-    const { title, description, fields } = req.body;
+    const { title, description, fields, projectId, sourceTemplateId } = req.body;
     if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+
+    // A project-scoped copy is created via copy-on-write when a shared template
+    // is edited inside a project. Only honour projectId when it's a valid id.
+    const scopedProjectId =
+      projectId && mongoose.Types.ObjectId.isValid(projectId) ? projectId : null;
+
     const template = await ClientFormTemplate.create({
       title: title.trim(),
       description: description?.trim() || "",
       fields: fields || [],
       createdBy: req.user?._id,
+      projectId: scopedProjectId,
+      sourceTemplateId:
+        scopedProjectId && mongoose.Types.ObjectId.isValid(sourceTemplateId)
+          ? sourceTemplateId
+          : null,
     });
     res.status(201).json({ template });
   } catch (err) {
@@ -29,7 +40,19 @@ const createTemplate = async (req, res) => {
 
 const getTemplates = async (req, res) => {
   try {
-    const templates = await ClientFormTemplate.find({ isActive: true })
+    // Default (global library): shared templates only (projectId null/absent).
+    // With ?projectId=<id> (project Forms tab): shared templates PLUS that
+    // project's own copies, so per-project customisations show alongside the
+    // shared masters without leaking to other projects.
+    const { projectId } = req.query;
+    const filter = { isActive: true };
+    if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
+      filter.$or = [{ projectId: null }, { projectId }];
+    } else {
+      filter.projectId = null;
+    }
+
+    const templates = await ClientFormTemplate.find(filter)
       .sort({ createdAt: -1 })
       .populate("createdBy", "name")
       .lean();

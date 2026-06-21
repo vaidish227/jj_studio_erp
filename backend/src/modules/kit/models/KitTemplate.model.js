@@ -50,8 +50,13 @@ const kitTemplateSchema = new mongoose.Schema(
       name: { type: String },
     }],
 
-    // Per-template email design override (email channel). Every field is optional;
-    // a blank field inherits from the global KitSettings design at send time.
+    // Which named Email Design (frame) this template wears (email channel). When
+    // unset, the send falls back to the default Email Design.
+    designId: { type: ObjectId, ref: "EmailDesign" },
+
+    // Legacy per-template colour override — dormant. Superseded by `designId`
+    // (the Email Design library); no longer edited in the UI nor merged at send.
+    // Retained so old documents keep their data; safe to remove in a later cleanup.
     emailDesign: {
       headerColor:     { type: String, default: "" },
       headerTextColor: { type: String, default: "" },

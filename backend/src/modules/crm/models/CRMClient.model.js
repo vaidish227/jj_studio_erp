@@ -64,6 +64,16 @@ const crmClientSchema = new mongoose.Schema(
       city: String,
     },
 
+    // ─── Preferred Meeting (captured on the enquiry form) ────────────
+    // The client's preferred slot. A real Meeting may be scheduled
+    // immediately on submit, or later from the lead detail page — these
+    // values pre-fill the Schedule Meeting modal either way.
+    preferredMeetingDate: Date, // 'YYYY-MM-DD' stored as a Date
+    preferredMeetingTime: String, // 'HH:mm' (24h), optional
+
+    // Confirmed meeting date/time — set when a Meeting is actually scheduled.
+    meetingDate: Date,
+
     // ─── Referral Information ────────────────────────────────────────
     referredBy: String,
     referrerPhone: String,

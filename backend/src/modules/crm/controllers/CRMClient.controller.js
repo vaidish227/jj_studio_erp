@@ -78,6 +78,8 @@ const createClientEnquiry = async (req, res) => {
       budget: req.body.budget,
       city: req.body.city,
       notes: req.body.notes,
+      preferredMeetingDate: req.body.preferredMeetingDate || undefined,
+      preferredMeetingTime: req.body.preferredMeetingTime || undefined,
       source: req.body.source || "walk_in",
       priority: req.body.priority || "medium",
 

@@ -25,8 +25,22 @@ const clientFormTemplateSchema = new mongoose.Schema(
     fields:      [fieldSchema],
     isActive:    { type: Boolean, default: true },
     createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+    // Scope:
+    //   projectId = null  → shared/global library template (managed on the
+    //                       global Form Templates page; visible to all projects).
+    //   projectId = <id>  → project-specific copy. Created via copy-on-write when
+    //                       a user edits a shared template from inside a project,
+    //                       so the shared master is never mutated. Only this
+    //                       project sees and uses it.
+    projectId:       { type: mongoose.Schema.Types.ObjectId, ref: "Project", default: null },
+    // The shared template this project copy was forked from (audit / "reset to
+    // shared" affordance). Null for original shared templates.
+    sourceTemplateId: { type: mongoose.Schema.Types.ObjectId, ref: "ClientFormTemplate", default: null },
   },
   { timestamps: true }
 );
+
+clientFormTemplateSchema.index({ projectId: 1, isActive: 1 });
 
 module.exports = mongoose.model("ClientFormTemplate", clientFormTemplateSchema);

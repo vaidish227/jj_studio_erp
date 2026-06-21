@@ -61,7 +61,8 @@ const SendFormLinkModal = ({ isOpen, onClose, formLink, defaultEmail = '', defau
         phone:   channels.whatsapp ? phone.trim()   : undefined,
       };
       const res = await pmsService.sendFormLink(formLink._id, payload);
-      toast.success(res?.data?.message || 'Form link sent!');
+      // apiClient unwraps to response.data, so the payload sits directly on res.
+      toast.success(res?.message || 'Form link sent!');
       onClose();
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Send failed');

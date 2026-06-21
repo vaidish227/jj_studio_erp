@@ -1,32 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Eye, Variable, Upload, FileText, Film, Trash2, Link as LinkIcon, Palette, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Eye, Variable, Upload, FileText, Film, Trash2, Link as LinkIcon, Palette } from 'lucide-react';
 import Button from '../../../shared/components/Button/Button';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { kitService } from '../../../shared/services/kitService';
 import { CHANNELS, CATEGORIES } from '../constants';
 import RichEmailEditor from '../components/RichEmailEditor';
-import EmailDesignFields from '../components/EmailDesignFields';
 
 const channelRoute = { whatsapp: '/kit/whatsapp', email: '/kit/mail', notification: '/kit/mail' };
 
 const emptyForm = {
   channel: 'whatsapp', name: '', category: 'custom',
   subject: '', htmlBody: '', textBody: '', body: '', title: '', deepLink: '',
-  attachments: [], isActive: true, emailDesign: {},
-};
-
-// Only send override fields the user actually set (non-empty), so blanks inherit
-// global branding. logoUrl is kept so the live preview shows the freshly-uploaded
-// logo immediately; at send time the backend re-signs it fresh from logoKey.
-const cleanEmailDesign = (d = {}) => {
-  const out = {};
-  for (const [k, v] of Object.entries(d)) {
-    if (typeof v === 'string' && v.trim() === '') continue;
-    if (v === undefined || v === null) continue;
-    out[k] = v;
-  }
-  return out;
+  attachments: [], isActive: true, designId: '',
 };
 
 const acceptFor = (t) =>
@@ -38,7 +24,7 @@ const acceptFor = (t) =>
 /** Build the create/update payload with only the fields relevant to the channel. */
 const buildPayload = (f) => {
   const base = { channel: f.channel, name: f.name.trim(), category: f.category, isActive: f.isActive };
-  if (f.channel === 'email') return { ...base, subject: f.subject, htmlBody: f.htmlBody, emailDesign: cleanEmailDesign(f.emailDesign) };
+  if (f.channel === 'email') return { ...base, subject: f.subject, htmlBody: f.htmlBody, designId: f.designId || null };
   if (f.channel === 'whatsapp') return {
     ...base, body: f.body,
     attachments: (f.attachments || []).map((a) => ({ kind: a.kind, url: a.url || undefined, key: a.key || undefined, name: a.name || undefined })),
@@ -89,6 +75,7 @@ const TemplateEditorPage = () => {
 
   const [form, setForm] = useState({ ...emptyForm, channel: searchParams.get('channel') || 'whatsapp' });
   const [variables, setVariables] = useState([]);
+  const [designs, setDesigns] = useState([]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -99,7 +86,6 @@ const TemplateEditorPage = () => {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [addKind, setAddKind] = useState('image');
   const [urlDraft, setUrlDraft] = useState('');
-  const [showDesign, setShowDesign] = useState(false);
   const set = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
   // ── attachments ─────────────────────────────────────────────────────────────
@@ -138,6 +124,10 @@ const TemplateEditorPage = () => {
         const v = await kitService.getVariables();
         setVariables(v?.data?.variables || []);
       } catch { /* non-fatal */ }
+      try {
+        const d = await kitService.listEmailDesigns();
+        setDesigns(d?.designs || []);
+      } catch { /* non-fatal — email design selector just shows "Default" */ }
       if (isEdit) {
         try {
           const res = await kitService.getTemplate(id);
@@ -168,7 +158,7 @@ const TemplateEditorPage = () => {
         channel: f.channel,
         subject: f.subject, htmlBody: f.htmlBody, textBody: f.textBody,
         body: f.body, title: f.title,
-        ...(f.channel === 'email' ? { emailDesign: cleanEmailDesign(f.emailDesign) } : {}),
+        ...(f.channel === 'email' ? { designId: f.designId || undefined } : {}),
       });
       setPreview(res.data);
     } catch (err) {
@@ -236,6 +226,7 @@ const TemplateEditorPage = () => {
     'w-full px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] transition-colors';
   const labelClass = 'block text-xs font-black uppercase tracking-wider text-[var(--text-muted)] mb-1.5';
   const trackFocus = (e) => { activeFieldRef.current = e.target; };
+  const defaultDesignName = designs.find((d) => d.isDefault)?.name;
 
   if (loading) {
     return (
@@ -319,26 +310,25 @@ const TemplateEditorPage = () => {
                 </p>
               </div>
 
-              {/* Per-template email design (optional — blanks inherit the global branding) */}
-              <div className="rounded-xl border border-[var(--border)] overflow-hidden">
-                <button type="button" onClick={() => setShowDesign((s) => !s)}
-                  className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-[var(--bg)] hover:bg-[var(--surface)] transition-colors">
-                  <span className="flex items-center gap-2 text-[var(--text-primary)]">
-                    <Palette size={16} />
-                    <span className="font-black text-sm uppercase tracking-wider">Email Design</span>
-                    <span className="text-[11px] font-bold text-[var(--text-muted)] normal-case tracking-normal">optional — overrides global branding</span>
-                  </span>
-                  {showDesign ? <ChevronDown size={18} className="text-[var(--text-muted)]" /> : <ChevronRight size={18} className="text-[var(--text-muted)]" />}
-                </button>
-                {showDesign && (
-                  <div className="p-4 border-t border-[var(--border)]">
-                    <EmailDesignFields
-                      design={form.emailDesign || {}}
-                      onChange={(p) => set({ emailDesign: { ...(form.emailDesign || {}), ...p } })}
-                      inheritNote
-                    />
-                  </div>
-                )}
+              {/* Which Email Design (frame) this template wears. Blank = the default. */}
+              <div>
+                <label className={labelClass}>
+                  <span className="inline-flex items-center gap-1.5"><Palette size={13} /> Email Design</span>
+                </label>
+                <select name="designId" className={fieldClass} value={form.designId || ''}
+                  onChange={(e) => set({ designId: e.target.value })}>
+                  <option value="">
+                    Default design{defaultDesignName ? ` (${defaultDesignName})` : ''}
+                  </option>
+                  {designs.map((d) => (
+                    <option key={d._id} value={d._id}>{d.name}{d.isDefault ? ' — default' : ''}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-[var(--text-muted)] mt-1.5">
+                  The header, footer, colours &amp; layout come from the chosen design.{' '}
+                  <button type="button" onClick={() => navigate('/kit/email-designs')}
+                    className="font-bold text-[var(--primary)] hover:underline">Manage Email Designs</button>.
+                </p>
               </div>
             </>
           )}

@@ -84,6 +84,8 @@ import {
   AutomationsPage as KitAutomationsPage,
   AutomationBuilderPage as KitAutomationBuilderPage,
   KitSettingsPage,
+  EmailDesignListPage,
+  EmailDesignEditorPage,
   ThankYouSettingsPage,
   KickoffSettingsPage,
   AnalyticsPage as KitAnalyticsPage,
@@ -188,6 +190,11 @@ export default function App() {
                       </Route>
                       <Route path="whatsapp"   element={<KitTemplateLibraryPage channel="whatsapp" />} />
                       <Route path="mail"       element={<KitTemplateLibraryPage channel="email" />} />
+                      <Route path="email-designs">
+                        <Route index           element={<EmailDesignListPage />} />
+                        <Route path="new"       element={<EmailDesignEditorPage />} />
+                        <Route path=":id"       element={<EmailDesignEditorPage />} />
+                      </Route>
                       <Route path="templates">
                         <Route path="create"   element={<KitTemplateEditorPage />} />
                         <Route path="edit/:id" element={<KitTemplateEditorPage />} />

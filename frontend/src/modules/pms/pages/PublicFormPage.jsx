@@ -1,15 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  CheckCircle, AlertCircle, Loader2, Building2, ClipboardList,
+  CheckCircle, AlertCircle, Loader2,
 } from 'lucide-react';
 import apiClient from '../../../shared/services/apiClient';
-
-// Public API — no auth token needed
-const publicApi = {
-  getForm:    (token) => apiClient.get(`/client-forms/public/${token}`),
-  submitForm: (token, data) => apiClient.post(`/client-forms/public/${token}/submit`, { data }),
-};
+import { FormBrandHeader } from '../components/clientFormShared';
 
 // ─── Individual field renderer ────────────────────────────────────────────────
 const FieldInput = ({ field, value, onChange, error }) => {
@@ -113,7 +108,7 @@ const PublicFormPage = () => {
     apiClient.get(`/client-forms/public/${token}`)
       .then((res) => {
         if (!cancelled) {
-          setForm(res.data.form);
+          setForm(res.form);
           setLoadState('ready');
         }
       })
@@ -236,34 +231,13 @@ const PublicFormPage = () => {
     <div className="min-h-screen bg-[var(--bg)] py-8 px-4">
       <div className="max-w-xl mx-auto space-y-6">
 
-        {/* Branding header */}
-        <div className="text-center space-y-1">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--primary)] flex items-center justify-center mx-auto">
-            <Building2 size={22} className="text-black" />
-          </div>
-          <p className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">JJ Studio</p>
-          {form?.projectName && (
-            <p className="text-xs text-[var(--text-secondary)]">Project: <strong>{form.projectName}</strong></p>
-          )}
-        </div>
-
         {/* Form card */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-sm">
-          {/* Form title */}
-          <div className="px-6 py-5 border-b border-[var(--border)] bg-[var(--primary)]/5">
-            <div className="flex items-start gap-3">
-              <ClipboardList size={20} className="text-[var(--primary)] shrink-0 mt-0.5" />
-              <div>
-                <h1 className="text-base font-extrabold text-[var(--text-primary)]">{form?.title}</h1>
-                {form?.description && (
-                  <p className="text-xs text-[var(--text-secondary)] mt-1">{form.description}</p>
-                )}
-              </div>
-            </div>
-          </div>
+          {/* Branded, themed header (logo + title) */}
+          <FormBrandHeader title={form?.title} description={form?.description} projectName={form?.projectName} />
 
           {/* Fields */}
-          <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+          <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5">
             {errors._global && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--error)]/10 text-[var(--error)] text-xs font-bold">
                 <AlertCircle size={14} />

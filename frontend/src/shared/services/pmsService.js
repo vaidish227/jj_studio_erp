@@ -371,7 +371,8 @@ export const pmsService = {
 
   // ─── Client Forms (dynamic forms sent to clients) ─────────────────────────
   // Templates (form schema definitions)
-  getClientFormTemplates:   ()             => apiClient.get('/client-forms/templates'),
+  // projectId (optional): include that project's copies alongside shared templates.
+  getClientFormTemplates:   (projectId)    => apiClient.get('/client-forms/templates', { params: projectId ? { projectId } : {} }),
   getClientFormTemplate:    (id)           => apiClient.get(`/client-forms/templates/${id}`),
   createClientFormTemplate: (data)         => apiClient.post('/client-forms/templates', data),
   updateClientFormTemplate: (id, data)     => apiClient.put(`/client-forms/templates/${id}`, data),

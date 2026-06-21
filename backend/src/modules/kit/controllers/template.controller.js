@@ -158,11 +158,16 @@ const previewTemplate = async (req, res) => {
       if (value[f] !== undefined) rendered[f] = variableResolver.render(value[f], vars);
     }
 
-    // Email content is authored as a body; show the branded wrapper (global design
-    // merged with this template's draft overrides) so the live preview matches
-    // exactly what gets sent.
+    // Email content is authored as a body; show the branded frame so the live
+    // preview matches exactly what gets sent. The Mail Template editor passes a
+    // `designId` (which saved Email Design it wears); the Email Design builder
+    // passes draft `emailDesign` (theme) + `layout` (sections) for instant WYSIWYG.
     if (value.channel === "email" && rendered.htmlBody !== undefined) {
-      const design = await resolveEmailDesign(value.emailDesign);
+      const design = await resolveEmailDesign({
+        designId: value.designId,
+        themeOverride: value.emailDesign,
+        layoutOverride: value.layout && Array.isArray(value.layout.sections) ? value.layout.sections : undefined,
+      });
       rendered.htmlBody = wrapEmailHtml(rendered.htmlBody, design);
     }
 

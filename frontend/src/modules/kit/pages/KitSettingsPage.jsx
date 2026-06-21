@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Loader2, Save, Clock, Gauge, MessageCircle, Mail, Palette, Eye } from 'lucide-react';
+import { Loader2, Save, Clock, Gauge, MessageCircle, Mail } from 'lucide-react';
 import Button from '../../../shared/components/Button/Button';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import { kitService } from '../../../shared/services/kitService';
-import EmailDesignFields from '../components/EmailDesignFields';
 
 const fieldClass = 'w-full px-3 py-2 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--text-primary)] outline-none focus:border-[var(--primary)] transition-colors';
 const labelClass = 'block text-xs font-black uppercase tracking-wider text-[var(--text-muted)] mb-1.5';
@@ -142,119 +141,19 @@ const ChannelCard = ({ channel, icon: Icon, label }) => {
   );
 };
 
-// Sample body used to render the live brand preview (mirrors what recipients see).
-const SAMPLE_BODY = '<p>Dear Asha Mehta,</p><p>Thank you for connecting with us. This is how your branded emails will look.</p><p>Warm regards,<br>The Team</p>';
-
-// ── Global Email Branding (the frame around every email) ──────────────────────
-const EmailBrandingCard = () => {
-  const toast = useToast();
-  const [design, setDesign] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [previewHtml, setPreviewHtml] = useState('');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await kitService.getKitSettings();
-      setDesign(res?.data?.settings?.emailDesign || {});
-    } catch (err) {
-      toast.error(err?.message || 'Failed to load email branding');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const patch = (p) => setDesign((prev) => ({ ...prev, ...p }));
-
-  // Debounced live preview through the same backend wrapper used at send time.
-  useEffect(() => {
-    if (!design) return;
-    const t = setTimeout(async () => {
-      try {
-        const res = await kitService.preview({ channel: 'email', subject: 'Preview', htmlBody: SAMPLE_BODY, emailDesign: design });
-        setPreviewHtml(res?.data?.rendered?.htmlBody || '');
-      } catch { /* preview is best-effort */ }
-    }, 500);
-    return () => clearTimeout(t);
-  }, [design]);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      await kitService.updateKitSettings({ emailDesign: design });
-      toast.success('Email branding saved');
-    } catch (err) {
-      toast.error(err?.message || 'Failed to save');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 flex items-center justify-center text-[var(--text-muted)]">
-        <Loader2 size={24} className="animate-spin opacity-30" />
-      </div>
-    );
-  }
-  if (!design) return null;
-
-  return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center"><Palette size={20} /></div>
-          <div>
-            <h3 className="font-black text-lg text-[var(--text-primary)]">Email Branding</h3>
-            <p className="text-xs text-[var(--text-muted)]">The default frame around every email. Templates can override these.</p>
-          </div>
-        </div>
-        <Button variant="primary" onClick={save} disabled={saving} className="px-5 py-2.5">
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Branding
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <EmailDesignFields design={design} onChange={patch} includeToggles />
-
-        {/* Live preview */}
-        <div>
-          <div className="flex items-center gap-2 mb-2 text-[var(--text-primary)]">
-            <Eye size={16} /><h4 className="font-black text-sm uppercase tracking-wider">Live Preview</h4>
-          </div>
-          <div className="rounded-xl overflow-hidden border border-[var(--border)]" style={{ height: '460px' }}>
-            <iframe
-              srcDoc={previewHtml
-                ? `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:16px;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;}</style></head><body>${previewHtml}</body></html>`
-                : '<html><body style="margin:16px;color:#9ca3af;font-size:13px;">Preview…</body></html>'}
-              title="Email Branding Preview"
-              style={{ width: '100%', height: '100%', border: 'none' }}
-              sandbox="allow-same-origin"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const KitSettingsPage = () => (
   <div className="max-w-[1100px] mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
     <div className="space-y-1">
       <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">Delivery Settings</h1>
       <p className="text-[var(--text-muted)] font-medium">
         Quiet-hours and rate limits apply to all KIT sends (campaigns, automations) and every other queued message.
+        Email branding &amp; layout now live under <span className="font-bold text-[var(--text-secondary)]">Templates → Email Design</span>.
       </p>
     </div>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <ChannelCard channel="whatsapp" icon={MessageCircle} label="WhatsApp" />
       <ChannelCard channel="mail" icon={Mail} label="Email" />
     </div>
-
-    <EmailBrandingCard />
   </div>
 );
 

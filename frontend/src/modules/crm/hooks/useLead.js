@@ -15,6 +15,10 @@ const initialState = {
   source: 'walk_in',
   enquiryDate: new Date().toISOString().split('T')[0],
   preferredMeetingDate: '',
+  preferredMeetingTime: '',
+  // When true, a real Meeting is created right after the enquiry is saved.
+  scheduleMeetingNow: false,
+  meetingType: 'office', // 'office' | 'site' | 'call'
   siteDetails: '',
   city: '',
   quotedAmount: '',
@@ -32,6 +36,15 @@ const localMobileDigits = (raw) => {
   return s;
 };
 
+// Combine a 'YYYY-MM-DD' date and 'HH:mm' time into a local Date (no UTC drift).
+const combineDateTime = (dateStr, timeStr) => {
+  if (!dateStr) return null;
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const [hh, mm] = (timeStr || '00:00').split(':').map(Number);
+  const dt = new Date(y, (mo || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+};
+
 const validateForm = (data) => {
   const errors = {};
   if (!data.clientName.trim()) errors.clientName = 'Client name is required';
@@ -44,6 +57,21 @@ const validateForm = (data) => {
     errors.email = 'Email is required';
   } else if (!/\S+@\S+\.\S+/.test(data.email)) {
     errors.email = 'Enter a valid email address';
+  }
+  // Scheduling a meeting on submit needs a concrete, future date + time.
+  if (data.scheduleMeetingNow) {
+    if (!data.preferredMeetingDate) {
+      errors.preferredMeetingDate = 'Pick a date to schedule the meeting';
+    }
+    if (!data.preferredMeetingTime) {
+      errors.preferredMeetingTime = 'Pick a time to schedule the meeting';
+    }
+    if (data.preferredMeetingDate && data.preferredMeetingTime) {
+      const when = combineDateTime(data.preferredMeetingDate, data.preferredMeetingTime);
+      if (when && when.getTime() <= Date.now()) {
+        errors.preferredMeetingTime = 'Meeting date and time must be in the future';
+      }
+    }
   }
   return errors;
 };
@@ -103,17 +131,19 @@ const useLead = () => {
         siteAddress: formData.siteDetails,
         notes: formData.notes,
         preferredMeetingDate: formData.preferredMeetingDate || undefined,
+        preferredMeetingTime: formData.preferredMeetingTime || undefined,
       };
 
       // Calls POST /api/clients/create → CRMClient.controller.createClientEnquiry
       const response = await crmService.createLead(payload);
-      
+
       // Response returns { client, lead } — use either
       const newClient = response.client || response.lead;
-      if (newClient && (newClient._id || newClient.id)) {
+      const newClientId = newClient && (newClient._id || newClient.id);
+      if (newClientId) {
         setActiveLead({
-          id: newClient._id || newClient.id,
-          _id: newClient._id || newClient.id,
+          id: newClientId,
+          _id: newClientId,
           name: newClient.name,
           email: newClient.email,
           phone: newClient.phone,
@@ -121,9 +151,40 @@ const useLead = () => {
         });
       }
 
+      // Optionally schedule a real meeting right away. The lead already exists,
+      // so a scheduling failure (slot taken, no permission, etc.) must NOT lose
+      // the enquiry — we surface it as a warning instead of failing the submit.
+      let meetingWarning = null;
+      let meetingScheduled = false;
+      if (formData.scheduleMeetingNow && newClientId) {
+        const when = combineDateTime(formData.preferredMeetingDate, formData.preferredMeetingTime);
+        try {
+          await crmService.createMeeting({
+            leadId: newClientId,
+            date: when.toISOString(),
+            type: formData.meetingType || 'office',
+            attendees: {
+              internal: [],
+              client: [{
+                name: formData.clientName,
+                email: formData.email,
+                phone: formData.contactMobile,
+                relation: 'lead',
+                notifyEmail: true,
+                notifyWhatsApp: true,
+              }],
+            },
+          });
+          meetingScheduled = true;
+        } catch (meetingErr) {
+          meetingWarning = meetingErr?.message
+            || 'Enquiry saved, but the meeting could not be scheduled. You can schedule it from the lead page.';
+        }
+      }
+
       setIsSuccess(true);
       setFormData(initialState);
-      return { success: true };
+      return { success: true, meetingScheduled, meetingWarning };
     } catch (err) {
       const message = err?.message || 'Failed to submit enquiry. Please try again.';
       setApiError(message);

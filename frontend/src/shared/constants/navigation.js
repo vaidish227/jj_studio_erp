@@ -61,7 +61,7 @@ export const NAV_ITEMS = [
       { id: 'kit-follow-ups', label: 'Follow Ups',         path: '/kit/follow-ups' },
       { id: 'kit-campaigns',  label: 'Campaigns',          path: '/kit/campaigns',  permission: 'kit.read' },
       { id: 'kit-automations',label: 'Automations',        path: '/kit/automations',permission: 'kit.manage' },
-      { id: 'kit-thank-you',  label: 'Thank You Automation', path: '/kit/thank-you', permission: 'kit.manage' },
+      { id: 'kit-thank-you',  label: 'Thank-You Messages',   path: '/kit/thank-you', permission: 'kit.manage' },
       { id: 'kit-kickoff',    label: 'Project Kickoff',     path: '/kit/kickoff',    permission: 'kit.manage' },
       { id: 'kit-analytics',  label: 'Analytics',          path: '/kit/analytics',  permission: 'kit.read' },
       // WhatsApp/Mail Templates moved to the consolidated Templates group below.
@@ -165,8 +165,9 @@ export const NAV_ITEMS = [
       // on, since their /kit/* routes are omitted from the router otherwise.
       ...(import.meta.env.VITE_ENABLE_KIT === 'true'
         ? [
-            { id: 'kit-whatsapp', label: 'WhatsApp Templates', path: '/kit/whatsapp', permission: 'kit.tab.templates' },
-            { id: 'kit-mail',     label: 'Mail Templates',     path: '/kit/mail',     permission: 'kit.tab.templates' },
+            { id: 'kit-whatsapp',       label: 'WhatsApp Templates', path: '/kit/whatsapp',       permission: 'kit.tab.templates' },
+            { id: 'kit-email-designs',  label: 'Email Design',       path: '/kit/email-designs', permission: 'kit.manage' },
+            { id: 'kit-mail',           label: 'Mail Templates',     path: '/kit/mail',           permission: 'kit.tab.templates' },
           ]
         : []),
     ],
@@ -186,3 +187,54 @@ export const NAV_ITEMS = [
   // Feature flag: hide the KIT section entirely when VITE_ENABLE_KIT !== 'true'
   // (e.g. client builds). Mirrors the VITE_ENABLE_AI gating on AI components.
   .filter((item) => item.id !== 'kit' || import.meta.env.VITE_ENABLE_KIT === 'true');
+
+// ─── Breadcrumb resolution ───────────────────────────────────────────────────
+// Flatten the nav tree into every path-bearing item tagged with its parent
+// group's label (null for top-level items). Used by the Navbar to show
+// "Group / Page" context on the left, mirroring AppLayout's active-row logic.
+const flattenForBreadcrumb = (items, group = null) =>
+  items.flatMap((it) => [
+    ...(it.path ? [{ path: it.path, label: it.label, group }] : []),
+    ...(it.children ? flattenForBreadcrumb(it.children, it.label) : []),
+  ]);
+
+const BREADCRUMB_ENTRIES = flattenForBreadcrumb(NAV_ITEMS);
+
+// Turn a URL segment ("review-design") into a Title ("Review Design") for routes
+// that aren't represented in the nav tree (detail pages, deep sub-routes).
+const humanizeSegment = (seg) =>
+  seg.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+// A path segment that's an id, not a page name — numeric id, Mongo ObjectId, or
+// uuid. Detail routes like /projects/<id> should keep the parent page's title.
+const looksLikeId = (seg) =>
+  /^\d+$/.test(seg) ||
+  /^[0-9a-f]{8,}$/i.test(seg) ||
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg);
+
+// Resolve { group, title } for a pathname: exact nav match wins; otherwise the
+// longest nav path that is a parent prefix (so /projects/123 inherits its
+// parent). Falls back to humanizing trailing URL segments when nothing matches.
+export const resolveBreadcrumb = (pathname) => {
+  const exact = BREADCRUMB_ENTRIES.find((e) => e.path === pathname);
+  if (exact) return { group: exact.group, title: exact.label };
+
+  const prefix = BREADCRUMB_ENTRIES
+    .filter((e) => pathname.startsWith(`${e.path}/`))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+  if (prefix) {
+    const tail = pathname.slice(prefix.path.length + 1).split('/')[0];
+    // Detail page under a known nav page: surface the trailing label, keeping the
+    // nav page as the group. An id tail keeps the parent page as the title.
+    return !tail || looksLikeId(tail)
+      ? { group: prefix.group, title: prefix.label }
+      : { group: prefix.label, title: humanizeSegment(tail) };
+  }
+
+  const segs = pathname.split('/').filter(Boolean);
+  if (!segs.length) return { group: null, title: 'Dashboard' };
+  return {
+    group: segs.length > 1 ? humanizeSegment(segs[segs.length - 2]) : null,
+    title: humanizeSegment(segs[segs.length - 1]),
+  };
+};

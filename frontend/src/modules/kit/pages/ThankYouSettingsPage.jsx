@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Save, Clock, Heart, MessageCircle, Mail, HelpCircle, Eye, Check, CheckCircle2 } from 'lucide-react';
+import { Loader2, Save, Clock, Zap, MessageCircle, Mail, HelpCircle, Eye, Check, CheckCircle2 } from 'lucide-react';
 import Button from '../../../shared/components/Button/Button';
 import Modal from '../../../shared/components/Modal/Modal';
 import { useToast } from '../../../shared/notifications/ToastProvider';
@@ -168,7 +168,6 @@ const ThankYouSettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [previewWho, setPreviewWho] = useState('lead'); // 'lead' | 'referral'
   const activeKeyRef = useRef(null); // { group, field }
   const activeElRef  = useRef(null); // DOM node of the last-focused message field
@@ -284,36 +283,46 @@ const ThankYouSettingsPage = () => {
   const pvSubj  = renderSample(who === 'lead' ? m.leadEmail.subject : m.referralEmail.subject);
   const pvBody  = renderSample(who === 'lead' ? m.leadEmail.body : m.referralEmail.body);
   const whoEnabled = who === 'lead' ? settings.recipients.lead : settings.recipients.referral;
-  const tabCls = (active) => `px-3.5 py-1.5 rounded-lg text-sm font-bold transition-colors ${active ? 'bg-[var(--primary)] text-white' : 'bg-[var(--bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`;
+  const tabCls = (active) => `px-3.5 py-1.5 rounded-lg text-sm font-bold transition-colors ${active ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`;
+
+  // One recipient switch drives BOTH the editor and the preview rail, so what you
+  // edit is always what you preview. Reset the active-field refs on switch so a chip
+  // click can't land in the now-hidden recipient's box.
+  const isLead = who === 'lead';
+  const pickRecipient = (w) => { setPreviewWho(w); activeKeyRef.current = null; activeElRef.current = null; };
+  const ed = isLead
+    ? { waGroup: 'leadWhatsapp', emailGroup: 'leadEmail', chips: LEAD_CHIPS, heading: 'Message to the customer',
+        waPh: 'Hi {{lead_name}}, thank you for your enquiry...', subjPh: 'Thank you for your enquiry, {{lead_name}}', bodyPh: 'Hi {{lead_name}}, ...' }
+    : { waGroup: 'referralWhatsapp', emailGroup: 'referralEmail', chips: REFERRAL_CHIPS, heading: 'Message to the referral person',
+        waPh: 'Hi {{referral_name}}, thank you for referring {{lead_name}}...', subjPh: 'Thank you for your referral, {{referral_name}}', bodyPh: 'Hi {{referral_name}}, ...' };
 
   return (
-    <div className="max-w-[900px] mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
-      {/* Header with help + preview actions */}
+    <div className="max-w-[1320px] mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
+      {/* Header with help action */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">Thank You Automation</h1>
+          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">Thank-You Messages</h1>
           <p className="text-[var(--text-muted)] font-medium max-w-[640px]">
-            When an enquiry is submitted, automatically thank the customer and the person who referred them — over
+            When an enquiry comes in, automatically thank the customer and the person who referred them — over
             WhatsApp and Email. New here? Tap the <span className="text-[var(--primary)] font-bold">?</span> for a quick guide.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => setHelpOpen(true)} title="How this works"
-            className="w-9 h-9 rounded-full border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] hover:border-[var(--primary)] transition-colors">
-            <HelpCircle size={18} />
-          </button>
-          <Button variant="outline" onClick={() => setPreviewOpen(true)} className="px-4 py-2">
-            <Eye size={16} /> Preview
-          </Button>
-        </div>
+        <button onClick={() => setHelpOpen(true)} title="How this works"
+          className="shrink-0 w-9 h-9 rounded-full border border-[var(--border)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] hover:border-[var(--primary)] transition-colors">
+          <HelpCircle size={18} />
+        </button>
       </div>
+
+      {/* Editor (left) + live preview (right) — the preview fills the space and stays in view while you type */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+        <div className="space-y-6">
 
       {/* Automation + timing */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center"><Heart size={20} /></div>
-            <h3 className="font-black text-lg text-[var(--text-primary)]">Automation</h3>
+            <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center"><Zap size={20} /></div>
+            <h3 className="font-black text-lg text-[var(--text-primary)]">Trigger &amp; Timing</h3>
           </div>
           <Toggle checked={settings.enabled} onChange={(v) => patch('enabled', v)} label="Enabled" />
         </div>
@@ -351,73 +360,89 @@ const ThankYouSettingsPage = () => {
         </div>
       </div>
 
-      {/* Message to the customer */}
-      <div className={`bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5 ${dimIf(settings.recipients.lead)}`}>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h4 className="font-black text-sm uppercase tracking-wider text-[var(--text-primary)]">Message to the customer</h4>
-          <Chips chips={LEAD_CHIPS} onInsert={insertToken} />
+      {/* Message editor — pick the recipient once; the editor + live preview both follow it */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h4 className="font-black text-sm uppercase tracking-wider text-[var(--text-primary)]">{ed.heading}</h4>
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--bg)] border border-[var(--border)]">
+            <button className={tabCls(isLead)} onClick={() => pickRecipient('lead')}>Customer</button>
+            <button className={tabCls(!isLead)} onClick={() => pickRecipient('referral')}>Referral person</button>
+          </div>
         </div>
+
+        {!whoEnabled && (
+          <p className="text-xs font-bold text-[var(--warning)] bg-[var(--warning)]/10 rounded-xl px-3 py-2 border border-[var(--warning)]/30">
+            This recipient is turned off under “Send to” above. You can still edit the message — turn it on to actually send it.
+          </p>
+        )}
+
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <span className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)]">Insert details</span>
+          <Chips chips={ed.chips} onInsert={insertToken} />
+        </div>
+
         <div className={`space-y-2 ${dimIf(settings.channels.whatsapp)}`}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)]">WhatsApp</span>
-            <TemplatePicker templates={waTemplates} onPick={(t) => fillWhatsappFromTemplate('leadWhatsapp', t)} />
+            <TemplatePicker templates={waTemplates} onPick={(t) => fillWhatsappFromTemplate(ed.waGroup, t)} />
           </div>
-          <MsgField label="WhatsApp message" icon={MessageCircle} value={m.leadWhatsapp.body}
-            placeholder="Hi {{lead_name}}, thank you for your enquiry..."
-            onChange={(v) => patchMsg('leadWhatsapp', 'body', v)} onFocus={(el) => onFieldFocus('leadWhatsapp', 'body', el)} />
+          <MsgField label="WhatsApp message" icon={MessageCircle} value={m[ed.waGroup].body}
+            placeholder={ed.waPh}
+            onChange={(v) => patchMsg(ed.waGroup, 'body', v)} onFocus={(el) => onFieldFocus(ed.waGroup, 'body', el)} />
         </div>
+
         <div className={`space-y-3 ${dimIf(settings.channels.email)}`}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)]">Email</span>
-            <TemplatePicker templates={emailTemplates} onPick={(t) => fillEmailFromTemplate('leadEmail', t)} />
+            <TemplatePicker templates={emailTemplates} onPick={(t) => fillEmailFromTemplate(ed.emailGroup, t)} />
           </div>
-          <MsgField label="Email subject" icon={Mail} singleLine value={m.leadEmail.subject}
-            placeholder="Thank you for your enquiry, {{lead_name}}"
-            onChange={(v) => patchMsg('leadEmail', 'subject', v)} onFocus={(el) => onFieldFocus('leadEmail', 'subject', el)} />
-          <MsgField label="Email message" rows={5} value={m.leadEmail.body}
-            placeholder="Hi {{lead_name}}, ..."
-            onChange={(v) => patchMsg('leadEmail', 'body', v)} onFocus={(el) => onFieldFocus('leadEmail', 'body', el)} />
+          <MsgField label="Email subject" icon={Mail} singleLine value={m[ed.emailGroup].subject}
+            placeholder={ed.subjPh}
+            onChange={(v) => patchMsg(ed.emailGroup, 'subject', v)} onFocus={(el) => onFieldFocus(ed.emailGroup, 'subject', el)} />
+          <MsgField label="Email message" rows={5} value={m[ed.emailGroup].body}
+            placeholder={ed.bodyPh}
+            onChange={(v) => patchMsg(ed.emailGroup, 'body', v)} onFocus={(el) => onFieldFocus(ed.emailGroup, 'body', el)} />
         </div>
       </div>
 
-      {/* Message to the referral person */}
-      <div className={`bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5 ${dimIf(settings.recipients.referral)}`}>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h4 className="font-black text-sm uppercase tracking-wider text-[var(--text-primary)]">Message to the referral person</h4>
-          <Chips chips={REFERRAL_CHIPS} onInsert={insertToken} />
-        </div>
-        <div className={`space-y-2 ${dimIf(settings.channels.whatsapp)}`}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)]">WhatsApp</span>
-            <TemplatePicker templates={waTemplates} onPick={(t) => fillWhatsappFromTemplate('referralWhatsapp', t)} />
+          <div className="flex justify-end gap-3">
+            <Button variant="primary" onClick={save} disabled={saving} className="px-5 py-2.5">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
+            </Button>
           </div>
-          <MsgField label="WhatsApp message" icon={MessageCircle} value={m.referralWhatsapp.body}
-            placeholder="Hi {{referral_name}}, thank you for referring {{lead_name}}..."
-            onChange={(v) => patchMsg('referralWhatsapp', 'body', v)} onFocus={(el) => onFieldFocus('referralWhatsapp', 'body', el)} />
-        </div>
-        <div className={`space-y-3 ${dimIf(settings.channels.email)}`}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)]">Email</span>
-            <TemplatePicker templates={emailTemplates} onPick={(t) => fillEmailFromTemplate('referralEmail', t)} />
-          </div>
-          <MsgField label="Email subject" icon={Mail} singleLine value={m.referralEmail.subject}
-            placeholder="Thank you for your referral, {{referral_name}}"
-            onChange={(v) => patchMsg('referralEmail', 'subject', v)} onFocus={(el) => onFieldFocus('referralEmail', 'subject', el)} />
-          <MsgField label="Email message" rows={5} value={m.referralEmail.body}
-            placeholder="Hi {{referral_name}}, ..."
-            onChange={(v) => patchMsg('referralEmail', 'body', v)} onFocus={(el) => onFieldFocus('referralEmail', 'body', el)} />
-        </div>
-      </div>
+        </div>{/* /editor column */}
 
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={() => setPreviewOpen(true)} className="px-5 py-2.5"><Eye size={16} /> Preview</Button>
-        <Button variant="primary" onClick={save} disabled={saving} className="px-5 py-2.5">
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
-        </Button>
-      </div>
+        {/* Live preview rail — reuses the same WhatsApp/Email renderers, always visible while editing */}
+        <aside className="xl:sticky xl:top-6">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-black text-sm uppercase tracking-wider text-[var(--text-primary)] flex items-center gap-2"><Eye size={15} /> Live preview</h3>
+              <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)]">{isLead ? 'Customer' : 'Referral'}</span>
+            </div>
+            <div className="space-y-4">
+              {settings.channels.whatsapp && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5"><MessageCircle size={12} /> WhatsApp</p>
+                  <WhatsAppPreview text={pvWa} />
+                </div>
+              )}
+              {settings.channels.email && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5"><Mail size={12} /> Email</p>
+                  <EmailPreview subject={pvSubj} body={pvBody} />
+                </div>
+              )}
+              {!settings.channels.whatsapp && !settings.channels.email && (
+                <p className="text-sm text-[var(--text-muted)] text-center py-6">Both channels are off under “Send over”.</p>
+              )}
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)]">Sample details ({who === 'lead' ? 'Asha Mehta' : 'Rohan Gupta'}).</p>
+          </div>
+        </aside>
+      </div>{/* /editor + preview grid */}
 
       {/* ── Help / guidance modal ───────────────────────────────────────────── */}
-      <Modal isOpen={helpOpen} onClose={() => setHelpOpen(false)} title="How Thank You Automation works">
+      <Modal isOpen={helpOpen} onClose={() => setHelpOpen(false)} title="How thank-you messages work">
         <div className="space-y-4 text-sm text-[var(--text-secondary)]">
           <p>This sends an automatic thank-you the moment a new enquiry is submitted — to the customer and, when their details exist, the person who referred them.</p>
           <ol className="space-y-2.5 list-none">
@@ -427,7 +452,7 @@ const ThankYouSettingsPage = () => {
               ['Choose channels', '“Send over” — WhatsApp, Email, or both.'],
               ['Choose recipients', '“Send to” — the customer, the referral person, or both.'],
               ['Write the messages', 'Type in each box, click a + chip (e.g. “+ Customer name”) to drop in details, or “↻ Load from saved template”.'],
-              ['Preview', 'Click “Preview” to see the real WhatsApp and email look before going live.'],
+              ['Preview', 'The live preview on the right shows the real WhatsApp and email look as you type.'],
               ['Save', 'Click “Save”. Done!'],
             ].map(([t, d], i) => (
               <li key={t} className="flex gap-3">
@@ -442,41 +467,6 @@ const ThankYouSettingsPage = () => {
         </div>
       </Modal>
 
-      {/* ── Realistic preview modal ─────────────────────────────────────────── */}
-      <Modal isOpen={previewOpen} onClose={() => setPreviewOpen(false)} title="Preview — how it will look" className="max-w-2xl">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <button className={tabCls(who === 'lead')} onClick={() => setPreviewWho('lead')}>Customer</button>
-            <button className={tabCls(who === 'referral')} onClick={() => setPreviewWho('referral')}>Referral person</button>
-          </div>
-
-          {!whoEnabled && (
-            <p className="text-xs font-bold text-[var(--warning)] bg-[var(--warning)]/10 rounded-xl px-3 py-2 border border-[var(--warning)]/30">
-              This recipient is currently turned off under “Send to”. Shown for preview only.
-            </p>
-          )}
-
-          <p className="text-xs text-[var(--text-muted)]">Rendered with sample details (e.g. {who === 'lead' ? 'Asha Mehta' : 'Rohan Gupta'}).</p>
-
-          <div className="space-y-5">
-            {settings.channels.whatsapp && (
-              <div className="space-y-1.5">
-                <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5"><MessageCircle size={12} /> WhatsApp</p>
-                <WhatsAppPreview text={pvWa} />
-              </div>
-            )}
-            {settings.channels.email && (
-              <div className="space-y-1.5">
-                <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5"><Mail size={12} /> Email</p>
-                <EmailPreview subject={pvSubj} body={pvBody} />
-              </div>
-            )}
-            {!settings.channels.whatsapp && !settings.channels.email && (
-              <p className="text-sm text-[var(--text-muted)] text-center py-6">Both channels are turned off under “Send over”.</p>
-            )}
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };

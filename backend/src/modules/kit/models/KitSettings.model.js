@@ -29,10 +29,32 @@ const emailDesignSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/**
+ * A single block in the editable email LAYOUT (the frame's structure). `key` is a
+ * BLOCK_CATALOG key (header/body/footer/button/divider/spacer/signature/social/
+ * image), `enabled` toggles it without deleting, and `props` holds block-specific
+ * settings (button text/url, spacer height, signature text, social links, …).
+ * When `sections` is empty/unset, emailLayout.js falls back to the classic
+ * header → body → footer frame, so existing sends are unchanged.
+ */
+const layoutSectionSchema = new mongoose.Schema(
+  {
+    key:     { type: String, required: true },
+    enabled: { type: Boolean, default: true },
+    props:   { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+  },
+  { _id: false }
+);
+
 const kitSettingsSchema = new mongoose.Schema(
   {
     key: { type: String, default: "kit_global", unique: true },
     emailDesign: { type: emailDesignSchema, default: () => ({}) },
+    // The universal email LAYOUT — ordered blocks shared by every email. Empty
+    // means "use the built-in default frame".
+    emailLayout: {
+      sections: { type: [layoutSectionSchema], default: undefined },
+    },
     updatedBy: { type: ObjectId, ref: "User" },
   },
   { timestamps: true, collection: "kit_settings" }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Plus, Trash2, GripVertical, ChevronUp, ChevronDown, Settings2,
   Type, AlignLeft, Mail, Phone, Hash, Calendar, List, CheckSquare, Minus,
@@ -248,10 +248,15 @@ const HelpPanel = ({ onClose }) => (
  *   onClose()  — close handler
  *   template   — existing template object to edit (null → create mode)
  *   onSaved(t) — called with the saved template after create/update
+ *   projectId  — when set (project Forms tab), editing a SHARED template forks a
+ *                project-scoped copy instead of mutating the shared master
+ *                (copy-on-write). Editing an existing project copy updates it.
  */
-const FormBuilderModal = ({ isOpen, onClose, template, onSaved }) => {
+const FormBuilderModal = ({ isOpen, onClose, template, onSaved, projectId = null }) => {
   const toast = useToast();
-  const isEdit = !!template;
+  const isEdit        = !!template;
+  const isProjectCopy = !!template?.projectId;            // already a per-project copy
+  const isForking     = isEdit && !!projectId && !isProjectCopy; // shared template edited inside a project
 
   const [title,       setTitle]       = useState(template?.title       || '');
   const [description, setDescription] = useState(template?.description || '');
@@ -259,6 +264,21 @@ const FormBuilderModal = ({ isOpen, onClose, template, onSaved }) => {
   const [saving,      setSaving]      = useState(false);
   const [addingType,  setAddingType]  = useState(false);
   const [showHelp,    setShowHelp]    = useState(false);
+
+  // Sync form state whenever the modal opens or the target template changes.
+  // This modal is mounted persistently in ClientFormsPanel, so the lazy
+  // useState initializers above run only once (when template was still null).
+  // Without this, clicking the pencil to edit a template would show the stale,
+  // empty state from first mount. Options are deep-copied so editing a field's
+  // options never mutates the original template object held by the parent.
+  useEffect(() => {
+    if (!isOpen) return;
+    setTitle(template?.title || '');
+    setDescription(template?.description || '');
+    setFields((template?.fields || []).map((f) => ({ ...f, options: [...(f.options || [])] })));
+    setAddingType(false);
+    setShowHelp(false);
+  }, [isOpen, template]);
 
   const updateField = useCallback((id, updated) => {
     setFields((prev) => prev.map((f) => (f.id === id ? updated : f)));
@@ -300,12 +320,26 @@ const FormBuilderModal = ({ isOpen, onClose, template, onSaved }) => {
     setSaving(true);
     try {
       const payload = { title: title.trim(), description: description.trim(), fields };
-      const res = isEdit
-        ? await pmsService.updateClientFormTemplate(template._id, payload)
-        : await pmsService.createClientFormTemplate(payload);
-      const saved = res?.data?.template;
-      toast.success(isEdit ? 'Template updated' : 'Template created');
-      onSaved?.(saved);
+      let res;
+      let successMsg;
+      if (isForking) {
+        // Copy-on-write: editing a shared template inside a project saves the
+        // changes as a NEW project-scoped copy; the shared master is untouched.
+        res = await pmsService.createClientFormTemplate({
+          ...payload,
+          projectId,
+          sourceTemplateId: template._id,
+        });
+        successMsg = 'Saved as a copy for this project';
+      } else if (isEdit) {
+        res = await pmsService.updateClientFormTemplate(template._id, payload);
+        successMsg = 'Template updated';
+      } else {
+        res = await pmsService.createClientFormTemplate(payload);
+        successMsg = 'Template created';
+      }
+      toast.success(successMsg);
+      onSaved?.(res?.template);
       onClose();
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Save failed');
@@ -318,10 +352,21 @@ const FormBuilderModal = ({ isOpen, onClose, template, onSaved }) => {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? 'Edit Form Template' : 'New Form Template'}
+      title={isForking ? 'Customize Template for this Project' : isEdit ? 'Edit Form Template' : 'New Form Template'}
       className="max-w-2xl"
     >
       <div className="flex flex-col gap-4">
+        {/* Copy-on-write notice — shown only when forking a shared template */}
+        {isForking && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-[var(--primary)]/8 border border-[var(--primary)]/25 text-[11px] text-[var(--text-secondary)] leading-relaxed">
+            <Info size={13} className="text-[var(--primary)] shrink-0 mt-0.5" />
+            <span>
+              You're customizing a <strong>shared</strong> template. Your changes are saved as a copy
+              for <strong>this project only</strong> — the shared template stays unchanged.
+            </span>
+          </div>
+        )}
+
         {/* Help toggle button */}
         <div className="flex justify-end">
           <button
@@ -436,7 +481,7 @@ const FormBuilderModal = ({ isOpen, onClose, template, onSaved }) => {
         <div className="flex justify-end gap-2 pt-2 border-t border-[var(--border)]">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Template'}
+            {saving ? 'Saving…' : isForking ? 'Save for this Project' : isEdit ? 'Save Changes' : 'Create Template'}
           </Button>
         </div>
       </div>

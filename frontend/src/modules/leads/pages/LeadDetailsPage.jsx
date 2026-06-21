@@ -221,6 +221,16 @@ const LeadDetailsPage = () => {
   };
 
   const openMeetingModal = () => {
+    // Pre-fill from the client's preferred slot captured on the enquiry form,
+    // when it's still in the future — otherwise keep the sensible defaults.
+    if (lead?.preferredMeetingDate) {
+      const preferredDateStr = new Date(lead.preferredMeetingDate).toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (preferredDateStr >= todayStr) {
+        setMeetingDate(preferredDateStr);
+        if (lead.preferredMeetingTime) setMeetingTime(lead.preferredMeetingTime);
+      }
+    }
     setScheduleAttendees({ internal: [], client: seedClientAttendeesForLead(lead) });
     setIsMeetingModalOpen(true);
   };

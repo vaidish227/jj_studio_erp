@@ -44,6 +44,7 @@ const base = {
     name: Joi.string().allow(""),
   })),
   emailDesign: emailDesignSchema,
+  designId:  OID.allow(null, ""),   // which Email Design (frame) this template wears
   variables: Joi.array().items(Joi.string().trim()),
   isActive:  Joi.boolean(),
 };
@@ -63,6 +64,16 @@ const updateTemplateSchema = Joi.object({ ...base })
   .min(1)
   .options({ abortEarly: false });
 
+// Editable email LAYOUT — an ordered list of blocks. `props` is block-specific
+// and intentionally permissive (the renderer reads only the keys it understands).
+const emailLayoutSchema = Joi.object({
+  sections: Joi.array().items(Joi.object({
+    key:     Joi.string().required(),
+    enabled: Joi.boolean(),
+    props:   Joi.object().unknown(true),
+  })),
+});
+
 // Render-preview: supply ad-hoc fields and optionally an entity to pull real data.
 const previewSchema = Joi.object({
   channel:    base.channel.required(),
@@ -75,6 +86,9 @@ const previewSchema = Joi.object({
   entityId:   OID,
   variables:  Joi.object(),
   emailDesign: emailDesignSchema,
+  designId:   OID.allow(null, ""),  // preview a Mail Template through its chosen design
+  // Optional draft layout for the live builder preview (overrides the saved one).
+  layout:     emailLayoutSchema,
 }).options({ abortEarly: false });
 
 module.exports = { createTemplateSchema, updateTemplateSchema, previewSchema };

@@ -1,9 +1,9 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Layers, FolderOpen, Search, Plus, Download, Upload,
-  ChevronDown, Check, ClipboardList, Trash2, ExternalLink,
+  ChevronDown, Check, Trash2, ExternalLink,
 } from 'lucide-react';
-import { Button, Loader, SearchInput, Modal, PdfThumbnail, PdfViewer } from '../../../shared/components';
+import { Button, Loader, SearchInput, Modal, PdfViewer } from '../../../shared/components';
 import PermissionGate from '../../../shared/components/PermissionGate/PermissionGate';
 import useProjects from '../hooks/useProjects';
 import useProjectMoMs from '../hooks/useProjectMoMs';
@@ -12,18 +12,21 @@ import RecordMoMModal from '../components/RecordMoMModal';
 import MoMPreviewModal from '../components/MoMPreviewModal';
 import UploadDocumentModal from '../components/UploadDocumentModal';
 import DocumentCard, { metaFor } from '../components/DocumentCard';
+import ClientFormsPanel from '../components/ClientFormsPanel';
 import { pmsService } from '../../../shared/services/pmsService';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 
 // ─── Category definitions ────────────────────────────────────────────────────
-// Client Details · Documents · MOM · Design Files · SOP — each is a tab that
-// filters the document grid.
+// Client Details · Documents · MOM · Design Files · SOP filter the document
+// grid; Forms swaps the grid for the Client Forms panel (templates + links).
+// Kept in sync with DocumentsTab.jsx CATEGORIES.
 const CATEGORIES = [
   { id: 'client_details', label: 'Client Details' },
   { id: 'documents',      label: 'Documents' },
   { id: 'mom',            label: 'MOM' },
   { id: 'design_files',   label: 'Design Files' },
   { id: 'sop',            label: 'SOP' },
+  { id: 'forms',          label: 'Forms' },
 ];
 
 // Badge label per ProjectDocument.status
@@ -501,13 +504,15 @@ const DocumentRepositoryPage = () => {
                 </p>
               </div>
             </div>
-            <div className="w-full sm:w-64">
-              <SearchInput
-                value={search}
-                onChange={setSearch}
-                placeholder="Search files…"
-              />
-            </div>
+            {activeCategory !== 'forms' && (
+              <div className="w-full sm:w-64">
+                <SearchInput
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search files…"
+                />
+              </div>
+            )}
           </div>
 
           {/* Category tabs + actions on the same row */}
@@ -551,22 +556,27 @@ const DocumentRepositoryPage = () => {
                   </Button>
                 </PermissionGate>
               )}
-              <PermissionGate permission={['documents.upload', 'projects.update', 'drawings.upload']} mode="any">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setUploadOpen(true)}
-                  disabled={!selectedProjectId}
-                >
-                  <Upload size={14} />
-                  Upload Document
-                </Button>
-              </PermissionGate>
+              {activeCategory !== 'forms' && (
+                <PermissionGate permission={['documents.upload', 'projects.update', 'drawings.upload']} mode="any">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setUploadOpen(true)}
+                    disabled={!selectedProjectId}
+                  >
+                    <Upload size={14} />
+                    Upload Document
+                  </Button>
+                </PermissionGate>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Documents grid */}
+        {/* Forms tab — render the client forms panel; otherwise the documents grid */}
+        {activeCategory === 'forms' ? (
+          <ClientFormsPanel project={selectedProject} />
+        ) : (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 min-h-[320px]">
           {docsLoading ? (
             <div className="flex items-center justify-center py-16">
@@ -610,6 +620,7 @@ const DocumentRepositoryPage = () => {
             </div>
           )}
         </div>
+        )}
       </section>
 
       {previewDoc && (

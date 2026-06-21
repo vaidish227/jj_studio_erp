@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-  Briefcase, TrendingUp, AlertTriangle, Lock, Eye, CheckCircle2,
+  Briefcase, TrendingUp, AlertTriangle, AlertOctagon,
   ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * KPIStrip — 6 tiles. Compact, scannable, click-through.
+ * KPIStrip — 4 tiles. Compact, scannable, click-through.
  * We hand-roll the tile (rather than reusing DashboardCard) so the layout is
  * uniformly dense for this strip and we can show trend deltas neatly.
  */
@@ -60,7 +60,7 @@ const KPIStrip = ({ kpis }) => {
   const t = kpis.trends || {};
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
       <Tile
         icon={Briefcase}
         label="Active Projects"
@@ -85,27 +85,11 @@ const KPIStrip = ({ kpis }) => {
         tone="warning"
       />
       <Tile
-        icon={Lock}
-        label="Pending Sign-offs"
-        value={kpis.openGates ?? 0}
-        trend={t.openGates}
-        redirectPath="/pms/analytics"
-        tone="accent"
-      />
-      <Tile
-        icon={Eye}
-        label="PD Reviews"
-        value={kpis.pendingPdReviews ?? 0}
-        trend={t.pendingPdReviews}
-        redirectPath="/pms/review-design"
-        tone="primary"
-      />
-      <Tile
-        icon={CheckCircle2}
-        label="Released"
-        value={kpis.releasedThisPeriod ?? 0}
-        trend={t.releasedThisPeriod}
-        tone="success"
+        icon={AlertOctagon}
+        label="Critical"
+        value={kpis.criticalCount ?? 0}
+        trend={t.criticalCount}
+        tone="error"
       />
     </div>
   );

@@ -57,7 +57,7 @@ const dispatch = async (opts) => {
   if (channel === "email") {
     if (!contact.email) return fail(undefined, "No email address for recipient");
     const message = render(template.htmlBody) || "";
-    const design  = await resolveEmailDesign(template.emailDesign); // global brand < this template's overrides
+    const design  = await resolveEmailDesign({ designId: template.designId }); // the template's chosen Email Design (or default)
     await mailQueue.enqueue({
       to:       contact.email,
       subject:  render(template.subject) || "",

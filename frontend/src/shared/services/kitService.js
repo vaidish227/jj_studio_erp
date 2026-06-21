@@ -77,9 +77,18 @@ export const kitService = {
   getKickoffSettings:    ()     => apiClient.get('/kit/kickoff/settings'),
   updateKickoffSettings: (data) => apiClient.put('/kit/kickoff/settings', data),
 
-  // ─── Global KIT settings (email branding, singleton) ──────────────────────────
+  // ─── Global KIT settings (delivery preferences, singleton) ────────────────────
   getKitSettings:    ()     => apiClient.get('/kit/settings'),
   updateKitSettings: (data) => apiClient.put('/kit/settings', data),
+
+  // ─── Email Designs (reusable named email frames) ──────────────────────────────
+  listEmailDesigns:      ()         => apiClient.get('/kit/email-designs'),
+  getEmailDesign:        (id)       => apiClient.get(`/kit/email-designs/${id}`),
+  createEmailDesign:     (data)     => apiClient.post('/kit/email-designs', data),
+  updateEmailDesign:     (id, data) => apiClient.put(`/kit/email-designs/${id}`, data),
+  deleteEmailDesign:     (id)       => apiClient.delete(`/kit/email-designs/${id}`),
+  setDefaultEmailDesign: (id)       => apiClient.post(`/kit/email-designs/${id}/default`),
+  duplicateEmailDesign:  (id)       => apiClient.post(`/kit/email-designs/${id}/duplicate`),
 
   // ─── Analytics ────────────────────────────────────────────────────────────────
   getAnalyticsOverview:  (range) => apiClient.get('/kit/analytics/overview',  analyticsOpts(range)),

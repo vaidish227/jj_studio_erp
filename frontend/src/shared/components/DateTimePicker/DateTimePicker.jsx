@@ -1,8 +1,9 @@
 import React from 'react';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import Input from '../Input/Input';
+import TimePicker from '../TimePicker/TimePicker';
 
-const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChange, error, required, minDate, minTime }) => {
+const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChange, error, required, minDate }) => {
   return (
     <div className="space-y-4">
       {label && (
@@ -20,14 +21,11 @@ const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChang
           className="w-full"
           min={minDate}
         />
-        <Input
-          type="time"
-          icon={Clock}
+        {/* 12-hour picker with an explicit AM/PM toggle; emits 'HH:mm' (24h). */}
+        <TimePicker
           value={timeValue}
           onChange={(e) => onTimeChange(e.target.value)}
           required={required}
-          className="w-full"
-          min={minTime}
         />
       </div>
       {error && <p className="text-xs text-[var(--error)] font-medium mt-1">{error}</p>}

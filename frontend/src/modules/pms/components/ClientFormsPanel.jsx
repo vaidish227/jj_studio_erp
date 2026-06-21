@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ClipboardList, Plus, Trash2, Send, Eye, Link2,
-  CheckCircle, Clock, AlertCircle, FileText, ChevronDown, ChevronUp,
+  CheckCircle, FileText, ChevronDown, ChevronUp,
   Copy, Check, Pencil,
 } from 'lucide-react';
 import { Button, Loader } from '../../../shared/components';
@@ -10,6 +10,7 @@ import { useToast } from '../../../shared/notifications/ToastProvider';
 import { pmsService } from '../../../shared/services/pmsService';
 import FormBuilderModal from './FormBuilderModal';
 import SendFormLinkModal from './SendFormLinkModal';
+import FormPreviewModal from './FormPreviewModal';
 
 const STATUS_BADGE = {
   active:    { label: 'Active',    color: 'bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/30' },
@@ -188,6 +189,7 @@ const ClientFormsPanel = ({ project }) => {
   const [editTemplate, setEditTemplate] = useState(null);
   const [sendModal,    setSendModal]    = useState(null);   // the link to send
   const [viewResponse, setViewResponse] = useState(null);  // the response to view
+  const [previewTemplate, setPreviewTemplate] = useState(null); // template to preview
   const [createLinkFor, setCreateLinkFor] = useState(null); // templateId awaiting link creation
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -198,12 +200,15 @@ const ClientFormsPanel = ({ project }) => {
       const [linksRes, respRes, templRes] = await Promise.all([
         pmsService.getProjectFormLinks(project._id),
         pmsService.getProjectFormResponses(project._id),
-        pmsService.getClientFormTemplates(),
+        // Pass the project so the list includes this project's own copies
+        // (copy-on-write customisations) alongside the shared templates.
+        pmsService.getClientFormTemplates(project._id),
       ]);
-      setLinks(linksRes?.data?.links || []);
-      setResponses(respRes?.data?.responses || []);
-      setTemplates(templRes?.data?.templates || []);
-    } catch (err) {
+      // apiClient unwraps to response.data, so payloads sit directly on each res.
+      setLinks(linksRes?.links || []);
+      setResponses(respRes?.responses || []);
+      setTemplates(templRes?.templates || []);
+    } catch {
       toast.error('Failed to load forms');
     } finally {
       setLoading(false);
@@ -289,40 +294,60 @@ const ClientFormsPanel = ({ project }) => {
             <p className="text-xs text-[var(--text-muted)] py-2">No templates yet. Create your first template.</p>
           ) : (
             <div className="space-y-2">
-              {templates.map((t) => (
-                <div key={t._id} className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-[var(--text-primary)] truncate">{t.title}</p>
-                    {t.description && (
-                      <p className="text-[10px] text-[var(--text-muted)] truncate">{t.description}</p>
-                    )}
-                    <p className="text-[10px] text-[var(--text-muted)]">{t.fields?.length || 0} fields</p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <PermissionGate permission="documents.upload">
+              {templates.map((t) => {
+                const scoped = !!t.projectId && String(t.projectId) === String(project?._id);
+                return (
+                  <div key={t._id} className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-xs font-bold text-[var(--text-primary)] truncate">{t.title}</p>
+                        <span className={`shrink-0 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
+                          scoped
+                            ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'
+                            : 'bg-[var(--text-muted)]/10 text-[var(--text-muted)] border-[var(--border)]'
+                        }`}>
+                          {scoped ? 'This project' : 'Shared'}
+                        </span>
+                      </div>
+                      {t.description && (
+                        <p className="text-[10px] text-[var(--text-muted)] truncate">{t.description}</p>
+                      )}
+                      <p className="text-[10px] text-[var(--text-muted)]">{t.fields?.length || 0} fields</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
-                        onClick={() => { setEditTemplate(t); setBuilderOpen(true); }}
+                        onClick={() => setPreviewTemplate(t)}
                         className="p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--border)] hover:text-[var(--primary)] transition-colors"
-                        title="Edit template"
+                        title="Preview form"
                       >
-                        <Pencil size={12} />
+                        <Eye size={12} />
                       </button>
-                    </PermissionGate>
-                    <PermissionGate permission="documents.upload">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleCreateLink(t._id)}
-                        disabled={createLinkFor === t._id}
-                      >
-                        <Link2 size={11} />
-                        {createLinkFor === t._id ? 'Creating…' : 'Use for this Project'}
-                      </Button>
-                    </PermissionGate>
+                      <PermissionGate permission="documents.upload">
+                        <button
+                          type="button"
+                          onClick={() => { setEditTemplate(t); setBuilderOpen(true); }}
+                          className="p-1.5 rounded-lg text-[var(--text-muted)] hover:bg-[var(--border)] hover:text-[var(--primary)] transition-colors"
+                          title={scoped ? "Edit this project's copy" : 'Customize for this project'}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      </PermissionGate>
+                      <PermissionGate permission="documents.upload">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleCreateLink(t._id)}
+                          disabled={createLinkFor === t._id}
+                        >
+                          <Link2 size={11} />
+                          {createLinkFor === t._id ? 'Creating…' : 'Use for this Project'}
+                        </Button>
+                      </PermissionGate>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -361,7 +386,14 @@ const ClientFormsPanel = ({ project }) => {
         isOpen={builderOpen}
         onClose={() => { setBuilderOpen(false); setEditTemplate(null); }}
         template={editTemplate}
+        projectId={project?._id}
         onSaved={() => loadData()}
+      />
+
+      <FormPreviewModal
+        template={previewTemplate}
+        isOpen={!!previewTemplate}
+        onClose={() => setPreviewTemplate(null)}
       />
 
       {sendModal && (
@@ -369,6 +401,10 @@ const ClientFormsPanel = ({ project }) => {
           isOpen
           onClose={() => setSendModal(null)}
           formLink={sendModal}
+          /* Pre-fill from the project's client so the user need not retype them.
+             clientId is populated with { name, phone, email } on the project. */
+          defaultEmail={project?.clientId?.email || ''}
+          defaultPhone={project?.clientId?.phone || ''}
         />
       )}
 

@@ -43,6 +43,9 @@ const { getOverview, getCampaignAnalytics, getTemplateAnalytics } = require("../
 const { getThankYouSettings, updateThankYouSettings } = require("../controllers/thankYou.controller");
 const { getKickoffSettings, updateKickoffSettings } = require("../controllers/kickoff.controller");
 const { getSettings, updateSettings } = require("../controllers/settings.controller");
+const {
+  listDesigns, getDesign, createDesign, updateDesign, setDefault, duplicateDesign, deleteDesign,
+} = require("../controllers/emailDesign.controller");
 
 // ─── Templates ────────────────────────────────────────────────────────────────
 // Static routes first so they aren't captured by /templates/:id.
@@ -64,9 +67,18 @@ router.put("/thank-you/settings", requirePermission("kit.manage"), updateThankYo
 router.get("/kickoff/settings", requirePermission("kit.read"),   getKickoffSettings);
 router.put("/kickoff/settings", requirePermission("kit.manage"), updateKickoffSettings);
 
-// ─── Global KIT settings (email branding, singleton) ────────────────────────
+// ─── Global KIT settings (delivery preferences, singleton) ──────────────────
 router.get("/settings", requirePermission("kit.read"),   getSettings);
 router.put("/settings", requirePermission("kit.manage"), updateSettings);
+
+// ─── Email Designs (reusable named email frames) ────────────────────────────
+router.get("/email-designs",                 requirePermission("kit.read"),   listDesigns);
+router.post("/email-designs",                requirePermission("kit.manage"), createDesign);
+router.get("/email-designs/:id",             requirePermission("kit.read"),   getDesign);
+router.put("/email-designs/:id",             requirePermission("kit.manage"), updateDesign);
+router.delete("/email-designs/:id",          requirePermission("kit.manage"), deleteDesign);
+router.post("/email-designs/:id/default",    requirePermission("kit.manage"), setDefault);
+router.post("/email-designs/:id/duplicate",  requirePermission("kit.manage"), duplicateDesign);
 
 // ─── Enrollments (static before campaigns/:id catch-alls is not needed — separate base) ──
 router.get("/enrollments",          requirePermission("kit.read"),   getEnrollments);

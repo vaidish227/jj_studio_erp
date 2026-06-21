@@ -18,7 +18,6 @@ import ProjectHealthGrid       from '../components/dashboard/ProjectHealthGrid';
 import PhaseDistributionChart  from '../components/dashboard/PhaseDistributionChart';
 import ActiveProjectsTimeline  from '../components/dashboard/ActiveProjectsTimeline';
 import PendingMyApprovalList   from '../components/dashboard/PendingMyApprovalList';
-import GateAgingBars           from '../components/dashboard/GateAgingBars';
 import RecentActivityFeed      from '../components/dashboard/RecentActivityFeed';
 import UpcomingMilestonesList  from '../components/dashboard/UpcomingMilestonesList';
 import DeliveryTrendCards      from '../components/dashboard/DeliveryTrendCards';
@@ -29,12 +28,12 @@ import DeliveryTrendCards      from '../components/dashboard/DeliveryTrendCards'
  * Sections (top to bottom):
  *   1. Header (title + period selector + refresh)
  *   2. Overdue alert banner (conditional) — Review Now opens OverdueProjectsModal
- *   3. KPI strip (6 tiles)
+ *   3. KPI strip (4 tiles)
  *   4. AlertsSection (4-tab consolidated alerts feed)
  *   5. Project Health card grid (sorted worst-first)
  *   6. Active Projects Gantt timeline
  *   7. Designer KPI/KRA Scoreboard | Pending My Approval (2-up)
- *   8. Gate Aging | Phase Distribution (2-up)
+ *   8. Phase Distribution (full width)
  *   9. Recent Activity | Upcoming Milestones (2-up)
  */
 const PMSDashboardPage = () => {
@@ -149,10 +148,10 @@ const PMSDashboardPage = () => {
         isRefetching={isRefetching}
       />
 
-      {/* Snapshot hint — PMS is mostly current-state; only "Released this period" and
-          the Designer KRA scoreboard follow the selected range. */}
+      {/* Snapshot hint — PMS is mostly current-state; only the Designer KRA
+          scoreboard follows the selected range. */}
       <p className="text-[11px] text-[var(--text-muted)]">
-        Only the “Released” KPI and Designer KRA follow the selected range. Cards marked
+        Only the Designer KRA follows the selected range. Cards marked
         <SnapshotBadge variant="snapshot" className="mx-1 align-middle" />
         are current totals,
         <SnapshotBadge variant="live" className="mx-1 align-middle" />
@@ -210,10 +209,7 @@ const PMSDashboardPage = () => {
 
       <DeliveryTrendCards data={data?.weeklyTrend || []} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <GateAgingBars data={data?.gateAging} />
-        <PhaseDistributionChart data={data?.phaseDistribution || []} />
-      </div>
+      <PhaseDistributionChart data={data?.phaseDistribution || []} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RecentActivityFeed     items={data?.recentActivity || []} />

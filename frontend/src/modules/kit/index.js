@@ -5,6 +5,8 @@ export { default as CampaignBuilderPage } from './pages/CampaignBuilderPage';
 export { default as AutomationsPage } from './pages/AutomationsPage';
 export { default as AutomationBuilderPage } from './pages/AutomationBuilderPage';
 export { default as KitSettingsPage } from './pages/KitSettingsPage';
+export { default as EmailDesignListPage } from './pages/EmailDesignListPage';
+export { default as EmailDesignEditorPage } from './pages/EmailDesignEditorPage';
 export { default as ThankYouSettingsPage } from './pages/ThankYouSettingsPage';
 export { default as KickoffSettingsPage } from './pages/KickoffSettingsPage';
 export { default as AnalyticsPage } from './pages/AnalyticsPage';

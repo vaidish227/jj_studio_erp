@@ -331,6 +331,13 @@ const getOverview = async (req, res) => {
       (p) => p.estimatedCompletionDate && new Date(p.estimatedCompletionDate) < now
     ).length;
 
+    // Critical = active projects delayed by MORE than 20 days past their ETA.
+    const CRITICAL_DELAY_MS = 20 * DAY;
+    const criticalCount = decoratedProjects.filter(
+      (p) => p.estimatedCompletionDate
+        && (now - new Date(p.estimatedCompletionDate)) > CRITICAL_DELAY_MS
+    ).length;
+
     const openGatesCount = allOpenGates.length;
 
     const pendingPdReviews = await Approval.countDocuments({
@@ -352,6 +359,7 @@ const getOverview = async (req, res) => {
       activeProjects:   null,
       onTrackPct:       null,
       delayedCount:     null,
+      criticalCount:    null,
       openGates:        null,
       pendingPdReviews: null,
       releasedThisPeriod: releasedThisPeriod - releasedPrevious,
@@ -502,6 +510,7 @@ const getOverview = async (req, res) => {
         activeProjects:     activeProjectsCount,
         onTrackPct,
         delayedCount,
+        criticalCount,
         openGates:          openGatesCount,
         pendingPdReviews,
         releasedThisPeriod,
