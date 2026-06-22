@@ -49,10 +49,8 @@ jobs:
           command_timeout: 30m
           script: |
             set -e
-            export APP_DIR="${{ secrets.EC2_APP_DIR }}"
-            export APP_DIR="${APP_DIR:-$HOME/jj_studio/jj_studio_erp}"
-            export PM2_APP="${{ secrets.PM2_APP }}"
-            export PM2_APP="${PM2_APP:-jjerp-backend}"
+            export APP_DIR="/home/ubuntu/jj_studio/jj_studio_erp"
+            export PM2_APP="jjerp-backend"
             cd "$APP_DIR"
             chmod +x scripts/deploy.sh
             scripts/deploy.sh
