@@ -1,6 +1,6 @@
 import React from 'react';
 import { Calendar } from 'lucide-react';
-import Input from '../Input/Input';
+import DatePicker from '../DatePicker/DatePicker';
 import TimePicker from '../TimePicker/TimePicker';
 
 const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChange, error, required, minDate }) => {
@@ -12,14 +12,14 @@ const DateTimePicker = ({ label, dateValue, timeValue, onDateChange, onTimeChang
         </label>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Input
-          type="date"
+        <DatePicker
           icon={Calendar}
           value={dateValue}
           onChange={(e) => onDateChange(e.target.value)}
           required={required}
           className="w-full"
           min={minDate}
+          placeholder="Select date"
         />
         {/* 12-hour picker with an explicit AM/PM toggle; emits 'HH:mm' (24h). */}
         <TimePicker

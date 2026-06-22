@@ -14,6 +14,7 @@ import {
   Mail,
   MessageCircle,
   MapPin,
+  Pencil,
   Phone,
   Plus,
   RotateCcw,
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react';
 import Card from '../../../shared/components/Card/Card';
 import Button from '../../../shared/components/Button/Button';
+import Input from '../../../shared/components/Input/Input';
 import { CommunicationTimeline } from '../../kit';
 import DateTimePicker from '../../../shared/components/DateTimePicker/DateTimePicker';
 import Modal from '../../../shared/components/Modal/Modal';
@@ -155,6 +157,11 @@ const LeadDetailsPage = () => {
   const [scheduleAttendees, setScheduleAttendees] = useState(EMPTY_ATTENDEES);
   const [rescheduleAttendees, setRescheduleAttendees] = useState(EMPTY_ATTENDEES);
 
+  // Inline edit for the core lead profile (Client / Email / Phone / Project
+  // Type / Budget / Site Address). `infoForm` is null while not editing.
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [infoForm, setInfoForm] = useState(null);
+
   const projectAssets = lead?.showProject?.assets || [];
 
 
@@ -193,6 +200,46 @@ const LeadDetailsPage = () => {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const beginEditInfo = () => {
+    setActionError('');
+    setActionSuccess('');
+    setInfoForm({
+      name: lead.name || '',
+      email: lead.email || '',
+      phone: lead.phone || '',
+      projectType: lead.projectType || 'Residential',
+      budget: lead.budget != null ? String(lead.budget) : '',
+      siteAddress:
+        typeof lead.siteAddress === 'object'
+          ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || ''
+          : lead.siteAddress || '',
+    });
+    setIsEditingInfo(true);
+  };
+
+  const cancelEditInfo = () => {
+    setIsEditingInfo(false);
+    setInfoForm(null);
+  };
+
+  const handleSaveInfo = async () => {
+    // Preserve any extra fields already stored on the (object) siteAddress.
+    const existingSite =
+      lead.siteAddress && typeof lead.siteAddress === 'object' ? lead.siteAddress : {};
+    await runAction(async () => {
+      await crmService.updateLead(id, {
+        name: infoForm.name.trim(),
+        email: infoForm.email.trim(),
+        phone: infoForm.phone.trim(),
+        projectType: infoForm.projectType,
+        budget: infoForm.budget ? Number(infoForm.budget) : undefined,
+        siteAddress: { ...existingSite, fullAddress: infoForm.siteAddress.trim() },
+      });
+      setIsEditingInfo(false);
+      setInfoForm(null);
+    }, 'Lead details updated.');
   };
 
   const validateFutureDateTime = (dateStr, timeStr, fieldLabel = 'Meeting') => {
@@ -497,22 +544,92 @@ const LeadDetailsPage = () => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
           <Card className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              <InfoItem icon={User} label="Client" value={lead.name} />
-              <InfoItem icon={Mail} label="Email" value={lead.email} />
-              <InfoItem icon={Phone} label="Phone" value={lead.phone} />
-              <InfoItem icon={Building2} label="Project Type" value={lead.projectType} />
-              <InfoItem icon={IndianRupee} label="Budget" value={lead.budget ? `Rs. ${Number(lead.budget).toLocaleString('en-IN')}` : '—'} />
-              <InfoItem
-                icon={MapPin}
-                label="Site Address"
-                value={
-                  typeof lead.siteAddress === 'object'
-                    ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || '—'
-                    : lead.siteAddress || '—'
-                }
-              />
+            <div className="flex items-center justify-between gap-3">
+              <SectionTitle title="Lead Profile" icon={User} />
+              {canUpdate && !isEditingInfo && (
+                <button
+                  type="button"
+                  onClick={beginEditInfo}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]"
+                >
+                  <Pencil size={14} />
+                  Edit
+                </button>
+              )}
             </div>
+
+            {isEditingInfo ? (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  <Input
+                    label="Client"
+                    icon={User}
+                    value={infoForm.name}
+                    onChange={(e) => setInfoForm((p) => ({ ...p, name: e.target.value }))}
+                  />
+                  <Input
+                    label="Email"
+                    type="email"
+                    icon={Mail}
+                    value={infoForm.email}
+                    onChange={(e) => setInfoForm((p) => ({ ...p, email: e.target.value }))}
+                  />
+                  <Input
+                    label="Phone"
+                    icon={Phone}
+                    value={infoForm.phone}
+                    onChange={(e) => setInfoForm((p) => ({ ...p, phone: e.target.value }))}
+                  />
+                  <Select
+                    label="Project Type"
+                    value={infoForm.projectType}
+                    onChange={(val) => setInfoForm((p) => ({ ...p, projectType: val }))}
+                    options={[
+                      { value: 'Residential', label: 'Residential' },
+                      { value: 'Commercial', label: 'Commercial' },
+                    ]}
+                  />
+                  <Input
+                    label="Budget"
+                    type="number"
+                    icon={IndianRupee}
+                    value={infoForm.budget}
+                    onChange={(e) => setInfoForm((p) => ({ ...p, budget: e.target.value }))}
+                  />
+                  <Input
+                    label="Site Address"
+                    icon={MapPin}
+                    value={infoForm.siteAddress}
+                    onChange={(e) => setInfoForm((p) => ({ ...p, siteAddress: e.target.value }))}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button variant="primary" onClick={handleSaveInfo} isLoading={actionLoading}>
+                    Save Changes
+                  </Button>
+                  <Button variant="outline" onClick={cancelEditInfo} disabled={actionLoading}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <InfoItem icon={User} label="Client" value={lead.name} />
+                <InfoItem icon={Mail} label="Email" value={lead.email} />
+                <InfoItem icon={Phone} label="Phone" value={lead.phone} />
+                <InfoItem icon={Building2} label="Project Type" value={lead.projectType} />
+                <InfoItem icon={IndianRupee} label="Budget" value={lead.budget ? `Rs. ${Number(lead.budget).toLocaleString('en-IN')}` : '—'} />
+                <InfoItem
+                  icon={MapPin}
+                  label="Site Address"
+                  value={
+                    typeof lead.siteAddress === 'object'
+                      ? lead.siteAddress?.fullAddress || lead.siteAddress?.city || '—'
+                      : lead.siteAddress || '—'
+                  }
+                />
+              </div>
+            )}
 
             {(lead.siteDetails || lead.notes) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
