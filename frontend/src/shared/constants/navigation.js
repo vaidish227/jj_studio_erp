@@ -11,6 +11,8 @@ import {
   Crown,
   ListTodo,
   LayoutTemplate,
+  CheckSquare,
+  CalendarDays,
 } from 'lucide-react';
 
 // Each item has an optional `permission` key.
@@ -119,13 +121,15 @@ export const NAV_ITEMS = [
     // project drawings — don't see this sidebar group.
     permission: 'designer.dashboard',
     children: [
-      // Designer's own dashboard, surfaced back in this group. Tasks and Calendar
-      // remain trimmed per product decision, but their routes (/tasks,
-      // /pms/calendar) stay registered so deep links still work.
-      // The icon is used when the sidebar is flattened (designer role) and
+      // Designer's own Dashboard, Tasks, Drawings and Calendar.
+      // Icons are used only when the sidebar is flattened (designer role) and
       // collapsed to the icon rail; grouped/expanded views render labels only.
       { id: 'designer-dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/designer/dashboard', permission: 'designer.dashboard' },
+      { id: 'tasks',              icon: CheckSquare,     label: 'Tasks',     path: '/tasks',              permission: 'tasks.submit' },
       { id: 'drawings',           icon: FileText,        label: 'Drawings',  path: '/drawings',           permission: 'drawings.read' },
+      // Self-scoped calendar (backend returns only the designer's own events).
+      // id 'calendar' matches the last URL segment so it highlights when active.
+      { id: 'calendar',           icon: CalendarDays,    label: 'Calendar',  path: '/pms/calendar',       permission: 'calendar.read' },
     ],
   },
   {
