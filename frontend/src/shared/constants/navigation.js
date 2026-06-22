@@ -119,12 +119,12 @@ export const NAV_ITEMS = [
     // project drawings — don't see this sidebar group.
     permission: 'designer.dashboard',
     children: [
-      // Trimmed to Drawings only — Dashboard, Tasks and Calendar were removed
-      // from this group per product decision. Their routes (/designer/dashboard,
-      // /tasks, /pms/calendar) remain registered, so deep links still work; they
-      // are simply no longer surfaced in this sidebar group.
+      // Designer's own dashboard, surfaced back in this group. Tasks and Calendar
+      // remain trimmed per product decision, but their routes (/tasks,
+      // /pms/calendar) stay registered so deep links still work.
       // The icon is used when the sidebar is flattened (designer role) and
       // collapsed to the icon rail; grouped/expanded views render labels only.
+      { id: 'designer-dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/designer/dashboard', permission: 'designer.dashboard' },
       { id: 'drawings',           icon: FileText,        label: 'Drawings',  path: '/drawings',           permission: 'drawings.read' },
     ],
   },
@@ -134,7 +134,7 @@ export const NAV_ITEMS = [
     icon: ListTodo,
     permission: 'delegation.read',
     children: [
-      { id: 'delegation-dashboard',   label: 'Dashboard',          path: '/delegation',             permission: 'delegation.read' },
+      { id: 'delegation-dashboard',   label: 'Dashboard',          path: '/delegation',             permission: 'delegation.dashboard' },
       { id: 'delegation-create',      label: 'Create Delegation',  path: '/delegation/create',      permission: 'delegation.create' },
       { id: 'delegation-list',        label: 'Delegation List',    path: '/delegation/list',        permission: 'delegation.read' },
     ],

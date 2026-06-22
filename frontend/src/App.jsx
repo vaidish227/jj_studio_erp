@@ -127,8 +127,8 @@ export default function App() {
                 {/* Delegation Management (internal-only MVP) */}
                 <Route path="/delegation/departments" element={<ProtectedRoute permission="delegation.department.manage"><DepartmentAdminPage /></ProtectedRoute>} />
                 <Route path="/delegation/create" element={<ProtectedRoute permission="delegation.create"><CreateDelegationPage /></ProtectedRoute>} />
+                <Route path="/delegation" element={<ProtectedRoute permission="delegation.dashboard"><DelegationDashboardPage /></ProtectedRoute>} />
                 <Route element={<ProtectedRoute permission="delegation.read"><Outlet /></ProtectedRoute>}>
-                  <Route path="/delegation"      element={<DelegationDashboardPage />} />
                   <Route path="/delegation/list" element={<DelegationListPage />} />
                   <Route path="/delegation/:id"  element={<DelegationDetailPage />} />
                 </Route>

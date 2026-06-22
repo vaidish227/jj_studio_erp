@@ -31,7 +31,7 @@ const upload = multer({
 // verifyToken is applied globally in app.js.
 
 // Dashboard + assignees — declared BEFORE "/:id" so they aren't parsed as ids.
-router.get("/dashboard", requirePermission("delegation.read"), c.getDashboard);
+router.get("/dashboard", requirePermission("delegation.dashboard"), c.getDashboard);
 router.get("/assignees", requirePermission("delegation.assign"), c.listAssignees);
 
 // Collection

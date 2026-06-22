@@ -77,7 +77,7 @@ const DEFAULT_ROLES = [
       "ai.chat", "ai.docs.read",
 
       // Delegation Management (cross-department task delegation)
-      "delegation.read", "delegation.viewAll", "delegation.create",
+      "delegation.read", "delegation.viewAll", "delegation.dashboard", "delegation.create",
       "delegation.update", "delegation.assign", "delegation.reassign",
       "delegation.department.manage",
     ],
@@ -136,7 +136,7 @@ const DEFAULT_ROLES = [
       "ai.chat", "ai.docs.read", "ai.docs.manage",
 
       // Delegation Management (cross-department task delegation)
-      "delegation.read", "delegation.viewAll", "delegation.create",
+      "delegation.read", "delegation.viewAll", "delegation.dashboard", "delegation.create",
       "delegation.update", "delegation.delete", "delegation.assign", "delegation.reassign",
     ],
     isSystem: true,

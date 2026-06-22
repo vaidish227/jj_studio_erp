@@ -471,6 +471,8 @@ const PERMISSION_REGISTRY = [
             "See the Delegation menu and open delegations assigned to or created by the user."),
           a("delegation.viewAll", "View All",
             "See delegations across every user and department — not just the user's own."),
+          a("delegation.dashboard", "Dashboard",
+            "Open the Delegation dashboard with delegation metrics, status breakdowns, and activity."),
           a("delegation.create", "Create", "Create a new delegation."),
           a("delegation.update", "Edit",
             "Edit a delegation, change its status, update its checklist, and add comments / attachments."),
