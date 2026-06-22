@@ -8,6 +8,7 @@ const Input = ({
   error,
   className = '',
   min,
+  required = false,
   onKeyDown,
   onChange,
   onWheel,
@@ -48,6 +49,7 @@ const Input = ({
       {label && (
         <label className="text-sm font-medium text-[var(--text-secondary)] ml-1">
           {label}
+          {required && <span className="text-[var(--error)] ml-0.5">*</span>}
         </label>
       )}
       <div className="relative group">
@@ -60,6 +62,7 @@ const Input = ({
         <input
           type={inputType}
           min={resolvedMin}
+          required={required}
           onKeyDown={handleKeyDown}
           onChange={handleChange}
           onWheel={handleWheel}

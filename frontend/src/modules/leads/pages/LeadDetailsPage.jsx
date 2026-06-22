@@ -1061,7 +1061,7 @@ const InfoItem = ({ icon: Icon, label, value }) => (
     <p className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">{label}</p>
     <div className="mt-2 flex items-start gap-2 text-sm text-[var(--text-primary)]">
       <Icon size={16} className="shrink-0 mt-0.5 text-[var(--text-muted)]" />
-      <span>{value || '—'}</span>
+      <span className="min-w-0 break-words">{value || '—'}</span>
     </div>
   </div>
 );

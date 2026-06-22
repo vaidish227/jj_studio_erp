@@ -30,6 +30,17 @@ import { Loader } from '../../../shared/components';
 import { useToast } from '../../../shared/notifications/ToastProvider';
 import usePermission from '../../../shared/hooks/usePermission';
 
+// Format a raw integer string into the Indian grouping system (1,00,000):
+// the last three digits stay together, then digits group in pairs.
+const formatIndianNumber = (val) => {
+  const digits = String(val ?? '').replace(/\D/g, '');
+  if (!digits) return '';
+  const last3 = digits.slice(-3);
+  const rest = digits.slice(0, -3);
+  if (!rest) return last3;
+  return `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${last3}`;
+};
+
 const EnquiryFormPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -47,6 +58,13 @@ const EnquiryFormPage = () => {
     handleSelectChange,
     handleSubmit
   } = useLead();
+
+  // Numeric fields display Indian-grouped commas but store only raw digits,
+  // so validation and the API payload keep working with plain numbers.
+  const handleNumericChange = (e) => {
+    const { name, value } = e.target;
+    handleChange({ target: { name, value: value.replace(/\D/g, '') } });
+  };
 
   const handleFormSubmit = async (e) => {
     const result = await handleSubmit(e);
@@ -282,26 +300,34 @@ const EnquiryFormPage = () => {
                 name="city"
                 value={formData.city}
                 onChange={handleChange}
+                error={errors.city}
                 icon={MapPin}
                 placeholder="Ex: Indore"
+                required
               />
               <Input
                 label="Approx Area (Sq.Ft)"
                 name="approxArea"
-                type="number"
-                value={formData.approxArea}
-                onChange={handleChange}
+                type="text"
+                inputMode="numeric"
+                value={formatIndianNumber(formData.approxArea)}
+                onChange={handleNumericChange}
+                error={errors.approxArea}
                 icon={Layers}
-                placeholder="Ex: 2500"
+                placeholder="Ex: 2,500"
+                required
               />
               <Input
                 label="Fees Estimate (₹)"
                 name="quotedAmount"
-                type="number"
-                value={formData.quotedAmount}
-                onChange={handleChange}
+                type="text"
+                inputMode="numeric"
+                value={formatIndianNumber(formData.quotedAmount)}
+                onChange={handleNumericChange}
+                error={errors.quotedAmount}
                 icon={IndianRupee}
-                placeholder="Ex: 1500000"
+                placeholder="Ex: 15,00,000"
+                required
               />
             </div>
 
@@ -362,7 +388,7 @@ const EnquiryFormPage = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-              <FormField label="Site Details / Address">
+              <FormField label="Site Details / Address" required error={errors.siteDetails}>
                 <textarea
                   name="siteDetails"
                   value={formData.siteDetails}

@@ -58,6 +58,18 @@ const validateForm = (data) => {
   } else if (!/\S+@\S+\.\S+/.test(data.email)) {
     errors.email = 'Enter a valid email address';
   }
+  if (!String(data.city || '').trim()) errors.city = 'City / Location is required';
+  if (!String(data.approxArea || '').trim()) {
+    errors.approxArea = 'Approx area is required';
+  } else if (!(Number(data.approxArea) > 0)) {
+    errors.approxArea = 'Enter a valid area';
+  }
+  if (!String(data.quotedAmount || '').trim()) {
+    errors.quotedAmount = 'Fees estimate is required';
+  } else if (!(Number(data.quotedAmount) > 0)) {
+    errors.quotedAmount = 'Enter a valid fees estimate';
+  }
+  if (!String(data.siteDetails || '').trim()) errors.siteDetails = 'Site details / address is required';
   // Scheduling a meeting on submit needs a concrete, future date + time.
   if (data.scheduleMeetingNow) {
     if (!data.preferredMeetingDate) {
