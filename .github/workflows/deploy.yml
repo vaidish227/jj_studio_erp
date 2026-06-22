@@ -1,0 +1,58 @@
+name: CI/CD — Build & Deploy to EC2 (PM2 + NGINX)
+
+# Push to main → verify the frontend builds, then SSH into the EC2 host and run
+# the PM2/NGINX deploy script. Manual runs available via the Actions tab.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # ── 1. CI: make sure the apps build before we touch the server ─────────────
+  build:
+    name: Build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Frontend — install & production build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build      # uses .env.production (VITE_API_URL=/api)
+
+      - name: Backend — install (plain Node runtime, no build)
+        working-directory: backend
+        run: npm ci --omit=dev
+
+  # ── 2. CD: SSH into EC2 and redeploy (git pull → build → pm2 restart) ───────
+  deploy:
+    name: Deploy to EC2
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: SSH → run deploy script
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT || 22 }}
+          command_timeout: 30m
+          script: |
+            set -e
+            export APP_DIR="${{ secrets.EC2_APP_DIR }}"
+            export APP_DIR="${APP_DIR:-$HOME/jj_studio/jj_studio_erp}"
+            export PM2_APP="${{ secrets.PM2_APP }}"
+            export PM2_APP="${PM2_APP:-jjerp-backend}"
+            cd "$APP_DIR"
+            chmod +x scripts/deploy.sh
+            scripts/deploy.sh

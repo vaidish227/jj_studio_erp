@@ -1,0 +1,35 @@
+# ─── Secrets & credentials (NEVER commit) ────────────────────────────────────
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ─── Build output ────────────────────────────────────────────────────────────
+dist/
+**/dist/
+build/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+
+# ─── Runtime / generated ─────────────────────────────────────────────────────
+backend/public/proposals/
+*.pid
+
+# ─── OS / editor ─────────────────────────────────────────────────────────────
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
